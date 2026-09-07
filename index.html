@@ -17,12 +17,16 @@ body{display:grid;place-items:center;min-height:100vh}.box{max-width:620px;paddi
   const status=document.getElementById('status');
   const SUPABASE_URL='https://pymragemvcfxmqiyjqhy.supabase.co';
   const SUPABASE_KEY='sb_publishable_QWF58VWTEpScqo588mUzSQ_bYLIewgE';
+  const ROOT='https://jumerca.github.io/trace-enquetes/';
   const qs=new URLSearchParams(location.search);
   const hs=new URLSearchParams((location.hash||'').replace(/^#/,''));
   const code=qs.get('code');
   const accessToken=hs.get('access_token');
   const refreshToken=hs.get('refresh_token');
   const safeError=qs.get('error_description')||qs.get('error')||hs.get('error_description')||hs.get('error');
+
+  function esc(v){return String(v??'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+
   try{
     if(safeError) throw new Error(safeError);
 
@@ -37,6 +41,7 @@ body{display:grid;place-items:center;min-height:100vh}.box{max-width:620px;paddi
       if(exchanged.error) throw exchanged.error;
       session=exchanged.data?.session||null;
     }else if(accessToken && refreshToken){
+      status.innerHTML='<h1>TRACE.</h1><p class="muted">Finalisation de la connexion Google…</p>';
       const set=await client.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
       if(set.error) throw set.error;
       session=set.data?.session||null;
@@ -46,25 +51,37 @@ body{display:grid;place-items:center;min-height:100vh}.box{max-width:620px;paddi
       session=current.data?.session||null;
     }
 
-    if((code||accessToken) && !session) throw new Error('Supabase a reçu le retour Google mais n’a créé aucune session.');
-    if(code||accessToken||safeError) history.replaceState({},'',location.pathname);
+    if((code||accessToken) && !session){
+      throw new Error('Le retour Google a été reçu, mais Supabase n’a pas créé de session.');
+    }
 
-    const response=await fetch('./index-1.html?v=pkce-1',{cache:'no-store'});
+    if(code||accessToken||safeError){
+      history.replaceState({},'',location.pathname);
+    }
+
+    const response=await fetch('./index-1.html?v=pkce-2',{cache:'no-store'});
     if(!response.ok) throw new Error('Impossible de charger TRACE (HTTP '+response.status+').');
     let html=await response.text();
 
-    /* La version publiée reste un gros fichier autonome. On force ici le même flux PKCE dans son client Supabase, sans modifier le jeu lui-même. */
-    html=html.replace(
-      'auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}',
-      'auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:"pkce"}'
-    );
+    /* Force PKCE dans toutes les variantes de configuration Supabase présentes dans le gros fichier autonome. */
+    html=html.replace(/detectSessionInUrl\s*:\s*true(?!\s*,\s*flowType)/g,
+      'detectSessionInUrl:true,flowType:"pkce"');
+    html=html.replace(/detectSessionInUrl\s*:\s*false(?!\s*,\s*flowType)/g,
+      'detectSessionInUrl:false,flowType:"pkce"');
+
+    /* Le retour OAuth doit toujours revenir sur la vraie racine GitHub Pages. */
+    html=html.replace(/location\.origin\s*\+\s*location\.pathname/g,
+      '"'+ROOT+'"');
+
+    /* Si le code de l'app contient déjà flowType, on le normalise également. */
+    html=html.replace(/flowType\s*:\s*["']implicit["']/g,'flowType:"pkce"');
 
     document.open();
     document.write(html);
     document.close();
   }catch(err){
     const msg=String(err?.message||err||'Erreur inconnue');
-    status.innerHTML='<h1>TRACE.</h1><h2 class="err">Connexion non finalisée</h2><p class="err">'+msg.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))+'</p><p class="muted">Le message ci-dessus vient directement du retour Google/Supabase.</p><p><a href="./?v=pkce-1">Réessayer</a></p>';
+    status.innerHTML='<h1>TRACE.</h1><h2 class="err">Connexion non finalisée</h2><p class="err">'+esc(msg)+'</p><p class="muted">Ce message vient directement du retour Google/Supabase.</p><p><a href="./reset-cloud.html">Nettoyer la session puis réessayer</a></p>';
   }
 })();
 </script>
