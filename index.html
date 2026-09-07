@@ -6,11 +6,11 @@
 <title>TRACE.</title>
 <style>
 html,body{margin:0;min-height:100%;background:#090d11;color:#f2eadc;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-body{display:grid;place-items:center;min-height:100vh}.box{max-width:620px;padding:28px}.muted{color:#9ba7b3}.err{color:#ef8585}a{color:#f2eadc}
+body{display:grid;place-items:center;min-height:100vh}.box{max-width:620px;padding:28px;text-align:center}.muted{color:#9ba7b3}.err{color:#ef8585;word-break:break-word}a{color:#f2eadc}
 </style>
 </head>
 <body>
-<div class="box" id="status"><h1>TRACE.</h1><p class="muted">Connexion sécurisée en cours…</p></div>
+<div class="box" id="status"><h1>TRACE.</h1><p class="muted">Chargement sécurisé…</p></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (async()=>{
@@ -18,46 +18,53 @@ body{display:grid;place-items:center;min-height:100vh}.box{max-width:620px;paddi
   const SUPABASE_URL='https://pymragemvcfxmqiyjqhy.supabase.co';
   const SUPABASE_KEY='sb_publishable_QWF58VWTEpScqo588mUzSQ_bYLIewgE';
   const qs=new URLSearchParams(location.search);
-  const hs=new URLSearchParams(location.hash.startsWith('#')?location.hash.slice(1):location.hash);
-  const oauthReturn=qs.has('code')||qs.has('error')||hs.has('access_token')||hs.has('refresh_token')||hs.has('error');
+  const hs=new URLSearchParams((location.hash||'').replace(/^#/,''));
+  const code=qs.get('code');
+  const accessToken=hs.get('access_token');
+  const refreshToken=hs.get('refresh_token');
   const safeError=qs.get('error_description')||qs.get('error')||hs.get('error_description')||hs.get('error');
   try{
     if(safeError) throw new Error(safeError);
-    const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    await new Promise(r=>setTimeout(r,700));
-    let {data,error}=await client.auth.getSession();
-    if(error) throw error;
-    let session=data?.session||null;
 
-    if(!session && qs.get('code')){
-      const exchanged=await client.auth.exchangeCodeForSession(qs.get('code'));
+    const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,flowType:'pkce'}
+    });
+
+    let session=null;
+    if(code){
+      status.innerHTML='<h1>TRACE.</h1><p class="muted">Finalisation de la connexion Google…</p>';
+      const exchanged=await client.auth.exchangeCodeForSession(code);
       if(exchanged.error) throw exchanged.error;
       session=exchanged.data?.session||null;
-    }
-
-    if(!session && hs.get('access_token') && hs.get('refresh_token')){
-      const set=await client.auth.setSession({access_token:hs.get('access_token'),refresh_token:hs.get('refresh_token')});
+    }else if(accessToken && refreshToken){
+      const set=await client.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
       if(set.error) throw set.error;
       session=set.data?.session||null;
+    }else{
+      const current=await client.auth.getSession();
+      if(current.error) throw current.error;
+      session=current.data?.session||null;
     }
 
-    if(oauthReturn && !session){
-      throw new Error('Le retour Google a été reçu, mais Supabase n’a créé aucune session.');
-    }
+    if((code||accessToken) && !session) throw new Error('Supabase a reçu le retour Google mais n’a créé aucune session.');
+    if(code||accessToken||safeError) history.replaceState({},'',location.pathname);
 
-    if(session && (location.search||location.hash)){
-      history.replaceState({},'',location.pathname);
-    }
-
-    const response=await fetch('./index-1.html',{cache:'no-store'});
+    const response=await fetch('./index-1.html?v=pkce-1',{cache:'no-store'});
     if(!response.ok) throw new Error('Impossible de charger TRACE (HTTP '+response.status+').');
-    const html=await response.text();
+    let html=await response.text();
+
+    /* La version publiée reste un gros fichier autonome. On force ici le même flux PKCE dans son client Supabase, sans modifier le jeu lui-même. */
+    html=html.replace(
+      'auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}',
+      'auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:"pkce"}'
+    );
+
     document.open();
     document.write(html);
     document.close();
   }catch(err){
     const msg=String(err?.message||err||'Erreur inconnue');
-    status.innerHTML='<h1>TRACE.</h1><h2 class="err">Connexion non finalisée</h2><p>'+msg.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))+'</p><p class="muted">Cette page a conservé le diagnostic du retour Google sans afficher les jetons de connexion.</p><p><a href="./auth-debug.html">Ouvrir le diagnostic Supabase</a></p><p><a href="./">Réessayer</a></p>';
+    status.innerHTML='<h1>TRACE.</h1><h2 class="err">Connexion non finalisée</h2><p class="err">'+msg.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))+'</p><p class="muted">Le message ci-dessus vient directement du retour Google/Supabase.</p><p><a href="./?v=pkce-1">Réessayer</a></p>';
   }
 })();
 </script>
