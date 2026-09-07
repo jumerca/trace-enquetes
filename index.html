@@ -5,30 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>TRACE.</title>
 <style>
-html,body{margin:0;width:100%;height:100%;background:#090d11;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0;background:#090d11}
+html,body{margin:0;min-height:100%;background:#090d11;color:#f2eadc;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{display:grid;place-items:center;min-height:100vh}.loading{opacity:.78;letter-spacing:.08em;font-size:.85rem}
 </style>
 </head>
 <body>
-<iframe id="traceApp" src="index-1.html" title="TRACE"></iframe>
+<div class="loading">Chargement de TRACE…</div>
 <script>
-const frame=document.getElementById('traceApp');
-function applyHomeRules(){
+(async()=>{
   try{
-    const d=frame.contentDocument;
-    if(!d)return;
-    d.querySelectorAll('.v12-sidebar nav button').forEach(btn=>{
-      const txt=(btn.textContent||'').trim().toLowerCase();
-      if(txt.includes('preuves')) btn.style.display='none';
-    });
-  }catch(e){}
-}
-frame.addEventListener('load',()=>{
-  applyHomeRules();
-  try{
-    const d=frame.contentDocument;
-    new MutationObserver(applyHomeRules).observe(d.documentElement,{childList:true,subtree:true});
-  }catch(e){}
-});
+    const response=await fetch('./index-1.html',{cache:'no-store'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    const html=await response.text();
+    document.open();
+    document.write(html);
+    document.close();
+  }catch(err){
+    document.body.innerHTML='<div style="padding:24px;max-width:560px"><h1>TRACE.</h1><p>Impossible de charger l\'application.</p><p><a style="color:#f2eadc" href="./index-1.html">Ouvrir TRACE directement</a></p></div>';
+  }
+})();
 </script>
 </body>
 </html>
