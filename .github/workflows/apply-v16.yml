@@ -1,0 +1,30 @@
+name: Apply TRACE V16 quality upgrade
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-v16.yml'
+      - 'tools/apply_v16.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure ffmpeg
+        run: command -v ffmpeg >/dev/null || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - name: Patch app
+        run: |
+          python tools/apply_v16.py
+          ffmpeg -y -loglevel error -f lavfi -i color=c=0x101716:s=480x270:r=10:d=10 -vf "drawbox=x=35:y=40:w=410:h=185:color=0x26322f:t=3,drawbox=x=60:y=65:w=310:h=125:color=0x17221f:t=fill,drawbox=x=372:y=65:w=73:h=125:color=0x222d29:t=fill,drawbox=x=170:y=65:w=75:h=125:color=0x2f2d27:t=3,drawbox=x=180:y=75:w=55:h=105:color=0x202623:t=fill,drawtext=text='17':x=198:y=113:fontsize=16:fontcolor=0xc4c8bf,drawtext=text='SERVICE':x=374:y=55:fontsize=9:fontcolor=0x899892,drawtext=text='CAM 02  COULOIR NORD':x=10:y=16:fontsize=11:fontcolor=0xc2d0c8,drawtext=text='15-03  02\\:18':x=365:y=16:fontsize=9:fontcolor=0xc2d0c8,drawbox=x='if(between(t,5.5,6.5),455-35*(t-5.5),-100)':y=105:w=24:h=70:color=0x0b0e0c:t=fill,noise=alls=8:allf=t+u,eq=contrast=1.08:brightness=-0.03:saturation=0.15" -c:v libx264 -preset veryfast -crf 36 -pix_fmt yuv420p -movflags +faststart -an media/chambre17-cctv.mp4
+      - name: Commit generated V16
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html index-1.html media/chambre17-plan.svg media/chambre17-cctv.mp4
+          git diff --cached --quiet || git commit -m 'Apply TRACE V16 investigation quality upgrade'
+          git push
