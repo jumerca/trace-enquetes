@@ -1,0 +1,47 @@
+name: Apply TRACE V17 complete quality pass
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/apply_v17.py"
+      - ".github/workflows/apply-v17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply TRACE V17
+        run: python tools/apply_v17.py
+      - name: Validate generated media
+        run: |
+          test -f media/chambre17.mp4
+          test -f media/derniermessage.mp4
+          test -f media/2342.mp4
+          test -f media/photodetrop.mp4
+          test -f media/comptefantome.mp4
+          test -f media/colis.mp4
+          test -f media/temoin4.mp4
+          test -f media/dossierzero.mp4
+          test -f media/chambre17-voicemail.wav
+          test -f media/temoin4-message.wav
+          test -f media/dossierzero-voice.wav
+          grep -q "TRACE V17 QUALITY PASS" index-1.html
+          grep -q "local-v17" index.html
+          ! grep -q "traceVideo('data:video/mp4;base64" index-1.html
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html index-1.html media tools/apply_v17.py .github/workflows/apply-v17.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Apply TRACE V17 complete investigation quality pass"
+            git push
+          fi
