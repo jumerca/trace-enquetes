@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08101d">
+  <title>Mise à jour Studio 24</title>
+  <style>
+    html,body{margin:0;min-height:100%;background:#07111f;color:#f5f1e7;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    body{display:grid;place-items:center;padding:24px;box-sizing:border-box}
+    main{width:min(520px,100%);text-align:center;background:linear-gradient(180deg,rgba(18,31,50,.96),rgba(7,17,31,.98));border:1px solid rgba(219,178,87,.35);border-radius:24px;padding:28px;box-shadow:0 24px 80px rgba(0,0,0,.35)}
+    .mark{width:64px;height:64px;margin:0 auto 18px;border-radius:18px;display:grid;place-items:center;font-size:26px;font-weight:900;color:#07111f;background:linear-gradient(135deg,#f1d27f,#62d9ff)}
+    h1{margin:0 0 8px;font-size:24px}p{opacity:.78;line-height:1.5;margin:0}.bar{height:6px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin:22px 0}.bar i{display:block;height:100%;width:35%;background:linear-gradient(90deg,#d8aa4d,#62d9ff);animation:load 1s ease-in-out infinite alternate}@keyframes load{to{transform:translateX(185%)}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="mark">24</div>
+  <h1>Mise à jour de Studio 24</h1>
+  <p>Nettoyage de l’ancien cache puis ouverture de la dernière version. Ta sauvegarde est conservée.</p>
+  <div class="bar"><i></i></div>
+  <p id="status">Préparation…</p>
+</main>
+<script>
+(async()=>{
+  const status=document.getElementById('status');
+  try{
+    status.textContent='Suppression des anciens caches Studio 24…';
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.filter(r=>r.scope.includes('/trace-enquetes/studio24/')).map(r=>r.unregister()));
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.filter(k=>k.startsWith('studio24-')).map(k=>caches.delete(k)));
+    }
+    status.textContent='Chargement de la V8…';
+  }catch(e){status.textContent='Actualisation…'}
+  setTimeout(()=>location.replace('./trace-enquetes/studio24/?force=v8-'+Date.now()),350);
+})();
+</script>
+</body>
+</html>
