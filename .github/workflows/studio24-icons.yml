@@ -1,0 +1,39 @@
+name: Build Studio 24 PWA icons
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "studio24/icon-source.svg"
+      - ".github/workflows/studio24-icons.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  icons:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SVG renderer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+      - name: Build PNG icons
+        run: |
+          rsvg-convert -w 192 -h 192 studio24/icon-source.svg -o studio24/icon-192.png
+          rsvg-convert -w 512 -h 512 studio24/icon-source.svg -o studio24/icon-512.png
+          test -s studio24/icon-192.png
+          test -s studio24/icon-512.png
+      - name: Commit icons
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add studio24/icon-192.png studio24/icon-512.png
+          if git diff --cached --quiet; then
+            echo "Icons already current"
+          else
+            git commit -m "Build Studio 24 PWA icons"
+            git push
+          fi
