@@ -15,10 +15,13 @@ if 'v8.css' not in index:
     index=index.replace('<link rel="stylesheet" href="v7.css" />','<link rel="stylesheet" href="v7.css" />\n  <link rel="stylesheet" href="v8.css" />')
 if 'v8-enhance.js' not in index:
     index=index.replace('<script src="v7-enhance.js"></script>','<script src="v7-enhance.js"></script>\n  <script src="v8-enhance.js"></script>')
-index=index.replace('V7 LIVING ANTENNA','V8 NETWORK UNIVERSE')
-index=index.replace('STUDIO 24 · LIVING ANTENNA','STUDIO 24 · NETWORK UNIVERSE')
-index=index.replace('Studio 24 · V7 Living Antenna','Studio 24 · V8 Network Universe')
-index=index.replace('<b>V7</b>','<b>V8</b>')
+for old in ['V6 LIVING NETWORK','V7 LIVING ANTENNA']:
+    index=index.replace(old,'V8 NETWORK UNIVERSE')
+for old in ['STUDIO 24 · LIVING NETWORK','STUDIO 24 · LIVING ANTENNA']:
+    index=index.replace(old,'STUDIO 24 · NETWORK UNIVERSE')
+for old in ['Studio 24 · V6 Living Network','Studio 24 · V7 Living Antenna']:
+    index=index.replace(old,'Studio 24 · V8 Network Universe')
+index=index.replace('<b>V6</b>','<b>V8</b>').replace('<b>V7</b>','<b>V8</b>')
 (APP/'index.html').write_text(index)
 
 sw="""const CACHE='studio24-v8-network-universe-1';
