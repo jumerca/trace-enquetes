@@ -1,0 +1,46 @@
+name: Apply Studio 24 install fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "studio24/install-helper.js"
+      - ".github/workflows/studio24-install-fix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Studio 24 entry page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('studio24/index.html')
+          s=p.read_text()
+          s=s.replace('<link rel="icon" href="icon.svg" />','<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />')
+          s=s.replace('<link rel="apple-touch-icon" href="icon.svg" />','<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />')
+          if 'name="application-name"' not in s:
+              s=s.replace('<meta name="description" content="Studio 24 — Media Empire, jeu de gestion de chaîne TV" />','<meta name="description" content="Studio 24 — Media Empire, jeu de gestion de chaîne TV" />\n  <meta name="application-name" content="Studio 24" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-title" content="Studio 24" />')
+          if '<script src="install-helper.js"></script>' not in s:
+              s=s.replace('</body>','  <script src="install-helper.js"></script>\n</body>')
+          s=s.replace('STUDIO 24 · PREMIUM EDITION</span><b>V5</b>','STUDIO 24 · LIVING NETWORK</span><b>V6</b>')
+          s=s.replace('Studio 24 · V5 Premium Edition','Studio 24 · V6 Living Network')
+          s=s.replace('V5 PREMIUM','V6 LIVING')
+          p.write_text(s)
+          PY
+      - name: Commit install fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add studio24/index.html
+          if git diff --cached --quiet; then
+            echo "Install page already current"
+          else
+            git commit -m "Fix Studio 24 install experience"
+            git push
+          fi
