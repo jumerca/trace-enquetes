@@ -1,16 +1,28 @@
 {
+  "id": "/trace-enquetes/studio24/",
   "name": "Studio 24 — Media Empire",
   "short_name": "Studio 24",
-  "start_url": "./",
+  "description": "Jeu de gestion d'une chaîne et d'un groupe média.",
+  "lang": "fr-FR",
+  "start_url": "/trace-enquetes/studio24/",
+  "scope": "/trace-enquetes/studio24/",
   "display": "standalone",
-  "background_color": "#050c16",
-  "theme_color": "#050c16",
-  "description": "Studio 24 — Media Empire. Jeu de gestion premium d’un groupe audiovisuel : programmation, production, mercato TV, audiences, publicité et streaming.",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#07111f",
+  "theme_color": "#08101d",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/trace-enquetes/studio24/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/trace-enquetes/studio24/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
