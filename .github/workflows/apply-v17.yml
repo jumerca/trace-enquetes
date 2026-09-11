@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg librsvg2-bin
       - name: Apply TRACE V17
         run: python tools/apply_v17.py
       - name: Validate V17 corrections
