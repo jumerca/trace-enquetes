@@ -1,0 +1,39 @@
+name: Apply TRACE V18 Investigation OS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/apply_v18.py"
+      - "tools/v18_payload_*.txt"
+      - ".github/workflows/apply-v18.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply TRACE V18
+        run: python tools/apply_v18.py
+      - name: Validate V18
+        run: |
+          grep -q "TRACE V18 INVESTIGATION OS" index-1.html
+          grep -q "trace-v18-analyst-btn" index-1.html
+          grep -q "trace-v18-season" index-1.html
+          grep -q "trace-v18-faisceau" index-1.html
+          grep -q "local-v18" index.html
+      - name: Commit V18 output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html index-1.html
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit"
+          else
+            git commit -m "Apply TRACE V18 Investigation OS"
+            git push
+          fi
