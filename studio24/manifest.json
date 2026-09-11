@@ -1,0 +1,17 @@
+{
+  "name": "Studio 24 — Media Empire",
+  "short_name": "Studio 24",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#050c16",
+  "theme_color": "#050c16",
+  "description": "Studio 24 — Media Empire. Jeu de gestion premium d’un groupe audiovisuel : programmation, production, mercato TV, audiences, publicité et streaming.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
