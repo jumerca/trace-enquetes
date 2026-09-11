@@ -1,5 +1,5 @@
-const CACHE='studio24-v6-install-2';
-const ASSETS=['./','index.html','styles.css','mobile.css','v6.css','app-core.js','app-pages.js','app-engine.js','v6-enhance.js','install-helper.js','manifest.json','icon-192.png','icon-512.png'];
+const CACHE='studio24-v7-living-antenna-1';
+const ASSETS=['./','index.html','styles.css','mobile.css','v6.css','v7.css','app-core.js','app-pages.js','app-engine.js','v6-enhance.js','v7-enhance.js','install-helper.js','manifest.json','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(resp=>{const copy=resp.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return resp;}).catch(()=>caches.match(e.request).then(r=>r||caches.match('index.html'))))});
