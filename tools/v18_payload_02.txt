@@ -1,0 +1,40 @@
+/style><script id="trace-v18-js">
+(function(){
+'use strict';
+window.TRACE_V18=true;
+const V18_GUIDES={
+ chambre17:{title:'Trois contradictions à faire tenir ensemble',copy:'Ne traite pas l’appel, le trajet et l’accès comme trois énigmes séparées. La bonne hypothèse doit expliquer les trois.',anchors:['origine de l’appel','circulation','accès / badge']},
+ derniermessage:{title:'Séparer le téléphone de la personne',copy:'Une activité numérique peut être réelle sans prouver que son propriétaire est physiquement présent.',anchors:['position du terminal','horaires','déplacement réel']},
+ '2342':{title:'Reconstruire un temps fiable',copy:'Avant de juger un alibi, vérifie quelles horloges disent vrai et lesquelles dérivent.',anchors:['horloges','trajets','journaux système']},
+ photodetrop:{title:'Lire l’image comme une scène',copy:'Métadonnées, angle, reflet et perspective doivent converger vers un même point de prise de vue.',anchors:['EXIF','perspective','accès']},
+ comptefantome:{title:'Chercher une empreinte, pas un pseudo',copy:'Les habitudes d’écriture et les métadonnées valent davantage qu’un nom de compte.',anchors:['style','horaires','métadonnées']},
+ colis:{title:'Suivre la chaîne physique',copy:'Un colis laisse des traces de poids, de scans et de déplacement. Cherche l’endroit où la chaîne devient impossible.',anchors:['scan','trajet','poids / quai']},
+ temoin4:{title:'Distinguer souvenir et connaissance impossible',copy:'Un témoin peut se tromper. La question est de savoir ce qu’il ne pouvait pas connaître depuis sa position déclarée.',anchors:['visibilité','impact','données objectives']},
+ dossierzero:{title:'Changer d’échelle',copy:'Ce dossier se résout par convergence. Les anciennes affaires deviennent des nœuds d’un même système.',anchors:['réseau','finance','agenda / identité']}
+};
+function v18esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function v18Progress(c,p){let ready=caseReadiness(c,p),unseen=c.evidence.filter(e=>e.stage<=p.stage&&!p.viewed.includes(e.id)).length,key=c.evidence.filter(e=>e.key),keySeen=key.filter(e=>p.viewed.includes(e.id)).length,answered=c.questions.filter((q,i)=>p.answers[i]!==undefined).length,correct=c.questions.filter((q,i)=>p.answers[i]===q.answer).length;return{ready,unseen,key,keySeen,answered,correct,links:p.links.length,pinned:p.pinned.length,viewed:p.viewed.length}}
+function v18PhaseData(c,p){let s=v18Progress(c,p),evGoal=Math.max(2,Math.ceil(c.evidence.length*.45)),qGoal=Math.max(1,Math.ceil(c.questions.length*.5));return[
+ {id:'dossier',label:'Ouvrir',sub:'Contexte',done:true},
+ {id:'preuves',label:'Examiner',sub:`${s.viewed}/${c.evidence.length}`,done:s.viewed>=evGoal},
+ {id:'tableau',label:'Recouper',sub:`${s.links} lien${s.links>1?'s':''}`,done:s.links>=1},
+ {id:'hypotheses',label:'Déduire',sub:`${s.answered}/${c.questions.length}`,done:s.answered>=qGoal},
+ {id:'hypotheses',label:'Conclure',sub:`${s.ready}%`,done:s.ready>=75}
+]}
+function v18Next(c,p){let s=v18Progress(c,p);if(s.unseen>0)return{icon:'01',title:`Examiner ${s.unseen} nouvelle${s.unseen>1?'s':''} pièce${s.unseen>1?'s':''}`,copy:'Le dossier contient encore des éléments accessibles que tu n’as pas ouverts.',tab:'preuves',label:'Voir les preuves'};if(s.pinned<2)return{icon:'02',title:'Construire un premier faisceau',copy:'Épingle au moins deux pièces qui semblent parler du même fait.',tab:'preuves',label:'Choisir des pièces'};if(s.links===0)return{icon:'03',title:'Tester tes recoupements',copy:'Tu as assez de matière pour chercher une contradiction ou une convergence.',tab:'tableau',label:'Ouvrir le mur'};if(s.answered<c.questions.length)return{icon:'04',title:'Mettre ton raisonnement à l’épreuve',copy:'Les hypothèses obligent à transformer les indices en explication cohérente.',tab:'hypotheses',label:'Tester l’hypothèse'};if(s.ready<75)return{icon:'05',title:'Renforcer le dossier',copy:'La conclusion approche, mais ton faisceau peut encore être consolidé.',tab:'tableau',label:'Renforcer'};return{icon:'✓',title:'Dossier prêt pour une conclusion',copy:'Tu as suffisamment examiné et recoupé pour défendre une accusation.',tab:'hypotheses',label:'Conclure'} }
+function traceV18Go(tab){traceV18CloseAnalyst();currentTab=tab;renderCase()}
+window.traceV18Go=traceV18Go;
+function traceV18OpenNextEvidence(){let c=currentCase,p=gp(c.id),e=c.evidence.find(x=>x.stage<=p.stage&&!p.viewed.includes(x.id));if(!e){toast('Aucune nouvelle pièce accessible pour le moment');return}currentTab='preuves';openEvidence(e.id)}
+window.traceV18OpenNextEvidence=traceV18OpenNextEvidence;
+function traceV18Note(text){let p=gp(currentCase.id),line='• '+text.trim();p.notes=(p.notes?p.notes.trim()+'\n':'')+line;traceV18Log('note',text,false);save();toast('Ajouté au carnet d’enquête')}
+window.traceV18Note=traceV18Note;
+function traceV18NoteSuspect(name){traceV18Note('Profil à confronter : '+name+' — vérifier l’alibi avec les pièces consultées.')}
+window.traceV18NoteSuspect=traceV18NoteSuspect;
+function traceV18Log(type,text,doSave=true){if(!currentCase)return;let p=gp(currentCase.id);p.v18log=Array.isArray(p.v18log)?p.v18log:[];p.v18log.unshift({t:Date.now(),type,text});p.v18log=p.v18log.slice(0,14);if(doSave)save()}
+function traceV18UseHint(){let c=currentCase,p=gp(c.id),i=c.questions.findIndex((q,j)=>p.answers[j]===undefined&&(j===0||p.stage>=j));if(i<0){toast('Aucun indice supplémentaire nécessaire');return}if(!confirm('Révéler un indice officiel ? Comme les autres indices, il réduit le score potentiel.'))return;traceV18CloseAnalyst();hint(i)}
+window.traceV18UseHint=traceV18UseHint;
+function traceV18AnalyzeSelection(){if(!currentCase)return;let p=gp(currentCase.id);if(p.pinned.length<2){toast('Épingle au moins deux pièces avant de recouper');traceV18Go('preuves');return}traceV18Go('tableau')}
+window.traceV18AnalyzeSelection=traceV18AnalyzeSelection;
+function traceV18CloseAnalyst(){document.getElementById('trace-v18-analyst-drawer')?.remove();document.getElementById('trace-v18-drawer-backdrop')?.remove()}
+window.traceV18CloseAnalyst=traceV18CloseAnalyst;
+function traceV18OpenAnalyst(){if(!currentCase)return;traceV18CloseAnalyst();let c=currentCase,p=gp(c.id),s=v18Progress(c,p),n=v18Next(c,p),g=V18_GUIDES[c.id]||{title:'Construire un faisceau',copy:'Observe, recoupe puis conclus.',anchors:[]},logs=(p.v18log||[]).slice(0,5);document.body.insertAdjacentHTML('beforeend',`<div id="trace-v18-drawer-backdrop" onclick="traceV18CloseAnalyst()"></div><aside id="trace-v18-analyst-drawer"><div class="trace-v18-drawer-head"><div class="trace-v18-ai-mark">A</div><div><span class="trace-v18-kicker">ANALYSTE TRACE · SANS SPOILER</span><h2>${v18esc(c.title)}</h2><p>Un copilote de méthode, jamais la solution à ta place.</p></div><button class="trace-v18-close" onclick="traceV18CloseAnalyst()">×</button></div><div class="trace-v18-ai-card"><span class="trace-v18-kicker">LECTURE DU DOSSIER</span><h3>${v18esc(g.title)}</h3><p>${v18esc(g.copy)}
