@@ -16,14 +16,21 @@
   <meta property="og:url" content="https://jumerca.github.io/trace-enquetes/studio24/" />
   <meta name="twitter:card" content="summary" />
   <title>Studio 24 — Media Empire V8</title>
-  <link rel="manifest" href="manifest.json?v=8.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=8.2" />
-  <link rel="apple-touch-icon" href="icon-192.png?v=8.2" />
+  <link rel="manifest" href="manifest.json?v=8.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/trace-enquetes/studio24/icon-192.png?v=8.3" />
+  <link rel="apple-touch-icon" href="/trace-enquetes/studio24/icon-192.png?v=8.3" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="mobile.css" />
   <link rel="stylesheet" href="v6.css" />
   <link rel="stylesheet" href="v7.css" />
   <link rel="stylesheet" href="v8.css" />
+  <style>
+    .install-chip{appearance:none;border:1px solid rgba(216,170,77,.38);background:rgba(7,17,31,.58);color:#e8d39b;border-radius:999px;padding:7px 11px;font:600 11px/1 system-ui,sans-serif;letter-spacing:.02em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;opacity:.82;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .install-chip:hover,.install-chip:active{opacity:1;border-color:rgba(216,170,77,.75)}
+    .install-chip[hidden]{display:none!important}.install-dot{width:6px;height:6px;border-radius:50%;background:#5bd3ff;box-shadow:0 0 9px rgba(91,211,255,.8)}
+    .title-foot{gap:10px;flex-wrap:wrap;justify-content:center}
+    @media(max-width:640px){.install-chip{font-size:10px;padding:6px 9px}}
+  </style>
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -45,7 +52,10 @@
         <button id="titleSettings" class="title-action"><span class="title-icon">⚙</span><span><b>Paramètres</b><small>Affichage, confort et sauvegarde</small></span><em>›</em></button>
         <button id="titleAriane" class="title-action"><span class="title-icon ariane-mini">A</span><span><b>Ariane</b><small>Ton assistante stratégique</small></span><em>›</em></button>
       </div>
-      <div class="title-foot"><span>STUDIO 24 · NETWORK UNIVERSE</span><b>V8</b></div>
+      <div class="title-foot">
+        <span>STUDIO 24 · NETWORK UNIVERSE</span><b>V8</b>
+        <button id="installStudio24" class="install-chip" type="button"><span class="install-dot"></span><span>Installer l’application</span></button>
+      </div>
     </div>
   </section>
 
@@ -98,10 +108,7 @@
 
   <div id="game" class="app hidden">
     <aside class="sidebar">
-      <div class="sidebar-brand">
-        <div class="mini-premium-logo"><span>24</span><i></i></div>
-        <div><strong>STUDIO 24</strong><small id="sidebarChannel">Nova 24</small></div>
-      </div>
+      <div class="sidebar-brand"><div class="mini-premium-logo"><span>24</span><i></i></div><div><strong>STUDIO 24</strong><small id="sidebarChannel">Nova 24</small></div></div>
       <nav id="mainNav">
         <button data-page="dashboard" class="active"><span>◫</span> Tableau de bord</button>
         <button data-page="schedule"><span>▤</span> Grille TV</button>
@@ -123,55 +130,18 @@
         <button data-page="studios"><span>▦</span> Studios</button>
         <button data-page="strategy"><span>◆</span> Stratégie</button>
       </nav>
-      <div class="sidebar-bottom">
-        <div class="level-card"><small>Niveau média</small><strong id="levelName">Chaîne régionale</strong><div class="bar"><i id="levelBar" style="width:25%"></i></div></div>
-        <button id="resetGame" class="ghost danger">Réinitialiser</button>
-        <div class="version">Studio 24 · V8 Network Universe</div>
-      </div>
+      <div class="sidebar-bottom"><div class="level-card"><small>Niveau média</small><strong id="levelName">Chaîne régionale</strong><div class="bar"><i id="levelBar" style="width:25%"></i></div></div><button id="resetGame" class="ghost danger">Réinitialiser</button><div class="version">Studio 24 · V8 Network Universe</div></div>
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <button id="mobileMenu" class="mobile-menu" aria-label="Ouvrir le menu">☰</button>
-        <div class="date-block"><small id="seasonLabel">Saison 1 · Semaine 1</small><strong id="gameDate">Lundi 7 septembre</strong></div>
-        <div class="top-stats">
-          <div><span>Trésorerie</span><b id="topCash">1,05 M€</b></div>
-          <div><span>Audience</span><b id="topAudience">0,34 M</b></div>
-          <div><span>PDM</span><b id="topShare">4,0 %</b></div>
-          <div><span>Réputation</span><b id="topRep">42/100</b></div>
-        </div>
-        <button id="advanceDay" class="primary">Diffuser la journée ▶</button>
-      </header>
+      <header class="topbar"><button id="mobileMenu" class="mobile-menu" aria-label="Ouvrir le menu">☰</button><div class="date-block"><small id="seasonLabel">Saison 1 · Semaine 1</small><strong id="gameDate">Lundi 7 septembre</strong></div><div class="top-stats"><div><span>Trésorerie</span><b id="topCash">1,05 M€</b></div><div><span>Audience</span><b id="topAudience">0,34 M</b></div><div><span>PDM</span><b id="topShare">4,0 %</b></div><div><span>Réputation</span><b id="topRep">42/100</b></div></div><button id="advanceDay" class="primary">Diffuser la journée ▶</button></header>
       <section id="content" class="content"></section>
     </main>
 
-    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Navigation mobile">
-      <button data-page="dashboard" class="active"><span>⌂</span><small>Accueil</small></button>
-      <button data-page="schedule"><span>▤</span><small>Grille</small></button>
-      <button data-page="programs"><span>▶</span><small>Programmes</small></button>
-      <button data-page="production"><span>🎬</span><small>Production</small></button>
-      <button data-action="ariane"><span>A</span><small>Ariane</small></button>
-    </nav>
+    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Navigation mobile"><button data-page="dashboard" class="active"><span>⌂</span><small>Accueil</small></button><button data-page="schedule"><span>▤</span><small>Grille</small></button><button data-page="programs"><span>▶</span><small>Programmes</small></button><button data-page="production"><span>🎬</span><small>Production</small></button><button data-action="ariane"><span>A</span><small>Ariane</small></button></nav>
 
     <button id="assistantFab" class="assistant-fab"><span class="assistant-avatar">A</span><span>Ariane</span></button>
-    <aside id="assistantPanel" class="assistant-panel">
-      <div class="assistant-head">
-        <div><span class="assistant-avatar">A</span><div><strong>Ariane</strong><small>Directrice adjointe · analyse en direct</small></div></div>
-        <button id="closeAssistant" aria-label="Fermer Ariane">×</button>
-      </div>
-      <div id="assistantFeed" class="assistant-feed"></div>
-      <div class="quick-prompts">
-        <button data-q="next">Que faire maintenant ?</button>
-        <button data-q="audience">Analyse mes audiences</button>
-        <button data-q="grid">Optimise ma grille</button>
-        <button data-q="money">Mes finances ?</button>
-        <button data-q="screen">Explique cet écran</button>
-      </div>
-      <form id="assistantForm">
-        <input id="assistantInput" placeholder="Demande n’importe quoi à Ariane…" autocomplete="off" />
-        <button>➤</button>
-      </form>
-    </aside>
+    <aside id="assistantPanel" class="assistant-panel"><div class="assistant-head"><div><span class="assistant-avatar">A</span><div><strong>Ariane</strong><small>Directrice adjointe · analyse en direct</small></div></div><button id="closeAssistant" aria-label="Fermer Ariane">×</button></div><div id="assistantFeed" class="assistant-feed"></div><div class="quick-prompts"><button data-q="next">Que faire maintenant ?</button><button data-q="audience">Analyse mes audiences</button><button data-q="grid">Optimise ma grille</button><button data-q="money">Mes finances ?</button><button data-q="screen">Explique cet écran</button></div><form id="assistantForm"><input id="assistantInput" placeholder="Demande n’importe quoi à Ariane…" autocomplete="off" /><button>➤</button></form></aside>
   </div>
 
   <div id="modal" class="modal hidden"><div class="modal-card"><button id="modalClose" class="modal-close" aria-label="Fermer">×</button><div id="modalBody"></div></div></div>
@@ -181,8 +151,7 @@
   <script src="v6-enhance.js"></script>
   <script src="v7-enhance.js"></script>
   <script src="v8-enhance.js"></script>
-  <script src="install-helper.js?v=8.2"></script>
-  <script src="update-helper.js?v=8.2"></script>
-  <script src="install-helper.js"></script>
+  <script src="install-helper.js?v=8.3"></script>
+  <script src="update-helper.js?v=8.3"></script>
 </body>
 </html>
