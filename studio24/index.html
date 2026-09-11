@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#08101d" />
+  <meta name="description" content="Studio 24 — Media Empire, jeu de gestion de chaîne TV" />
+  <title>Studio 24 — Media Empire</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <section id="titleScreen" class="title-screen">
+    <div class="title-bg" aria-hidden="true"></div>
+    <div class="title-vignette" aria-hidden="true"></div>
+    <div class="title-shell">
+      <div class="studio-logo studio-logo-hero" aria-label="Studio 24 Media Empire">
+        <div class="signal-mark"><i></i><i></i><i></i><b></b></div>
+        <div class="studio-word">STUDIO</div>
+        <div class="studio-number">24</div>
+        <div class="studio-subtitle"><span></span>MEDIA EMPIRE<span></span></div>
+      </div>
+      <p class="title-tagline">Crée. Produis. Diffuse. Bâtis ton empire média.</p>
+      <div class="title-menu">
+        <button id="titleNew" class="title-action title-action-main"><span class="title-icon">▶</span><span><b>Nouvelle partie</b><small>Bâtis ta chaîne de zéro</small></span><em>›</em></button>
+        <button id="titleContinue" class="title-action"><span class="title-icon">▥</span><span><b>Continuer</b><small>Reprendre ta dernière partie</small></span><em>›</em></button>
+        <button id="titleSettings" class="title-action"><span class="title-icon">⚙</span><span><b>Paramètres</b><small>Affichage, confort et sauvegarde</small></span><em>›</em></button>
+        <button id="titleAriane" class="title-action"><span class="title-icon ariane-mini">A</span><span><b>Ariane</b><small>Ton assistante stratégique</small></span><em>›</em></button>
+      </div>
+      <div class="title-foot"><span>STUDIO 24 · PREMIUM EDITION</span><b>V5</b></div>
+    </div>
+  </section>
+
+  <section id="setup" class="setup-screen hidden">
+    <div class="setup-shell">
+      <div class="brand-lockup premium-setup-brand">
+        <div class="studio-logo studio-logo-setup" aria-label="Studio 24 Media Empire">
+          <div class="signal-mark"><i></i><i></i><i></i><b></b></div>
+          <div class="studio-word">STUDIO</div><div class="studio-number">24</div>
+          <div class="studio-subtitle"><span></span>MEDIA EMPIRE<span></span></div>
+        </div>
+        <div>
+          <div class="eyebrow">PREMIUM MEDIA MANAGEMENT GAME</div>
+          <p>Choisis ton identité, ton marché de départ et lance une chaîne qui devra survivre à la guerre des audiences.</p>
+          <div class="feature-chips"><span>Programmation</span><span>Production</span><span>Info</span><span>Sport</span><span>Streaming</span></div>
+        </div>
+      </div>
+      <div class="setup-card">
+        <div class="section-title"><h2>Créer ta chaîne</h2><span class="version-badge">V5 PREMIUM</span></div>
+        <div class="form-grid">
+          <label>Nom de la chaîne<input id="channelName" value="Nova 24" maxlength="24" /></label>
+          <label>Ville du siège<input id="channelCity" value="Brive-la-Gaillarde" maxlength="32" /></label>
+          <label>Positionnement
+            <select id="channelFocus">
+              <option value="generaliste">Généraliste familiale</option>
+              <option value="info">Information & société</option>
+              <option value="jeune">Jeune & divertissement</option>
+              <option value="sport">Sport & événements</option>
+              <option value="culture">Culture & découverte</option>
+            </select>
+          </label>
+          <label>Niveau de départ
+            <select id="difficulty">
+              <option value="normal">Nouvelle chaîne régionale</option>
+              <option value="easy">Chaîne locale bien financée</option>
+              <option value="hard">Projet fragile, budget serré</option>
+            </select>
+          </label>
+        </div>
+        <div class="setup-preview">
+          <div><span>Budget initial</span><strong id="setupBudget">1 050 000 €</strong></div>
+          <div><span>Équipe</span><strong>10 personnes</strong></div>
+          <div><span>Concurrence</span><strong>4 chaînes simulées</strong></div>
+          <div><span>Couverture</span><strong>Régionale</strong></div>
+        </div>
+        <div class="setup-actions"><button id="setupBack" class="ghost">← Retour</button><button id="startGame" class="primary large">Lancer Studio 24</button></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="game" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="mini-premium-logo"><span>24</span><i></i></div>
+        <div><strong>STUDIO 24</strong><small id="sidebarChannel">Nova 24</small></div>
+      </div>
+      <nav id="mainNav">
+        <button data-page="dashboard" class="active"><span>◫</span> Tableau de bord</button>
+        <button data-page="schedule"><span>▤</span> Grille TV</button>
+        <button data-page="programs"><span>▶</span> Programmes</button>
+        <button data-page="production"><span>🎬</span> Production</button>
+        <button data-page="catalog"><span>▣</span> Achats & catalogue</button>
+        <button data-page="audience"><span>⌁</span> Audiences</button>
+        <button data-page="competition"><span>⚔</span> Concurrence</button>
+        <button data-page="staff"><span>♙</span> Personnel</button>
+        <button data-page="talentmarket"><span>✦</span> Mercato TV</button>
+        <button data-page="seasons"><span>◷</span> Saisons & formats</button>
+        <button data-page="advertising"><span>◎</span> Publicité</button>
+        <button data-page="news"><span>●</span> Rédaction</button>
+        <button data-page="digital"><span>⌁</span> Streaming & replay</button>
+        <button data-page="life"><span>⚡</span> Vie de chaîne</button>
+        <button data-page="network"><span>⬡</span> Groupe média</button>
+        <button data-page="sports"><span>★</span> Droits sportifs</button>
+        <button data-page="finance"><span>€</span> Finances</button>
+        <button data-page="studios"><span>▦</span> Studios</button>
+        <button data-page="strategy"><span>◆</span> Stratégie</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="level-card"><small>Niveau média</small><strong id="levelName">Chaîne régionale</strong><div class="bar"><i id="levelBar" style="width:25%"></i></div></div>
+        <button id="resetGame" class="ghost danger">Réinitialiser</button>
+        <div class="version">Studio 24 · V5 Premium Edition</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="mobileMenu" class="mobile-menu" aria-label="Ouvrir le menu">☰</button>
+        <div class="date-block"><small id="seasonLabel">Saison 1 · Semaine 1</small><strong id="gameDate">Lundi 7 septembre</strong></div>
+        <div class="top-stats">
+          <div><span>Trésorerie</span><b id="topCash">1,05 M€</b></div>
+          <div><span>Audience</span><b id="topAudience">0,34 M</b></div>
+          <div><span>PDM</span><b id="topShare">4,0 %</b></div>
+          <div><span>Réputation</span><b id="topRep">42/100</b></div>
+        </div>
+        <button id="advanceDay" class="primary">Diffuser la journée ▶</button>
+      </header>
+      <section id="content" class="content"></section>
+    </main>
+
+    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Navigation mobile">
+      <button data-page="dashboard" class="active"><span>⌂</span><small>Accueil</small></button>
+      <button data-page="schedule"><span>▤</span><small>Grille</small></button>
+      <button data-page="programs"><span>▶</span><small>Programmes</small></button>
+      <button data-page="production"><span>🎬</span><small>Production</small></button>
+      <button data-action="ariane"><span>A</span><small>Ariane</small></button>
+    </nav>
+
+    <button id="assistantFab" class="assistant-fab"><span class="assistant-avatar">A</span><span>Ariane</span></button>
+    <aside id="assistantPanel" class="assistant-panel">
+      <div class="assistant-head">
+        <div><span class="assistant-avatar">A</span><div><strong>Ariane</strong><small>Directrice adjointe · analyse en direct</small></div></div>
+        <button id="closeAssistant" aria-label="Fermer Ariane">×</button>
+      </div>
+      <div id="assistantFeed" class="assistant-feed"></div>
+      <div class="quick-prompts">
+        <button data-q="next">Que faire maintenant ?</button>
+        <button data-q="audience">Analyse mes audiences</button>
+        <button data-q="grid">Optimise ma grille</button>
+        <button data-q="money">Mes finances ?</button>
+        <button data-q="screen">Explique cet écran</button>
+      </div>
+      <form id="assistantForm">
+        <input id="assistantInput" placeholder="Demande n’importe quoi à Ariane…" autocomplete="off" />
+        <button>➤</button>
+      </form>
+    </aside>
+  </div>
+
+  <div id="modal" class="modal hidden"><div class="modal-card"><button id="modalClose" class="modal-close" aria-label="Fermer">×</button><div id="modalBody"></div></div></div>
+  <script src="app.js"></script>
+</body>
+</html>
