@@ -1,0 +1,29 @@
+name: Apply Studio 24 Update Fix
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/apply_studio24_updatefix.py'
+      - 'studio24/update-helper.js'
+      - '.github/workflows/apply-studio24-updatefix.yml'
+permissions:
+  contents: write
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply updater fix
+        run: python tools/apply_studio24_updatefix.py
+      - name: Validate updater
+        run: |
+          node --check studio24/update-helper.js
+          grep -q "update-helper.js" studio24/index.html
+          grep -q "studio24-v8-updatefix-1" studio24/sw.js
+      - name: Commit updater fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add studio24/index.html studio24/sw.js
+          git diff --cached --quiet || git commit -m "Fix Studio 24 automatic PWA updates"
+          git push
