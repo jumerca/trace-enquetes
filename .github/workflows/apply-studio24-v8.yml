@@ -1,0 +1,38 @@
+name: Apply Studio 24 V8
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/apply_studio24_v8.py"
+      - ".github/workflows/apply-studio24-v8.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Studio 24 V8
+        run: python tools/apply_studio24_v8.py
+      - name: Validate V8
+        run: |
+          node --check studio24/v8-enhance.js
+          grep -q "v8.css" studio24/index.html
+          grep -q "v8-enhance.js" studio24/index.html
+          grep -q "studio24-v8-network-universe-1" studio24/sw.js
+          grep -q "V8 NETWORK UNIVERSE" studio24/index.html
+      - name: Commit V8 activation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add studio24/index.html studio24/sw.js studio24/v8.css studio24/v8-enhance.js
+          if git diff --cached --quiet; then
+            echo "No V8 changes to commit"
+          else
+            git commit -m "Activate Studio 24 V8 Network Universe"
+            git push
+          fi
