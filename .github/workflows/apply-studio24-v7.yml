@@ -1,0 +1,39 @@
+name: Apply Studio 24 V7
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "studio24/v7-enhance.js"
+      - "studio24/v7.css"
+      - "tools/apply_studio24_v7.py"
+      - ".github/workflows/apply-studio24-v7.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Studio 24 V7 wiring
+        run: python tools/apply_studio24_v7.py
+      - name: Validate V7
+        run: |
+          grep -q "v7.css" studio24/index.html
+          grep -q "v7-enhance.js" studio24/index.html
+          grep -q "studio24-v7-living-antenna-1" studio24/sw.js
+          node --check studio24/v7-enhance.js
+      - name: Commit V7 activation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add studio24/index.html studio24/sw.js
+          if git diff --cached --quiet; then
+            echo "No V7 wiring changes to commit"
+          else
+            git commit -m "Activate Studio 24 V7 Living Antenna"
+            git push
+          fi
