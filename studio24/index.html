@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="mobile.css" />
   <link rel="stylesheet" href="v6.css" />
   <link rel="stylesheet" href="v7.css" />
-  <link rel="stylesheet" href="v8.css" />
+  <link rel="stylesheet" href="v8.css?v=8.4" />
   <style>
     .install-chip{appearance:none;border:1px solid rgba(216,170,77,.38);background:rgba(7,17,31,.58);color:#e8d39b;border-radius:999px;padding:7px 11px;font:600 11px/1 system-ui,sans-serif;letter-spacing:.02em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;opacity:.82;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
     .install-chip:hover,.install-chip:active{opacity:1;border-color:rgba(216,170,77,.75)}
@@ -31,6 +31,17 @@
     .title-foot{gap:10px;flex-wrap:wrap;justify-content:center}
     @media(max-width:640px){.install-chip{font-size:10px;padding:6px 9px}}
   </style>
+<script>
+(function(){
+ const android=/Android/i.test(navigator.userAgent);
+ function setInsets(){
+  const app=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||/; wv\)|\bwv\b|Version\/4\.0/i.test(navigator.userAgent);
+  document.documentElement.classList.toggle('android-app',android&&app);
+ }
+ setInsets();
+ matchMedia('(display-mode: standalone)').addEventListener('change',setInsets);
+})();
+</script>
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -109,6 +120,7 @@
   <div id="game" class="app hidden">
     <aside class="sidebar">
       <div class="sidebar-brand"><div class="mini-premium-logo"><span>24</span><i></i></div><div><strong>STUDIO 24</strong><small id="sidebarChannel">Nova 24</small></div></div>
+      <button id="closeMobileMenu" class="sidebar-close" type="button" aria-label="Fermer le menu">×</button>
       <nav id="mainNav">
         <button data-page="dashboard" class="active"><span>◫</span> Tableau de bord</button>
         <button data-page="schedule"><span>▤</span> Grille TV</button>
@@ -134,7 +146,7 @@
     </aside>
 
     <main class="main">
-      <header class="topbar"><button id="mobileMenu" class="mobile-menu" aria-label="Ouvrir le menu">☰</button><div class="date-block"><small id="seasonLabel">Saison 1 · Semaine 1</small><strong id="gameDate">Lundi 7 septembre</strong></div><div class="top-stats"><div><span>Trésorerie</span><b id="topCash">1,05 M€</b></div><div><span>Audience</span><b id="topAudience">0,34 M</b></div><div><span>PDM</span><b id="topShare">4,0 %</b></div><div><span>Réputation</span><b id="topRep">42/100</b></div></div><button id="advanceDay" class="primary">Diffuser la journée ▶</button></header>
+      <header class="topbar"><button id="mobileMenu" class="mobile-menu" aria-label="Ouvrir le menu" aria-controls="mainNav" aria-expanded="false">☰</button><div class="date-block"><small id="seasonLabel">Saison 1 · Semaine 1</small><strong id="gameDate">Lundi 7 septembre</strong></div><div class="top-stats"><div><span>Trésorerie</span><b id="topCash">1,05 M€</b></div><div><span>Audience</span><b id="topAudience">0,34 M</b></div><div><span>PDM</span><b id="topShare">4,0 %</b></div><div><span>Réputation</span><b id="topRep">42/100</b></div></div><button id="advanceDay" class="primary">Diffuser la journée ▶</button></header>
       <section id="content" class="content"></section>
     </main>
 
@@ -153,5 +165,15 @@
   <script src="v8-enhance.js"></script>
   <script src="install-helper.js?v=8.3"></script>
   <script src="update-helper.js?v=8.3"></script>
+<script>
+(function(){
+ const menu=document.getElementById('mobileMenu');
+ const sidebar=document.querySelector('.sidebar');
+ const sync=()=>menu.setAttribute('aria-expanded',String(sidebar.classList.contains('open')));
+ menu.onclick=()=>{sidebar.classList.toggle('open');sync()};
+ document.getElementById('closeMobileMenu').onclick=()=>{sidebar.classList.remove('open');sync();menu.focus()};
+ new MutationObserver(sync).observe(sidebar,{attributes:true,attributeFilter:['class']});
+})();
+</script>
 </body>
 </html>
