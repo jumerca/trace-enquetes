@@ -2,3 +2,27 @@
 .v8-universe .card{min-height:190px}.v8-section{margin-top:24px}.v8-section>h2{margin:0 0 5px}.v8-sub{opacity:.72;margin-top:0}.v8-brand-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.v8-brand{display:flex;flex-direction:column;gap:5px;text-align:left;padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,.09);background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));color:inherit}.v8-brand span,.v8-brand small,.v8-brand i{opacity:.7;font-size:12px}.v8-brand i{color:#e9c36b;font-style:normal}.v8-talent-list,.v8-rival-list,.v8-crisis-list{display:flex;flex-direction:column;gap:8px}.v8-talent-list button,.v8-rival-list button,.v8-crisis-list button{display:grid;grid-template-columns:1fr auto;gap:3px 12px;text-align:left;padding:12px 13px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:inherit;border-radius:13px}.v8-talent-list small,.v8-rival-list small,.v8-crisis-list small{display:block;opacity:.68}.v8-talent-list i,.v8-rival-list span,.v8-crisis-list span{font-style:normal;font-size:12px;color:#75dcff}.v8-industry{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0 16px}.v8-industry>div{padding:12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}.v8-industry span{display:block;font-size:11px;opacity:.65}.v8-industry b{display:block;font-size:18px;margin-top:3px}.v8-competitor-social,.v8-brand-rank{display:flex;flex-direction:column;gap:7px;margin:10px 0}.v8-competitor-social>div,.v8-brand-rank>div{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}.v8-competitor-social small,.v8-brand-rank small{grid-column:1/-1;opacity:.62}.v8-career-head{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}.v8-career-head>*{padding:10px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
 @media(max-width:800px){.v8-brand-grid{grid-template-columns:1fr 1fr}.v8-industry,.v8-career-head{grid-template-columns:1fr 1fr}.v8-universe{grid-template-columns:1fr!important}}
 @media(max-width:480px){.v8-brand-grid{grid-template-columns:1fr}.v8-industry,.v8-career-head{grid-template-columns:1fr 1fr}.v8-brand{min-height:90px}}
+
+/* V8.4: keep touch controls outside Android system bars. */
+:root{--s24-top:env(safe-area-inset-top,0px);--s24-bottom:env(safe-area-inset-bottom,0px)}
+html.android-app{--s24-top:max(32px,env(safe-area-inset-top,0px));--s24-bottom:max(48px,env(safe-area-inset-bottom,0px))}
+.sidebar-close{display:none}
+@media(max-width:1050px){
+ .topbar{height:auto;padding-top:calc(8px + var(--s24-top));padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+ .mobile-menu{min-width:44px;min-height:44px;flex-shrink:0;touch-action:manipulation}
+ .sidebar{padding-top:calc(16px + var(--s24-top));padding-bottom:calc(16px + var(--s24-bottom));overflow-y:auto;overscroll-behavior:contain;z-index:45}
+ .sidebar-close{display:block;margin-left:auto;min-width:44px;min-height:44px;background:transparent;color:#eaf3ff;border:1px solid #24435c;border-radius:12px;font-size:24px;flex-shrink:0}
+ .sidebar #mainNav{flex-shrink:0}
+ .assistant-panel{padding-top:var(--s24-top);padding-bottom:var(--s24-bottom)}
+ .modal{padding-top:calc(16px + var(--s24-top));padding-bottom:calc(16px + var(--s24-bottom))}
+ .modal-card{max-height:100%}
+}
+@media(max-width:720px){
+ body{padding-bottom:calc(80px + var(--s24-bottom))}
+ .mobile-bottom-nav{height:calc(68px + var(--s24-bottom));padding-bottom:var(--s24-bottom);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+ .mobile-bottom-nav button{min-width:0;min-height:48px;touch-action:manipulation;color:#b7c9db}
+ .mobile-bottom-nav small{font-size:11px}
+ .topbar{gap:10px}
+ .topbar .date-block small{font-size:11px}
+ .topbar .date-block strong{font-size:16px}
+}
