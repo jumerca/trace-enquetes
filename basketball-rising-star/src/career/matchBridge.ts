@@ -5,14 +5,16 @@ import { recordUserMatch, rulesFor, teamInput, type Career } from './career';
 import type { SeasonStat } from './fastsim';
 import type { Fixture, UserGameLine } from './world';
 
-export function createMatch(c: Career, f: Fixture): MatchEngine {
+export function createMatch(c: Career, f: Fixture, control = false): MatchEngine {
   return new MatchEngine({
-    home: teamInput(c, f.home),
-    away: teamInput(c, f.away),
+    home: teamInput(c, f.home, f),
+    away: teamInput(c, f.away, f),
     rules: rulesFor(c, f.leagueId),
     seed: hashString(`${f.id}|${c.world.seed}`),
     userPlayerId: c.userId,
     userAssist: c.settings.assist,
+    userControl: control,
+    userStyle: c.style,
   });
 }
 

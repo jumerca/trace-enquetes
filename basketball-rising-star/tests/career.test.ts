@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng';
-import { acceptOffer, advanceWeek, createCareer, depthChart, generateOffers, recordUserMatch, standings, startNextSeason, teamInput, user, userClub, userFixture, userRole, type Career, type CreationInput } from '../src/career/career';
+import { acceptOffer, advanceWeek, simFixture, createCareer, depthChart, generateOffers, recordUserMatch, standings, startNextSeason, teamInput, user, userClub, userFixture, userRole, type Career, type CreationInput } from '../src/career/career';
 import { createMatch, finishMatch } from '../src/career/matchBridge';
 import { fastSimGame } from '../src/career/fastsim';
 import { trainWeek, applyGains } from '../src/career/training';
@@ -25,8 +25,14 @@ const INPUT: CreationInput = {
 };
 
 function simUserFixtureFast(c: Career): void {
-  const f = userFixture(c);
-  if (!f) return;
+  let f;
+  while ((f = userFixture(c))) simOne(c, f);
+}
+function simOne(c: Career, f: NonNullable<ReturnType<typeof userFixture>>): void {
+  if (f.stage !== 'regular' && f.stage !== 'semi' && f.stage !== 'final') {
+    simFixture(c, f);
+    return;
+  }
   const ti = (id: string) => {
     const dc = depthChart(c, id);
     return dc.order.filter((p) => p.injuryDays <= 0).map((p) => ({ p, minutes: dc.minutes[p.id] ?? 0, starter: dc.starters.includes(p) }));
@@ -76,8 +82,8 @@ describe('Carrière', () => {
     c.settings.quarterMin = 3;
     let guard = 0;
     while (c.phase !== 'offseason' && guard++ < 40) {
-      const f = userFixture(c);
-      if (f) {
+      let f;
+      while ((f = userFixture(c))) {
         const e = createMatch(c, f);
         e.runToEnd();
         finishMatch(c, f, e, false);
@@ -89,6 +95,9 @@ describe('Carrière', () => {
     const st = standings(c, lid);
     expect(st.reduce((s, r) => s + r.w + r.l, 0)).toBe(12 * 22);
     expect(c.world.fixtures.some((f) => f.stage === 'final' && f.played)).toBe(true);
+    // Coupes et Europe jouées jusqu'au bout
+    expect(c.world.fixtures.filter((f) => f.stage === 'cup').every((f) => f.played)).toBe(true);
+    expect(c.world.fixtures.some((f) => f.leagueId === 'CUP_FRA' && f.label === 'Finale' && f.played)).toBe(true);
     const u = user(c);
     expect(c.seasonStats[u.id]).toBeDefined();
     startNextSeason(c);
@@ -114,7 +123,7 @@ describe('Carrière', () => {
       }
       startNextSeason(c);
       samples.push(avgOvr());
-      for (const cl of Object.values(c.world.clubs)) {
+      for (const cl of Object.values(c.world.clubs).filter((x) => x.leagueId !== 'NAT')) {
         expect(cl.roster.length).toBeGreaterThanOrEqual(12);
         expect(cl.roster.length).toBeLessThanOrEqual(14);
       }
@@ -122,7 +131,7 @@ describe('Carrière', () => {
     }
     const end = samples[samples.length - 1];
     console.log('note moyenne du monde', start.toFixed(1), '→', samples.map((x) => x.toFixed(1)).join(' '));
-    expect(Math.abs(end - start)).toBeLessThan(6);
+    expect(Math.abs(end - start)).toBeLessThan(1.5);
     expect(Object.keys(c.world.players).length).toBeLessThan(2500);
     expect(user(c).history.length).toBeGreaterThanOrEqual(15);
   }, 300000);

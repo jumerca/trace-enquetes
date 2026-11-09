@@ -51,7 +51,51 @@ function tone(freq: number, dur: number, type: OscillatorType, gain: number, sli
   o.stop(a.currentTime + dur);
 }
 
+let ambience: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+
+/** Rumeur de la salle en boucle (bruit filtré), intensité réglable. */
+export function startAmbience(): void {
+  const a = ac();
+  if (!a || ambience) return;
+  const len = a.sampleRate * 3;
+  const buf = a.createBuffer(1, len, a.sampleRate);
+  const d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) {
+    last = last * 0.97 + (Math.random() * 2 - 1) * 0.03;
+    d[i] = last * 6;
+  }
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const f = a.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 900;
+  const g = a.createGain();
+  g.gain.value = 0.05 * volume;
+  src.connect(f).connect(g).connect(a.destination);
+  src.start();
+  ambience = { src, gain: g };
+}
+export function crowdLevel(level: number): void {
+  if (!ambience || !ctx) return;
+  ambience.gain.gain.setTargetAtTime((0.04 + level * 0.12) * volume, ctx.currentTime, 0.4);
+}
+export function stopAmbience(): void {
+  try {
+    ambience?.src.stop();
+  } catch {
+    /* déjà arrêté */
+  }
+  ambience = null;
+}
+
 export const sfx = {
+  dribble: () => tone(78, 0.07, 'sine', 0.16, -30),
+  board: () => {
+    tone(140, 0.12, 'square', 0.06, -60);
+    noise(0.08, 500, 1.2, 0.2);
+  },
   bounce: () => tone(95, 0.09, 'sine', 0.35, -40),
   swish: () => noise(0.35, 2400, 0.8, 0.35),
   rim: () => tone(420, 0.25, 'triangle', 0.18, -120),

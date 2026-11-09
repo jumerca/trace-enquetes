@@ -13,6 +13,8 @@ const MIGRATIONS: Record<number, (c: Raw) => Raw> = {
     nationalCaps: c.nationalCaps ?? 0,
     version: 2,
   }),
+  // v2 -> v3 : consignes personnelles, compétitions (coupes, Europe), Espoirs, sélection, vie hors terrain
+  2: (c) => ({ ...c, style: c.style ?? { shooting: 0, defense: 0.5, hustle: 0.5 }, compStats: c.compStats ?? {}, version: 3 }),
 };
 
 export function migrate(raw: Raw): Career {

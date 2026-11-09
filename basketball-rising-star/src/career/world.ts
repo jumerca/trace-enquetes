@@ -28,7 +28,8 @@ export interface Fixture {
   played: boolean;
   hs: number;
   as: number;
-  stage: 'regular' | 'semi' | 'final';
+  stage: 'regular' | 'semi' | 'final' | 'cup' | 'youth' | 'nat';
+  label?: string;
   /** Ligne statistique du joueur incarné, si concerné */
   userLine?: UserGameLine;
 }

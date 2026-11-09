@@ -493,7 +493,7 @@ table.t th.r {
   }
   .bottom-nav {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     position: fixed;
     left: 0;
     right: 0;
@@ -977,4 +977,23 @@ table.t th.r {
 }
 .box-team {
   margin-top: 10px;
+}
+
+.stylebar {
+  position: absolute;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(12px + var(--safe-b));
+  z-index: 7;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+.stylebar-panel {
+  background: rgba(16, 24, 39, 0.94);
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 24px));
 }

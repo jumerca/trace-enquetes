@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../App';
-import { advanceWeek, gameRating, user } from '../../career/career';
+import { advanceWeek, gameRating, user, userFixture } from '../../career/career';
 import type { MatchEngine } from '../../sim/engine';
 import type { MPlayer } from '../../sim/types';
 import { fullName } from '../../data/model';
@@ -51,6 +51,14 @@ export function PostMatch() {
     }
     setBusy(true);
     try {
+      if (userFixture(c)) {
+        // Un autre match (coupe, Espoirs…) attend encore cette semaine
+        await app.persist(c);
+        app.setLastMatch(null);
+        app.go({ name: 'hub', tab: 'home' });
+        app.toast('Un autre match vous attend cette semaine.');
+        return;
+      }
       const r = advanceWeek(c);
       await app.persist(c);
       app.setLastMatch(null);
@@ -124,7 +132,7 @@ export function PostMatch() {
       ))}
       <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
         <button className="btn primary" disabled={busy} onClick={proceed}>
-          {lm.quick ? 'Retour à l’accueil' : 'Continuer (semaine suivante) →'}
+          {lm.quick ? 'Retour à l\u2019accueil' : c && userFixture(c) ? 'Continuer (autre match cette semaine) →' : 'Continuer (semaine suivante) →'}
         </button>
       </div>
     </div>

@@ -221,6 +221,15 @@ export function defenseThink(e: MatchEngine, p: MPlayer, userControlled: boolean
     }
   }
 
+  // NBA : éviter les trois secondes défensives (sortir de la raquette si personne n'est gardé de près)
+  const dk = (p as MPlayer & { defKey?: number }).defKey ?? 0;
+  if (e.rules.id === 'NBA' && dk > 2 && p.assign >= 0) {
+    const man = e.players[p.assign];
+    p.target = lerpV(p.pos, man.pos, 0.6);
+    p.urgency = 0.9;
+    p.intent = 'sort de la raquette';
+    return;
+  }
   if (tac.defense === 'zone23') {
     zonePosition(e, p, h, own);
     maybeSteal(e, p, h);
@@ -299,7 +308,8 @@ function maybeSteal(e: MatchEngine, p: MPlayer, h: MPlayer): void {
   if (dist(p.pos, h.pos) > 1.1 || p.actionLock > 0) return;
   const tac = e.teams[p.team].tactics;
   const a = p.data.attrs;
-  let chance = 0.004 + tac.pressure * 0.01 + (a.steal / 20) * 0.008;
+  let chance = 0.006 + tac.pressure * 0.014 + (a.steal / 20) * 0.01;
+  if (p.isUser) chance *= 0.4 + e.userStyle.defense * 1.4;
   if (p.fouls >= e.rules.foulOut - 1) chance *= 0.3;
   if (e.rng.chance(chance)) e.attemptSteal(p);
 }

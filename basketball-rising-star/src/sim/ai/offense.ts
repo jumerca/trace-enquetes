@@ -204,7 +204,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     }
     const top = e.court.fromHoop(side, e.court.g.threeRadius + 0.8, clamp(p.pos.y - e.court.cy, -3, 3));
     p.target = fast ? { x: hoop.x - side * 1.2, y: hoop.y } : top;
-    p.urgency = fast ? 1 : 0.42 + e.teams[p.team].tactics.pace * 0.3 + (e.backcourtT > 5 ? 0.3 : 0);
+    p.urgency = fast ? 1 : 0.3 + e.teams[p.team].tactics.pace * 0.22 + (e.backcourtT > 5.5 ? 0.35 : 0);
     p.intent = fast ? 'contre-attaque' : 'remonte le ballon';
     if (fast) {
       p.intent = 'drive';
@@ -229,14 +229,15 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const { type } = guessShotType(e, p);
   // Valeur de la possession si l'on continue à jouer (diminue avec le chrono)
   const elapsed = e.time - st.startT;
-  const early = clamp((e.shotClock - 7) / 12, 0, 1);
-  let possValue = 1.02 + (advantage ? -0.05 : early * 0.75) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
+  const early = clamp((e.shotClock - 5) / 13, 0, 1);
+  let possValue = 1.02 + (advantage ? -0.05 : early * 1.18) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
   if (milk) possValue += 0.3;
   if (holdForLast && e.clock > 5) possValue += 1;
   const selfish = (a.ambition + a.shotCreation - a.teamwork) / 40;
   const usage = 1 + (a.shotCreation + a.three + a.finishing - 30) / 140;
-  let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06;
+  let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0);
   if (needThree && type !== 'three') shootV -= 0.5;
+  if (type === 'three' && !needThree) shootV *= 0.88 + e.teams[p.team].tactics.threeRate * 0.14;
   opts.push({ kind: 'shoot', v: shootV });
 
   // 2) Pénétration
@@ -295,6 +296,17 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
         e.beginShot(p);
         return;
       }
+      // Pénétration bouchée : arrêt (le dribble est terminé, pied de pivot)
+      if (e.rng.chance(0.35)) {
+        const pk = p as MPlayer & { pickedUp?: boolean; pickPos?: V2 };
+        pk.pickedUp = true;
+        pk.pickPos = { ...p.pos };
+        p.intent = 'arrêt';
+        p.target = { ...p.pos };
+        p.vel.x *= 0.2;
+        p.vel.y *= 0.2;
+        return;
+      }
     }
     return;
   }
@@ -315,6 +327,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     if (m.role === 'post' && open > 0.6) v += (m.data.attrs.postPlay - 10) / 30;
     v += (a.teamwork + a.passing - 20) / 100;
     if (m.isUser && called !== undefined && e.time - called < 2) v += 0.35;
+    if (m.isUser) v += e.userStyle.shooting * 0.08;
+    if (p.isUser) v -= e.userStyle.shooting * 0.06;
     if (holdForLast) v -= 0.3;
     opts.push({ kind: 'pass', v, to: m });
   }
@@ -346,6 +360,22 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   if (urgency >= 0.95 && best.kind !== 'shoot' && sEV > 0.15 && !holdForLast) best = { kind: 'shoot', v: 1 };
   if (holdForLast && e.clock <= 5.5 && best.kind === 'hold') best = sEV > 0.6 ? { kind: 'shoot', v: 1 } : { kind: 'drive', v: 1 };
 
+  // Dribble déjà arrêté : il ne reste que la passe, le tir ou le pivot. Repartir en dribble est une faute de règle.
+  const pk = p as MPlayer & { pickedUp?: boolean; doubleDribble?: boolean };
+  if (pk.pickedUp && (best.kind === 'drive' || best.kind === 'pnr' || best.kind === 'hold')) {
+    if ((best.kind === 'drive' || p.pickupT > 3) && e.rng.chance(((20 - a.ballControl - a.iq / 2) / 20) * 0.12)) {
+      pk.doubleDribble = true;
+      return;
+    }
+    const passes = opts.filter((o) => o.kind === 'pass' && o.to).sort((x, y) => y.v - x.v);
+    if (p.pickupT > 1.2 || urgency > 0.5) {
+      if (passes[0] && passes[0].v > sEV - 0.2) best = passes[0];
+      else best = { kind: 'shoot', v: sEV };
+    } else {
+      p.target = { ...p.pos };
+      return;
+    }
+  }
   switch (best.kind) {
     case 'shoot':
       e.beginShot(p);

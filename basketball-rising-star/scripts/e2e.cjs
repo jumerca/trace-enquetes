@@ -20,7 +20,7 @@ const OUT = process.argv[2];
   assert(true, 'carrière créée, hub affiché');
   // Match en direct puis fin simulée
   await p.click('text=Préparer et jouer le match');
-  await p.click('text=Entrer sur le parquet');
+  await p.click('text=Lancer le match');
   await p.waitForTimeout(3000);
   const live = await p.evaluate(() => { const e = window.__brs.engine; return { on: e.onCourt.length, t: e.time }; });
   assert(live.on === 10 && live.t > 1, 'match en direct : 10 joueurs, le temps avance');
@@ -30,17 +30,21 @@ const OUT = process.argv[2];
   await p.waitForSelector('text=FEUILLE DE MATCH', { timeout: 60000 });
   if (OUT) await p.screenshot({ path: OUT + '/e2e-boxscore.png', fullPage: true });
   assert(await p.isVisible('text=Homme du match'), 'feuille de match avec homme du match');
-  await p.click('text=Continuer (semaine suivante)');
+  await p.click('text=/Continuer \\(/');
   await p.waitForSelector('text=Semaine 2/22');
   assert(true, 'semaine suivante');
+  await p.click('.sidebar >> text=Vie');
+  await p.click('text=Dîner avec les coéquipiers');
+  assert(await p.isVisible('text=Finances'), 'onglet Vie : finances et activités');
+  await p.click('.sidebar >> text=Accueil');
   // Simulation d'un match
   await p.click('text=Simuler le match');
   await p.waitForSelector('text=FEUILLE DE MATCH', { timeout: 60000 });
-  await p.click('text=Continuer (semaine suivante)');
+  await p.click('text=/Continuer \\(/');
   await p.waitForSelector('text=Semaine 3/22');
   assert(true, 'match simulé par le moteur complet');
   // Onglets
-  for (const t of ['Entraînement', 'Club', 'Calendrier', 'Carrière']) { await p.click(`.sidebar >> text=${t}`); await p.waitForTimeout(150); }
+  for (const t of ['Entraînement', 'Vie', 'Club', 'Calendrier', 'Carrière']) { await p.click(`.sidebar >> text=${t}`); await p.waitForTimeout(150); }
   assert(await p.isVisible('text=Palmarès') || await p.isVisible('text=Profil'), 'onglets navigables');
   // Sauver et quitter, puis continuer
   await p.click('text=Sauver et quitter');

@@ -29,12 +29,17 @@ import { INTENSITY, PROGRAMS, autoProgram, type Intensity, type ProgramId, type 
 import { createMatch, finishMatch } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
 import { Modal } from '../components/Modal';
+import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard } from './LifeTab';
+import { fixtureName } from '../../career/competitions';
+import { userSideId, userTeams } from '../../career/career';
+import { winterOpen } from '../../career/life';
 
-export type HubTab = 'home' | 'training' | 'club' | 'calendar' | 'career';
+export type HubTab = 'home' | 'training' | 'life' | 'club' | 'calendar' | 'career';
 
 const NAV: { id: HubTab; label: string; icon: string }[] = [
   { id: 'home', label: 'Accueil', icon: '⌂' },
   { id: 'training', label: 'Entraînement', icon: '◎' },
+  { id: 'life', label: 'Vie', icon: '♥' },
   { id: 'club', label: 'Club', icon: '◈' },
   { id: 'calendar', label: 'Calendrier', icon: '▦' },
   { id: 'career', label: 'Carrière', icon: '★' },
@@ -113,6 +118,7 @@ export function Hub({ tab }: { tab: HubTab }) {
         {tab === 'club' && <ClubTab c={c} />}
         {tab === 'calendar' && <CalendarTab c={c} />}
         {tab === 'career' && <CareerTab c={c} />}
+        {tab === 'life' && <LifeTab c={c} />}
         <div className="muted tiny" style={{ marginTop: 26, textAlign: 'center' }}>
           Univers fictif : clubs, compétitions et joueurs sont inventés. {fullName(u)} · {NATIONS[u.nationality]?.flag}
         </div>
@@ -201,7 +207,9 @@ function HomeTab({ c }: { c: Career }) {
   const club = userClub(c);
   const f = userFixture(c);
   const [busy, setBusy] = useState<string | null>(null);
-  const opp = f ? c.world.clubs[f.home === club.id ? f.away : f.home] : null;
+  const mySide = f ? userSideId(c, f) : club.id;
+  const me = c.world.clubs[mySide] ?? club;
+  const opp = f ? c.world.clubs[f.home === mySide ? f.away : f.home] : null;
   const st = standings(c, club.leagueId);
   const rank = st.findIndex((r) => r.clubId === club.id) + 1;
   const pg = perGame(c.seasonStats[u.id]);
@@ -231,24 +239,25 @@ function HomeTab({ c }: { c: Career }) {
     <div className="grid" style={{ gap: 14 }}>
       <PlayerHeader c={c} />
       {c.event && <EventCard c={c} />}
+      <PressCard c={c} />
       <div className="grid cols-2">
         <div className="card">
           <div className="card-title">
             <h3>{c.phase === 'offseason' ? 'Intersaison' : 'Prochaine échéance'}</h3>
-            {f && <span className="pill orange">{f.stage === 'regular' ? `Journée ${f.round}` : f.stage === 'semi' ? 'Demi-finale' : 'Finale'}</span>}
+            {f && <span className="pill orange">{fixtureName(c, f)}</span>}
           </div>
           {f && opp ? (
             <>
               <div className="row spread" style={{ margin: '6px 0 12px' }}>
-                <TeamBadge name={club.short} colors={club.colors} />
+                <TeamBadge name={me.short} colors={me.colors} />
                 <div style={{ textAlign: 'center' }}>
-                  <div className="muted tiny">{f.home === club.id ? 'DOMICILE' : 'EXTÉRIEUR'}</div>
+                  <div className="muted tiny">{f.home === mySide ? 'DOMICILE' : 'EXTÉRIEUR'}</div>
                   <div style={{ fontFamily: 'var(--display)', fontSize: '1.6rem', fontWeight: 800 }}>VS</div>
                 </div>
                 <TeamBadge name={opp.short} colors={opp.colors} />
               </div>
               <div className="muted small" style={{ marginBottom: 12 }}>
-                {opp.name} · niveau {Math.round(teamLevel(c, opp.id))} (vous : {Math.round(teamLevel(c, club.id))}) · {st.find((r) => r.clubId === opp.id)?.w ?? 0}V-{st.find((r) => r.clubId === opp.id)?.l ?? 0}D
+                {opp.name} · niveau {Math.round(teamLevel(c, opp.id))} (vous : {Math.round(teamLevel(c, me.id))}){f.stage === 'youth' ? ' · équipe Espoirs (moins de 21 ans)' : ''}
               </div>
               {busy ? (
                 <div className="muted">{busy}</div>
@@ -312,6 +321,10 @@ function HomeTab({ c }: { c: Career }) {
             Programme : {c.plan.mode === 'manual' ? PROGRAMS[c.plan.program].label : c.plan.mode === 'auto-weakness' ? 'auto (faiblesses)' : 'auto (objectifs)'} · {INTENSITY[c.plan.intensity].label}
           </button>
         </div>
+      </div>
+      <div className="grid cols-2">
+        <ObjectivesCard c={c} />
+        <CompetitionsCard c={c} />
       </div>
       <div className="grid cols-2">
         <div className="card">
@@ -531,19 +544,13 @@ function TrainingTab({ c }: { c: Career }) {
         </div>
         <div className="card">
           <div className="card-title">
-            <h3>Entraîneur spécialisé</h3>
+            <h3>Préparateur individuel</h3>
+            <span className={`pill ${c.plan.specialistCoach ? 'green' : ''}`}>{c.plan.specialistCoach ? 'Engagé' : 'Non engagé'}</span>
           </div>
-          <div className="seg">
-            <button aria-pressed={!c.plan.specialistCoach} onClick={() => set({ specialistCoach: false })}>
-              Staff du club
-            </button>
-            <button aria-pressed={c.plan.specialistCoach} onClick={() => set({ specialistCoach: true })}>
-              Coach individuel (+18 % de progression)
-            </button>
-          </div>
-          <p className="small muted" style={{ marginTop: 8 }}>
-            Le coach individuel est financé sur votre salaire ({u.contract?.salary ? `${Math.round((u.contract.salary * 0.05) / 1000)} k€/an` : 'non disponible sans salaire : accordé par le club formateur'}).
-          </p>
+          <p className="small muted">Le préparateur individuel (+18 % de progression), le nutritionniste, le kiné et le préparateur mental s'engagent et se paient dans l'onglet Vie.</p>
+          <button className="btn small" onClick={() => app.go({ name: 'hub', tab: 'life' })}>
+            Gérer mon staff personnel
+          </button>
         </div>
       </div>
       <AttributesCard p={u} />
@@ -582,7 +589,7 @@ export function AttributesCard({ p }: { p: PlayerData }) {
 function ClubTab({ c }: { c: Career }) {
   const club = userClub(c);
   const dc = depthChart(c, club.id);
-  const [view, setView] = useState<'squad' | 'table' | 'leaders'>('squad');
+  const [view, setView] = useState<'squad' | 'table' | 'leaders' | 'compare'>('squad');
   const lid = club.leagueId;
   return (
     <div className="grid" style={{ gap: 14 }}>
@@ -603,6 +610,9 @@ function ClubTab({ c }: { c: Career }) {
             </button>
             <button aria-pressed={view === 'leaders'} onClick={() => setView('leaders')}>
               Meilleurs joueurs
+            </button>
+            <button aria-pressed={view === 'compare'} onClick={() => setView('compare')}>
+              Comparateur
             </button>
           </div>
         </div>
@@ -656,6 +666,7 @@ function ClubTab({ c }: { c: Career }) {
         </div>
       )}
       {view === 'leaders' && <Leaders c={c} leagueId={lid} />}
+      {view === 'compare' && <Comparator c={c} />}
     </div>
   );
 }
@@ -695,7 +706,8 @@ function Leaders({ c, leagueId }: { c: Career; leagueId: string }) {
 function CalendarTab({ c }: { c: Career }) {
   const club = userClub(c);
   const [league, setLeague] = useState(club.leagueId);
-  const fx = c.world.fixtures.filter((f) => f.home === club.id || f.away === club.id).sort((a, b) => a.week - b.week);
+  const mine = userTeams(c);
+  const fx = c.world.fixtures.filter((f) => mine.includes(f.home) || mine.includes(f.away)).sort((a, b) => a.week - b.week);
   return (
     <div className="grid" style={{ gap: 14 }}>
       <div className="card">
@@ -717,14 +729,14 @@ function CalendarTab({ c }: { c: Career }) {
             </thead>
             <tbody>
               {fx.map((f) => {
-                const home = f.home === club.id;
-                const opp = c.world.clubs[home ? f.away : f.home];
+                const home = mine.includes(f.home);
+                const opp = c.world.clubs[home ? f.away : f.home] ?? club;
                 const us = home ? f.hs : f.as;
                 const them = home ? f.as : f.hs;
                 return (
                   <tr key={f.id} className={f.week === c.week && !f.played ? 'me' : ''}>
                     <td>{f.week}</td>
-                    <td>{f.stage === 'regular' ? c.world.leagues[f.leagueId].name : f.stage === 'semi' ? 'Demi-finale' : 'Finale'}</td>
+                    <td>{fixtureName(c, f)}</td>
                     <td>{opp.name}</td>
                     <td>{home ? 'Dom.' : 'Ext.'}</td>
                     <td className="r">{f.played ? <b style={{ color: us > them ? 'var(--green)' : '#ff8d90' }}>{us > them ? 'V' : 'D'} {us}-{them}</b> : f.week === c.week ? 'Cette semaine' : '—'}</td>
@@ -835,7 +847,7 @@ function CareerTab({ c }: { c: Career }) {
                   <button
                     className="btn small primary"
                     style={{ marginTop: 6 }}
-                    disabled={c.phase !== 'offseason'}
+                    disabled={c.phase !== 'offseason' && !winterOpen(c)}
                     onClick={async () => {
                       acceptOffer(c, o.id);
                       await app.persist(c);
@@ -860,6 +872,37 @@ function CareerTab({ c }: { c: Career }) {
           <div className="card">
             <h3 style={{ marginBottom: 8 }}>Statistiques par saison</h3>
             <SeasonTable c={c} />
+          </div>
+          <div className="card">
+            <h3 style={{ marginBottom: 8 }}>Hors championnat (saison en cours)</h3>
+            {Object.keys(c.compStats ?? {}).length === 0 ? (
+              <p className="muted small">Aucun match de coupe, d'Europe, Espoirs ou de sélection cette saison.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="t">
+                  <thead>
+                    <tr>
+                      <th>Compétition</th>
+                      <th className="r">MJ</th>
+                      <th className="r">Pts</th>
+                      <th className="r">Rbd</th>
+                      <th className="r">Pd</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(c.compStats).map(([k, st]) => (
+                      <tr key={k}>
+                        <td>{({ cup: 'Coupes nationales', euro: 'EuroCoupe', youth: 'Espoirs (U21)', nat: 'Sélection nationale' } as Record<string, string>)[k] ?? k}</td>
+                        <td className="r">{st.gp}</td>
+                        <td className="r">{st.gp ? (st.pts / st.gp).toFixed(1) : '-'}</td>
+                        <td className="r">{st.gp ? (st.reb / st.gp).toFixed(1) : '-'}</td>
+                        <td className="r">{st.gp ? (st.ast / st.gp).toFixed(1) : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
           <div className="card">
             <h3 style={{ marginBottom: 8 }}>Meilleures performances</h3>

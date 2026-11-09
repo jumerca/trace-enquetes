@@ -9,7 +9,7 @@ import { NameRegistry } from '../../data/generate';
 import { user, userFixture } from '../../career/career';
 import { createMatch, finishMatch } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
-import { sfx } from '../audio';
+import { crowdLevel, sfx, startAmbience, stopAmbience } from '../audio';
 import { keyLabel } from '../settings';
 import { fullName } from '../../data/model';
 import { Modal } from '../components/Modal';
@@ -69,7 +69,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   const repBefore = useMemo(() => (c ? user(c).reputation : 0), [c]);
 
   const engine = useMemo(() => {
-    if (!quick && c && fixture) return createMatch(c, fixture);
+    const control = app.settings.controlMode === 'play';
+    if (!quick && c && fixture) return createMatch(c, fixture, control);
     const reg = new NameRegistry();
     const home = quickTeam(Date.now() & 0xffff, 'Riverside', 12, ['#3988F5', '#F6F4EF'], reg);
     const away = quickTeam((Date.now() >> 3) & 0xffff, 'Northport', 12, ['#F36B32', '#101827'], reg);
@@ -77,7 +78,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
     home.short = 'RIV';
     away.name = 'Northport Comets';
     away.short = 'NPC';
-    return new MatchEngine({ home, away, rules: withQuarterLength(FIBA, app.settings.defaultQuarter), seed: Date.now() & 0x7fffffff, userPlayerId: home.players[1].id, userAssist: true });
+    return new MatchEngine({ home, away, rules: withQuarterLength(FIBA, app.settings.defaultQuarter), seed: Date.now() & 0x7fffffff, userPlayerId: home.players[1].id, userAssist: true, userControl: control });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -123,6 +124,20 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         }
         if (n >= 30) acc = 0;
       }
+      // Sons physiques (ballon) produits par la simulation
+      if (engine.sounds.length) {
+        const seen = new Set<string>();
+        for (const snd of engine.sounds) {
+          if (seen.has(snd)) continue;
+          seen.add(snd);
+          if (snd === 'rim') sfx.rim();
+          else if (snd === 'board') sfx.board();
+          else if (snd === 'bounce') sfx.bounce();
+          else if (snd === 'dribble' && speedRef.current === 1) sfx.dribble();
+        }
+        engine.sounds.length = 0;
+      }
+      crowdLevel(engine.time - engine.lastScoreT < 2.5 ? 1 : engine.clutch());
       // Sons liés aux événements simulés
       for (; evCount < engine.events.length; evCount++) {
         const ev = engine.events[evCount];
@@ -155,6 +170,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
+    startAmbience();
     const hudT = window.setInterval(() => {
       const u = engine.userIdx >= 0 ? engine.players[engine.userIdx] : null;
       const lastEv = [...engine.events].reverse().find((e) => e.type !== 'pass' && e.text);
@@ -187,6 +203,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
     }, 120);
     return () => {
       cancelAnimationFrame(raf);
+      stopAmbience();
       window.clearInterval(hudT);
       window.removeEventListener('resize', resize);
       ro.disconnect();
@@ -361,8 +378,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
             </button>
           </div>
           <div className="hud-tr">
-            <button className="icon-btn" aria-label="Caméra" title="Caméra" onClick={() => setCamera((v) => (v === 'full' ? 'follow' : 'full'))}>
-              {camera === 'full' ? '⤢' : '⤡'}
+            <button className="icon-btn" aria-label="Caméra" title="Caméra" onClick={() => setCamera((v) => (v === 'player' ? 'follow' : v === 'follow' ? 'full' : 'player'))}>
+              {camera === 'full' ? '⤢' : camera === 'follow' ? '⤡' : '◎'}
             </button>
             <button className="icon-btn" aria-label="Statistiques" onClick={() => setStatsOpen(true)}>
               ≡
@@ -394,7 +411,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         <i />
         <b style={{ bottom: `${(1 / 1.6) * 100}%` }} />
       </div>
-      {h && h.onCourt && !h.finished && labels && (
+      {h && !h.finished && !simMsg && !engine.userControl && <StyleBar engine={engine} onChange={(st) => c && (c.style = st)} />}
+      {h && h.onCourt && !h.finished && labels && engine.userControl && (
         <div className="controls touch-only">
           <div className="joy" ref={joyRef} onPointerDown={(e) => ((joyActive.current = true), (e.target as HTMLElement).setPointerCapture(e.pointerId), joyMove(e))} onPointerMove={(e) => joyActive.current && joyMove(e)} onPointerUp={joyEnd} onPointerCancel={joyEnd} aria-label="Joystick de déplacement">
             <i ref={knobRef} />
@@ -472,19 +490,22 @@ export function MatchScreen({ quick }: { quick: boolean }) {
                 <button aria-pressed={camera === 'full'} onClick={() => setCamera('full')}>
                   Terrain entier
                 </button>
+                <button aria-pressed={camera === 'player'} onClick={() => setCamera('player')}>
+                  Centrée sur mon joueur
+                </button>
                 <button aria-pressed={camera === 'follow'} onClick={() => setCamera('follow')}>
                   Rapprochée (suit le ballon)
                 </button>
               </div>
             </div>
             <div className="field">
-              <label>Assistance IA (votre joueur agit seul si vous ne touchez à rien)</label>
+              <label>Mode de jeu</label>
               <div className="seg">
-                <button aria-pressed={engine.userAssist} onClick={() => ((engine.userAssist = true), c && (c.settings.assist = true), app.bump())}>
-                  Activée
+                <button aria-pressed={!engine.userControl} onClick={() => ((engine.userControl = false), app.setSettings({ ...app.settings, controlMode: 'watch' }))}>
+                  Regarder (l'IA joue selon vos consignes)
                 </button>
-                <button aria-pressed={!engine.userAssist} onClick={() => ((engine.userAssist = false), c && (c.settings.assist = false), app.bump())}>
-                  Désactivée
+                <button aria-pressed={engine.userControl} onClick={() => ((engine.userControl = true), app.setSettings({ ...app.settings, controlMode: 'play' }))}>
+                  Contrôler mon joueur
                 </button>
               </div>
             </div>
@@ -580,5 +601,50 @@ function ActBtn({ label, k, main, on }: { label: string; k: string; main?: boole
       <span style={{ whiteSpace: 'pre-line' }}>{label}</span>
       <kbd>{k}</kbd>
     </button>
+  );
+}
+
+const STYLE_OPTS = {
+  shooting: { label: 'Tirs', opts: [[-0.8, 'Collectif'], [0, 'Équilibré'], [0.8, 'Prend ses responsabilités']] },
+  defense: { label: 'Défense', opts: [[0.15, 'Prudente'], [0.5, 'Normale'], [0.95, 'Agressive']] },
+  hustle: { label: 'Effort', opts: [[0.15, 'Gérer'], [0.5, 'Normal'], [0.95, 'À fond']] },
+} as const;
+
+/** Consignes données à votre joueur pendant le match (mode spectateur). */
+function StyleBar({ engine, onChange }: { engine: MatchEngine; onChange: (s: MatchEngine['userStyle']) => void }) {
+  const [open, setOpen] = useState(false);
+  const [, force] = useState(0);
+  const st = engine.userStyle;
+  return (
+    <div className="stylebar">
+      {open && (
+        <div className="stylebar-panel fade-in">
+          {(Object.keys(STYLE_OPTS) as (keyof typeof STYLE_OPTS)[]).map((k) => (
+            <div key={k} className="field">
+              <label>{STYLE_OPTS[k].label}</label>
+              <div className="seg">
+                {STYLE_OPTS[k].opts.map(([v, l]) => (
+                  <button
+                    key={l}
+                    aria-pressed={Math.abs(st[k] - v) < 0.2}
+                    onClick={() => {
+                      engine.userStyle = { ...st, [k]: v };
+                      onChange(engine.userStyle);
+                      force((x) => x + 1);
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="tiny muted">Ces consignes modifient réellement les décisions de votre joueur (prises de tir, interceptions, rebond offensif, dépense d'énergie).</p>
+        </div>
+      )}
+      <button className="btn small" onClick={() => setOpen((o) => !o)}>
+        {open ? 'Fermer' : 'Consignes à mon joueur'}
+      </button>
+    </div>
   );
 }

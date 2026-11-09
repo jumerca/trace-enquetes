@@ -14,7 +14,8 @@ export interface KeyMap {
 
 export interface Settings {
   volume: number; // 0..1
-  camera: 'full' | 'follow';
+  camera: 'full' | 'follow' | 'player';
+  controlMode: 'watch' | 'play';
   quality: 'low' | 'high';
   showOpen: boolean;
   colorblind: boolean;
@@ -41,7 +42,8 @@ export const DEFAULT_KEYS: KeyMap = {
 
 export const DEFAULT_SETTINGS: Settings = {
   volume: 0.6,
-  camera: 'full',
+  camera: 'player',
+  controlMode: 'watch',
   quality: 'high',
   showOpen: true,
   colorblind: false,

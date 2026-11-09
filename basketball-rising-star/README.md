@@ -1,7 +1,9 @@
 # Basketball Rising Star — JLG Creative
 
-Jeu de carrière de basketball (PWA) : vous incarnez un jeune joueur, de 16-18 ans jusqu'à la retraite,
+Jeu de carrière de basketball (PWA) : vous guidez un jeune joueur, de 16-18 ans jusqu'à la retraite,
 avec un **moteur de match 2,5D réellement simulé** (dix joueurs, ballon physique, IA collective, règles FIBA).
+Par défaut, les matchs se regardent : votre joueur est joué par l'IA selon vos consignes (prise de tirs, défense, effort).
+Le contrôle direct reste disponible dans la pause du match (option « Contrôler mon joueur »).
 
 ## Lancer le jeu
 
@@ -41,7 +43,7 @@ une mise à jour du jeu (nouveau service worker) ne les efface jamais.
 | `src/sim/` | Moteur de match indépendant du rendu : `engine.ts` (état déterministe, pas fixe 1/60 s, horloges, fautes, violations, lancers, remplacements), `physics.ts` (ballon 3D : anneau, planche, sol, filet), `shooting.ts` (modèle de tir), `rules.ts` (FIBA, NBA, NCB), `court.ts` (géométrie réglementaire) |
 | `src/sim/ai/` | IA : `offense.ts` (lecture des options du porteur, pick-and-roll, coupes, transition, espacement), `defense.ts` (homme à homme, zone 2-3, aides, rotations, changements, box-out, fautes tactiques), `coach.ts` (rotations, fautes, temps morts) |
 | `src/render/` | Rendu Canvas 2D 2,5D (projection oblique) : parquet, paniers, filets animés, joueurs articulés, ballon avec ombre et hauteur |
-| `src/career/` | Monde fictif (4 ligues, 48 clubs), calendrier, classement, entraînement, progression, contrats/agents/offres, événements à choix, fin de saison (vieillissement, retraites, jeunes, montées/descentes) |
+| `src/career/` | Monde fictif (4 ligues, 48 clubs), calendrier, classement, entraînement, progression, contrats/agents/offres, événements à choix, fin de saison (vieillissement, retraites, jeunes, montées/descentes) ; `competitions.ts` : Coupe de France, Copa Peninsular, EuroCoupe, Espoirs (U21), Tournoi des nations ; `life.ts` : finances, staff personnel, activité de la semaine, conférences de presse, demandes au coach (minutes, prêt, transfert), mercato d'hiver, objectifs de saison |
 | `src/save/` | IndexedDB (4 emplacements, copie de secours, somme de contrôle), export/import, migrations |
 | `src/ui/` | Interface React : accueil, création, hub, avant-match, match, feuille de match, paramètres, aide |
 

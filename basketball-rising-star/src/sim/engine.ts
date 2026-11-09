@@ -41,7 +41,18 @@ export interface MatchConfig {
   fatigueScale?: number;
   /** Assistance IA lorsque le joueur ne touche pas aux commandes */
   userAssist?: boolean;
+  /** false = mode spectateur : le joueur incarné est joué par l'IA selon ses consignes */
+  userControl?: boolean;
+  /** Consignes personnelles données au joueur incarné (-1..1) */
+  userStyle?: UserStyle;
 }
+
+export interface UserStyle {
+  shooting: number; // -1 collectif … +1 prend ses responsabilités
+  defense: number; // 0 prudent … 1 agressif
+  hustle: number; // 0 économise … 1 se donne à fond (rebond, repli, fatigue)
+}
+export const DEFAULT_STYLE: UserStyle = { shooting: 0, defense: 0.5, hustle: 0.5 };
 
 export const TICK = 1 / 60;
 
@@ -77,12 +88,16 @@ export class MatchEngine {
   prevInput: UserInput = emptyInput();
   userIdleT = 0;
   userAssist: boolean;
+  userControl: boolean;
+  userStyle: UserStyle;
+  /** Sons à jouer (consommés par l'interface) */
+  sounds: string[] = [];
   fatigueScale: number;
   lastScoreT = -10;
   netSwish = [0, 0]; // animation filets (côté 0 = gauche, 1 = droite)
   replayMarks: { t: number; kind: string }[] = [];
   possessionStartT = 0;
-  ftQueue: { shooter: number; remaining: number; total: number; team: 0 | 1 } | null = null;
+  ftQueue: { shooter: number; remaining: number; total: number; team: 0 | 1; keep?: boolean } | null = null;
   shotClockExpiredInFlight = false;
   slowmo = 0;
   finished = false;
@@ -96,6 +111,8 @@ export class MatchEngine {
     this.clock = this.rules.quarterMin * 60;
     this.shotClock = this.rules.shotClock;
     this.userAssist = config.userAssist ?? true;
+    this.userControl = config.userControl ?? false;
+    this.userStyle = config.userStyle ?? DEFAULT_STYLE;
     this.fatigueScale = config.fatigueScale ?? Math.max(1, (config.rules.id === 'NBA' ? 12 : 10) / config.rules.quarterMin);
     const mk = (t: TeamInput): TeamState => ({
       id: t.id,
@@ -392,7 +409,7 @@ export class MatchEngine {
         if (this.clockRunning) p.box.sec += dt;
         const sp = Math.hypot(p.vel.x, p.vel.y);
         const stam = p.data.attrs.stamina / 20;
-        const drain = (0.0016 + sp * sp * 0.00011) * (1.45 - stam * 0.8) * this.fatigueScale;
+        const drain = (0.0016 + sp * sp * 0.00011) * (1.45 - stam * 0.8) * this.fatigueScale * (p.isUser ? 0.85 + this.userStyle.hustle * 0.3 : 1);
         if (this.clockRunning || this.phase === 'live') p.energy = Math.max(0.05, p.energy - drain * dt);
       } else {
         p.energy = Math.min(1, p.energy + 0.0075 * dt * this.fatigueScale);
@@ -433,11 +450,12 @@ export class MatchEngine {
   }
 
   userAutoActive(): boolean {
+    if (!this.userControl) return true;
     return this.userAssist && this.userIdleT > 1.6;
   }
 
   applyUserInput(dt: number): void {
-    if (this.userIdx < 0) return;
+    if (this.userIdx < 0 || !this.userControl) return;
     const u = this.players[this.userIdx];
     const inp = this.input;
     const moving = Math.hypot(inp.mx, inp.my) > 0.15;
@@ -647,7 +665,7 @@ export class MatchEngine {
     const hoop = this.hoopFor(h.team);
     const between = dist(def.pos, hoop) < dist(h.pos, hoop);
     if (!between) return;
-    if (this.rng.chance(0.12)) {
+    if (this.rng.chance(0.2)) {
       const set = defSp < 1.0 && def.data.attrs.positioning / 20 > this.rng.next() * 0.9;
       const inRA = dist(def.pos, hoop) < this.court.g.restrictedRadius;
       if (set && !inRA) this.callFoul(h, def, 'offensive');
@@ -735,11 +753,11 @@ export class MatchEngine {
           heightAdv = p.heightM - o.heightM;
         }
         // Faute sur le tireur
-        const contactR = type === 'layup' || type === 'dunk' ? 0.95 : 0.72;
+        const contactR = type === 'layup' || type === 'dunk' ? 1.05 : 0.85;
         if (od < contactR) {
           const disc = o.data.attrs.discipline / 20;
           const foulTrouble = o.fouls >= this.rules.foulOut - 1 ? 0.5 : 1;
-          let pf = (type === 'layup' || type === 'dunk' ? 0.55 : 0.16) * (1.35 - disc * 0.6) * foulTrouble;
+          let pf = (type === 'layup' || type === 'dunk' ? 0.8 : 0.17) * (1.35 - disc * 0.6) * foulTrouble;
           pf *= 0.8 + (p.data.attrs.strength / 20) * 0.4;
           if (!fouler && this.rng.chance(pf)) fouler = o;
         }
@@ -890,7 +908,7 @@ export class MatchEngine {
       if (p === shooter) continue;
       const big = p.data.pos === 'C' || p.data.pos === 'PF';
       const crash = tac.crashBoards * (big ? 1.4 : 0.6) + (p.data.attrs.defRebound / 20) * 0.2;
-      p.role = this.rng.chance(crash) ? 'crash' : 'safety';
+      p.role = this.rng.chance(p.isUser ? crash * (0.5 + this.userStyle.hustle) : crash) ? 'crash' : 'safety';
     }
   }
 
@@ -933,7 +951,7 @@ export class MatchEngine {
         h.slowT = 0.4;
       } else {
         const disc = a.discipline / 20;
-        if (this.rng.chance(0.3 * (1.35 - disc * 0.7) * (user ? 1.2 : 1))) {
+        if (this.rng.chance(0.45 * (1.35 - disc * 0.7) * (user ? 1.2 : 1))) {
           this.callFoul(p, h, 'reach');
         } else {
           p.slowT = 0.55; // déséquilibré : le porteur peut en profiter
@@ -1073,7 +1091,18 @@ export class MatchEngine {
       const side = h.data.hand === 'L' ? -1 : 1;
       const perp = h.facing + (Math.PI / 2) * side;
       const sp = Math.hypot(h.vel.x, h.vel.y);
+      const pick = h as MPlayer & { pickedUp?: boolean };
+      if (pick.pickedUp) {
+        // Dribble arrêté : ballon tenu à deux mains (pied de pivot)
+        b.dribbling = false;
+        b.x = h.pos.x + Math.cos(h.facing) * 0.3;
+        b.y = h.pos.y + Math.sin(h.facing) * 0.3;
+        b.z = 1.15 + h.z;
+        return;
+      }
+      const prevPh = b.dribblePhase;
       b.dribblePhase += dt * (5.5 + sp * 0.9);
+      if (Math.floor(b.dribblePhase / Math.PI) !== Math.floor(prevPh / Math.PI) && this.phase === 'live') this.sounds.push('dribble');
       b.dribbling = true;
       b.x = h.pos.x + Math.cos(perp) * 0.32 + Math.cos(h.facing) * (0.18 + sp * 0.04);
       b.y = h.pos.y + Math.sin(perp) * 0.32 + Math.sin(h.facing) * (0.18 + sp * 0.04);
@@ -1086,6 +1115,9 @@ export class MatchEngine {
     if (b.flight) b.flight.t += dt;
     const res = stepBall(b, this.court, dt);
     const f = b.flight;
+    if (res.rimHit) this.sounds.push('rim');
+    else if (res.boardHit) this.sounds.push('board');
+    if (res.floorHit) this.sounds.push('bounce');
 
     if (f && (f.kind === 'shot' || f.kind === 'ft')) {
       if (res.rimHit || res.boardHit) {
@@ -1212,7 +1244,7 @@ export class MatchEngine {
     if (best && this.rng.chance(0.3 + bestW)) {
       // Faute au rebond (contact dans la lutte)
       const rival = this.players.find((o) => o.onCourt && o.team !== best!.team && Math.hypot(o.pos.x - best!.pos.x, o.pos.y - best!.pos.y) < 0.75);
-      if (rival && this.rng.chance(0.05 * (1.3 - rival.data.attrs.discipline / 30))) {
+      if (rival && this.rng.chance(0.11 * (1.3 - rival.data.attrs.discipline / 30))) {
         this.callFoul(rival, best, 'loose');
         return;
       }
@@ -1264,6 +1296,7 @@ export class MatchEngine {
     b.lastTouch = p.idx;
     b.lastTeam = p.team;
     p.pickupT = 0;
+    (p as MPlayer & { pickedUp?: boolean }).pickedUp = false;
     p.lastTouchT = this.time;
     const ext = p as MPlayer & { passFrom?: number; caughtAt?: number };
     ext.passFrom = how === 'pass' && from >= 0 ? from : undefined;
@@ -1386,7 +1419,7 @@ export class MatchEngine {
     const b = this.ball;
     if (f.kind === 'ft') {
       this.emit({ type: 'ft', team: shooter.team, player: shooter.idx, points: 0, text: `${this.name(shooter.idx)} manque son lancer franc` });
-      if (this.ftQueue && this.ftQueue.remaining > 0) {
+      if (this.ftQueue && (this.ftQueue.remaining > 0 || this.ftQueue.keep)) {
         b.state = 'dead';
         b.flight = null;
         this.nextFreeThrow(false);
@@ -1467,12 +1500,12 @@ export class MatchEngine {
     });
   }
 
-  startFreeThrows(shooter: MPlayer, n: number): void {
+  startFreeThrows(shooter: MPlayer, n: number, keep = false): void {
     if (!shooter.onCourt) {
       // remplaçant éventuel : on prend le meilleur tireur sur le terrain
       shooter = this.teamOnCourt(shooter.team).sort((a, b) => b.data.attrs.freeThrow - a.data.attrs.freeThrow)[0];
     }
-    this.ftQueue = { shooter: shooter.idx, remaining: n, total: n, team: shooter.team };
+    this.ftQueue = { shooter: shooter.idx, remaining: n, total: n, team: shooter.team, keep };
     this.phase = 'freethrow';
     this.possession = shooter.team;
     this.lineUpFreeThrow();
@@ -1537,7 +1570,7 @@ export class MatchEngine {
     const b = this.ball;
     Object.assign(b, { state: 'air', holder: -1, x: start.x, y: start.y, z: start.z, vx: v.vx, vy: v.vy, vz: v.vz, airT: 0 });
     b.flight = { kind: 'ft', from: sh.idx, to: -1, team: sh.team, t: 0, dur: v.T, start, end, shotType: 'ft', points: 1, side };
-    if (q.remaining === 0) {
+    if (q.remaining === 0 && !q.keep) {
       // Dernier lancer : les joueurs peuvent entrer dans la raquette au rebond
       this.phase = 'live';
     }
@@ -1552,6 +1585,12 @@ export class MatchEngine {
       return;
     }
     this.ftQueue = null;
+    if (q?.keep) {
+      // Lancer technique : l'équipe garde la possession (remise en jeu)
+      this.phase = 'deadball';
+      this.schedule(0.8, () => this.setupInbound(q.team, 'sideline'));
+      return;
+    }
     if (made) {
       const shooterTeam = q ? q.team : this.possession;
       if (this.clock <= 0) {
@@ -1593,6 +1632,17 @@ export class MatchEngine {
         this.violation(off, 'Sortie de terrain', h);
         return;
       }
+      // Ballon arrêté : un déplacement sans dribble est un marcher
+      const pick = h as MPlayer & { pickedUp?: boolean; pickPos?: V2; doubleDribble?: boolean };
+      if (pick.pickedUp && pick.pickPos && dist(h.pos, pick.pickPos) > 1.15) {
+        this.violation(off, 'Marcher', h);
+        return;
+      }
+      if (pick.doubleDribble) {
+        pick.doubleDribble = false;
+        this.violation(off, 'Reprise de dribble', h);
+        return;
+      }
       // Marcher : erreur de pied de pivot sous pression (joueurs IA peu techniques)
       if (h.intent === 'drive' && h.pickupT > 0.4 && !h.isUser) {
         const fw = (h.data.attrs.footwork + h.data.attrs.ballControl) / 40;
@@ -1614,6 +1664,27 @@ export class MatchEngine {
       }
     } else {
       for (const p of this.onCourt) p.keyTime = 0;
+    }
+    // NBA : trois secondes défensives (faute technique, un lancer franc et possession conservée)
+    if (this.rules.id === 'NBA' && h && h.team === off) {
+      const def = (1 - off) as 0 | 1;
+      for (const d of this.teamOnCourt(def)) {
+        const ext = d as MPlayer & { defKey?: number };
+        const guarding = this.teamOnCourt(off).some((o) => dist(o.pos, d.pos) < 1.3);
+        ext.defKey = this.court.inKey(side, d.pos) && !guarding ? (ext.defKey ?? 0) + dt : 0;
+        if ((ext.defKey ?? 0) > this.rules.threeSec) {
+          ext.defKey = 0;
+          this.emit({ type: 'violation', team: def, player: d.idx, text: `Trois secondes défensives (${this.name(d.idx)}) : faute technique` });
+          this.clockRunning = false;
+          this.shotClockOn = false;
+          this.ball.state = 'dead';
+          this.ball.holder = -1;
+          this.phase = 'deadball';
+          const shooter = this.teamOnCourt(off).sort((a, b) => b.data.attrs.freeThrow - a.data.attrs.freeThrow)[0];
+          this.schedule(1.1, () => this.startFreeThrows(shooter, 1, true));
+          return;
+        }
+      }
     }
   }
 

@@ -117,7 +117,7 @@ describe('Moteur de match — match complet', () => {
 describe('Règles', () => {
   it('sanctionne la violation des 24 secondes si le porteur garde le ballon', () => {
     const home = quickTeam(3, 'Home');
-    const e = new MatchEngine({ home, away: quickTeam(4, 'Away'), rules: withQuarterLength(FIBA, 10), seed: 3, userPlayerId: home.players[0].id, userAssist: false });
+    const e = new MatchEngine({ home, away: quickTeam(4, 'Away'), rules: withQuarterLength(FIBA, 10), seed: 3, userPlayerId: home.players[0].id, userAssist: false, userControl: true });
     // On attend une possession de son équipe, on lui confie le ballon et il ne fait plus rien.
     const u = e.players[e.userIdx];
     e.runUntil((x) => x.phase === 'live' && x.possession === u.team && x.ball.state === 'held' && x.frontcourtReached);
@@ -185,5 +185,25 @@ describe('Identités', () => {
     const e = match(77, 2);
     const names = e.players.map((p) => `${p.data.firstName} ${p.data.lastName}`);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe('Mode spectateur', () => {
+  it('le joueur incarné est joué par l’IA selon ses consignes', () => {
+    const run = (shooting: number) => {
+      let fga = 0;
+      for (const seed of [1, 2, 3, 4]) {
+        const reg = new NameRegistry();
+        const home = quickTeam(seed, 'H', 12, undefined, reg);
+        const e = new MatchEngine({ home, away: quickTeam(seed + 50, 'A', 12, undefined, reg), rules: withQuarterLength(FIBA, 5), seed, userPlayerId: home.players[1].id, userStyle: { shooting, defense: 0.5, hustle: 0.5 } });
+        e.runToEnd();
+        fga += e.players[e.userIdx].box.fga;
+      }
+      return fga;
+    };
+    const selfish = run(0.8);
+    const team = run(-0.8);
+    expect(selfish).toBeGreaterThan(0);
+    expect(selfish).toBeGreaterThan(team);
   });
 });

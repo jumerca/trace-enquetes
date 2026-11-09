@@ -95,13 +95,13 @@ export function shotProbability(p: PlayerData, c: ShotContext): number {
       break;
     case 'jumper': {
       const sk = c.offDribble ? a.pullUp * 0.55 + a.midRange * 0.45 : a.midRange * 0.6 + a.catchShoot * 0.4;
-      base = 0.33 + s(sk) * 0.26 - Math.max(0, c.dist - 4) * 0.008;
+      base = 0.345 + s(sk) * 0.26 - Math.max(0, c.dist - 4) * 0.008;
       contestImpact = 0.3;
       break;
     }
     case 'three': {
       const sk = c.offDribble ? a.three * 0.65 + a.pullUp * 0.35 : a.three * 0.7 + a.catchShoot * 0.3;
-      base = 0.245 + s(sk) * 0.26 - Math.max(0, c.dist - 7.2) * 0.045;
+      base = 0.255 + s(sk) * 0.26 - Math.max(0, c.dist - 7.2) * 0.045;
       contestImpact = 0.3;
       break;
     }

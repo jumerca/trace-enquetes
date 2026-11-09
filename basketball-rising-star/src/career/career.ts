@@ -3,13 +3,15 @@ import { ALL_ATTRS, ARCHETYPES, OVR_WEIGHTS, POSITION_BASE, type Archetype, type
 import { age as ageOf, generatePlayer, NameRegistry, playerOvr } from '../data/generate';
 import { fullName, type Appearance, type Club, type PlayerData, type SeasonLine } from '../data/model';
 import { NATIONS } from '../data/names';
-import type { TeamInput } from '../sim/engine';
+import { DEFAULT_STYLE, type TeamInput, type UserStyle } from '../sim/engine';
 import { FIBA, NBA, NCB, withQuarterLength, type Ruleset } from '../sim/rules';
 import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonStat } from './fastsim';
 import { applyGains, trainWeek, type TrainingPlan } from './training';
 import { createWorld, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
+import { endLoan, life, reviewObjectives, setObjectives, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
+import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const START_SEASON = 2026;
 export const REGULAR_WEEKS = 22;
 
@@ -129,6 +131,10 @@ export interface Career {
   bestGames: { season: number; week: number; opp: string; pts: number; reb: number; ast: number; rating: number }[];
   retired: boolean;
   nationalCaps: number;
+  /** Statistiques du joueur hors championnat (coupes, Europe, Espoirs, sélection) */
+  compStats: Record<string, SeasonStat>;
+  /** Consignes personnelles appliquées par l'IA quand elle joue votre joueur */
+  style: UserStyle;
 }
 
 let newsCounter = 0;
@@ -151,7 +157,7 @@ export function rngFor(c: Career, salt: string): Rng {
 
 export function rulesFor(c: Career, leagueId: string): Ruleset {
   const l = c.world.leagues[leagueId];
-  const base = l.rules === 'NBA' ? NBA : l.rules === 'NCB' ? NCB : FIBA;
+  const base = !l ? FIBA : l.rules === 'NBA' ? NBA : l.rules === 'NCB' ? NCB : FIBA;
   return c.settings.quarterMin < base.quarterMin ? withQuarterLength(base, c.settings.quarterMin) : base;
 }
 
@@ -241,8 +247,12 @@ export function createCareer(input: CreationInput): Career {
     bestGames: [],
     retired: false,
     nationalCaps: 0,
+    compStats: {},
+    style: { ...DEFAULT_STYLE },
   };
   generateSchedule(c);
+  ensureYouthFixture(c, userRole(c).rank);
+  setObjectives(c);
   addNews(c, 'league', `${fullName(u)} rejoint ${club.name}`, `À ${input.age} ans, le ${ARCHETYPES[u.archetype].label.toLowerCase()} né à ${u.birthCity} (${NATIONS[u.nationality]?.label ?? u.nationality}) commence son aventure en ${league.name}. L’entraîneur ${club.coach.name} prévient : « Ici, les minutes se méritent. »`);
   return c;
 }
@@ -273,6 +283,7 @@ export function generateSchedule(c: Career): void {
       });
     });
   }
+  createCompetitions(c);
 }
 
 export interface StandingRow {
@@ -321,9 +332,25 @@ export function standings(c: Career, leagueId: string): StandingRow[] {
   return list;
 }
 
-export function userFixture(c: Career): Fixture | null {
+/** Équipes que le joueur représente cette saison (club, et sélection nationale l'été). */
+export function userTeams(c: Career): string[] {
   const u = user(c);
-  return c.world.fixtures.find((f) => f.week === c.week && !f.played && (f.home === u.clubId || f.away === u.clubId)) ?? null;
+  const nat = c.world.clubs[natId(u.nationality)];
+  return nat && nat.roster.includes(u.id) ? [u.clubId!, nat.id] : [u.clubId!];
+}
+
+const STAGE_ORDER: Record<string, number> = { regular: 0, semi: 0, final: 0, cup: 1, nat: 1, youth: 2 };
+export function userFixture(c: Career): Fixture | null {
+  const teams = userTeams(c);
+  const list = c.world.fixtures.filter((f) => f.week === c.week && !f.played && (teams.includes(f.home) || teams.includes(f.away)));
+  list.sort((a, b) => STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage]);
+  return list[0] ?? null;
+}
+
+/** Côté du joueur dans un match (id de l'équipe qu'il représente). */
+export function userSideId(c: Career, f: Fixture): string {
+  const teams = userTeams(c);
+  return teams.includes(f.home) ? f.home : f.away;
 }
 
 // ------------------------------------------------------------------ Coach et rotation
@@ -389,7 +416,9 @@ export function userRole(c: Career): { label: string; minutes: number; rank: num
 }
 
 /** Construit l'équipe pour le moteur de match (titulaires d'abord). Exclut les blessés. */
-export function teamInput(c: Career, clubId: string): TeamInput {
+export function teamInput(c: Career, clubId: string, f?: Fixture): TeamInput {
+  const sp = f ? isSpecialTeam(c, clubId, f) : null;
+  if (sp) return specialTeamInput(c, clubId, sp, c.userId);
   const club = c.world.clubs[clubId];
   const dc = depthChart(c, clubId);
   const healthy = dc.order.filter((p) => p.injuryDays <= 0).slice(0, 12);
@@ -398,7 +427,9 @@ export function teamInput(c: Career, clubId: string): TeamInput {
   return { id: club.id, name: club.name, short: club.short, colors: club.colors, tactics: { ...club.coach.tactics }, players: healthy, minutesPlan };
 }
 
-function rosterEntries(c: Career, clubId: string): RosterEntry[] {
+function rosterEntries(c: Career, clubId: string, f?: Fixture): RosterEntry[] {
+  const sp = f ? isSpecialTeam(c, clubId, f) : null;
+  if (sp) return specialEntries(c, clubId, sp, c.userId);
   const dc = depthChart(c, clubId);
   return dc.order.filter((p) => p.injuryDays <= 0).map((p) => ({ p, minutes: dc.minutes[p.id] ?? 0, starter: dc.starters.includes(p) }));
 }
@@ -427,8 +458,15 @@ export function recordUserMatch(
   fixture.played = true;
   fixture.hs = hs;
   fixture.as = as;
-  for (const [id, st] of lines) addStat(ensureStat(c, id), { ...emptySeasonStat(), ...st, gp: st.min > 0 ? 1 : 0 });
+  const leagueGame = !!c.world.leagues[fixture.leagueId];
   const u = user(c);
+  if (leagueGame) {
+    for (const [id, st] of lines) if (c.world.players[id]) addStat(ensureStat(c, id), { ...emptySeasonStat(), ...st, gp: st.min > 0 ? 1 : 0 });
+  } else {
+    const kind = fixture.stage === 'youth' ? 'youth' : fixture.stage === 'nat' ? 'nat' : isComp(fixture.leagueId, c.world)?.kind ?? 'cup';
+    const st0 = lines.get(u.id);
+    if (st0) addStat((c.compStats[kind] ??= emptySeasonStat()), { ...emptySeasonStat(), ...st0, gp: st0.min > 0 ? 1 : 0 });
+  }
   const st = lines.get(u.id);
   const line: UserGameLine = {
     min: st?.min ?? 0,
@@ -452,18 +490,20 @@ export function recordUserMatch(
   };
   line.rating = gameRating(line);
   fixture.userLine = line;
-  const won = (fixture.home === u.clubId && hs > as) || (fixture.away === u.clubId && as > hs);
+  const side = userSideId(c, fixture);
+  const won = (fixture.home === side && hs > as) || (fixture.away === side && as > hs);
   // Conséquences : confiance, forme, confiance du coach, réputation, relations
   if (line.min > 0) {
     const delta = (line.rating - 6) * 3;
     u.confidence = clamp100(u.confidence + delta);
     u.form = Math.max(0, Math.min(1, u.form * 0.7 + (line.rating / 10) * 0.3));
     c.trust = clamp100(c.trust + (line.rating - 5.8) * 2.2 + (won ? 0.6 : -0.3));
-    const lvl = c.world.leagues[fixture.leagueId].level;
+    const lvl = fixtureLevel(c, fixture);
+    if (fixture.stage === 'youth') c.trust = clamp100(c.trust + (line.rating - 5.5) * 0.8);
     u.reputation = clamp100(u.reputation + Math.max(-0.5, (line.rating - 6) * (lvl === 1 ? 0.9 : 0.5)) + line.min / 120);
     c.relations.fans = clamp100(c.relations.fans + (line.rating - 6) * 1.2 + (won ? 0.5 : 0));
     c.relations.media = clamp100(c.relations.media + (line.rating - 6.2) * 0.8);
-    const opp = c.world.clubs[fixture.home === u.clubId ? fixture.away : fixture.home];
+    const opp = c.world.clubs[fixture.home === side ? fixture.away : fixture.home];
     c.bestGames.push({ season: c.world.season, week: c.week, opp: opp.name, pts: line.pts, reb: line.reb, ast: line.ast, rating: line.rating });
     c.bestGames.sort((a, b) => b.rating - a.rating || b.pts - a.pts);
     c.bestGames.length = Math.min(c.bestGames.length, 10);
@@ -472,6 +512,7 @@ export function recordUserMatch(
     c.relations.coach = clamp100(c.relations.coach - 0.5);
   }
   u.fatigue = Math.min(100, u.fatigue + line.min * 0.55);
+  if (line.min > 0 && fixture.stage !== 'youth') life(c).pendingPress = fixture.id;
   matchNews(c, fixture, line, won);
   return line;
 }
@@ -525,13 +566,16 @@ export function advanceWeek(c: Career): WeekReport {
   // Matchs du monde (simulation rapide)
   for (const f of w.fixtures) {
     if (f.week !== c.week || f.played) continue;
-    const res = fastSimGame(rosterEntries(c, f.home), rosterEntries(c, f.away), new Rng(hashString(f.id + w.seed)));
-    f.played = true;
-    f.hs = res.hs;
-    f.as = res.as;
-    for (const [id, st] of res.lines) addStat(ensureStat(c, id), st);
-    // Fatigue des joueurs IA
-    for (const [id, st] of res.lines) w.players[id].fatigue = Math.min(100, w.players[id].fatigue + st.min * 0.5);
+    simFixture(c, f);
+  }
+  for (const m of [...progressCompetitions(c, c.week), ...progressNational(c, c.week)]) {
+    addNews(c, 'league', m, 'Palmarès mis à jour.');
+  }
+  for (const comp of Object.values(comps(w))) {
+    if (comp.winner && userTeams(c).includes(comp.winner) && !c.trophies.some((t) => t.season === w.season && t.title === comp.name)) {
+      c.trophies.push({ season: w.season, title: comp.name, kind: 'team' });
+      u.reputation = clamp100(u.reputation + (comp.kind === 'euro' || comp.kind === 'nat' ? 5 : 3));
+    }
   }
   // Entraînement du joueur
   const club = userClub(c);
@@ -572,6 +616,9 @@ export function advanceWeek(c: Career): WeekReport {
     injuries.push(`Blessure en match (${u.injuryDays} jours)`);
     addNews(c, 'injury', `Coup dur pour ${fullName(u)}`, `Touché lors du dernier match, ${u.lastName} devrait manquer environ ${Math.ceil(u.injuryDays / 7)} semaine(s).`);
   }
+  for (const n of weeklyLife(c, rng)) injuries.push(n);
+  if (c.phase === 'regular' && c.week === WINTER_WINDOW[0]) winterOffers(c);
+  if (c.phase === 'regular' && c.week === WINTER_WINDOW[1]) c.offers = c.offers.filter((o) => !o.id.startsWith('w'));
   c.ovrHistory.push({ season: w.season, week: c.week, ovr: playerOvr(u) });
   if (c.ovrHistory.length > 400) c.ovrHistory.shift();
   maybeEvent(c, rng);
@@ -579,8 +626,21 @@ export function advanceWeek(c: Career): WeekReport {
   c.week++;
   if (c.phase === 'regular' && c.week > REGULAR_WEEKS) startPlayoffs(c);
   else if (c.phase === 'playoffs') progressPlayoffs(c);
+  ensureYouthFixture(c, userRole(c).rank);
   c.updatedAt = Date.now();
   return { training: c.lastTraining, injuries };
+}
+
+/** Simulation rapide d'un match qui n'implique pas le joueur (ou qu'il ne joue pas). */
+export function simFixture(c: Career, f: Fixture): void {
+  const w = c.world;
+  const res = fastSimGame(rosterEntries(c, f.home, f), rosterEntries(c, f.away, f), new Rng(hashString(f.id + w.seed)));
+  f.played = true;
+  f.hs = res.hs;
+  f.as = res.as;
+  if (!w.leagues[f.leagueId]) return;
+  for (const [id, st] of res.lines) if (w.players[id]) addStat(ensureStat(c, id), st);
+  for (const [id, st] of res.lines) if (w.players[id]) w.players[id].fatigue = Math.min(100, w.players[id].fatigue + st.min * 0.5);
 }
 
 function leagueNews(c: Career, rng: Rng): void {
@@ -743,11 +803,13 @@ function seasonReview(c: Career): void {
   const threshold = age <= 18 ? 58 : age <= 20 ? 62 : 70;
   if (ovr >= threshold) {
     const cat = age <= 18 ? 'U18' : age <= 20 ? 'U20' : 'A';
-    c.nationalCaps += cat === 'A' ? 6 : 0;
+    c.nationalCaps += cat === 'A' ? 4 : 0;
+    startNationalTournament(c, cat);
     c.trophies.push({ season: w.season, title: `Sélection nationale ${cat} — ${NATIONS[u.nationality]?.label ?? u.nationality}`, kind: 'individual' });
-    addNews(c, 'national', `${fullName(u)} convoqué en équipe nationale ${cat}`, `Le sélectionneur récompense une saison à ${ovr} de note globale. (Les rencontres internationales ne sont pas encore jouables : la convocation est enregistrée au palmarès.)`);
+    addNews(c, 'national', `${fullName(u)} convoqué en équipe nationale ${cat}`, `Le sélectionneur récompense une saison à ${ovr} de note globale. Rendez-vous cet été pour le Tournoi des nations : trois matchs de poule puis une finale.`);
     u.reputation = clamp100(u.reputation + (cat === 'A' ? 6 : 3));
   }
+  addNews(c, 'coach', 'Bilan des objectifs de la saison', `${reviewObjectives(c)}. Le staff en tient compte pour la saison prochaine.`);
   generateOffers(c);
 }
 
@@ -758,7 +820,7 @@ export function generateOffers(c: Career): void {
   const agent = AGENTS.find((a) => a.id === c.agentId) ?? AGENTS[0];
   const ovr = playerOvr(u);
   const offers: Offer[] = [];
-  const clubs = Object.values(w.clubs).filter((cl) => cl.id !== u.clubId);
+  const clubs = Object.values(w.clubs).filter((cl) => cl.id !== u.clubId && !!w.leagues[cl.leagueId]);
   for (const cl of clubs) {
     const lvl = teamLevel(c, cl.id);
     const league = w.leagues[cl.leagueId];
@@ -768,7 +830,7 @@ export function generateOffers(c: Career): void {
     const fitLevel = ovr - lvl;
     if (fitLevel < -9 || fitLevel > 10) continue;
     const needPos = cl.roster.filter((id) => w.players[id]?.pos === u.pos).length <= 2 ? 0.15 : 0;
-    const interest = 0.08 + (fitLevel + 9) / 40 + needPos + u.reputation / 300 + agent.network / 120 - (cl.reputation - u.reputation) / 400;
+    const interest = (life(c).transferRequest ? 0.2 : 0) + 0.08 + (fitLevel + 9) / 40 + needPos + u.reputation / 300 + agent.network / 120 - (cl.reputation - u.reputation) / 400;
     if (!rng.chance(Math.max(0, Math.min(0.8, interest)))) continue;
     const role: Offer['role'] = fitLevel > 4 ? 'star' : fitLevel > 0 ? 'starter' : fitLevel > -5 ? 'rotation' : 'prospect';
     const salary = Math.round((salaryFor(ovr, league.level) * (1 + agent.negotiation / 60) * rng.range(0.85, 1.2)) / 1000) * 1000;
@@ -820,6 +882,7 @@ export function acceptOffer(c: Career, offerId: string): void {
     u.teamFit = 40;
   } else addNews(c, 'transfer', `${fullName(u)} prolonge à ${club.name}`, `Nouveau contrat jusqu’en ${u.contract.until + 1}.`);
   c.offers = [];
+  life(c).transferRequest = false;
 }
 
 export function roleLabel(r: Offer['role']): string {
@@ -831,6 +894,17 @@ export function startNextSeason(c: Career): void {
   const w = c.world;
   const rng = rngFor(c, 'season');
   const u = user(c);
+  endLoan(c);
+  // Fin du tournoi des nations si le joueur passe directement à la saison suivante
+  for (let guard = 0; guard < 6 && comps(w).NAT && !comps(w).NAT.winner; guard++) {
+    for (const f of w.fixtures) if (f.leagueId === 'NAT' && !f.played) simFixture(c, f);
+    progressNational(c, 27);
+    for (const f of w.fixtures) if (f.leagueId === 'NAT' && !f.played) simFixture(c, f);
+    const msg = progressNational(c, 28);
+    if (msg[0]) addNews(c, 'national', msg[0], 'Fin du tournoi d\u2019été.');
+    if (comps(w).NAT?.winner && userTeams(c).includes(comps(w).NAT.winner!)) c.trophies.push({ season: w.season, title: comps(w).NAT.name, kind: 'team' });
+  }
+  clearNational(c);
   // Historique de la saison du joueur
   const st = c.seasonStats[u.id] ?? emptySeasonStat();
   const club = userClub(c);
@@ -897,7 +971,7 @@ export function startNextSeason(c: Career): void {
     const ovr = playerOvr(p);
     const mins = minutesOf(p.id);
     const room = p.potential - ovr;
-    let delta = age <= 21 ? rng.normal(1.6, 1.0) : age <= 24 ? rng.normal(0.9, 0.9) : age <= 28 ? rng.normal(0.1, 0.7) : age <= 31 ? rng.normal(-0.5, 0.6) : rng.normal(-1.4, 0.8);
+    let delta = age <= 21 ? rng.normal(1.6, 1.0) : age <= 24 ? rng.normal(0.9, 0.9) : age <= 28 ? rng.normal(0.3, 0.7) : age <= 31 ? rng.normal(-0.3, 0.6) : rng.normal(-1.2, 0.8);
     if (room <= 0 && delta > 0) delta *= 0.2;
     delta *= mins > 15 ? 1.15 : mins < 5 && age < 25 ? 0.6 : 1;
     // Répartition sur quelques attributs (physiques en déclin après 30 ans)
@@ -957,7 +1031,7 @@ export function startNextSeason(c: Career): void {
         free.splice(free.indexOf(cand), 1);
       } else {
         const ageNew = league.id === 'NCB' ? 18 : rng.int(17, 19);
-        p = generatePlayer(rng, names, { pos: need, age: ageNew, level: league.strength - 3 + cl.youth / 10 + rng.normal(0, 0.8), nation: rng.pick(LEAGUE_NATIONS[league.id] ?? ['FRA']), season: w.season + 1, potentialBonus: cl.youth / 4 });
+        p = generatePlayer(rng, names, { pos: need, age: ageNew, level: league.strength - 2.4 + cl.youth / 10 + rng.normal(0, 0.8), nation: rng.pick(LEAGUE_NATIONS[league.id] ?? ['FRA']), season: w.season + 1, potentialBonus: cl.youth / 4 });
         w.players[p.id] = p;
       }
       p.clubId = cl.id;
@@ -982,11 +1056,14 @@ export function startNextSeason(c: Career): void {
   w.usedNames = [...names.used];
   w.season += 1;
   c.seasonStats = {};
+  c.compStats = {};
   c.week = 1;
   c.phase = 'regular';
   c.offers = [];
   u.fatigue = 0;
   generateSchedule(c);
+  ensureYouthFixture(c, userRole(c).rank);
+  setObjectives(c);
   const age = ageOf(u, w.season);
   addNews(c, 'league', `Saison ${w.season}-${w.season + 1} : c’est parti`, `${fullName(u)} (${age} ans, ${playerOvr(u)} de note globale) aborde une nouvelle saison avec ${userClub(c).name}.`);
   if (age >= 41) c.retired = true;
