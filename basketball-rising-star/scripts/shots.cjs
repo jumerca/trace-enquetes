@@ -1,0 +1,37 @@
+const { chromium } = require('playwright');
+const OUT = process.argv[2];
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } });
+  const p = await ctx.newPage();
+  const errors = [];
+  p.on('pageerror', (e) => errors.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await p.goto('http://localhost:4173/');
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: OUT + '/01-home.png' });
+  // Création de carrière
+  await p.click('text=Nouvelle carrière');
+  await p.fill('#fn', 'Lucas');
+  await p.fill('#ln', 'Moreau');
+  await p.screenshot({ path: OUT + '/02-create.png' });
+  await p.click('text=Continuer →');
+  await p.screenshot({ path: OUT + '/03-create-phys.png' });
+  await p.click('text=Continuer →');
+  await p.screenshot({ path: OUT + '/04-create-profile.png' });
+  await p.click('text=Continuer →');
+  await p.screenshot({ path: OUT + '/05-create-path.png' });
+  await p.click('text=Commencer la carrière');
+  await p.waitForTimeout(1500);
+  await p.screenshot({ path: OUT + '/06-hub.png', fullPage: true });
+  await p.click('text=Préparer et jouer le match');
+  await p.waitForTimeout(500);
+  await p.screenshot({ path: OUT + '/07-prematch.png', fullPage: true });
+  await p.click('text=Entrer sur le parquet');
+  await p.waitForTimeout(4000);
+  await p.screenshot({ path: OUT + '/08-match.png' });
+  await p.waitForTimeout(6000);
+  await p.screenshot({ path: OUT + '/09-match.png' });
+  console.log('errors:', JSON.stringify(errors.slice(0, 10)));
+  await b.close();
+})();

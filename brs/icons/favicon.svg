@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#17233a"/><stop offset="1" stop-color="#0b111d"/></linearGradient>
+    <linearGradient id="arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3988F5" stop-opacity="0"/><stop offset="0.45" stop-color="#3988F5"/><stop offset="1" stop-color="#DDB65A"/></linearGradient>
+    <radialGradient id="ball" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#ff9d63"/><stop offset="0.6" stop-color="#F36B32"/><stop offset="1" stop-color="#b9461a"/></radialGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="url(#bg)"/>
+  <path d="M10 86 C 34 80, 58 58, 80 20" fill="none" stroke="url(#arc)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M20 90 C 40 86, 60 70, 76 44" fill="none" stroke="#3988F5" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+  <g transform="translate(42 60)">
+    <circle r="23" fill="url(#ball)"/>
+    <g fill="none" stroke="#2a1206" stroke-width="2.6" stroke-linecap="round" opacity="0.85">
+      <path d="M0 -23 C 9 -10, 9 10, 0 23"/><path d="M-23 0 H 23"/>
+      <path d="M-16 -16.5 C -6 -7, -6 7, -16 16.5"/><path d="M16 -16.5 C 6 -7, 6 7, 16 16.5"/>
+    </g>
+    <path d="M-12 -14 A 18 18 0 0 1 8 -19" stroke="#fff" stroke-opacity="0.35" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g>
+  <path d="M80 8 L83.5 16.5 L92 20 L83.5 23.5 L80 32 L76.5 23.5 L68 20 L76.5 16.5 Z" fill="#DDB65A"/>
+</svg>
