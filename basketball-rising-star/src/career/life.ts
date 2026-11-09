@@ -1,6 +1,6 @@
 import type { Rng } from '../core/rng';
 import { age as ageOf, playerOvr } from '../data/generate';
-import { fullName } from '../data/model';
+import { fullName, type PlayerData } from '../data/model';
 import type { Career, Offer } from './career';
 import { addNews, AGENTS, depthChart, perGame, teamLevel, user, userClub, userRole, rngFor } from './career';
 import { salaryFor } from './world';
@@ -314,3 +314,228 @@ export function reviewObjectives(c: Career): string {
 }
 
 export { userRole };
+
+// ================================================================== Extensions de la vie de joueur
+export interface Sponsor {
+  id: string;
+  brand: string;
+  sector: string;
+  weekly: number;
+  until: number; // saison de fin incluse
+  minRep: number;
+}
+
+const BRANDS: Omit<Sponsor, 'until'>[] = [
+  { id: 'sp1', brand: 'Vantage Sportswear', sector: 'Équipementier', weekly: 300, minRep: 20 },
+  { id: 'sp2', brand: 'Hydra Boisson isotonique', sector: 'Boisson', weekly: 450, minRep: 30 },
+  { id: 'sp3', brand: 'Kinetik Chaussures', sector: 'Chaussures', weekly: 900, minRep: 45 },
+  { id: 'sp4', brand: 'Orbis Montres', sector: 'Horlogerie', weekly: 1600, minRep: 60 },
+  { id: 'sp5', brand: 'Nova Mobile', sector: 'Téléphonie', weekly: 2800, minRep: 75 },
+  { id: 'sp6', brand: 'Altiva Automobiles', sector: 'Automobile', weekly: 4500, minRep: 88 },
+];
+
+export interface LifeExtra {
+  sponsors: Sponsor[];
+  sponsorOffers: Sponsor[];
+  followers: number;
+  mentorId: string | null;
+  injuryPlan: 'full' | 'fast' | 'specialist' | null;
+  campChoice: CampId | null;
+  history: { season: number; league: string; champion: string; mvp: string; userTeam: boolean }[];
+  rivalNote: string;
+}
+
+export function extra(c: Career): LifeExtra {
+  const l = life(c) as Life & { extra?: LifeExtra };
+  l.extra ??= { sponsors: [], sponsorOffers: [], followers: 300, mentorId: null, injuryPlan: null, campChoice: null, history: [], rivalNote: '' };
+  return l.extra;
+}
+
+/** Abonnés sur les réseaux : réputation, relation avec les médias et résultats. */
+export function updateFollowers(c: Career): void {
+  const x = extra(c);
+  const u = user(c);
+  const target = 200 + Math.pow(u.reputation, 2.4) * 3 + c.relations.media * 60 + c.relations.fans * 40;
+  x.followers = Math.round(x.followers + (target - x.followers) * 0.08);
+}
+
+export function sponsorIncome(c: Career): number {
+  return extra(c).sponsors.reduce((s, sp) => s + sp.weekly, 0);
+}
+
+export function sponsorWeek(c: Career, rng: Rng): void {
+  const x = extra(c);
+  const u = user(c);
+  x.sponsors = x.sponsors.filter((s) => s.until >= c.world.season);
+  life(c).money += sponsorIncome(c);
+  // Obligations : une journée promotionnelle par mois (fatigue)
+  if (x.sponsors.length && c.week % 4 === 0) u.fatigue = Math.min(100, u.fatigue + 3 * x.sponsors.length);
+  if (c.week % 6 === 3 && x.sponsorOffers.length < 2) {
+    const have = new Set([...x.sponsors, ...x.sponsorOffers].map((s) => s.id));
+    const cand = BRANDS.filter((b) => !have.has(b.id) && u.reputation + x.followers / 4000 >= b.minRep);
+    if (cand.length && rng.chance(0.6)) {
+      const b = cand[cand.length - 1];
+      x.sponsorOffers.push({ ...b, weekly: Math.round(b.weekly * (0.85 + x.followers / 200000)), until: c.world.season + 1 });
+      addNews(c, 'event', `Proposition de partenariat : ${b.brand}`, `La marque (${b.sector.toLowerCase()}) propose un contrat d’image jusqu’en ${c.world.season + 2}.`);
+    }
+  }
+}
+
+export function acceptSponsor(c: Career, id: string, accept: boolean): void {
+  const x = extra(c);
+  const sp = x.sponsorOffers.find((s) => s.id === id);
+  x.sponsorOffers = x.sponsorOffers.filter((s) => s.id !== id);
+  if (sp && accept) {
+    x.sponsors.push(sp);
+    c.relations.media = clamp100(c.relations.media + 3);
+    addNews(c, 'event', `${user(c).lastName} s’associe à ${sp.brand}`, `Contrat d’image signé (${sp.weekly} €/semaine).`);
+  }
+}
+
+// ------------------------------------------------------------------ Négociation
+/** Contre-proposition à une offre : plus de salaire ou un rôle plus important. Peut faire échouer l'offre. */
+export function negotiate(c: Career, offerId: string, ask: 'salary' | 'role'): { ok: boolean; text: string } {
+  const o = c.offers.find((x) => x.id === offerId);
+  if (!o) return { ok: false, text: 'Offre introuvable.' };
+  if ((o as Offer & { negotiated?: boolean }).negotiated) return { ok: false, text: 'Le club a déjà fait son dernier effort.' };
+  const agent = AGENTS.find((a) => a.id === c.agentId) ?? AGENTS[0];
+  const rng = rngFor(c, `neg${offerId}${ask}`);
+  const u = user(c);
+  const club = c.world.clubs[o.clubId];
+  const need = teamLevel(c, club.id) <= playerOvr(u) ? 0.15 : 0;
+  const p = 0.3 + agent.negotiation / 40 + need + (u.reputation - club.reputation) / 200;
+  (o as Offer & { negotiated?: boolean }).negotiated = true;
+  if (rng.chance(Math.max(0.08, Math.min(0.85, p)))) {
+    if (ask === 'salary') {
+      o.salary = Math.round((o.salary * 1.15) / 1000) * 1000;
+      return { ok: true, text: `${club.name} accepte : salaire porté à ${Math.round(o.salary / 1000)} k€/an.` };
+    }
+    const order: Offer['role'][] = ['prospect', 'rotation', 'starter', 'star'];
+    o.role = order[Math.min(3, order.indexOf(o.role) + 1)];
+    return { ok: true, text: `${club.name} accepte de vous promettre un rôle plus important.` };
+  }
+  if (rng.chance(0.4)) {
+    c.offers = c.offers.filter((x) => x.id !== offerId);
+    return { ok: false, text: `${club.name} se retire des discussions.` };
+  }
+  return { ok: false, text: `${club.name} refuse mais maintient son offre initiale.` };
+}
+
+// ------------------------------------------------------------------ Blessures
+export const INJURY_PLANS = {
+  full: { label: 'Rééducation complète', desc: 'Durée normale, aucun risque supplémentaire.' },
+  fast: { label: 'Retour accéléré', desc: 'Durée −40 %, mais risque de rechute et fragilité accrue.' },
+  specialist: { label: 'Clinique spécialisée (6 000 €)', desc: 'Durée −25 %, sans risque, payé sur votre épargne.' },
+} as const;
+
+export function chooseInjuryPlan(c: Career, plan: keyof typeof INJURY_PLANS): string {
+  const u = user(c);
+  const x = extra(c);
+  if (u.injuryDays <= 0 || x.injuryPlan) return 'Aucune décision à prendre.';
+  x.injuryPlan = plan;
+  if (plan === 'fast') {
+    u.injuryDays = Math.ceil(u.injuryDays * 0.6);
+    u.injuryRisk *= 1.15;
+    c.relations.medical = clamp100(c.relations.medical - 6);
+    c.trust = clamp100(c.trust + 2);
+  } else if (plan === 'specialist') {
+    if (life(c).money < 6000) {
+      x.injuryPlan = null;
+      return 'Épargne insuffisante pour la clinique spécialisée.';
+    }
+    life(c).money -= 6000;
+    u.injuryDays = Math.ceil(u.injuryDays * 0.75);
+    c.relations.medical = clamp100(c.relations.medical + 4);
+  } else c.relations.medical = clamp100(c.relations.medical + 3);
+  return `${INJURY_PLANS[plan].label} : retour estimé dans ${Math.ceil(u.injuryDays / 7)} semaine(s).`;
+}
+
+/** Rechute possible après un retour accéléré. */
+export function injuryWeek(c: Career, rng: Rng): void {
+  const u = user(c);
+  const x = extra(c);
+  if (u.injuryDays <= 0 && x.injuryPlan) {
+    if (x.injuryPlan === 'fast' && rng.chance(0.18)) {
+      u.injuryDays = rng.int(7, 21);
+      addNews(c, 'injury', `Rechute pour ${u.lastName}`, 'Le retour précipité n’a pas tenu : nouvelle indisponibilité.');
+    }
+    x.injuryPlan = null;
+  }
+}
+
+// ------------------------------------------------------------------ Mentor
+export function mentorCandidates(c: Career): PlayerData[] {
+  const u = user(c);
+  return userClub(c)
+    .roster.map((id) => c.world.players[id])
+    .filter((p) => p && !p.isUser && ageOf(p, c.world.season) >= 27 && (p.pos === u.pos || p.pos === u.pos2 || p.pos2 === u.pos));
+}
+
+export function mentorWeek(c: Career): string | null {
+  const x = extra(c);
+  const u = user(c);
+  if (!x.mentorId) return null;
+  const m = c.world.players[x.mentorId];
+  if (!m || m.clubId !== u.clubId) {
+    x.mentorId = null;
+    return null;
+  }
+  // Le mentor transmet ses deux meilleurs points forts où il dépasse le joueur
+  const keys = (Object.keys(m.attrs) as (keyof typeof m.attrs)[]).filter((k) => m.attrs[k] > u.attrs[k] + 1).sort((a, b) => m.attrs[b] - u.attrs[b] - (m.attrs[a] - u.attrs[a]));
+  u.frac ??= {};
+  for (const k of keys.slice(0, 2)) u.frac[k] = (u.frac[k] ?? 0) + 0.08 * (m.attrs.leadership / 14);
+  c.relations.captain = clamp100(c.relations.captain + 0.3);
+  return keys.slice(0, 2).join(',');
+}
+
+// ------------------------------------------------------------------ Stage d'été
+export type CampId = 'shooting' | 'athletic' | 'iq' | 'big';
+export const CAMPS: Record<CampId, { label: string; cost: number; desc: string; gains: Partial<Record<keyof PlayerData['attrs'], number>> }> = {
+  shooting: { label: 'Stage de tir (Californie)', cost: 8000, desc: '3 pts +1, sortie d’écran +1, lancers +1', gains: { three: 1, catchShoot: 1, freeThrow: 1 } },
+  athletic: { label: 'Préparation athlétique', cost: 6000, desc: 'Détente +1, explosivité +1, endurance +1', gains: { vertical: 1, explosiveness: 1, stamina: 1 } },
+  iq: { label: 'Camp de lecture du jeu', cost: 4000, desc: 'Intelligence +1, vision +1, défense collective +1', gains: { iq: 1, vision: 1, teamD: 1 } },
+  big: { label: 'Camp des intérieurs', cost: 6000, desc: 'Jeu au poste +1, pied de pivot +1, rebond +1', gains: { postPlay: 1, footwork: 1, defRebound: 1 } },
+};
+
+export function chooseCamp(c: Career, id: CampId | null): string {
+  const x = extra(c);
+  if (id && life(c).money < CAMPS[id].cost) return 'Épargne insuffisante pour ce stage.';
+  x.campChoice = id;
+  return id ? `${CAMPS[id].label} réservé : effets appliqués au début de la saison.` : 'Aucun stage cet été.';
+}
+
+export function applyCamp(c: Career): void {
+  const x = extra(c);
+  if (!x.campChoice) return;
+  const camp = CAMPS[x.campChoice];
+  const u = user(c);
+  life(c).money -= camp.cost;
+  for (const [k, v] of Object.entries(camp.gains)) u.attrs[k as keyof typeof u.attrs] = Math.min(20, u.attrs[k as keyof typeof u.attrs] + (v ?? 0));
+  addNews(c, 'training', `${u.lastName} de retour de stage`, `${camp.label} : ${camp.desc}.`);
+  x.campChoice = null;
+}
+
+// ------------------------------------------------------------------ Concurrent direct
+export function rival(c: Career): PlayerData | null {
+  const u = user(c);
+  const dc = depthChart(c, u.clubId!);
+  const same = dc.order.filter((p) => !p.isUser && (p.pos === u.pos || p.pos2 === u.pos));
+  const idx = dc.order.findIndex((p) => p.isUser);
+  return same.find((p) => dc.order.indexOf(p) < idx) ?? same[0] ?? null;
+}
+
+// ------------------------------------------------------------------ Histoire du championnat
+export function recordHistory(c: Career, league: string, champion: string, mvp: string, userTeam: boolean): void {
+  const x = extra(c);
+  x.history.unshift({ season: c.world.season, league, champion, mvp, userTeam });
+  if (x.history.length > 200) x.history.length = 200;
+}
+
+/** Score d'héritage : palmarès, statistiques et longévité. */
+export function legacyScore(c: Career): number {
+  const u = user(c);
+  const tot = u.history.reduce((a, h) => ({ gp: a.gp + h.gp, pts: a.pts + h.pts }), { gp: 0, pts: 0 });
+  const team = c.trophies.filter((t) => t.kind === 'team').length;
+  const ind = c.trophies.filter((t) => t.kind === 'individual').length;
+  return Math.round(tot.gp * 0.4 + tot.pts * 0.05 + team * 40 + ind * 25 + c.nationalCaps * 3 + u.reputation * 2);
+}

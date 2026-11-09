@@ -26,6 +26,11 @@ interface Hud {
   to0: number;
   to1: number;
   feed: string;
+  feed2: string;
+  poss: number;
+  bonus0: boolean;
+  bonus1: boolean;
+  run: string;
   onCourt: boolean;
   hasBall: boolean;
   offense: boolean;
@@ -54,6 +59,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const input = useRef<UserInput>(emptyInput());
+  const prevBall = useRef<{ x: number; y: number; z: number } | null>(null);
+  const [banner, setBanner] = useState<{ text: string; color: string; id: number } | null>(null);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const [speed, setSpeed] = useState(c?.settings.speed ?? 1);
@@ -94,7 +101,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   useEffect(() => {
     const canvas = canvasRef.current!;
     const r = new MatchRenderer(canvas, engine);
-    r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind };
+    r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind, showNames: app.settings.showNames };
     const resize = () => {
       const w = wrapRef.current!;
       r.resize(w.clientWidth, w.clientHeight);
@@ -118,6 +125,13 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         acc += dt * sp;
         let n = 0;
         while (acc >= TICK && n < 30) {
+          // État précédent mémorisé pour interpoler l'image entre deux pas de simulation
+          for (const pl of engine.players) {
+            const ip = pl as typeof pl & { prevX?: number; prevY?: number };
+            ip.prevX = pl.pos.x;
+            ip.prevY = pl.pos.y;
+          }
+          prevBall.current = { x: engine.ball.x, y: engine.ball.y, z: engine.ball.z };
           engine.step({ ...input.current, callBall: input.current.pass });
           acc -= TICK;
           n++;
@@ -141,6 +155,12 @@ export function MatchScreen({ quick }: { quick: boolean }) {
       // Sons liés aux événements simulés
       for (; evCount < engine.events.length; evCount++) {
         const ev = engine.events[evCount];
+        const big = ev.type === 'made' && (ev.points === 3 || ev.detail === 'dunk') ? (ev.points === 3 ? 'À 3 POINTS !' : 'DUNK !') : ev.type === 'block' ? 'CONTRE !' : ev.type === 'steal' ? 'INTERCEPTION' : ev.type === 'timeout' ? 'TEMPS MORT' : ev.type === 'quarter' ? ev.text.toUpperCase() : ev.type === 'info' && ev.text.startsWith('Ajustement') ? 'AJUSTEMENT TACTIQUE' : '';
+        if (big) {
+          const col = ev.team >= 0 ? engine.teams[ev.team as 0 | 1].colors[0] : '#F36B32';
+          setBanner({ text: big, color: col, id: evCount });
+          window.setTimeout(() => setBanner((b) => (b && b.id === evCount ? null : b)), 1700);
+        }
         if (ev.type === 'made') {
           sfx.swish();
           if (ev.points === 3 || ev.detail === 'dunk') sfx.crowd();
@@ -149,7 +169,32 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         else if (ev.type === 'quarter' || ev.type === 'final') sfx.buzzer();
         else if (ev.type === 'block') sfx.rim();
       }
+      // Interpolation : positions affichées entre l'état précédent et l'état courant (fluidité à toute fréquence d'écran)
+      const alpha = pausedRef.current || simRef.current ? 1 : Math.min(1, acc / TICK);
+      const saved = engine.players.map((pl) => ({ x: pl.pos.x, y: pl.pos.y }));
+      const sb = { x: engine.ball.x, y: engine.ball.y, z: engine.ball.z };
+      if (alpha < 1) {
+        for (const pl of engine.players) {
+          const ip = pl as typeof pl & { prevX?: number; prevY?: number };
+          if (ip.prevX === undefined || Math.hypot(pl.pos.x - ip.prevX, pl.pos.y - (ip.prevY ?? 0)) > 1.5) continue;
+          pl.pos.x = ip.prevX + (pl.pos.x - ip.prevX) * alpha;
+          pl.pos.y = (ip.prevY ?? pl.pos.y) + (pl.pos.y - (ip.prevY ?? pl.pos.y)) * alpha;
+        }
+        const pb = prevBall.current;
+        if (pb && Math.hypot(sb.x - pb.x, sb.y - pb.y) < 1.5) {
+          engine.ball.x = pb.x + (sb.x - pb.x) * alpha;
+          engine.ball.y = pb.y + (sb.y - pb.y) * alpha;
+          engine.ball.z = pb.z + (sb.z - pb.z) * alpha;
+        }
+      }
       r.render(pausedRef.current ? 0 : dt);
+      engine.players.forEach((pl, i) => {
+        pl.pos.x = saved[i].x;
+        pl.pos.y = saved[i].y;
+      });
+      engine.ball.x = sb.x;
+      engine.ball.y = sb.y;
+      engine.ball.z = sb.z;
       // Jauge de timing du tir
       const u = engine.userIdx >= 0 ? engine.players[engine.userIdx] : null;
       const tm = timingRef.current;
@@ -186,6 +231,11 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         to0: engine.teams[0].timeouts,
         to1: engine.teams[1].timeouts,
         feed: lastEv ? lastEv.text : '',
+        feed2: [...engine.events].reverse().filter((e) => e.type !== 'pass' && e.text && e !== lastEv).slice(0, 1).map((e) => e.text)[0] ?? '',
+        poss: engine.possession,
+        bonus0: engine.teams[1].quarterFouls >= engine.rules.bonusAtFoul,
+        bonus1: engine.teams[0].quarterFouls >= engine.rules.bonusAtFoul,
+        run: engine.teams[0].run >= 6 ? `${engine.teams[0].short} ${engine.teams[0].run}-0` : engine.teams[1].run >= 6 ? `${engine.teams[1].short} ${engine.teams[1].run}-0` : '',
         onCourt: !!u?.onCourt,
         hasBall: !!u && engine.ball.state === 'held' && engine.ball.holder === u.idx,
         offense: !!u && engine.possession === u.team,
@@ -356,6 +406,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
               <i style={{ background: t0.colors[0], outline: '1px solid rgba(255,255,255,.5)' }} />
               <span>{t0.short}</span>
               <span className="sc">{h.s0}</span>
+              {h.poss === 0 && <span className="possdot" aria-label="Possession" />}
+              {h.bonus0 && <span className="bonus">BONUS</span>}
             </div>
             <div className="clk">
               <span>{h.q <= 4 ? `QT${h.q}` : `PR${h.q - 4}`}</span>
@@ -363,12 +415,25 @@ export function MatchScreen({ quick }: { quick: boolean }) {
             </div>
             <div className={`shotclock ${h.shot < 5 ? 'low' : ''}`}>{h.shotOn ? Math.ceil(Math.max(0, h.shot)) : '—'}</div>
             <div className="tm">
+              {h.bonus1 && <span className="bonus">BONUS</span>}
+              {h.poss === 1 && <span className="possdot" aria-label="Possession" />}
               <span className="sc">{h.s1}</span>
               <span>{t1.short}</span>
               <i style={{ background: t1.colors[0] }} />
             </div>
           </div>
-          {h.feed && <div className="feed">{h.feed}</div>}
+          {h.feed && (
+            <div className="feed">
+              <div>{h.feed}</div>
+              {h.feed2 && <div className="feed-old">{h.feed2}</div>}
+            </div>
+          )}
+          {h.run && <div className="runbadge">Série {h.run}</div>}
+          {banner && (
+            <div className="banner" key={banner.id} style={{ borderColor: banner.color }}>
+              {banner.text}
+            </div>
+          )}
           <div className="hud-tl">
             <button className="icon-btn" aria-label="Pause" onClick={() => setPaused(true)}>
               ❚❚

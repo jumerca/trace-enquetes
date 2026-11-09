@@ -29,7 +29,8 @@ import { INTENSITY, PROGRAMS, autoProgram, type Intensity, type ProgramId, type 
 import { createMatch, finishMatch } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
 import { Modal } from '../components/Modal';
-import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard } from './LifeTab';
+import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard, RivalCard } from './LifeTab';
+import { extra, legacyScore, negotiate } from '../../career/life';
 import { fixtureName } from '../../career/competitions';
 import { userSideId, userTeams } from '../../career/career';
 import { winterOpen } from '../../career/life';
@@ -322,9 +323,10 @@ function HomeTab({ c }: { c: Career }) {
           </button>
         </div>
       </div>
-      <div className="grid cols-2">
+      <div className="grid cols-3">
         <ObjectivesCard c={c} />
         <CompetitionsCard c={c} />
+        <RivalCard c={c} />
       </div>
       <div className="grid cols-2">
         <div className="card">
@@ -769,7 +771,7 @@ function CalendarTab({ c }: { c: Career }) {
 function CareerTab({ c }: { c: Career }) {
   const app = useApp();
   const u = user(c);
-  const [view, setView] = useState<'profile' | 'contract' | 'history' | 'media'>('profile');
+  const [view, setView] = useState<'profile' | 'contract' | 'history' | 'media' | 'legacy'>('profile');
   const [agentModal, setAgentModal] = useState(false);
   const agent = AGENTS.find((a) => a.id === c.agentId) ?? AGENTS[0];
   const club = userClub(c);
@@ -794,6 +796,7 @@ function CareerTab({ c }: { c: Career }) {
             ['contract', `Contrat & offres${c.offers.length ? ` (${c.offers.length})` : ''}`],
             ['history', 'Historique & palmarès'],
             ['media', 'Médias & relations'],
+            ['legacy', 'Histoire & héritage'],
           ] as [typeof view, string][]
         ).map(([k, l]) => (
           <button key={k} aria-pressed={view === k} onClick={() => setView(k)}>
@@ -856,7 +859,22 @@ function CareerTab({ c }: { c: Career }) {
                     }}
                   >
                     Accepter
-                  </button>
+                  </button>{' '}
+                  {(['salary', 'role'] as const).map((k) => (
+                    <button
+                      key={k}
+                      className="btn small"
+                      style={{ marginTop: 6 }}
+                      onClick={async () => {
+                        const r = negotiate(c, o.id, k);
+                        await app.persist(c);
+                        app.bump();
+                        app.toast(r.text);
+                      }}
+                    >
+                      {k === 'salary' ? 'Demander +15 % de salaire' : 'Exiger un rôle plus important'}
+                    </button>
+                  ))}
                 </div>
               );
             })}
@@ -919,6 +937,64 @@ function CareerTab({ c }: { c: Career }) {
             ))}
           </div>
         </>
+      )}
+      {view === 'legacy' && (
+        <div className="grid cols-2">
+          <div className="card">
+            <div className="card-title">
+              <h3>Score d'héritage</h3>
+              <span className="pill gold">{legacyScore(c)}</span>
+            </div>
+            <p className="small muted">Calculé à partir des matchs, des points, des titres collectifs et individuels, des sélections et de la réputation. Une légende du jeu dépasse 1 500.</p>
+            <div className="kpis" style={{ marginTop: 8 }}>
+              <div className="kpi">
+                <span>Saisons</span>
+                <b className="stat-big">{u.history.length}</b>
+              </div>
+              <div className="kpi">
+                <span>Titres</span>
+                <b className="stat-big">{c.trophies.filter((t) => t.kind === 'team').length}</b>
+              </div>
+              <div className="kpi">
+                <span>Distinctions</span>
+                <b className="stat-big">{c.trophies.filter((t) => t.kind === 'individual').length}</b>
+              </div>
+              <div className="kpi">
+                <span>Abonnés</span>
+                <b className="stat-big" style={{ fontSize: '1.3rem' }}>{extra(c).followers.toLocaleString('fr-FR')}</b>
+              </div>
+            </div>
+          </div>
+          <div className="card">
+            <h3 style={{ marginBottom: 8 }}>Histoire des championnats</h3>
+            {extra(c).history.length === 0 ? (
+              <p className="small muted">Le palmarès des saisons jouées s'affichera ici (champions et MVP de chaque ligue).</p>
+            ) : (
+              <div className="table-wrap" style={{ maxHeight: 420 }}>
+                <table className="t">
+                  <thead>
+                    <tr>
+                      <th>Saison</th>
+                      <th>Ligue</th>
+                      <th>Champion</th>
+                      <th>MVP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extra(c).history.map((h, i) => (
+                      <tr key={i} className={h.userTeam ? 'me' : ''}>
+                        <td>{h.season}-{(h.season + 1) % 100}</td>
+                        <td>{h.league}</td>
+                        <td>{h.champion}</td>
+                        <td>{h.mvp}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {view === 'media' && (
         <div className="grid cols-2">

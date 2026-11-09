@@ -8,7 +8,7 @@ import { FIBA, NBA, NCB, withQuarterLength, type Ruleset } from '../sim/rules';
 import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonStat } from './fastsim';
 import { applyGains, trainWeek, type TrainingPlan } from './training';
 import { createWorld, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
-import { endLoan, life, reviewObjectives, setObjectives, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
+import { applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
 export const SAVE_VERSION = 3;
@@ -617,6 +617,10 @@ export function advanceWeek(c: Career): WeekReport {
     addNews(c, 'injury', `Coup dur pour ${fullName(u)}`, `Touché lors du dernier match, ${u.lastName} devrait manquer environ ${Math.ceil(u.injuryDays / 7)} semaine(s).`);
   }
   for (const n of weeklyLife(c, rng)) injuries.push(n);
+  sponsorWeek(c, rng);
+  injuryWeek(c, rng);
+  mentorWeek(c);
+  updateFollowers(c);
   if (c.phase === 'regular' && c.week === WINTER_WINDOW[0]) winterOffers(c);
   if (c.phase === 'regular' && c.week === WINTER_WINDOW[1]) c.offers = c.offers.filter((o) => !o.id.startsWith('w'));
   c.ovrHistory.push({ season: w.season, week: c.week, ovr: playerOvr(u) });
@@ -788,6 +792,7 @@ function seasonReview(c: Career): void {
     };
     const mvp = [...elig].sort((a, b) => score(b) - score(a))[0];
     const young = elig.filter((p) => ageOf(p, w.season) <= 21).sort((a, b) => score(b) - score(a))[0];
+    if (champ) recordHistory(c, l.name, w.clubs[champ].name, mvp ? `${fullName(mvp)} (${w.clubs[mvp.clubId!]?.short ?? '—'})` : '—', champ === u.clubId);
     if (mvp) {
       addNews(c, 'award', `${fullName(mvp)} élu MVP de ${l.name}`, `${(c.seasonStats[mvp.id].pts / c.seasonStats[mvp.id].gp).toFixed(1)} points de moyenne pour le joueur de ${w.clubs[mvp.clubId!]?.name ?? 'son club'}.`);
       if (mvp.isUser) c.trophies.push({ season: w.season, title: `MVP — ${l.name}`, kind: 'individual' });
@@ -895,6 +900,7 @@ export function startNextSeason(c: Career): void {
   const rng = rngFor(c, 'season');
   const u = user(c);
   endLoan(c);
+  applyCamp(c);
   // Fin du tournoi des nations si le joueur passe directement à la saison suivante
   for (let guard = 0; guard < 6 && comps(w).NAT && !comps(w).NAT.winner; guard++) {
     for (const f of w.fixtures) if (f.leagueId === 'NAT' && !f.played) simFixture(c, f);

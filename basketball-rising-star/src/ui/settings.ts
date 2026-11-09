@@ -18,6 +18,7 @@ export interface Settings {
   controlMode: 'watch' | 'play';
   quality: 'low' | 'high';
   showOpen: boolean;
+  showNames: boolean;
   colorblind: boolean;
   textSize: 'normal' | 'large';
   contrast: 'normal' | 'high';
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
   controlMode: 'watch',
   quality: 'high',
   showOpen: true,
+  showNames: true,
   colorblind: false,
   textSize: 'normal',
   contrast: 'normal',

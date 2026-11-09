@@ -997,3 +997,66 @@ table.t th.r {
   gap: 10px;
   width: min(380px, calc(100vw - 24px));
 }
+
+.feed-old {
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+.possdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 0 8px var(--orange);
+}
+.bonus {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  border: 1px solid rgba(221, 182, 90, 0.5);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.runbadge {
+  position: absolute;
+  top: calc(104px + var(--safe-t));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--gold);
+  background: rgba(16, 24, 39, 0.8);
+  border-radius: 8px;
+  padding: 3px 10px;
+  pointer-events: none;
+}
+.banner {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(1.6rem, 5vw, 3.2rem);
+  letter-spacing: 0.04em;
+  color: var(--white);
+  background: rgba(16, 24, 39, 0.82);
+  border-left: 6px solid var(--orange);
+  padding: 6px 22px;
+  border-radius: 10px;
+  pointer-events: none;
+  animation: bannerIn 1.7s ease forwards;
+  white-space: nowrap;
+}
+@keyframes bannerIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  20% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .banner { animation: none; }
+}

@@ -154,6 +154,10 @@ export interface TeamState {
   minutesPlan: Record<number, number>;
   run: number; // série de points encaissés sans réponse (pour temps-morts)
   scoreByQ: number[];
+  /** Défense : attaquant adverse à surveiller en priorité (joueur en feu) */
+  focus?: number;
+  /** Derniers ajustements tactiques annoncés */
+  adjustments?: string[];
 }
 
 export type Phase = 'jumpball' | 'inbound' | 'live' | 'freethrow' | 'deadball' | 'quarterEnd' | 'final';

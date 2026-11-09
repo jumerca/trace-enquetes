@@ -11,6 +11,14 @@ export function assignDefense(e: MatchEngine, defTeam: 0 | 1): void {
   const offs = e.teamOnCourt((1 - defTeam) as 0 | 1);
   const free = new Set(offs.map((o) => o.idx));
   const sortedDefs = [...defs].sort((a, b) => POS_ORDER.indexOf(a.data.pos) - POS_ORDER.indexOf(b.data.pos));
+  // Joueur en feu : le meilleur défenseur extérieur s'en charge en priorité
+  const focus = e.teams[defTeam].focus;
+  if (focus !== undefined && free.has(focus) && e.players[focus].onCourt) {
+    const stopper = [...defs].sort((a, b) => b.data.attrs.perimeterD + b.data.attrs.agility - (a.data.attrs.perimeterD + a.data.attrs.agility))[0];
+    stopper.assign = focus;
+    free.delete(focus);
+    sortedDefs.splice(sortedDefs.indexOf(stopper), 1);
+  }
   for (const d of sortedDefs) {
     let best = -1;
     let bs = 1e9;

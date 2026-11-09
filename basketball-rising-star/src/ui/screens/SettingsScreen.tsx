@@ -97,6 +97,17 @@ export function SettingsScreen({ back }: { back: Screen }) {
             </div>
           </div>
           <div className="field">
+            <label>Noms des joueurs sous leurs pieds (caméra rapprochée)</label>
+            <div className="seg">
+              <button aria-pressed={s.showNames} onClick={() => set({ showNames: true })}>
+                Oui
+              </button>
+              <button aria-pressed={!s.showNames} onClick={() => set({ showNames: false })}>
+                Non
+              </button>
+            </div>
+          </div>
+          <div className="field">
             <label>Ralenti sur les actions majeures</label>
             <div className="seg">
               <button aria-pressed={s.slowmo} onClick={() => set({ slowmo: true })}>

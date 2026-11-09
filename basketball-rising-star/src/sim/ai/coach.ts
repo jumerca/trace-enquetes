@@ -104,3 +104,56 @@ export function coachTimeoutCheck(e: MatchEngine, team: 0 | 1, afterScore: boole
     coachDeadBall(e, true);
   }
 }
+
+/**
+ * Ajustements tactiques du coach (entre les quarts-temps et pendant les temps morts),
+ * calculés à partir des statistiques réelles du match en cours.
+ */
+export function coachAdjust(e: MatchEngine, team: 0 | 1): void {
+  const t = e.teams[team];
+  const opp = (1 - team) as 0 | 1;
+  const oppPlayers = e.teams[opp].players.map((i) => e.players[i]);
+  const ours = t.players.map((i) => e.players[i]);
+  const sum = (ps: MPlayer[], k: keyof MPlayer['box']) => ps.reduce((s, p) => s + p.box[k], 0);
+  const notes: string[] = [];
+  const tac = t.tactics;
+  const tpa = sum(oppPlayers, 'tpa');
+  const tpm = sum(oppPlayers, 'tpm');
+  const paint = e.events.filter((ev) => ev.type === 'made' && ev.team === opp && (ev.detail === 'layup' || ev.detail === 'dunk' || ev.detail === 'floater')).length;
+  if (tpa >= 6 && tpm / tpa > 0.42) {
+    tac.pressure = Math.min(0.95, tac.pressure + 0.15);
+    if (tac.defense === 'zone23') tac.defense = 'man';
+    notes.push('sortir plus fort sur les shooteurs');
+  } else if (paint >= 6 && tac.defense === 'man' && e.rng.chance(0.6)) {
+    tac.defense = 'zone23';
+    notes.push('passer en zone 2-3 pour fermer la raquette');
+  } else if (paint >= 6) {
+    tac.pressure = Math.max(0.2, tac.pressure - 0.1);
+    notes.push('rester entre son joueur et le cercle');
+  }
+  const orbOpp = sum(oppPlayers, 'orb');
+  const drbUs = sum(ours, 'drb');
+  if (orbOpp >= 4 && orbOpp > drbUs * 0.35) {
+    tac.crashBoards = Math.max(0.15, tac.crashBoards - 0.12);
+    notes.push('bloquer le rebond défensif');
+  }
+  const diff = e.scoreDiff(team);
+  if (e.quarter >= 3 && diff <= -10) {
+    tac.pressure = 0.88;
+    tac.pace = Math.min(0.9, tac.pace + 0.2);
+    notes.push('presser haut et accélérer');
+  } else if (e.quarter >= 4 && diff >= 12) {
+    tac.pace = Math.max(0.15, tac.pace - 0.25);
+    notes.push('ralentir et contrôler le chrono');
+  }
+  const top = [...oppPlayers].sort((a, b) => b.box.pts - a.box.pts)[0];
+  const avg = sum(oppPlayers, 'pts') / Math.max(1, oppPlayers.filter((p) => p.box.sec > 0).length);
+  if (top && top.box.pts >= 8 && top.box.pts > avg * 1.8 && t.focus !== top.idx) {
+    t.focus = top.idx;
+    notes.push(`mettre le meilleur défenseur sur ${e.name(top.idx)}`);
+  }
+  if (notes.length) {
+    t.adjustments = notes;
+    e.emit({ type: 'info', team, player: -1, text: `Ajustement ${t.short} : ${notes.join(', ')}` });
+  }
+}

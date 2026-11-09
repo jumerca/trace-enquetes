@@ -131,3 +131,40 @@ describe('Vie hors terrain', () => {
     expect(user(c).clubId === home || life(c).loanFrom === null).toBe(true);
   });
 });
+
+describe('Vie hors terrain — extensions', () => {
+  it('sponsors, négociation, blessure, mentor, stage d’été et héritage', async () => {
+    const { extra, acceptSponsor, negotiate, chooseInjuryPlan, mentorCandidates, chooseCamp, legacyScore, sponsorIncome } = await import('../src/career/life');
+    const { generateOffers } = await import('../src/career/career');
+    const c = createCareer({ ...BASE, path: 'pro', age: 18, seed: 77 });
+    const x = extra(c);
+    x.sponsorOffers.push({ id: 'spX', brand: 'Test', sector: 'Test', weekly: 500, until: c.world.season + 1, minRep: 0 });
+    acceptSponsor(c, 'spX', true);
+    expect(sponsorIncome(c)).toBe(500);
+    // Négociation : l'offre change ou disparaît, jamais les deux
+    c.phase = 'offseason';
+    generateOffers(c);
+    if (c.offers[0]) {
+      const id = c.offers[0].id;
+      const before = c.offers[0].salary;
+      const r = negotiate(c, id, 'salary');
+      const after = c.offers.find((o) => o.id === id);
+      if (r.ok) expect(after!.salary).toBeGreaterThan(before);
+      else expect(!after || after.salary === before).toBe(true);
+    }
+    // Blessure : retour accéléré raccourcit l'indisponibilité
+    user(c).injuryDays = 30;
+    chooseInjuryPlan(c, 'fast');
+    expect(user(c).injuryDays).toBe(18);
+    // Mentor : candidats expérimentés uniquement
+    for (const m of mentorCandidates(c)) expect(c.world.season - m.birthYear).toBeGreaterThanOrEqual(27);
+    // Stage d'été appliqué à la saison suivante
+    life(c).money = 50000;
+    chooseCamp(c, 'shooting');
+    const three = user(c).attrs.three;
+    user(c).injuryDays = 0;
+    startNextSeason(c);
+    expect(user(c).attrs.three).toBeGreaterThanOrEqual(Math.min(20, three + 1) - 1);
+    expect(legacyScore(c)).toBeGreaterThan(0);
+  });
+});

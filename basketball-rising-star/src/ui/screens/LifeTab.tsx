@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../App';
 import { user, userClub, type Career } from '../../career/career';
-import { ACTIVITIES, canLoan, LIFESTYLES, life, makeRequest, objectiveProgress, PRESS_ANSWERS, answerPress, STAFF, weeklyCosts, weeklyIncome, winterOpen, type ActivityKey, type Lifestyle, type StaffKey } from '../../career/life';
+import { acceptSponsor, CAMPS, chooseCamp, chooseInjuryPlan, extra, INJURY_PLANS, mentorCandidates, rival, sponsorIncome, type CampId, ACTIVITIES, canLoan, LIFESTYLES, life, makeRequest, objectiveProgress, PRESS_ANSWERS, answerPress, STAFF, weeklyCosts, weeklyIncome, winterOpen, type ActivityKey, type Lifestyle, type StaffKey } from '../../career/life';
 import { comps, natStandings, type Competition } from '../../career/competitions';
 import { fullName } from '../../data/model';
 import { playerOvr, age } from '../../data/generate';
@@ -18,7 +18,7 @@ export function LifeTab({ c }: { c: Career }) {
     app.bump();
     void app.persist(c);
   };
-  const income = weeklyIncome(c);
+  const income = weeklyIncome(c) + sponsorIncome(c);
   const costs = weeklyCosts(c);
   return (
     <div className="grid" style={{ gap: 14 }}>
@@ -54,6 +54,7 @@ export function LifeTab({ c }: { c: Career }) {
           Revenu net estimé après commission d'agent, impôts et charges. Si l'épargne ne couvre plus les dépenses, le staff personnel est suspendu automatiquement.
         </p>
       </div>
+      <MoreLife c={c} onMsg={setMsg} save={save} />
       <div className="grid cols-2">
         <div className="card">
           <h3 style={{ marginBottom: 10 }}>Train de vie</h3>
@@ -319,6 +320,154 @@ export function Comparator({ c }: { c: Career }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function MoreLife({ c, onMsg, save }: { c: Career; onMsg: (m: string) => void; save: () => void }) {
+  const x = extra(c);
+  const u = user(c);
+  const mentors = mentorCandidates(c);
+  return (
+    <>
+      {u.injuryDays > 0 && !x.injuryPlan && (
+        <div className="card" style={{ borderColor: 'rgba(229,72,77,0.5)' }}>
+          <div className="card-title">
+            <h3 style={{ color: '#ff8d90' }}>Blessure : choisir le protocole</h3>
+            <span className="pill red">{Math.ceil(u.injuryDays / 7)} semaine(s)</span>
+          </div>
+          <div className="grid cols-3" style={{ gap: 8 }}>
+            {(Object.keys(INJURY_PLANS) as (keyof typeof INJURY_PLANS)[]).map((k) => (
+              <button
+                key={k}
+                className="choice"
+                onClick={() => {
+                  onMsg(chooseInjuryPlan(c, k));
+                  save();
+                }}
+              >
+                <b>{INJURY_PLANS[k].label}</b>
+                <span className="small muted">{INJURY_PLANS[k].desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="grid cols-2">
+        <div className="card">
+          <div className="card-title">
+            <h3>Réseaux sociaux et sponsors</h3>
+            <span className="pill blue">{x.followers.toLocaleString('fr-FR')} abonnés</span>
+          </div>
+          {x.sponsorOffers.map((sp) => (
+            <div key={sp.id} className="news-item">
+              <b>
+                Proposition : {sp.brand} <span className="muted small">({sp.sector})</span>
+              </b>
+              <div className="small muted">
+                {sp.weekly.toLocaleString('fr-FR')} €/semaine jusqu'en {sp.until + 1} · une journée promotionnelle par mois
+              </div>
+              <div className="row" style={{ marginTop: 6 }}>
+                <button className="btn small primary" onClick={() => (acceptSponsor(c, sp.id, true), save())}>
+                  Signer
+                </button>
+                <button className="btn small" onClick={() => (acceptSponsor(c, sp.id, false), save())}>
+                  Refuser
+                </button>
+              </div>
+            </div>
+          ))}
+          {x.sponsors.length === 0 && x.sponsorOffers.length === 0 && <p className="small muted">Aucun partenaire pour l'instant. Les marques arrivent avec la réputation et le nombre d'abonnés.</p>}
+          {x.sponsors.map((sp) => (
+            <div key={sp.id} className="row spread small" style={{ padding: '5px 0', borderBottom: '1px solid var(--line)' }}>
+              <span>✓ {sp.brand}</span>
+              <span className="num">{sp.weekly.toLocaleString('fr-FR')} €/sem. · fin {sp.until + 1}</span>
+            </div>
+          ))}
+        </div>
+        <div className="card">
+          <div className="card-title">
+            <h3>Mentor dans le vestiaire</h3>
+          </div>
+          {mentors.length === 0 ? (
+            <p className="small muted">Aucun joueur expérimenté (27 ans et plus) à votre poste dans l'effectif.</p>
+          ) : (
+            <div className="grid" style={{ gap: 6 }}>
+              {mentors.map((m) => (
+                <button
+                  key={m.id}
+                  className="choice"
+                  aria-pressed={x.mentorId === m.id}
+                  onClick={() => {
+                    x.mentorId = x.mentorId === m.id ? null : m.id;
+                    save();
+                  }}
+                >
+                  <b>
+                    {fullName(m)} · {m.pos} · {age(m, c.world.season)} ans · note {playerOvr(m)}
+                  </b>
+                  <span className="small muted">Leadership {m.attrs.leadership}/20 · vous transmet ses points forts chaque semaine</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {c.phase === 'offseason' && (
+        <div className="card">
+          <div className="card-title">
+            <h3>Stage d'été</h3>
+            <span className="muted small">Effets appliqués au lancement de la saison suivante</span>
+          </div>
+          <div className="choice-grid">
+            {(Object.keys(CAMPS) as CampId[]).map((k) => (
+              <button
+                key={k}
+                className="choice"
+                aria-pressed={x.campChoice === k}
+                onClick={() => {
+                  onMsg(chooseCamp(c, x.campChoice === k ? null : k));
+                  save();
+                }}
+              >
+                <b>{CAMPS[k].label}</b>
+                <span className="small muted">
+                  {CAMPS[k].desc} · {CAMPS[k].cost.toLocaleString('fr-FR')} €
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function RivalCard({ c }: { c: Career }) {
+  const r = rival(c);
+  const u = user(c);
+  if (!r) return null;
+  const a = perGame(c.seasonStats[u.id]);
+  const b = perGame(c.seasonStats[r.id]);
+  const row = (label: string, x: string | number, y: string | number) => (
+    <div className="row spread small" style={{ padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
+      <b className="num" style={{ width: 60 }}>{x}</b>
+      <span className="muted">{label}</span>
+      <b className="num" style={{ width: 60, textAlign: 'right' }}>{y}</b>
+    </div>
+  );
+  return (
+    <div className="card">
+      <div className="card-title">
+        <h3>Concurrent direct</h3>
+        <span className="pill">{fullName(r)}</span>
+      </div>
+      {row('Note globale', playerOvr(u), playerOvr(r))}
+      {row('Âge', age(u, c.world.season), age(r, c.world.season))}
+      {row('Minutes / match', a.mpg.toFixed(1), b.mpg.toFixed(1))}
+      {row('Points / match', a.ppg.toFixed(1), b.ppg.toFixed(1))}
+      {row('Forme', Math.round(u.form * 100), Math.round(r.form * 100))}
+      <p className="tiny muted" style={{ marginTop: 6 }}>Vous (à gauche) contre le joueur qui vous précède dans la hiérarchie du coach à votre poste.</p>
     </div>
   );
 }

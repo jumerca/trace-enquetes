@@ -18,6 +18,7 @@ export interface RenderOptions {
   quality: 'low' | 'high';
   showOpen: boolean;
   colorblind: boolean;
+  showNames?: boolean;
 }
 
 interface Popup {
@@ -581,6 +582,18 @@ export class MatchRenderer {
     if (p.data.appearance.headband) {
       ctx.fillStyle = trim;
       ctx.fillRect(hx - hr * 0.92, hy - hr * 0.45, hr * 1.84, hr * 0.28);
+    }
+    // Nom sous les pieds (lisibilité), en caméra rapprochée
+    if (this.opts.showNames && !bench && S > 24) {
+      ctx.font = `700 ${Math.max(9, 0.15 * S)}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const label = `${p.data.number} ${p.data.lastName}`;
+      const w2 = ctx.measureText(label).width + 8;
+      ctx.fillStyle = 'rgba(16,24,39,0.62)';
+      ctx.fillRect(fx - w2 / 2, this.py(p.pos.y) + 0.12 * S, w2, Math.max(12, 0.2 * S));
+      ctx.fillStyle = p.isUser ? '#DDB65A' : '#F6F4EF';
+      ctx.fillText(label, fx, this.py(p.pos.y) + 0.14 * S);
     }
     // Repère du joueur incarné
     if (p.isUser && !bench) {

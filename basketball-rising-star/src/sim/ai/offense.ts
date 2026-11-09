@@ -12,7 +12,12 @@ export interface OffenseState {
   passes: number;
   cutter: number;
   cutT: number;
+  /** Système offensif annoncé pour la possession */
+  play?: PlayName;
+  star?: number;
 }
+
+export type PlayName = 'Pick-and-roll' | 'Horns' | 'Isolation' | 'Poste bas' | 'Motion' | 'Sortie d\u2019écran';
 
 export const setupOffense = (): OffenseState => ({ spots: {}, pnr: null, transition: false, startT: 0, passes: 0, cutter: -1, cutT: 0 });
 
@@ -213,6 +218,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     return;
   }
   if (st.transition && e.time - st.startT > 6) st.transition = false;
+  if (!st.play && !st.transition && e.shotClock > 12) callPlay(e, p, st);
   // Avantage numérique réel : moins de 4 défenseurs repliés entre le ballon et le panier
   const defSet = e.teamOnCourt((1 - p.team) as 0 | 1).filter((o) => dist(o.pos, hoop) < d + 0.5).length;
   const advantage = st.transition && defSet <= 3;
@@ -232,12 +238,14 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const early = clamp((e.shotClock - 5) / 13, 0, 1);
   let possValue = 1.02 + (advantage ? -0.05 : early * 1.18) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
   if (milk) possValue += 0.3;
+  // « 2 pour 1 » : en fin de quart-temps, tirer assez tôt pour récupérer une dernière possession
+  if (e.quarter < 4 && e.clock < e.rules.shotClock + 16 && e.clock > e.rules.shotClock + 2) possValue -= 0.3;
   if (holdForLast && e.clock > 5) possValue += 1;
   const selfish = (a.ambition + a.shotCreation - a.teamwork) / 40;
   const usage = 1 + (a.shotCreation + a.three + a.finishing - 30) / 140;
-  let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0);
+  let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0) + (st.play === 'Isolation' && st.star === p.idx ? 0.08 : 0);
   if (needThree && type !== 'three') shootV -= 0.5;
-  if (type === 'three' && !needThree) shootV *= 0.88 + e.teams[p.team].tactics.threeRate * 0.14;
+  if (type === 'three' && !needThree) shootV *= 0.8 + e.teams[p.team].tactics.threeRate * 0.14;
   opts.push({ kind: 'shoot', v: shootV });
 
   // 2) Pénétration
@@ -325,6 +333,14 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     let v = (mEV * (0.85 + Math.min(open, 4) * 0.04) * 0.55 + possValue * 0.45) * (1 - risk) - risk * 1.2;
     if (cutting && open > 1.2) v += 0.25;
     if (m.role === 'post' && open > 0.6) v += (m.data.attrs.postPlay - 10) / 30;
+    // Le système annoncé oriente les lectures
+    if (st.play === 'Isolation' && st.star === m.idx && st.passes < 2) v += 0.3;
+    if (st.play === 'Poste bas' && st.star === m.idx && dist(m.pos, hoop) < 4.2) v += 0.28;
+    if (st.play === 'Sortie d\u2019écran' && st.star === m.idx && open > 1.4) v += 0.22;
+    if (st.play === 'Motion') v += 0.05;
+    if (st.play === 'Isolation' && st.star === p.idx) v -= 0.12;
+    // Main chaude : on cherche le joueur en réussite
+    v += m.hotness * 0.12;
     v += (a.teamwork + a.passing - 20) / 100;
     if (m.isUser && called !== undefined && e.time - called < 2) v += 0.35;
     if (m.isUser) v += e.userStyle.shooting * 0.08;
@@ -516,7 +532,7 @@ function offBallThink(e: MatchEngine, p: MPlayer, st: OffenseState): void {
     const defBallSide = dist(myDef.pos, ballP) < dist(p.pos, ballP) - 1;
     const denial = sep < 1.0 && dist(myDef.pos, ballP) < dist(p.pos, ballP);
     const readSkill = (a.offBall + a.iq) / 40;
-    if (dHoop > 3 && ((sep > 2.6 && defBallSide) || (denial && dHoop < 8)) && e.rng.chance(0.18 + readSkill * 0.35)) {
+    if (dHoop > 3 && ((sep > 2.6 && defBallSide) || (denial && dHoop < 8)) && e.rng.chance((0.18 + readSkill * 0.35) * (st.play === 'Motion' ? 1.6 : 1))) {
       st.cutter = p.idx;
       st.cutT = e.time;
       p.intent = 'coupe';
@@ -551,4 +567,46 @@ function offBallThink(e: MatchEngine, p: MPlayer, st: OffenseState): void {
   if (e.frontcourtReached && !e.court.inFrontcourt(side, p.target)) p.target = spot;
   p.urgency = dist(p.pos, p.target) > 4 ? 0.85 : 0.5;
   p.intent = p.role === 'post' ? 'poste bas' : 'se démarque';
+}
+
+/** Choix d'un système offensif selon l'effectif, la tactique du coach et le joueur en réussite. */
+function callPlay(e: MatchEngine, handler: MPlayer, st: OffenseState): void {
+  const team = handler.team;
+  const tac = e.teams[team].tactics;
+  const mates = e.teamOnCourt(team);
+  const score = (m: MPlayer) => (m.data.attrs.shotCreation + m.data.attrs.finishing + m.data.attrs.three) / 3 + m.hotness * 4 + m.box.pts * 0.15;
+  const star = [...mates].sort((a, b) => score(b) - score(a))[0];
+  const post = [...mates].sort((a, b) => b.data.attrs.postPlay - a.data.attrs.postPlay)[0];
+  const shooter = [...mates].sort((a, b) => b.data.attrs.catchShoot + b.data.attrs.three - (a.data.attrs.catchShoot + a.data.attrs.three))[0];
+  const bigs = mates.filter((m) => m.data.pos === 'C' || m.data.pos === 'PF');
+  const late = e.quarter >= 4 && e.clock < 120 && Math.abs(e.scoreDiff(team)) <= 6;
+  const opts: [PlayName, number][] = [
+    ['Pick-and-roll', 0.8 + tac.pnrFreq],
+    ['Horns', bigs.length >= 2 ? 0.6 + tac.pnrFreq * 0.5 : 0],
+    ['Isolation', (star.data.attrs.shotCreation - 11) / 6 + star.hotness + (late ? 0.8 : 0)],
+    ['Poste bas', post.data.attrs.postPlay >= 12 ? (post.data.attrs.postPlay - 10) / 6 : 0],
+    ['Motion', 0.5 + (1 - tac.pace) * 0.4],
+    ['Sortie d\u2019écran', shooter.data.attrs.catchShoot >= 12 ? 0.5 + tac.threeRate * 0.4 : 0],
+  ];
+  const play = e.rng.weighted(opts.map((o) => o[0]), opts.map((o) => Math.max(0, o[1])));
+  st.play = play;
+  st.star = play === 'Poste bas' ? post.idx : play === 'Sortie d\u2019écran' ? shooter.idx : star.idx;
+  const side = e.attackSide(team);
+  // Placement propre à chaque système
+  if (play === 'Horns') {
+    bigs.slice(0, 2).forEach((b, i) => (st.spots[b.idx] = e.court.fromHoop(side, 4.7, i ? 2.3 : -2.3)));
+  } else if (play === 'Poste bas') {
+    st.spots[post.idx] = e.court.fromHoop(side, 0.9, post.pos.y < e.court.cy ? -2.75 : 2.75);
+    post.role = 'post';
+  } else if (play === 'Isolation') {
+    // Les partenaires dégagent le côté fort
+    for (const m of mates) if (m !== star && st.spots[m.idx]) st.spots[m.idx] = { x: st.spots[m.idx].x, y: e.court.cy + (star.pos.y < e.court.cy ? 1 : -1) * Math.max(3, Math.abs(st.spots[m.idx].y - e.court.cy)) };
+  } else if (play === 'Sortie d\u2019écran') {
+    st.spots[shooter.idx] = e.court.fromHoop(side, e.court.g.threeRadius * 0.7, shooter.pos.y < e.court.cy ? 4.8 : -4.8);
+  }
+  if ((play === 'Pick-and-roll' || play === 'Horns') && bigs.length && handler.data.attrs.dribble >= 8) {
+    const scr = bigs.sort((a, b) => b.data.attrs.screenUse - a.data.attrs.screenUse)[0];
+    if (scr !== handler) st.pnr = { handler: handler.idx, screener: scr.idx, t: e.time, pop: scr.data.attrs.three >= 13 && e.rng.chance(0.5) };
+  }
+  e.emit({ type: 'info', team, player: handler.idx, text: `${e.teams[team].short} : système « ${play} »${play === 'Isolation' || play === 'Poste bas' || play === 'Sortie d\u2019écran' ? ` pour ${e.name(st.star)}` : ''}` });
 }

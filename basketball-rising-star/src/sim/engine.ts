@@ -19,7 +19,7 @@ import {
 } from './types';
 import { offenseThink, setupOffense, type OffenseState } from './ai/offense';
 import { defenseThink, assignDefense } from './ai/defense';
-import { coachDeadBall, coachTimeoutCheck, initialRotation } from './ai/coach';
+import { coachAdjust, coachDeadBall, coachTimeoutCheck, initialRotation } from './ai/coach';
 
 export interface TeamInput {
   id: string;
@@ -827,7 +827,7 @@ export class MatchEngine {
       shotType: type,
       points,
       side,
-      assistFrom: lastPass.passFrom !== undefined && lastPass.caughtAt !== undefined && this.time - lastPass.caughtAt < 3.2 ? lastPass.passFrom : undefined,
+      assistFrom: lastPass.passFrom !== undefined && lastPass.caughtAt !== undefined && this.time - lastPass.caughtAt < 4.2 ? lastPass.passFrom : undefined,
       contest,
       fouled: !!fouler,
     };
@@ -1821,6 +1821,7 @@ export class MatchEngine {
     // Récupération entre les périodes
     for (const p of this.players) p.energy = Math.min(1, p.energy + (this.quarter === 3 ? 0.18 : 0.07));
     coachDeadBall(this, true, 5);
+    if (this.quarter > 1) for (const t of [0, 1] as const) coachAdjust(this, t);
     if (ot && !this.rules.alternatingPossession) {
       this.setupJumpBall();
       return;
@@ -1872,6 +1873,7 @@ export class MatchEngine {
     for (const p of this.players) if (p.onCourt) p.energy = Math.min(1, p.energy + 0.05);
     for (const p of this.teamOnCourt((1 - team) as 0 | 1)) p.hotness *= 0.5;
     this.emit({ type: 'timeout', team, player: -1, text: `Temps mort ${t.name}${reason ? ` — ${reason}` : ''}` });
+    coachAdjust(this, team);
     return true;
   }
 
