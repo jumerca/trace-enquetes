@@ -777,7 +777,7 @@ export class MatchEngine {
         if (od < contactR) {
           const disc = o.data.attrs.discipline / 20;
           const foulTrouble = o.fouls >= this.rules.foulOut - 1 ? 0.5 : 1;
-          let pf = (type === 'layup' || type === 'dunk' ? 0.48 : 0.14) * (1.35 - disc * 0.6) * foulTrouble;
+          let pf = (type === 'layup' || type === 'dunk' ? 0.62 : 0.16) * (1.35 - disc * 0.6) * foulTrouble;
           pf *= 0.8 + (p.data.attrs.strength / 20) * 0.4;
           if (!fouler && this.rng.chance(pf)) fouler = o;
         }
@@ -1046,6 +1046,15 @@ export class MatchEngine {
     return risk;
   }
 
+  /** Choix du type de passe : directe, ou lobée par-dessus un défenseur placé dans la ligne (selon la qualité de passe). */
+  bestPass(from: MPlayer, to: MPlayer): { risk: number; kind: 'chest' | 'lob' } {
+    const direct = this.passRisk(from, to);
+    const skill = from.data.attrs.passing;
+    const recvOpen = this.nearestDefender(to).d;
+    const lob = this.passRisk(from, to, true) + 0.06 + Math.max(0, 12 - skill) / 40 + Math.max(0, 1.6 - recvOpen) * 0.12;
+    return lob < direct ? { risk: lob, kind: 'lob' } : { risk: direct, kind: 'chest' };
+  }
+
   launchPass(from: MPlayer, to: MPlayer, kind: 'chest' | 'lob' | 'bounce' | 'tip' | 'inbound'): void {
     const b = this.ball;
     const lob = kind === 'lob';
@@ -1181,7 +1190,7 @@ export class MatchEngine {
           const lunge = (o as MPlayer & { lungeT?: number }).lungeT;
           const bonus = lunge !== undefined && this.time - lunge < 0.6 ? 0.18 : 0;
           const close = 1 - d / 0.8;
-          const p = (0.05 + (o.data.attrs.passReading / 20) * 0.14 + (o.data.attrs.steal / 20) * 0.08 + bonus) * (0.4 + close * 0.6) * (f.lob ? 0.5 : 1);
+          const p = (0.03 + (o.data.attrs.passReading / 20) * 0.1 + (o.data.attrs.steal / 20) * 0.05 + bonus) * (0.4 + close * 0.6) * (f.lob ? 0.5 : 1);
           if (this.rng.chance(p)) {
             this.interception(o, f);
             return;

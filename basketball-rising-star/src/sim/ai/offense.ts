@@ -275,7 +275,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const finish = (a.layup + a.finishing + a.dunk * 0.5) / 50;
   const dribbleSkill = (a.dribble + a.ballControl) / 40;
   if (d > 2.2 && d < 11) {
-    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
+    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3 + 0.08 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
     opts.push({ kind: 'drive', v });
   }
   const extD = p as MPlayer & { driveT?: number };
@@ -291,7 +291,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
       for (const m of e.teamOnCourt(p.team)) {
         if (m === p || m.keyTime > 2.2) continue;
         const open = e.nearestDefender(m).d + e.rng.normal(0, visionNoise);
-        const v = shotEV(e, m, m.pos, false) * (0.85 + Math.min(open, 4) * 0.06) - e.passRisk(p, m) * 1.2;
+        const v = shotEV(e, m, m.pos, false) * (0.85 + Math.min(open, 4) * 0.06) - e.bestPass(p, m).risk * 1.2;
         if (v > kv) {
           kv = v;
           kick = m;
@@ -335,9 +335,9 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     if (m.keyTime > 2.2) continue;
     const open = e.nearestDefender(m).d + e.rng.normal(0, visionNoise);
     const mEV = shotEV(e, m, m.pos, false);
-    const risk = e.passRisk(p, m);
+    const risk = e.bestPass(p, m).risk;
     const cutting = m.intent === 'coupe' || m.intent === 'roll';
-    let v = (mEV * (0.85 + Math.min(open, 4) * 0.04) * 0.55 + possValue * 0.45) * (1 - risk) - risk * 1.2;
+    let v = (mEV * (0.85 + Math.min(open, 4) * 0.04) * 0.62 + possValue * 0.36) * (1 - risk) - risk * 1.2;
     if (cutting && open > 1.2) v += 0.25;
     if (m.role === 'post' && open > 0.6) v += (m.data.attrs.postPlay - 10) / 30;
     // Le système annoncé oriente les lectures
@@ -354,6 +354,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     if (p.isUser && e.userStyle.role === 'playmaker') v += 0.06;
     if (p.isUser) v -= e.userStyle.shooting * 0.06;
     if (holdForLast) v -= 0.3;
+    // Au-delà de quelques passes, il faut attaquer le panier plutôt que faire tourner indéfiniment
+    v -= Math.max(0, st.passes - 3) * 0.06;
     opts.push({ kind: 'pass', v, to: m });
   }
 
@@ -362,7 +364,9 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   if (!st.pnr && shotClockLeft > 9 && d > 5.5 && a.dribble >= 8) {
     opts.push({ kind: 'pnr', v: possValue * 0.9 + tac.pnrFreq * 0.2 + (a.vision - 10) / 80 - st.passes * 0.04 });
   }
-  const hold = possValue - p.pickupT * 0.07;
+  // Garder le ballon ne vaut que quelques secondes : ensuite il doit circuler (passe, pénétration, écran)
+  const holdingTooLong = p.pickupT > 4 && !holdForLast && !milk;
+  const hold = possValue - p.pickupT * 0.07 - Math.max(0, p.pickupT - 1.5) * 0.2 - (holdingTooLong ? 1 : 0);
   opts.push({ kind: 'hold', v: hold });
 
   // Cadence de décision : le porteur s'engage dans une lecture pendant un court instant,
@@ -435,7 +439,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     }
     case 'pass':
       if (best.to) {
-        e.launchPass(p, best.to, e.passRisk(p, best.to) > 0.35 && p.data.attrs.passing >= 11 ? 'lob' : 'chest');
+        e.launchPass(p, best.to, e.bestPass(p, best.to).kind);
         st.passes++;
       }
       return;
@@ -655,7 +659,7 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     if (e.frontcourtReached && !e.court.inFrontcourt(side, m.pos)) continue;
     const md = dist(m.pos, hoop);
     const open = e.nearestDefender(m).d;
-    const risk = e.passRisk(p, m, dist(m.pos, p.pos) > 9);
+    const risk = e.bestPass(p, m).risk;
     const ahead = dMe - md;
     let sc = 0;
     if (ahead > 2 && md < 9 && open > 2.2) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
@@ -671,7 +675,7 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
   if (!best || bs < 0.62) return false;
   if (!e.rng.chance(Math.min(0.95, see * (trapped ? 0.95 : 0.75)))) return false;
   const far = dist(best.pos, p.pos);
-  e.launchPass(p, best, far > 10 || e.passRisk(p, best) > 0.3 ? 'lob' : 'chest');
+  e.launchPass(p, best, far > 12 ? 'lob' : e.bestPass(p, best).kind);
   e.offense[p.team].passes++;
   p.intent = 'lecture';
   return true;
@@ -705,7 +709,7 @@ function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     if (m === p || e.court.inKey(side, m.pos)) continue;
     if (e.frontcourtReached && !e.court.inFrontcourt(side, m.pos)) continue;
     const open = e.nearestDefender(m).d + e.rng.normal(0, ((20 - a.vision) / 20) * 0.6);
-    const risk = e.passRisk(p, m);
+    const risk = e.bestPass(p, m).risk;
     if (open < 1.4 || risk > 0.38) continue;
     const openThree = e.court.isThree(side, m.pos) && open > 2 ? 0.15 : 0;
     const v = shotEV(e, m, m.pos, false) + Math.min(open, 4) * 0.06 - risk * 1.5 + (trapped ? 0.1 : 0) + openThree;
@@ -716,7 +720,7 @@ function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
   }
   const sEV = shotEV(e, p, p.pos, true);
   if (best && (bv > sEV - 0.05 || trapped || p.keyTime > 2)) {
-    e.launchPass(p, best, 'chest');
+    e.launchPass(p, best, e.bestPass(p, best).kind);
     e.offense[p.team].passes++;
     p.intent = 'ressort';
     return true;
