@@ -777,7 +777,7 @@ export class MatchEngine {
         if (od < contactR) {
           const disc = o.data.attrs.discipline / 20;
           const foulTrouble = o.fouls >= this.rules.foulOut - 1 ? 0.5 : 1;
-          let pf = (type === 'layup' || type === 'dunk' ? 0.58 : 0.15) * (1.35 - disc * 0.6) * foulTrouble;
+          let pf = (type === 'layup' || type === 'dunk' ? 0.48 : 0.14) * (1.35 - disc * 0.6) * foulTrouble;
           pf *= 0.8 + (p.data.attrs.strength / 20) * 0.4;
           if (!fouler && this.rng.chance(pf)) fouler = o;
         }
@@ -1056,6 +1056,12 @@ export class MatchEngine {
     const leadT = Math.min(T0 * 0.85, 0.6);
     let lead = { x: to.pos.x + to.vel.x * leadT, y: to.pos.y + to.vel.y * leadT };
     lead = this.court.clampInside(lead, 0.6);
+    // Ballon déjà en zone avant : la passe vise l'avant de la ligne médiane
+    if (this.frontcourtReached && kind !== 'tip' && kind !== 'inbound') {
+      const sideA = this.attackSide(from.team);
+      const mid = this.court.g.length / 2;
+      if ((lead.x - mid) * sideA < 0.8) lead.x = mid + sideA * 0.8;
+    }
     const acc = from.data.attrs.passing / 20;
     const err = (1 - acc) * 0.5 + (from.energy < 0.4 ? 0.2 : 0);
     lead.x += this.rng.normal(0, err * 0.5);
@@ -1689,8 +1695,31 @@ export class MatchEngine {
       for (const p of this.teamOnCourt(off)) {
         if (this.court.inKey(side, p.pos)) p.keyTime += dt;
         else p.keyTime = 0;
-        if (p.keyTime > this.rules.threeSec && p !== h) {
+        // Le porteur est aussi concerné (tolérance s'il est en train de tirer ou de dribbler pour aller au cercle)
+        const shooting = p === h && (!!(p as MPlayer & { shotPlan?: unknown }).shotPlan || p.intent === 'drive');
+        if (p.keyTime > this.rules.threeSec + (shooting ? 1 : 0)) {
           this.violation(off, 'Trois secondes dans la raquette', p);
+          return;
+        }
+      }
+      // Joueur serré de près qui tient le ballon sans dribbler : 5 secondes (FIBA)
+      const hx = h as MPlayer & { pickedUp?: boolean; guardedT?: number; backT?: number };
+      const tight = this.teamOnCourt((1 - off) as 0 | 1).some((o) => dist(o.pos, h.pos) < 1.2);
+      hx.guardedT = tight && hx.pickedUp ? (hx.guardedT ?? 0) + dt : 0;
+      if (hx.guardedT > 5) {
+        hx.guardedT = 0;
+        this.violation(off, 'Cinq secondes (joueur serré de près)', h);
+        return;
+      }
+      // NBA : dribble dos au panier sous la ligne des lancers francs, 5 secondes maximum
+      if (this.rules.id === 'NBA') {
+        const hoopA = this.court.hoop(side);
+        const backTurned = Math.cos(h.facing - Math.atan2(hoopA.y - h.pos.y, hoopA.x - h.pos.x)) < -0.3;
+        const low = this.court.toHoop(side, h.pos).u < this.court.g.ftLineFromBaseline - this.court.g.hoopFromBaseline;
+        hx.backT = backTurned && low && !hx.pickedUp ? (hx.backT ?? 0) + dt : 0;
+        if (hx.backT > 5) {
+          hx.backT = 0;
+          this.violation(off, 'Cinq secondes dos au panier', h);
           return;
         }
       }

@@ -52,6 +52,8 @@ interface DefTeamState {
   helper: number;
   helpT: number;
   switchCd: number;
+  doubler?: number;
+  doubleT?: number;
 }
 const defStates = new WeakMap<MatchEngine, [DefTeamState, DefTeamState]>();
 function ds(e: MatchEngine, t: 0 | 1): DefTeamState {
@@ -184,6 +186,31 @@ export function defenseThink(e: MatchEngine, p: MPlayer, userControlled: boolean
     return;
   }
 
+  // Prise à deux sur un intérieur dangereux au poste bas (le défenseur dont le joueur est le moins menaçant vient doubler)
+  const postThreat = dist(h.pos, own) < 4.3 && (h.data.pos === 'C' || h.data.pos === 'PF' || h.data.attrs.postPlay >= 12) && h.data.attrs.postPlay + h.data.attrs.finishing >= 22;
+  if (postThreat && p.assign !== h.idx) {
+    if (state.doubler === undefined || e.time - (state.doubleT ?? -9) > 2.5 || !e.players[state.doubler]?.onCourt) {
+      const want = tac.pressure * 0.6 + 0.25 + (h.box.pts >= 10 ? 0.2 : 0);
+      if (e.rng.chance(want)) {
+        const cand = e.teamOnCourt(p.team).filter((d) => d.assign !== h.idx);
+        const score = (d: MPlayer) => {
+          const man = e.players[d.assign];
+          const threat = man ? (man.data.attrs.three + man.data.attrs.catchShoot) / 2 : 10;
+          return dist(d.pos, h.pos) * 0.6 + threat * 0.25 - d.data.attrs.teamD * 0.05;
+        };
+        state.doubler = cand.sort((x, y) => score(x) - score(y))[0]?.idx;
+      } else state.doubler = -1;
+      state.doubleT = e.time;
+    }
+    if (state.doubler === p.idx) {
+      const dir = norm({ x: h.pos.x - own.x, y: h.pos.y - own.y });
+      p.target = { x: h.pos.x + dir.x * 0.9 + (p.pos.y < h.pos.y ? -0.4 : 0.4), y: h.pos.y + dir.y * 0.9 };
+      p.urgency = 1;
+      p.intent = 'prise à deux';
+      maybeSteal(e, p, h);
+      return;
+    }
+  } else if (state.doubler !== undefined && !postThreat) state.doubler = undefined;
   // Aide sur pénétration
   const onBall = e.players.find((o) => o.onCourt && o.team === p.team && o.assign === h.idx);
   const beaten = onBall ? dist(onBall.pos, own) > hOwnD - 0.2 || onBall.slowT > 0 : true;

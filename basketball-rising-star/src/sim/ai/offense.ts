@@ -132,9 +132,10 @@ function reboundBehaviour(e: MatchEngine, p: MPlayer, offense: boolean): void {
       p.intent = 'rebond offensif';
     } else {
       // Repli défensif (équilibre)
-      const own = e.ownHoop(p.team);
       const mid = e.court.g.length / 2;
-      p.target = { x: mid + (own.x - mid) * 0.15, y: e.court.cy + (p.slot - 2) * 2.5 };
+      // Équilibre défensif : rester juste devant la ligne médiane, côté attaque (pas de retour en zone)
+      const sideA = e.attackSide(p.team);
+      p.target = { x: mid + sideA * 1.6, y: e.court.cy + (p.slot - 2) * 2.5 };
       p.urgency = 0.75;
       p.intent = 'repli';
     }
@@ -182,6 +183,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   }
   // Le porteur lève la tête : partenaire seul devant, coupeur libre sous le cercle, prise à deux
   if (readAdvantage(e, p, hoop)) return;
+  // Intérieur enfermé ou pris à deux dans la raquette : ressortir vers un shooteur extérieur
+  if (postRead(e, p, hoop)) return;
   const inFront = e.court.inFrontcourt(side, p.pos);
   const shotClockLeft = Math.min(e.shotClock, e.clock);
   const gameClockLimited = e.clock < e.shotClock + 0.5;
@@ -671,5 +674,60 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
   e.launchPass(p, best, far > 10 || e.passRisk(p, best) > 0.3 ? 'lob' : 'chest');
   e.offense[p.team].passes++;
   p.intent = 'lecture';
+  return true;
+}
+
+/**
+ * Jeu intérieur : un joueur près du cercle qui ne peut pas finir (pris à deux, enfermé, dos au panier
+ * trop longtemps, compteur des 3 secondes qui tourne) ressort le ballon vers le meilleur tir extérieur.
+ */
+function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
+  if (p.actionLock > 0 || (p as MPlayer & { shotPlan?: unknown }).shotPlan) return false;
+  const d = dist(p.pos, hoop);
+  if (d > 5.2) return false;
+  const a = p.data.attrs;
+  const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
+  const trapped = defs.filter((o) => dist(o.pos, p.pos) < 1.7).length >= 2;
+  const toHoop = norm({ x: hoop.x - p.pos.x, y: hoop.y - p.pos.y });
+  const sealed = defs.some((o) => {
+    const rx = o.pos.x - p.pos.x;
+    const ry = o.pos.y - p.pos.y;
+    const along = rx * toHoop.x + ry * toHoop.y;
+    return along > 0 && along < 1.6 && Math.abs(-rx * toHoop.y + ry * toHoop.x) < 0.9;
+  });
+  const pressure = trapped || p.keyTime > 1.3 || p.pickupT > 2.2 || (sealed && p.pickupT > 0.9);
+  if (!pressure) return false;
+  // Meilleure solution à l'extérieur (lecture plus ou moins rapide selon la vision)
+  const side = e.attackSide(p.team);
+  let best: MPlayer | null = null;
+  let bv = -9;
+  for (const m of e.teamOnCourt(p.team)) {
+    if (m === p || e.court.inKey(side, m.pos)) continue;
+    if (e.frontcourtReached && !e.court.inFrontcourt(side, m.pos)) continue;
+    const open = e.nearestDefender(m).d + e.rng.normal(0, ((20 - a.vision) / 20) * 0.6);
+    const risk = e.passRisk(p, m);
+    if (open < 1.4 || risk > 0.38) continue;
+    const openThree = e.court.isThree(side, m.pos) && open > 2 ? 0.15 : 0;
+    const v = shotEV(e, m, m.pos, false) + Math.min(open, 4) * 0.06 - risk * 1.5 + (trapped ? 0.1 : 0) + openThree;
+    if (v > bv) {
+      bv = v;
+      best = m;
+    }
+  }
+  const sEV = shotEV(e, p, p.pos, true);
+  if (best && (bv > sEV - 0.05 || trapped || p.keyTime > 2)) {
+    e.launchPass(p, best, 'chest');
+    e.offense[p.team].passes++;
+    p.intent = 'ressort';
+    return true;
+  }
+  if (sEV > 0.78 || p.keyTime > 2.3) {
+    e.beginShot(p);
+    return true;
+  }
+  // Ressortir de la raquette en dribble plutôt que rester bloqué
+  p.intent = 'ressort';
+  p.target = e.court.clampInside({ x: p.pos.x - toHoop.x * 2.2, y: p.pos.y - toHoop.y * 2.2 + (p.pos.y < e.court.cy ? -0.8 : 0.8) }, 0.5);
+  p.urgency = 0.7;
   return true;
 }
