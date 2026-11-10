@@ -11,6 +11,16 @@ export function assignDefense(e: MatchEngine, defTeam: 0 | 1): void {
   const offs = e.teamOnCourt((1 - defTeam) as 0 | 1);
   const free = new Set(offs.map((o) => o.idx));
   const sortedDefs = [...defs].sort((a, b) => POS_ORDER.indexOf(a.data.pos) - POS_ORDER.indexOf(b.data.pos));
+  // Consigne : le joueur incarné défend sur le meilleur attaquant adverse
+  const me = defs.find((d) => d.isUser);
+  if (me && e.userStyle.guardStar) {
+    const star = offs.filter((o) => free.has(o.idx)).sort((a, b) => b.box.pts + (b.data.attrs.shotCreation + b.data.attrs.three) / 2 - (a.box.pts + (a.data.attrs.shotCreation + a.data.attrs.three) / 2))[0];
+    if (star) {
+      me.assign = star.idx;
+      free.delete(star.idx);
+      sortedDefs.splice(sortedDefs.indexOf(me), 1);
+    }
+  }
   // Joueur en feu : le meilleur défenseur extérieur s'en charge en priorité
   const focus = e.teams[defTeam].focus;
   if (focus !== undefined && free.has(focus) && e.players[focus].onCourt) {

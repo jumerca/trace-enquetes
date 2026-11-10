@@ -207,3 +207,17 @@ describe('Mode spectateur', () => {
     expect(selfish).toBeGreaterThan(team);
   });
 });
+
+describe('Consignes avancées', () => {
+  it('« défendre sur leur meilleur joueur » change le marquage du joueur incarné', async () => {
+    const { assignDefense } = await import('../src/sim/ai/defense');
+    const reg = new NameRegistry();
+    const home = quickTeam(5, 'H', 12, undefined, reg);
+    const e = new MatchEngine({ home, away: quickTeam(6, 'A', 12, undefined, reg), rules: withQuarterLength(FIBA, 5), seed: 5, userPlayerId: home.players[4].id, userStyle: { shooting: 0, defense: 0.5, hustle: 0.5, guardStar: true } });
+    const u = e.players[e.userIdx];
+    assignDefense(e, 0);
+    const opp = e.teamOnCourt(1);
+    const best = [...opp].sort((a, b) => b.data.attrs.shotCreation + b.data.attrs.three - (a.data.attrs.shotCreation + a.data.attrs.three))[0];
+    expect(u.assign).toBe(best.idx);
+  });
+});

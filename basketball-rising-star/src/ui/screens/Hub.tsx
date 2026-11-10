@@ -30,6 +30,8 @@ import { createMatch, finishMatch } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
 import { Modal } from '../components/Modal';
 import { PlayerTab } from './PlayerTab';
+import { FocusCard, InboxTab, InterestCard } from './InboxTab';
+import { unread } from '../../career/life';
 import { ClubProfile, LeagueCenter, MonthCalendar, TrainingWeek } from './ExtraTabs';
 import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard, RivalCard } from './LifeTab';
 import { extra, legacyScore, negotiate } from '../../career/life';
@@ -37,11 +39,12 @@ import { fixtureName } from '../../career/competitions';
 import { userSideId, userTeams } from '../../career/career';
 import { winterOpen } from '../../career/life';
 
-export type HubTab = 'home' | 'player' | 'training' | 'life' | 'club' | 'calendar' | 'career';
+export type HubTab = 'home' | 'inbox' | 'player' | 'training' | 'life' | 'club' | 'calendar' | 'career';
 
 const NAV: { id: HubTab; label: string; icon: string }[] = [
   { id: 'home', label: 'Accueil', icon: '⌂' },
   { id: 'player', label: 'Joueur', icon: '◉' },
+  { id: 'inbox', label: 'Messagerie', icon: '✉' },
   { id: 'training', label: 'Entraînement', icon: '◎' },
   { id: 'life', label: 'Vie', icon: '♥' },
   { id: 'club', label: 'Club', icon: '◈' },
@@ -71,6 +74,7 @@ export function Hub({ tab }: { tab: HubTab }) {
         {NAV.map((n) => (
           <button key={n.id} className="nav-item" aria-current={tab === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
             <span aria-hidden="true">{n.icon}</span> {n.label}
+            {n.id === 'inbox' && unread(c) > 0 && <span className="count">{unread(c)}</span>}
           </button>
         ))}
         <div style={{ flex: 1 }} />
@@ -126,6 +130,7 @@ export function Hub({ tab }: { tab: HubTab }) {
         {tab === 'calendar' && <CalendarTab c={c} />}
         {tab === 'career' && <CareerTab c={c} />}
         {tab === 'player' && <PlayerTab c={c} />}
+        {tab === 'inbox' && <InboxTab c={c} />}
         {tab === 'life' && <LifeTab c={c} />}
         <div className="muted tiny" style={{ marginTop: 26, textAlign: 'center' }}>
           Univers fictif : clubs, compétitions et joueurs sont inventés. {fullName(u)} · {NATIONS[u.nationality]?.flag}
@@ -271,6 +276,11 @@ function HomeTab({ c }: { c: Career }) {
       <PlayerHeader c={c} />
       {c.event && <EventCard c={c} />}
       <PressCard c={c} />
+      {unread(c) > 0 && (
+        <button className="card" style={{ textAlign: 'left', borderColor: 'rgba(221,182,90,0.5)' }} onClick={() => app.go({ name: 'hub', tab: 'inbox' })}>
+          <b>✉ {unread(c)} message(s) non lu(s)</b> <span className="muted small">· coach, agent, direction, médias</span>
+        </button>
+      )}
       <div className="grid cols-2">
         <div className="card">
           <div className="card-title">
@@ -520,6 +530,7 @@ function TrainingTab({ c }: { c: Career }) {
   return (
     <div className="grid" style={{ gap: 14 }}>
       <TrainingWeek c={c} />
+      <FocusCard c={c} />
       <div className="card">
         <div className="card-title">
           <h3>Mode de programmation</h3>
@@ -857,6 +868,7 @@ function CareerTab({ c }: { c: Career }) {
           </div>
         </>
       )}
+      {view === 'contract' && <InterestCard c={c} />}
       {view === 'contract' && (
         <div className="grid cols-2">
           <div className="card">

@@ -1,5 +1,5 @@
 import { hashString, Rng } from '../core/rng';
-import { ALL_ATTRS, ARCHETYPES, OVR_WEIGHTS, POSITION_BASE, type Archetype, type AttrKey, type Position } from '../data/attributes';
+import { ALL_ATTRS, ATTR_LABELS, ARCHETYPES, OVR_WEIGHTS, POSITION_BASE, type Archetype, type AttrKey, type Position } from '../data/attributes';
 import { age as ageOf, generatePlayer, NameRegistry, playerOvr } from '../data/generate';
 import { fullName, type Appearance, type Club, type PlayerData, type SeasonLine } from '../data/model';
 import { NATIONS } from '../data/names';
@@ -8,10 +8,10 @@ import { FIBA, NBA, NCB, withQuarterLength, type Ruleset } from '../sim/rules';
 import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonStat } from './fastsim';
 import { applyGains, trainWeek, type TrainingPlan } from './training';
 import { createWorld, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
-import { extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
+import { desk, focusWork, trainingReport, updateInterest, weeklyMessages, extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const START_SEASON = 2026;
 export const REGULAR_WEEKS = 22;
 
@@ -102,7 +102,7 @@ export interface PendingEvent {
 }
 
 export interface MatchSettings {
-  quarterMin: number; // option arcade
+  quarterMin: number; // 0 = durée officielle de la compétition ; sinon option arcade (minutes)
   speed: number;
   assist: boolean;
 }
@@ -158,7 +158,7 @@ export function rngFor(c: Career, salt: string): Rng {
 export function rulesFor(c: Career, leagueId: string): Ruleset {
   const l = c.world.leagues[leagueId];
   const base = !l ? FIBA : l.rules === 'NBA' ? NBA : l.rules === 'NCB' ? NCB : FIBA;
-  return c.settings.quarterMin < base.quarterMin ? withQuarterLength(base, c.settings.quarterMin) : base;
+  return c.settings.quarterMin > 0 && c.settings.quarterMin < base.quarterMin ? withQuarterLength(base, c.settings.quarterMin) : base;
 }
 
 // ------------------------------------------------------------------ Création
@@ -242,7 +242,7 @@ export function createCareer(input: CreationInput): Career {
     seasonStats: {},
     lastTraining: null,
     event: null,
-    settings: { quarterMin: 5, speed: 1, assist: true },
+    settings: { quarterMin: 0, speed: 4, assist: true },
     ovrHistory: [{ season: START_SEASON, week: 0, ovr: playerOvr(u) }],
     bestGames: [],
     retired: false,
@@ -619,6 +619,10 @@ export function advanceWeek(c: Career): WeekReport {
   }
   for (const n of weeklyLife(c, rng)) injuries.push(n);
   sponsorWeek(c, rng);
+  focusWork(c);
+  trainingReport(c, rng, changed.map((k) => ATTR_LABELS[k]));
+  updateInterest(c, rng);
+  weeklyMessages(c, rng);
   const ex = extra(c);
   (ex.wellness ??= []).push({ season: w.season, week: c.week, fatigue: Math.round(u.fatigue), morale: Math.round(u.morale), confidence: Math.round(u.confidence) });
   if (ex.wellness.length > 120) ex.wellness.shift();
@@ -840,7 +844,8 @@ export function generateOffers(c: Career): void {
     const fitLevel = ovr - lvl;
     if (fitLevel < -9 || fitLevel > 10) continue;
     const needPos = cl.roster.filter((id) => w.players[id]?.pos === u.pos).length <= 2 ? 0.15 : 0;
-    const interest = (life(c).transferRequest ? 0.2 : 0) + 0.08 + (fitLevel + 9) / 40 + needPos + u.reputation / 300 + agent.network / 120 - (cl.reputation - u.reputation) / 400;
+    const followed = (desk(c).interest[cl.id] ?? 0) / 100;
+    const interest = followed * 0.6 + (life(c).transferRequest ? 0.2 : 0) + 0.08 + (fitLevel + 9) / 40 + needPos + u.reputation / 300 + agent.network / 120 - (cl.reputation - u.reputation) / 400;
     if (!rng.chance(Math.max(0, Math.min(0.8, interest)))) continue;
     const role: Offer['role'] = fitLevel > 4 ? 'star' : fitLevel > 0 ? 'starter' : fitLevel > -5 ? 'rotation' : 'prospect';
     const salary = Math.round((salaryFor(ovr, league.level) * (1 + agent.negotiation / 60) * rng.range(0.85, 1.2)) / 1000) * 1000;

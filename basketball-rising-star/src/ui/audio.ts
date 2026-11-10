@@ -90,6 +90,74 @@ export function stopAmbience(): void {
   ambience = null;
 }
 
+/** Clameur : bruit filtré avec enveloppe (attaque rapide, longue décroissance). */
+function crowdNoise(dur: number, freq: number, q: number, gain: number, attack = 0.15): void {
+  const a = ac();
+  if (!a) return;
+  const len = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, len, a.sampleRate);
+  const d = buf.getChannelData(0);
+  const atk = Math.floor(a.sampleRate * attack);
+  for (let i = 0; i < len; i++) {
+    const env = i < atk ? i / atk : Math.pow(1 - (i - atk) / (len - atk), 1.6);
+    d[i] = (Math.random() * 2 - 1) * env * (0.75 + 0.25 * Math.sin(i / 900));
+  }
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  const f = a.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = a.createGain();
+  g.gain.value = gain * volume;
+  src.connect(f).connect(g).connect(a.destination);
+  src.start();
+}
+
+/** Chant rythmé « DÉ-FENSE » : deux syllabes chantées (voyelles formantiques) et claquements. */
+function chantVoice(times: number[], freqs: number[]): void {
+  const a = ac();
+  if (!a) return;
+  times.forEach((t, i) => {
+    const o = a.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = freqs[i % freqs.length];
+    const f = a.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 700;
+    f.Q.value = 2;
+    const g = a.createGain();
+    const t0 = a.currentTime + t;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.05 * volume, t0 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+    o.connect(f).connect(g).connect(a.destination);
+    o.start(t0);
+    o.stop(t0 + 0.35);
+  });
+}
+
+export const crowdSfx: Record<string, () => void> = {
+  cheer: () => crowdNoise(2.2, 1100, 0.6, 0.55),
+  roar: () => {
+    crowdNoise(3.2, 1000, 0.5, 0.8, 0.08);
+    crowdNoise(2.5, 2200, 0.8, 0.3, 0.1);
+  },
+  murmur: () => crowdNoise(1.2, 500, 0.8, 0.15, 0.3),
+  boo: () => crowdNoise(1.8, 260, 1.4, 0.45, 0.35),
+  clap: () => {
+    for (let i = 0; i < 6; i++) setTimeout(() => noise(0.05, 2500, 1, 0.25), i * 120 + Math.random() * 40);
+  },
+  chant: () => {
+    for (const t of [0, 0.5, 1.0, 1.5, 2.0, 2.5]) setTimeout(() => noise(0.06, 2300, 1, 0.3), t * 1000);
+    chantVoice([0, 0.5, 1.5, 2.0], [220, 196]);
+  },
+  chantDefense: () => {
+    chantVoice([0, 0.38, 1.2, 1.58, 2.4, 2.78], [233, 196]);
+    for (const t of [0.8, 2.0, 3.2]) setTimeout(() => noise(0.06, 2300, 1, 0.35), t * 1000);
+  },
+};
+
 export const sfx = {
   dribble: () => tone(78, 0.07, 'sine', 0.16, -30),
   board: () => {

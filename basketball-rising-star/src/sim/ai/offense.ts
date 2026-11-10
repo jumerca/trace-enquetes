@@ -246,6 +246,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0) + (st.play === 'Isolation' && st.star === p.idx ? 0.08 : 0);
   if (needThree && type !== 'three') shootV -= 0.5;
   if (type === 'three' && !needThree) shootV *= 0.8 + e.teams[p.team].tactics.threeRate * 0.14;
+  if (p.isUser && e.userStyle.role === 'shooter' && type === 'three') shootV += 0.1;
+  if (p.isUser && e.userStyle.role === 'post' && dist(p.pos, hoop) < 3.5) shootV += 0.08;
   opts.push({ kind: 'shoot', v: shootV });
 
   // 2) Pénétration
@@ -268,7 +270,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const finish = (a.layup + a.finishing + a.dunk * 0.5) / 50;
   const dribbleSkill = (a.dribble + a.ballControl) / 40;
   if (d > 2.2 && d < 11) {
-    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3;
+    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
     opts.push({ kind: 'drive', v });
   }
   const extD = p as MPlayer & { driveT?: number };
@@ -343,7 +345,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     v += m.hotness * 0.12;
     v += (a.teamwork + a.passing - 20) / 100;
     if (m.isUser && called !== undefined && e.time - called < 2) v += 0.35;
-    if (m.isUser) v += e.userStyle.shooting * 0.08;
+    if (m.isUser) v += e.userStyle.shooting * 0.08 + (e.userStyle.role === 'playmaker' && !e.frontcourtReached ? 0.4 : 0) + (e.userStyle.role === 'post' && dist(m.pos, hoop) < 4 ? 0.15 : 0);
+    if (p.isUser && e.userStyle.role === 'playmaker') v += 0.06;
     if (p.isUser) v -= e.userStyle.shooting * 0.06;
     if (holdForLast) v -= 0.3;
     opts.push({ kind: 'pass', v, to: m });
@@ -458,7 +461,16 @@ function offBallThink(e: MatchEngine, p: MPlayer, st: OffenseState): void {
   const hoop = e.court.hoop(side);
   const a = p.data.attrs;
   const h = e.holder();
-  const spot = st.spots[p.idx] ?? p.spot ?? e.court.fromHoop(side, 5, 0);
+  let spot = st.spots[p.idx] ?? p.spot ?? e.court.fromHoop(side, 5, 0);
+  // Rôle demandé au joueur incarné : placement adapté
+  if (p.isUser && e.userStyle.role && e.userStyle.role !== 'auto') {
+    const lr = p.pos.y < e.court.cy ? -1 : 1;
+    if (e.userStyle.role === 'shooter') spot = e.court.fromHoop(side, 0.3, lr * (e.court.g.width / 2 - e.court.g.cornerThreeFromSideline + 0.35));
+    else if (e.userStyle.role === 'post') {
+      spot = e.court.fromHoop(side, 0.9, lr * 2.75);
+      p.role = 'post';
+    } else if (e.userStyle.role === 'playmaker') spot = e.court.fromHoop(side, e.court.g.threeRadius + 0.8, lr * 1.5);
+  }
   // Règle des 3 secondes : sortir de la raquette (les joueurs disciplinés y pensent plus tôt)
   if (p.keyTime > 0.9 + (p.data.attrs.discipline < 7 ? 0.7 : 0)) {
     p.target = e.court.fromHoop(side, 2.4, p.pos.y < e.court.cy ? -3.4 : 3.4);
@@ -532,7 +544,7 @@ function offBallThink(e: MatchEngine, p: MPlayer, st: OffenseState): void {
     const defBallSide = dist(myDef.pos, ballP) < dist(p.pos, ballP) - 1;
     const denial = sep < 1.0 && dist(myDef.pos, ballP) < dist(p.pos, ballP);
     const readSkill = (a.offBall + a.iq) / 40;
-    if (dHoop > 3 && ((sep > 2.6 && defBallSide) || (denial && dHoop < 8)) && e.rng.chance((0.18 + readSkill * 0.35) * (st.play === 'Motion' ? 1.6 : 1))) {
+    if (dHoop > 3 && ((sep > 2.6 && defBallSide) || (denial && dHoop < 8)) && e.rng.chance((0.18 + readSkill * 0.35) * (st.play === 'Motion' ? 1.6 : 1) * (p.isUser && e.userStyle.role === 'slasher' ? 2 : 1))) {
       st.cutter = p.idx;
       st.cutT = e.time;
       p.intent = 'coupe';

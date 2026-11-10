@@ -989,6 +989,8 @@ table.t th.r {
   justify-items: end;
 }
 .stylebar-panel {
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
   background: rgba(16, 24, 39, 0.94);
   border: 1px solid var(--line-2);
   border-radius: 14px;
@@ -1319,4 +1321,68 @@ table.t th.r {
   .club-hero {
     grid-template-columns: 1fr;
   }
+}
+
+.count {
+  margin-left: auto;
+  background: var(--orange);
+  color: #1a0d05;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 1px 7px;
+}
+.inbox {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.inbox-list {
+  display: grid;
+  gap: 4px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.inbox-item {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.inbox-item.on {
+  background: rgba(243, 107, 50, 0.1);
+  border-color: rgba(243, 107, 50, 0.4);
+}
+.inbox-item.unread b::before {
+  content: '● ';
+  color: var(--orange);
+}
+.grade {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-family: var(--display);
+}
+.gA { background: rgba(40, 183, 139, 0.3); color: #6ae6bd; }
+.gB { background: rgba(57, 136, 245, 0.25); color: #9cc4ff; }
+.gC { background: rgba(246, 244, 239, 0.1); }
+.gD { background: rgba(243, 107, 50, 0.25); color: var(--orange-2); }
+.gE { background: rgba(229, 72, 77, 0.3); color: #ff8d90; }
+@media (max-width: 860px) {
+  .inbox { grid-template-columns: 1fr; }
+  .inbox-list { max-height: 40vh; }
+}
+/* Les enfants de grille ne doivent jamais élargir la page */
+.grid > *,
+.card {
+  min-width: 0;
 }

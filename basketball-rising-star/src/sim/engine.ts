@@ -51,8 +51,14 @@ export interface UserStyle {
   shooting: number; // -1 collectif … +1 prend ses responsabilités
   defense: number; // 0 prudent … 1 agressif
   hustle: number; // 0 économise … 1 se donne à fond (rebond, repli, fatigue)
+  /** Rôle offensif demandé */
+  role?: 'auto' | 'shooter' | 'slasher' | 'post' | 'playmaker';
+  /** Défendre sur le meilleur attaquant adverse */
+  guardStar?: boolean;
+  /** Demande au coach : sortir souffler ou entrer en jeu */
+  sub?: 'none' | 'out' | 'in';
 }
-export const DEFAULT_STYLE: UserStyle = { shooting: 0, defense: 0.5, hustle: 0.5 };
+export const DEFAULT_STYLE: UserStyle = { shooting: 0, defense: 0.5, hustle: 0.5, role: 'auto', guardStar: false, sub: 'none' };
 
 export const TICK = 1 / 60;
 
@@ -514,8 +520,12 @@ export class MatchEngine {
   movePlayers(dt: number): void {
     const act = this.players.filter((p) => p.onCourt);
     for (const p of act) {
-      // Saut
-      if (p.z > 0 || p.vz > 0) {
+      // Suspendu à l'arceau après un dunk
+      const hang = p as MPlayer & { hangT?: number };
+      if (hang.hangT && hang.hangT > 0) {
+        hang.hangT -= dt;
+        p.vz = 0;
+      } else if (p.z > 0 || p.vz > 0) {
         p.vz -= 9.81 * dt;
         p.z += p.vz * dt;
         if (p.z <= 0) {
@@ -644,6 +654,7 @@ export class MatchEngine {
         if (p.screenT > 0) p.anim = 'screen';
         else if (this.ball.holder === p.idx && this.ball.state === 'held') p.anim = 'dribble';
         else if (p.team !== this.possession && this.phase === 'live' && sp < 3.5) p.anim = 'stance';
+        else if (this.phase !== 'live' && p.energy < 0.55 && sp < 0.3) p.anim = 'tired';
         else p.anim = sp > 0.35 ? 'run' : 'idle';
       }
       // Limites : on peut sortir légèrement (remises en jeu), pas au-delà
@@ -1392,8 +1403,19 @@ export class MatchEngine {
       this.emit({ type: 'made', team: t, player: shooter.idx, other: f.assistFrom, points: pts, text: txt, detail: f.shotType });
       shooter.anim = 'celebrate';
       shooter.animT = 0;
+      // Les coéquipiers proches célèbrent aussi (poing levé, tape dans la main)
+      for (const m of this.teamOnCourt(t)) {
+        if (m !== shooter && dist(m.pos, shooter.pos) < 6 && (pts === 3 || f.shotType === 'dunk' || this.rng.chance(0.35))) {
+          m.anim = 'celebrate';
+          m.animT = 0.2;
+        }
+      }
       if (f.shotType === 'dunk' || pts === 3) this.replayMarks.push({ t: this.time, kind: f.shotType ?? 'shot' });
-      if (f.shotType === 'dunk') this.slowmo = 1.0;
+      if (f.shotType === 'dunk') {
+        this.slowmo = 1.0;
+        (shooter as MPlayer & { hangT?: number }).hangT = 0.4;
+        shooter.z = Math.max(shooter.z, 0.75);
+      }
     }
     this.lastScoreT = this.time;
     this.lastShot = null;
@@ -1871,6 +1893,7 @@ export class MatchEngine {
     if (this.ball.holder === outIdx) this.ball.holder = inIdx;
     if (this.ftQueue && this.ftQueue.shooter === outIdx) this.ftQueue.shooter = inIdx;
     this.emit({ type: 'sub', team: o.team, player: inIdx, other: outIdx, text: `Changement : ${this.name(inIdx)} remplace ${this.name(outIdx)}` });
+    if ((o.isUser && this.userStyle.sub === 'out') || (i.isUser && this.userStyle.sub === 'in')) this.userStyle = { ...this.userStyle, sub: 'none' };
     this.benchPositions();
   }
 

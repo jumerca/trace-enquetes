@@ -55,9 +55,9 @@ export function SettingsScreen({ back }: { back: Screen }) {
           <div className="field">
             <label>Durée des quarts-temps {c ? '(cette carrière)' : '(par défaut)'}</label>
             <div className="seg">
-              {[3, 5, 7, 10].map((q) => (
+              {[0, 7, 5, 3].map((q) => (
                 <button key={q} aria-pressed={quarter === q} onClick={() => setQuarter(q)}>
-                  {q} min{q === 10 ? ' (officiel FIBA)' : ''}
+                  {q === 0 ? 'Officielle (10 min FIBA, 12 min NBA)' : `${q} min (arcade)`}
                 </button>
               ))}
             </div>

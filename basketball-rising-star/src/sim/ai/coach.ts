@@ -33,6 +33,9 @@ function desirability(e: MatchEngine, p: MPlayer): number {
   const limit = q === 1 ? 2 : q === 2 ? 3 : q === 3 ? 4 : e.rules.foulOut - 1;
   if (p.fouls >= limit && !(q >= 4 && e.clock < 240)) d -= 3;
   if (p.onCourt) d += 0.6; // continuité
+  // Demande du joueur incarné au coach
+  if (p.isUser && e.userStyle.sub === 'out') d -= 6;
+  if (p.isUser && e.userStyle.sub === 'in' && !p.onCourt) d += 1.2 + (p.data.confidence - 50) / 40;
   // Fin de match serrée : les meilleurs jouent
   if (e.clutch() > 0.3) d += (ovr / 10) * e.clutch();
   // Match plié : le coach vide son banc (temps de jeu pour les jeunes, repos des cadres)

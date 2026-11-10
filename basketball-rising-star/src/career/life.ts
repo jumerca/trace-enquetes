@@ -543,3 +543,175 @@ export function legacyScore(c: Career): number {
   const ind = c.trophies.filter((t) => t.kind === 'individual').length;
   return Math.round(tot.gp * 0.4 + tot.pts * 0.05 + team * 40 + ind * 25 + c.nationalCaps * 3 + u.reputation * 2);
 }
+
+// ================================================================== Intérêt des clubs, messagerie, rapports
+export interface Message {
+  id: string;
+  season: number;
+  week: number;
+  from: string;
+  kind: 'coach' | 'agent' | 'board' | 'media' | 'medical' | 'club' | 'scout';
+  subject: string;
+  body: string;
+  read: boolean;
+  actions?: { label: string; effect: string; code: string }[];
+  done?: string;
+}
+
+export interface Desk {
+  interest: Record<string, number>;
+  inbox: Message[];
+  focusAttr: keyof PlayerData['attrs'] | null;
+  reports: { season: number; week: number; grade: string; note: string }[];
+}
+
+export function desk(c: Career): Desk {
+  const l = life(c) as Life & { desk?: Desk };
+  l.desk ??= { interest: {}, inbox: [], focusAttr: null, reports: [] };
+  return l.desk;
+}
+
+let msgN = 0;
+export function sendMessage(c: Career, m: Omit<Message, 'id' | 'season' | 'week' | 'read'>): void {
+  const d = desk(c);
+  msgN++;
+  d.inbox.unshift({ ...m, id: `m${c.world.season}${c.week}${msgN}${Math.floor(Math.random() * 1e6)}`, season: c.world.season, week: c.week, read: false });
+  if (d.inbox.length > 150) d.inbox.length = 150;
+}
+
+export function unread(c: Career): number {
+  return desk(c).inbox.filter((m) => !m.read).length;
+}
+
+/** Intérêt des clubs : performances réelles, réputation, besoins à votre poste et niveau. */
+export function updateInterest(c: Career, rng: Rng): void {
+  const d = desk(c);
+  const u = user(c);
+  const ovr = playerOvr(u);
+  const last = c.world.fixtures.filter((f) => f.userLine && f.userLine.min > 0 && f.week === c.week).map((f) => f.userLine!.rating);
+  const perf = last.length ? last.reduce((s, r) => s + r, 0) / last.length : 0;
+  for (const cl of Object.values(c.world.clubs)) {
+    if (cl.id === u.clubId || !c.world.leagues[cl.leagueId]) continue;
+    const lvl = teamLevel(c, cl.id);
+    const fit = 1 - Math.min(1, Math.abs(ovr + 2 - lvl) / 10);
+    const need = cl.roster.filter((id) => c.world.players[id]?.pos === u.pos).length <= 2 ? 6 : 0;
+    const cur = d.interest[cl.id] ?? 0;
+    const gain = fit * (perf ? (perf - 5.5) * 3 : 0) + fit * u.reputation / 40 + need * fit;
+    const next = Math.max(0, Math.min(100, cur * 0.93 + gain + rng.normal(0, 1)));
+    if (next >= 1) d.interest[cl.id] = Math.round(next * 10) / 10;
+    else delete d.interest[cl.id];
+    if (cur < 60 && next >= 60) {
+      sendMessage(c, { from: 'Votre agent', kind: 'agent', subject: `${cl.name} vous suit de près`, body: `Le recruteur de ${cl.name} (${c.world.leagues[cl.leagueId].name}) a assisté à vos derniers matchs. Leur intérêt est sérieux : une offre est possible au prochain mercato.` });
+      addNews(c, 'rumor', `${cl.name} sur la piste de ${u.lastName}`, `Les dirigeants de ${cl.name} apprécient le profil de ${fullName(u)}.`);
+    }
+  }
+}
+
+export function topInterest(c: Career, n = 6): { clubId: string; v: number }[] {
+  return Object.entries(desk(c).interest)
+    .map(([clubId, v]) => ({ clubId, v }))
+    .sort((a, b) => b.v - a.v)
+    .slice(0, n);
+}
+
+/** Rapport d'entraînement hebdomadaire du coach (note A à E) : effet sur la confiance du coach. */
+export function trainingReport(c: Career, rng: Rng, changed: string[]): void {
+  const d = desk(c);
+  const u = user(c);
+  const work = (u.attrs.discipline + u.attrs.determination + u.attrs.concentration) / 3;
+  const score = work / 20 - u.fatigue / 220 + (c.plan.intensity === 'intense' ? 0.08 : c.plan.intensity === 'light' ? -0.06 : 0) + rng.normal(0, 0.12) + changed.length * 0.05;
+  const grade = score > 0.72 ? 'A' : score > 0.58 ? 'B' : score > 0.44 ? 'C' : score > 0.3 ? 'D' : 'E';
+  const effect = { A: 2.5, B: 1, C: 0, D: -1.5, E: -3 }[grade]!;
+  c.trust = Math.max(0, Math.min(100, c.trust + effect));
+  const notes: Record<string, string[]> = {
+    A: ['Semaine remarquable, tu tires tout le groupe vers le haut.', 'Intensité et concentration exemplaires.'],
+    B: ['Bon travail, continue comme ça.', 'Sérieux et appliqué, rien à redire.'],
+    C: ['Semaine correcte, sans plus.', 'Je veux voir un peu plus d’envie.'],
+    D: ['Trop d’erreurs de concentration cette semaine.', 'Tu as semblé fatigué et peu impliqué.'],
+    E: ['Inacceptable. Ce n’est pas le niveau attendu.', 'Ton attitude à l’entraînement me pose problème.'],
+  };
+  const note = rng.pick(notes[grade]);
+  d.reports.unshift({ season: c.world.season, week: c.week, grade, note });
+  if (d.reports.length > 40) d.reports.length = 40;
+  if (grade === 'A' || grade === 'D' || grade === 'E' || c.week % 4 === 0)
+    sendMessage(c, { from: userClub(c).coach.name, kind: 'coach', subject: `Rapport d'entraînement : note ${grade}`, body: `${note}${changed.length ? ` Progrès constatés : ${changed.join(', ')}.` : ''} (Confiance du coach ${effect >= 0 ? '+' : ''}${effect})` });
+}
+
+/** Travail ciblé d'un attribut au choix, en plus du programme (petite charge supplémentaire). */
+export function focusWork(c: Career): void {
+  const d = desk(c);
+  const u = user(c);
+  if (!d.focusAttr || u.injuryDays > 0) return;
+  u.frac ??= {};
+  const cur = u.attrs[d.focusAttr];
+  u.frac[d.focusAttr] = (u.frac[d.focusAttr] ?? 0) + (cur >= 17 ? 0.04 : 0.11);
+  u.fatigue = Math.min(100, u.fatigue + 2);
+}
+
+/** Messages ponctuels : demandes d'interview, direction, staff médical, agent. */
+export function weeklyMessages(c: Career, rng: Rng): void {
+  const u = user(c);
+  const club = userClub(c);
+  if (c.week % 5 === 2 && rng.chance(0.6)) {
+    const outlet = rng.pick(['Basket Hebdo', 'Le Parquet', 'Radio Sport Info', 'Courtside TV', 'Dunk Magazine']);
+    sendMessage(c, {
+      from: outlet,
+      kind: 'media',
+      subject: 'Demande d’interview',
+      body: `${outlet} aimerait vous interroger sur votre saison et vos ambitions. Que décidez-vous ?`,
+      actions: [
+        { label: 'Interview longue et sincère', effect: 'Médias +8, abonnés +, fatigue +4', code: 'media_long' },
+        { label: 'Quelques mots rapides', effect: 'Médias +3', code: 'media_short' },
+        { label: 'Refuser', effect: 'Médias −4, concentration préservée', code: 'media_no' },
+      ],
+    });
+  }
+  if (c.week === 11 && c.phase === 'regular') {
+    sendMessage(c, { from: 'Direction du club', kind: 'board', subject: 'Point de mi-saison', body: `La direction de ${club.name} fait le point : confiance du coach ${Math.round(c.trust)}/100, relation avec la direction ${Math.round(c.relations.board)}/100. ${c.trust > 60 ? 'Vous faites partie des plans du club.' : 'Le club attend davantage de vous en deuxième partie de saison.'}` });
+  }
+  if (u.contract && u.contract.until === c.world.season && c.week === 16) {
+    sendMessage(c, {
+      from: 'Votre agent',
+      kind: 'agent',
+      subject: 'Votre contrat expire en fin de saison',
+      body: `Votre contrat avec ${club.name} se termine cet été. ${topInterest(c, 3).length ? `Clubs intéressés : ${topInterest(c, 3).map((i) => c.world.clubs[i.clubId].name).join(', ')}.` : 'Peu de clubs se sont manifestés pour l’instant.'} Souhaitez-vous ouvrir des discussions de prolongation ?`,
+      actions: [
+        { label: 'Ouvrir les discussions de prolongation', effect: 'Direction +6, prolongation plus probable', code: 'extend_yes' },
+        { label: 'Attendre les offres de l’été', effect: 'Direction −3, marché ouvert', code: 'extend_wait' },
+      ],
+    });
+  }
+  if (u.fatigue > 75 && rng.chance(0.5)) sendMessage(c, { from: 'Staff médical', kind: 'medical', subject: 'Alerte fatigue', body: `Votre niveau de fatigue (${Math.round(u.fatigue)}/100) augmente fortement le risque de blessure. Nous recommandons une semaine de récupération.` });
+}
+
+export function resolveMessage(c: Career, id: string, i: number): string {
+  const d = desk(c);
+  const m = d.inbox.find((x) => x.id === id);
+  if (!m || !m.actions || m.done) return '';
+  const a = m.actions[i];
+  const u = user(c);
+  const x = extra(c);
+  switch (a.code) {
+    case 'media_long':
+      c.relations.media = clamp100(c.relations.media + 8);
+      x.followers = Math.round(x.followers * 1.06 + 200);
+      u.fatigue = Math.min(100, u.fatigue + 4);
+      break;
+    case 'media_short':
+      c.relations.media = clamp100(c.relations.media + 3);
+      break;
+    case 'media_no':
+      c.relations.media = clamp100(c.relations.media - 4);
+      break;
+    case 'extend_yes':
+      c.relations.board = clamp100(c.relations.board + 6);
+      c.trust = clamp100(c.trust + 3);
+      break;
+    case 'extend_wait':
+      c.relations.board = clamp100(c.relations.board - 3);
+      break;
+  }
+  m.done = a.label;
+  m.read = true;
+  return a.effect;
+}

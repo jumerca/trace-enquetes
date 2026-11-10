@@ -19,6 +19,8 @@ export interface RenderOptions {
   showOpen: boolean;
   colorblind: boolean;
   showNames?: boolean;
+  showTactics?: boolean;
+  view?: '3d' | '2d';
 }
 
 interface Popup {
@@ -88,7 +90,7 @@ export class MatchRenderer {
     const g = this.e.court.g;
     const full = this.opts.camera === 'full';
     const sFull = Math.min(this.W / (g.length + 2.2), (this.H * 0.92) / (g.width * TILT + 4.6 * ZK));
-    const target = full ? sFull : Math.max(sFull * 1.55, Math.min(this.W / 15, this.H / 7.5));
+    const target = full ? sFull : Math.max(sFull * 1.4, Math.min(this.W / 17, this.H / 8.4));
     this.s += (target - this.s) * Math.min(1, dt * 4);
     const b = this.e.ball;
     let tx = g.length / 2;
@@ -100,7 +102,18 @@ export class MatchRenderer {
       if (half * 2 > g.length + 2.4) tx = g.length / 2;
     }
     this.camX += (tx - this.camX) * Math.min(1, dt * 3.2);
-    this.camY = g.width / 2 + (full ? 1.2 : 1.0);
+    if (full) this.camY = g.width / 2 + 1.2;
+    else {
+      // Cadrage qui garde les premiers rangs de la tribune visibles si le terrain tient dans l'écran
+      const st = this.s * TILT;
+      const withCrowd = -2.6 - (Math.min(110, this.H * 0.16) - this.H * 0.54) / st;
+      const nearOk = (g.width + 1.6 - withCrowd) * st + this.H * 0.54 < this.H - 8;
+      // Sinon la caméra suit aussi le jeu en profondeur, entre la tribune et le banc
+      const lowest = g.width + 1.6 - (this.H * 0.46 - 8) / st;
+      const fy = this.e.ball.y;
+      const ty = nearOk ? withCrowd : Math.max(withCrowd, Math.min(lowest, fy - 4));
+      this.camY += (ty - this.camY) * Math.min(1, dt * 3);
+    }
   }
 
   // ------------------------------------------------------------------ Terrain
@@ -218,7 +231,14 @@ export class MatchRenderer {
   }
 
   // ------------------------------------------------------------------ Image
+  handMem = new Map<number, [number, number][]>();
+  frameDt = 1 / 60;
   render(dt: number): void {
+    this.frameDt = dt;
+    if (this.opts.view === '2d') {
+      this.render2D(dt);
+      return;
+    }
     const ctx = this.ctx;
     this.updateCamera(dt);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -228,7 +248,7 @@ export class MatchRenderer {
     bg.addColorStop(1, '#141f33');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, this.W, this.H);
-    this.drawCrowd();
+    this.drawCrowd(dt);
     const court = this.buildCourt();
     const pad = 3;
     ctx.drawImage(court, this.px(-pad), this.py(-pad), court.width / this.dpr, court.height / this.dpr);
@@ -250,28 +270,356 @@ export class MatchRenderer {
     for (const p of e.players) this.drawShadow(p.pos.x, p.pos.y, 0.42 * (1 - Math.min(0.5, p.z / 2)), p.onCourt ? 0.28 : 0.12);
     this.drawShadow(e.ball.x, e.ball.y, 0.14, 0.35 * Math.max(0.2, 1 - e.ball.z / 6));
     if (this.opts.showOpen) this.drawMarkers();
+    if (this.opts.showTactics) this.drawTactics((x, y) => [this.px(x), this.py(y)], this.s);
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.draw();
     this.drawPopups(dt);
   }
 
-  drawCrowd(): void {
+  // ------------------------------------------------------------------ Lecture tactique
+  /** Flèches de course, écrans (symbole ⊥), passes et système offensif annoncé. */
+  drawTactics(P: (x: number, y: number) => [number, number], S: number): void {
+    const e = this.e;
+    if (e.phase !== 'live') return;
     const ctx = this.ctx;
-    const top = this.py(-2.6);
-    if (top <= 0) return;
+    const off = e.possession;
+    const st = e.offense[off];
+    const arrow = (x1: number, y1: number, x2: number, y2: number, color: string, dash: number[]) => {
+      const [a, b] = P(x1, y1);
+      const [c2, d] = P(x2, y2);
+      const len = Math.hypot(c2 - a, d - b);
+      if (len < 0.6 * S) return;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, 0.05 * S);
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(a, b);
+      ctx.lineTo(c2, d);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const ang = Math.atan2(d - b, c2 - a);
+      const hs = Math.max(6, 0.22 * S);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(c2, d);
+      ctx.lineTo(c2 - Math.cos(ang - 0.45) * hs, d - Math.sin(ang - 0.45) * hs);
+      ctx.lineTo(c2 - Math.cos(ang + 0.45) * hs, d - Math.sin(ang + 0.45) * hs);
+      ctx.closePath();
+      ctx.fill();
+    };
     ctx.save();
-    ctx.globalAlpha = 0.5;
-    const rows = Math.min(8, Math.floor(top / 9));
-    for (let r = 0; r < rows; r++) {
-      const yy = top - r * 9 - 6;
-      for (let i = 0; i < this.W / 8; i++) {
-        const seed = (i * 73 + r * 131) % 97;
-        ctx.fillStyle = seed % 7 === 0 ? '#F36B32' : seed % 5 === 0 ? '#3988F5' : seed % 3 === 0 ? '#2a3550' : '#1c263b';
-        const bob = Math.sin(this.e.time * 3 + i + r) * (this.e.time - this.e.lastScoreT < 2 ? 1.6 : 0.3);
-        ctx.fillRect(i * 8 + (r % 2) * 4, yy + bob, 5, 6);
+    ctx.globalAlpha = 0.85;
+    for (const p of e.teamOnCourt(off)) {
+      if (p.intent === 'drive' && e.ball.holder === p.idx) arrow(p.pos.x, p.pos.y, p.target.x, p.target.y, '#F36B32', []);
+      else if (p.intent === 'coupe' || p.intent === 'roll' || p.intent === 'pop' || p.intent === 'rim run') arrow(p.pos.x, p.pos.y, p.target.x, p.target.y, '#6aa9ff', [6, 5]);
+      if (p.screenT > 0 || p.intent === 'pose un écran') {
+        // Symbole d'écran : barre perpendiculaire au porteur
+        const h = e.holder();
+        const ref = h ?? p;
+        const ang = Math.atan2(ref.pos.y - p.pos.y, ref.pos.x - p.pos.x) + Math.PI / 2;
+        const [a, b] = P(p.pos.x + Math.cos(ang) * 0.45, p.pos.y + Math.sin(ang) * 0.45);
+        const [c2, d] = P(p.pos.x - Math.cos(ang) * 0.45, p.pos.y - Math.sin(ang) * 0.45);
+        ctx.strokeStyle = '#F6F4EF';
+        ctx.lineWidth = Math.max(2.5, 0.09 * S);
+        ctx.beginPath();
+        ctx.moveTo(a, b);
+        ctx.lineTo(c2, d);
+        ctx.stroke();
+        if (p.screenT > 0 && S > 14) {
+          const spr = textSprite('ÉCRAN', Math.max(9, 0.17 * S), 800, 'Inter, sans-serif', '#101827', null, '#F6F4EF', this.dpr);
+          const [lx, ly] = P(p.pos.x, p.pos.y);
+          ctx.drawImage(spr, lx - spr.width / this.dpr / 2, ly + 0.3 * S, spr.width / this.dpr, spr.height / this.dpr);
+        }
       }
     }
+    // Aides défensives
+    for (const d of e.teamOnCourt((1 - off) as 0 | 1)) if (d.intent === 'aide' || d.intent === 'rotation') arrow(d.pos.x, d.pos.y, d.target.x, d.target.y, '#ff6b6b', [3, 4]);
+    // Passe en l'air
+    const f = e.ball.flight;
+    if (e.ball.state === 'air' && f?.kind === 'pass' && f.to >= 0) arrow(f.start.x, f.start.y, f.end.x, f.end.y, 'rgba(246,244,239,0.7)', [2, 4]);
     ctx.restore();
+    // Système annoncé au-dessus du porteur
+    const h = e.holder();
+    if (h && st.play && !st.transition && S > 9) {
+      const spr = textSprite(st.play.toUpperCase(), Math.max(10, 0.2 * S), 800, 'Inter, sans-serif', '#101827', null, e.teams[off].colors[0] === '#F6F4EF' ? '#DDB65A' : '#DDB65A', this.dpr);
+      const [lx, ly] = P(h.pos.x, h.pos.y);
+      const dy = this.opts.view === '2d' ? 0.7 * S : (h.heightM + 0.75) * S * ZK;
+      ctx.drawImage(spr, lx - spr.width / this.dpr / 2, ly - dy - spr.height / this.dpr, spr.width / this.dpr, spr.height / this.dpr);
+    }
+  }
+
+  // ------------------------------------------------------------------ Vue 2D tactique (de dessus)
+  render2D(dt: number): void {
+    const ctx = this.ctx;
+    const e = this.e;
+    const g = e.court.g;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.fillStyle = '#0d1422';
+    ctx.fillRect(0, 0, this.W, this.H);
+    const S = Math.min((this.W - 24) / (g.length + 2), (this.H - 90) / (g.width + 2));
+    const ox = (this.W - g.length * S) / 2;
+    const oy = (this.H - g.width * S) / 2 + 18;
+    const P = (x: number, y: number): [number, number] => [ox + x * S, oy + y * S];
+    // Parquet et lignes
+    ctx.fillStyle = '#c99158';
+    ctx.fillRect(ox - S * 0.8, oy - S * 0.8, (g.length + 1.6) * S, (g.width + 1.6) * S);
+    ctx.fillStyle = '#1d3d6e';
+    for (const side of [1, -1] as const) {
+      const bx = side === 1 ? g.length - g.ftLineFromBaseline : 0;
+      ctx.fillRect(ox + bx * S, oy + (g.width / 2 - g.keyHalfWidth) * S, g.ftLineFromBaseline * S, g.keyHalfWidth * 2 * S);
+    }
+    ctx.strokeStyle = '#F6F4EF';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ox, oy, g.length * S, g.width * S);
+    ctx.beginPath();
+    ctx.moveTo(ox + (g.length / 2) * S, oy);
+    ctx.lineTo(ox + (g.length / 2) * S, oy + g.width * S);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(ox + (g.length / 2) * S, oy + (g.width / 2) * S, g.centerRadius * S, 0, Math.PI * 2);
+    ctx.stroke();
+    for (const side of [1, -1] as const) {
+      const h = e.court.hoop(side);
+      const bx = side === 1 ? g.length : 0;
+      const corner = g.width / 2 - g.cornerThreeFromSideline;
+      const depth = Math.sqrt(g.threeRadius ** 2 - corner ** 2);
+      const a = Math.asin(corner / g.threeRadius);
+      ctx.beginPath();
+      ctx.moveTo(...P(bx, g.cornerThreeFromSideline));
+      ctx.lineTo(...P(h.x - side * depth, g.cornerThreeFromSideline));
+      for (let i = 0; i <= 30; i++) {
+        const t = -a + (2 * a * i) / 30;
+        ctx.lineTo(...P(h.x - side * Math.cos(t) * g.threeRadius, g.width / 2 + Math.sin(t) * g.threeRadius));
+      }
+      ctx.lineTo(...P(bx, g.width - g.cornerThreeFromSideline));
+      ctx.stroke();
+      ctx.strokeStyle = '#F36B32';
+      ctx.beginPath();
+      ctx.arc(...P(h.x, h.y), Math.max(3, g.rimRadius * S), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = '#F6F4EF';
+    }
+    if (this.opts.showTactics !== false) this.drawTactics(P, S);
+    // Joueurs : pastilles aux couleurs, numéro, orientation
+    for (const p of e.players) {
+      if (!p.onCourt) continue;
+      const [x, y] = P(p.pos.x, p.pos.y);
+      const [jersey, trim] = this.kit(p.team);
+      const r = Math.max(8, 0.42 * S);
+      if (e.ball.holder === p.idx) {
+        ctx.strokeStyle = '#F36B32';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (p.isUser) {
+        ctx.strokeStyle = '#DDB65A';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = jersey;
+      ctx.strokeStyle = trim;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = trim;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(p.facing) * r * 0.55, y + Math.sin(p.facing) * r * 0.55);
+      ctx.lineTo(x + Math.cos(p.facing) * r * 1.25, y + Math.sin(p.facing) * r * 1.25);
+      ctx.stroke();
+      const spr = textSprite(String(p.data.number), r * 1.05, 800, "'Barlow Condensed', Inter, sans-serif", trim, null, null, this.dpr);
+      ctx.drawImage(spr, x - spr.width / this.dpr / 2, y - spr.height / this.dpr / 2, spr.width / this.dpr, spr.height / this.dpr);
+      if (this.opts.showNames && S > 18) {
+        const nm = textSprite(p.data.lastName, Math.max(9, 0.26 * S), 700, 'Inter, sans-serif', p.isUser ? '#DDB65A' : '#F6F4EF', null, 'rgba(16,24,39,0.6)', this.dpr);
+        ctx.drawImage(nm, x - nm.width / this.dpr / 2, y + r + 2, nm.width / this.dpr, nm.height / this.dpr);
+      }
+    }
+    // Ballon : sa taille indique la hauteur
+    const b = e.ball;
+    const [bx2, by2] = P(b.x, b.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.arc(bx2, by2, Math.max(3, 0.13 * S), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#F36B32';
+    ctx.strokeStyle = '#2a1206';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(bx2, by2 - b.z * S * 0.15, Math.max(4, 0.16 * S * (1 + b.z * 0.12)), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    this.drawPopups2D(dt, P);
+  }
+
+  drawPopups2D(dt: number, P: (x: number, y: number) => [number, number]): void {
+    // Réutilise les mêmes messages (+2, CONTRE…) sans profondeur
+    const saved = { px: this.px.bind(this), py: this.py.bind(this) };
+    this.px = (x: number) => P(x, 0)[0];
+    this.py = (y: number, z = 0) => P(0, y)[1] - z * 8;
+    this.drawPopups(dt);
+    this.px = saved.px;
+    this.py = saved.py;
+  }
+
+  // ------------------------------------------------------------------ Tribunes vivantes
+  crowdCache: { key: string; c: HTMLCanvasElement } | null = null;
+  homeCheer = 0;
+  awayCheer = 0;
+  boo = 0;
+  chant: { text: string; t: number } | null = null;
+  nextChant = 25;
+  crowdEvents: string[] = [];
+  crowdSeen = 0;
+
+  /** Réactions du public à partir des événements réellement simulés (l'équipe 0 reçoit). */
+  updateCrowd(dt: number): void {
+    const e = this.e;
+    this.homeCheer = Math.max(0, this.homeCheer - dt);
+    this.awayCheer = Math.max(0, this.awayCheer - dt);
+    this.boo = Math.max(0, this.boo - dt);
+    for (; this.crowdSeen < e.events.length; this.crowdSeen++) {
+      const ev = e.events[this.crowdSeen];
+      if (ev.type === 'made' || (ev.type === 'ft' && ev.points)) {
+        const big = ev.points === 3 || ev.detail === 'dunk';
+        if (ev.team === 0) {
+          this.homeCheer = big ? 3.2 : ev.type === 'ft' ? 0.8 : 2.2;
+          this.crowdEvents.push(big ? 'roar' : ev.type === 'ft' ? 'clap' : 'cheer');
+        } else {
+          this.awayCheer = 1.4;
+          this.crowdEvents.push('murmur');
+        }
+      } else if ((ev.type === 'block' || ev.type === 'steal') && ev.team === 0) {
+        this.homeCheer = 2;
+        this.crowdEvents.push('cheer');
+      } else if (ev.type === 'foul' && ev.team === 0) {
+        this.boo = 1.6;
+        this.crowdEvents.push('boo');
+      } else if (ev.type === 'timeout' && ev.team === 1) {
+        this.homeCheer = 1.2;
+        this.crowdEvents.push('clap');
+      }
+    }
+    if (e.phase === 'live') {
+      this.nextChant -= dt;
+      if (this.nextChant <= 0) {
+        const home = e.teams[0];
+        const defending = e.possession === 1;
+        const clutch = e.clutch() > 0.3;
+        this.chant = { text: defending ? 'DÉ-FENSE ! DÉ-FENSE !' : clutch ? `ALLEZ ${home.short} !` : e.teams[0].score > e.teams[1].score ? `${home.short} ! ${home.short} !` : 'ON VEUT DES PANIERS !', t: 4 };
+        this.crowdEvents.push(defending ? 'chantDefense' : 'chant');
+        this.nextChant = clutch ? 10 + Math.random() * 6 : 22 + Math.random() * 18;
+      }
+    }
+    if (this.chant) {
+      this.chant.t -= dt;
+      if (this.chant.t <= 0) this.chant = null;
+    }
+  }
+
+  /** Spectateurs dessinés une fois (aux couleurs des deux équipes), puis animés. */
+  buildCrowd(): HTMLCanvasElement {
+    const e = this.e;
+    const g = e.court.g;
+    const S = this.s;
+    const key = `${S.toFixed(1)}|${this.dpr}|${e.teams[0].colors.join()}|${e.teams[1].colors.join()}`;
+    if (this.crowdCache && this.crowdCache.key === key) return this.crowdCache.c;
+    const wM = g.length + 10;
+    const rows = 9;
+    const rowH = 0.55 * S;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(wM * S * this.dpr);
+    c.height = Math.ceil(rows * rowH * this.dpr + 4);
+    const x = c.getContext('2d')!;
+    x.scale(this.dpr, this.dpr);
+    const [h0, h1] = e.teams[0].colors;
+    const [a0, a1] = e.teams[1].colors;
+    const skins = SKIN;
+    for (let r = 0; r < rows; r++) {
+      const y = (rows - 1 - r) * rowH;
+      x.fillStyle = r % 2 ? '#141d2f' : '#111a2a';
+      x.fillRect(0, y + rowH * 0.55, wM * S, rowH * 0.45);
+      const step = 0.42 * S;
+      for (let i = 0, xx = (r % 2) * step * 0.5; xx < wM * S; i++, xx += step) {
+        const sd = (i * 7919 + r * 104729) % 1000;
+        if (sd < 70) continue; // sièges vides
+        const awayBlock = xx > wM * S * 0.78 && xx < wM * S * 0.9;
+        const col = awayBlock ? (sd % 3 ? a0 : a1) : sd % 5 === 0 ? h1 : sd % 4 === 0 ? '#2a3550' : h0;
+        x.fillStyle = shade(col, -0.15 - (r / rows) * 0.25);
+        x.fillRect(xx - step * 0.32, y + rowH * 0.32, step * 0.64, rowH * 0.5);
+        x.fillStyle = shade(skins[sd % skins.length], -(r / rows) * 0.3);
+        x.beginPath();
+        x.arc(xx, y + rowH * 0.22, step * 0.22, 0, Math.PI * 2);
+        x.fill();
+      }
+    }
+    // Banderoles du club recevant
+    x.fillStyle = h0;
+    x.globalAlpha = 0.9;
+    for (let k = 0; k < 3; k++) x.fillRect((wM * S * (0.12 + k * 0.25)), rows * rowH - rowH * 0.9, 3.2 * S, rowH * 0.5);
+    x.globalAlpha = 1;
+    x.fillStyle = h1;
+    x.font = `800 ${Math.round(rowH * 0.36)}px Inter, system-ui, sans-serif`;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    for (let k = 0; k < 3; k++) x.fillText(k === 1 ? `${e.teams[0].short} ★ ${e.teams[0].short}` : e.teams[0].name.toUpperCase().slice(0, 18), wM * S * (0.12 + k * 0.25) + 1.6 * S, rows * rowH - rowH * 0.65);
+    this.crowdCache = { key, c };
+    return c;
+  }
+
+  drawCrowd(dt = 0): void {
+    const ctx = this.ctx;
+    const e = this.e;
+    this.updateCrowd(dt);
+    const img = this.buildCrowd();
+    const S = this.s;
+    const w = img.width / this.dpr;
+    const h = img.height / this.dpr;
+    const x0 = this.px(-5);
+    const bottom = this.py(-2.4);
+    if (bottom <= 0) return;
+    const excite = Math.min(1, this.homeCheer / 2);
+    // Le public saute quand l'équipe recevante marque
+    const jump = excite > 0 ? Math.abs(Math.sin(e.time * 9)) * 3 * excite : Math.sin(e.time * 1.3) * 0.4;
+    ctx.drawImage(img, x0, bottom - h - jump, w, h);
+    // Bras levés et écharpes qui tournent
+    if (excite > 0 || this.chant) {
+      ctx.strokeStyle = e.teams[0].colors[0];
+      ctx.lineWidth = Math.max(1.5, 0.06 * S);
+      const n = Math.floor(w / (0.9 * S));
+      for (let i = 0; i < n; i++) {
+        if ((i * 37) % 5 === 0) continue;
+        const ax = x0 + i * 0.9 * S + ((i * 13) % 7);
+        const ay = bottom - h * (0.25 + ((i * 29) % 70) / 100) - jump;
+        const wave = Math.sin(e.time * (excite ? 10 : 4) + i);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax + wave * 0.18 * S, ay - 0.32 * S);
+        ctx.stroke();
+      }
+    }
+    // Petit groupe de supporters visiteurs
+    if (this.awayCheer > 0) {
+      ctx.fillStyle = e.teams[1].colors[0];
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(x0 + w * 0.78, bottom - h - 2 - Math.abs(Math.sin(e.time * 9)) * 2, w * 0.12, 3);
+      ctx.globalAlpha = 1;
+    }
+    // Chant affiché au-dessus de la tribune
+    if (this.chant && S > 10) {
+      const spr = textSprite(this.chant.text, Math.max(12, 0.42 * S), 900, "'Barlow Condensed', Inter, sans-serif", '#F6F4EF', 'rgba(16,24,39,0.9)', null, this.dpr);
+      ctx.globalAlpha = Math.min(1, this.chant.t);
+      ctx.drawImage(spr, this.W / 2 - spr.width / this.dpr / 2, Math.max(4, bottom - h - spr.height / this.dpr - 4), spr.width / this.dpr, spr.height / this.dpr);
+      ctx.globalAlpha = 1;
+    }
+    if (this.boo > 0 && S > 10) {
+      const spr = textSprite('HOUUU…', Math.max(11, 0.32 * S), 800, 'Inter, sans-serif', '#ff8d90', 'rgba(16,24,39,0.9)', null, this.dpr);
+      ctx.drawImage(spr, x0 + w * 0.3, bottom - h * 0.6, spr.width / this.dpr, spr.height / this.dpr);
+    }
   }
 
   benchCache: { key: string; c: HTMLCanvasElement; x0: number; y0: number } | null = null;
@@ -396,7 +744,7 @@ export class MatchRenderer {
     const line = 'rgba(10,14,24,0.55)';
     const lw = Math.max(0.8, 0.014 * S);
     const bulk = Math.max(0.85, Math.min(1.25, p.data.weightKg / (H * H * 23.5)));
-    const crouch = anim === 'stance' ? 0.1 : anim === 'screen' ? 0.04 : anim === 'dribble' ? 0.06 : anim === 'rebound' && p.z === 0 ? 0.08 : bench ? 0.36 : 0;
+    const crouch = anim === 'tired' ? 0.2 : anim === 'stance' ? 0.1 : anim === 'screen' ? 0.04 : anim === 'dribble' ? 0.06 : anim === 'rebound' && p.z === 0 ? 0.08 : bench ? 0.36 : 0;
     const hipY = fy - H * (0.52 - crouch) * K;
     const shY = fy - H * (0.8 - crouch * 0.85) * K;
     const lean = (anim === 'run' ? run * 0.1 : 0) * side * S + (anim === 'dribble' ? side * 0.04 * S : 0);
@@ -413,13 +761,24 @@ export class MatchRenderer {
       const ph = phase + k * Math.PI;
       let ox = sp > 0.25 ? Math.sin(ph) * (0.2 + run * 0.32) * S : 0;
       let lift = sp > 0.25 ? Math.max(0, Math.cos(ph)) * run * 0.2 * K : 0;
-      if (anim === 'stance' || anim === 'screen') {
-        ox = (k ? -1 : 1) * 0.2 * S;
-        lift = 0;
+      if (anim === 'stance' || anim === 'screen' || anim === 'tired') {
+        // Pas chassés en défense : les pieds s'écartent et se rapprochent sans se croiser
+        const slide = anim === 'stance' && sp > 0.4 ? Math.sin(phase * 1.4 + k * Math.PI) * 0.07 : 0;
+        ox = (k ? -1 : 1) * (0.2 + slide) * S;
+        lift = anim === 'stance' && sp > 0.4 ? Math.max(0, Math.sin(phase * 1.4 + k * Math.PI)) * 0.06 * K : 0;
       }
       if (p.z > 0.05) {
-        ox = (k ? -0.06 : 0.14) * S;
-        lift = (k ? 0.22 : 0.1) * K;
+        if (anim === 'layup') {
+          // Double pas : genou d'appel monté haut, jambe d'impulsion tendue vers le bas
+          ox = (k ? -0.12 : 0.2) * S;
+          lift = (k ? 0.05 : 0.42) * K;
+        } else if (anim === 'dunk') {
+          ox = (k ? -0.04 : 0.1) * S;
+          lift = (k ? 0.3 : 0.36) * K;
+        } else {
+          ox = (k ? -0.06 : 0.14) * S;
+          lift = (k ? 0.22 : 0.1) * K;
+        }
       }
       if (bench) ox = (k ? 0.18 : 0.26) * S;
       const spread = (k ? -1 : 1) * hipW * 0.45;
@@ -504,8 +863,26 @@ export class MatchRenderer {
       case 'bench':
         hands = [hand(0.16, -0.36), hand(-0.12, -0.38)];
         break;
+      case 'tired':
+        hands = [hand(0.18, -0.62), hand(-0.18, -0.62)]; // mains sur les genoux
+        break;
       default:
         hands = [hand(0.27 + side * swing, -0.5), hand(-0.27 + side * swing, -0.5)];
+    }
+    // Lissage des gestes : les mains rejoignent leur nouvelle position en douceur (fini les changements de pose instantanés)
+    const mem = this.handMem.get(p.idx);
+    const rel = hands.map(([hx0, hy0]) => [(hx0 - shX) / S, (hy0 - shY) / S]) as [number, number][];
+    if (mem && anim !== 'dribble') {
+      const k = Math.min(1, this.frameDt * 13);
+      for (let i = 0; i < 2; i++) {
+        mem[i][0] += (rel[i][0] - mem[i][0]) * k;
+        mem[i][1] += (rel[i][1] - mem[i][1]) * k;
+        hands[i] = [shX + mem[i][0] * S, shY + mem[i][1] * S];
+      }
+    } else this.handMem.set(p.idx, rel.map((v) => [...v]) as [number, number][]);
+    if (mem && anim === 'dribble') {
+      mem[0] = rel[0];
+      mem[1] = rel[1];
     }
     const upper = H * 0.17 * K;
     const fore = H * 0.16 * K;

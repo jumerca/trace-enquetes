@@ -17,6 +17,7 @@ export type Anim =
   | 'celebrate'
   | 'jumpball'
   | 'stumble'
+  | 'tired'
   | 'bench';
 
 export interface BoxLine {

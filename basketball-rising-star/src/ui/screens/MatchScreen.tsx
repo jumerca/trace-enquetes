@@ -9,7 +9,7 @@ import { NameRegistry } from '../../data/generate';
 import { user, userFixture } from '../../career/career';
 import { createMatch, finishMatch } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
-import { crowdLevel, sfx, startAmbience, stopAmbience } from '../audio';
+import { crowdLevel, crowdSfx, sfx, startAmbience, stopAmbience } from '../audio';
 import { keyLabel } from '../settings';
 import { fullName } from '../../data/model';
 import { Modal } from '../components/Modal';
@@ -70,6 +70,12 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   const simRef = useRef(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [camera, setCamera] = useState(app.settings.camera);
+  const [view, setView] = useState<'3d' | '2d'>(app.settings.view ?? '3d');
+  const [tactics, setTactics] = useState(app.settings.showTactics ?? true);
+  const viewRef = useRef(view);
+  const tacticsRef = useRef(tactics);
+  viewRef.current = view;
+  tacticsRef.current = tactics;
   const doneRef = useRef(false);
   const timingRef = useRef<HTMLDivElement>(null);
   const fixture = useMemo(() => (c && !quick ? userFixture(c) : null), [c, quick]);
@@ -85,7 +91,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
     home.short = 'RIV';
     away.name = 'Northport Comets';
     away.short = 'NPC';
-    return new MatchEngine({ home, away, rules: withQuarterLength(FIBA, app.settings.defaultQuarter), seed: Date.now() & 0x7fffffff, userPlayerId: home.players[1].id, userAssist: true, userControl: control });
+    return new MatchEngine({ home, away, rules: app.settings.defaultQuarter > 0 ? withQuarterLength(FIBA, app.settings.defaultQuarter) : FIBA, seed: Date.now() & 0x7fffffff, userPlayerId: home.players[1].id, userAssist: true, userControl: control });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,6 +125,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       r.opts.camera = cameraRef.current;
+      r.opts.view = viewRef.current;
+      r.opts.showTactics = tacticsRef.current;
       if (!pausedRef.current && !simRef.current && !engine.finished) {
         let sp = speedRef.current;
         if (app.settings.slowmo && engine.slowmo > 0 && sp === 1) sp *= 0.45;
@@ -197,6 +205,10 @@ export function MatchScreen({ quick }: { quick: boolean }) {
       engine.ball.x = sb.x;
       engine.ball.y = sb.y;
       engine.ball.z = sb.z;
+      if (r.crowdEvents.length) {
+        if (!simRef.current && speedRef.current <= 4) crowdSfx[r.crowdEvents[r.crowdEvents.length - 1]]?.();
+        r.crowdEvents.length = 0;
+      }
       // Jauge de timing du tir
       const u = engine.userIdx >= 0 ? engine.players[engine.userIdx] : null;
       const tm = timingRef.current;
@@ -378,13 +390,14 @@ export function MatchScreen({ quick }: { quick: boolean }) {
     app.go({ name: 'postmatch' });
   };
 
-  const fastForward = async (untilEntry: boolean) => {
+  const fastForward = async (untilEntry: boolean | 'quarter') => {
+    const q0 = engine.quarter;
     simRef.current = true;
     setPaused(false);
     setSimMsg('Simulation en cours…');
     await simulateAsync(
       engine,
-      (e) => (untilEntry ? e.userIdx >= 0 && e.players[e.userIdx].onCourt && e.phase === 'live' : false),
+      (e) => (untilEntry === 'quarter' ? e.quarter > q0 && e.phase !== 'quarterEnd' : untilEntry ? e.userIdx >= 0 && e.players[e.userIdx].onCourt && e.phase === 'live' : false),
       (e) => setSimMsg(`Simulation… ${e.quarter <= 4 ? `QT${e.quarter}` : 'Prol.'} ${fmtClock(e.clock)} — ${e.teams[0].score}-${e.teams[1].score}`),
     );
     simRef.current = false;
@@ -440,13 +453,22 @@ export function MatchScreen({ quick }: { quick: boolean }) {
             <button className="icon-btn" aria-label="Pause" onClick={() => setPaused(true)}>
               ❚❚
             </button>
-            <button className="icon-btn" aria-label="Vitesse" onClick={() => setSpeed((s) => (s >= 3 ? 1 : s + 1))}>
+            <button className="icon-btn" aria-label="Vitesse" onClick={() => setSpeed((s) => (s >= 16 ? 1 : s * 2))}>
               ×{speed}
+            </button>
+            <button className="icon-btn" aria-label="Aller à la fin du quart-temps" title="Fin du quart-temps" onClick={() => fastForward('quarter')}>
+              ⏭
             </button>
           </div>
           <div className="hud-tr">
             <button className="icon-btn" aria-label="Caméra" title="Caméra" onClick={() => setCamera((v) => (v === 'player' ? 'follow' : v === 'follow' ? 'full' : 'player'))}>
               {camera === 'full' ? '⤢' : camera === 'follow' ? '⤡' : '◎'}
+            </button>
+            <button className="icon-btn" aria-label="Vue 2D ou 2,5D" title="Vue 2D tactique / vue 2,5D" onClick={() => setView((v) => (v === '3d' ? '2d' : '3d'))} style={{ fontSize: '0.75rem', fontWeight: 800 }}>
+              {view === '3d' ? '2D' : '3D'}
+            </button>
+            <button className="icon-btn" aria-label="Afficher la tactique" title="Afficher les écrans, coupes et systèmes" aria-pressed={tactics} onClick={() => setTactics((t) => !t)} style={{ opacity: tactics ? 1 : 0.5 }}>
+              ✎
             </button>
             <button className="icon-btn" aria-label="Statistiques" onClick={() => setStatsOpen(true)}>
               ≡
@@ -544,7 +566,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
             <div className="field">
               <label>Vitesse de jeu</label>
               <div className="seg">
-                {[1, 2, 3].map((s) => (
+                {[1, 2, 4, 8, 16].map((s) => (
                   <button key={s} aria-pressed={speed === s} onClick={() => setSpeed(s)}>
                     ×{s}
                   </button>
@@ -676,12 +698,25 @@ const STYLE_OPTS = {
   defense: { label: 'Défense', opts: [[0.15, 'Prudente'], [0.5, 'Normale'], [0.95, 'Agressive']] },
   hustle: { label: 'Effort', opts: [[0.15, 'Gérer'], [0.5, 'Normal'], [0.95, 'À fond']] },
 } as const;
+const ROLES = [
+  ['auto', 'Selon le coach'],
+  ['shooter', 'Shooteur (coins, ailes)'],
+  ['slasher', 'Attaquer le cercle'],
+  ['post', 'Jouer au poste'],
+  ['playmaker', 'Organiser le jeu'],
+] as const;
 
 /** Consignes données à votre joueur pendant le match (mode spectateur). */
 function StyleBar({ engine, onChange }: { engine: MatchEngine; onChange: (s: MatchEngine['userStyle']) => void }) {
   const [open, setOpen] = useState(false);
   const [, force] = useState(0);
   const st = engine.userStyle;
+  const set = (patch: Partial<MatchEngine['userStyle']>) => {
+    engine.userStyle = { ...engine.userStyle, ...patch };
+    onChange(engine.userStyle);
+    force((x) => x + 1);
+  };
+  const me = engine.userIdx >= 0 ? engine.players[engine.userIdx] : null;
   return (
     <div className="stylebar">
       {open && (
@@ -691,22 +726,49 @@ function StyleBar({ engine, onChange }: { engine: MatchEngine; onChange: (s: Mat
               <label>{STYLE_OPTS[k].label}</label>
               <div className="seg">
                 {STYLE_OPTS[k].opts.map(([v, l]) => (
-                  <button
-                    key={l}
-                    aria-pressed={Math.abs(st[k] - v) < 0.2}
-                    onClick={() => {
-                      engine.userStyle = { ...st, [k]: v };
-                      onChange(engine.userStyle);
-                      force((x) => x + 1);
-                    }}
-                  >
+                  <button key={l} aria-pressed={Math.abs(st[k] - v) < 0.2} onClick={() => set({ [k]: v })}>
                     {l}
                   </button>
                 ))}
               </div>
             </div>
           ))}
-          <p className="tiny muted">Ces consignes modifient réellement les décisions de votre joueur (prises de tir, interceptions, rebond offensif, dépense d'énergie).</p>
+          <div className="field">
+            <label>Rôle offensif</label>
+            <div className="seg">
+              {ROLES.map(([k, l]) => (
+                <button key={k} aria-pressed={(st.role ?? 'auto') === k} onClick={() => set({ role: k })}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <label>Marquage</label>
+            <div className="seg">
+              <button aria-pressed={!st.guardStar} onClick={() => set({ guardStar: false })}>
+                Selon le coach
+              </button>
+              <button aria-pressed={!!st.guardStar} onClick={() => set({ guardStar: true })}>
+                Défendre sur leur meilleur joueur
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <label>Demande au coach {st.sub && st.sub !== 'none' ? '(en attente du prochain arrêt de jeu)' : ''}</label>
+            <div className="seg">
+              {me?.onCourt ? (
+                <button aria-pressed={st.sub === 'out'} onClick={() => set({ sub: st.sub === 'out' ? 'none' : 'out' })}>
+                  Demander à souffler ({Math.round((me?.energy ?? 0) * 100)} % d'énergie)
+                </button>
+              ) : (
+                <button aria-pressed={st.sub === 'in'} onClick={() => set({ sub: st.sub === 'in' ? 'none' : 'in' })}>
+                  Demander à entrer en jeu
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="tiny muted">Ces consignes modifient réellement les décisions de votre joueur (tirs, placement, marquage, interceptions, rebond, énergie). Le coach reste libre d'accepter les changements.</p>
         </div>
       )}
       <button className="btn small" onClick={() => setOpen((o) => !o)}>

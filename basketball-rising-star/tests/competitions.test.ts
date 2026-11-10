@@ -168,3 +168,28 @@ describe('Vie hors terrain — extensions', () => {
     expect(legacyScore(c)).toBeGreaterThan(0);
   });
 });
+
+describe('Messagerie, intérêt des clubs, rapports', () => {
+  it('les semaines produisent des rapports, des messages et un intérêt des clubs', async () => {
+    const { desk, topInterest, resolveMessage, sendMessage } = await import('../src/career/life');
+    const c = createCareer({ ...BASE, path: 'pro', age: 18, seed: 9 });
+    for (let w = 0; w < 6; w++) {
+      let f;
+      while ((f = userFixture(c))) {
+        const e = createMatch(c, f);
+        c.settings.quarterMin = 3;
+        e.runToEnd();
+        finishMatch(c, f, e, false);
+      }
+      advanceWeek(c);
+    }
+    const d = desk(c);
+    expect(d.reports.length).toBe(6);
+    expect(['A', 'B', 'C', 'D', 'E']).toContain(d.reports[0].grade);
+    expect(topInterest(c).length).toBeGreaterThan(0);
+    sendMessage(c, { from: 'Test', kind: 'media', subject: 'x', body: 'y', actions: [{ label: 'Oui', effect: 'Médias +8', code: 'media_long' }] });
+    const media0 = c.relations.media;
+    resolveMessage(c, d.inbox[0].id, 0);
+    expect(c.relations.media).toBeGreaterThan(media0);
+  });
+});

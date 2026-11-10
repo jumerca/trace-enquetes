@@ -19,6 +19,8 @@ export interface Settings {
   quality: 'low' | 'high';
   showOpen: boolean;
   showNames: boolean;
+  showTactics: boolean;
+  view: '3d' | '2d';
   colorblind: boolean;
   textSize: 'normal' | 'large';
   contrast: 'normal' | 'high';
@@ -48,13 +50,15 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   showOpen: true,
   showNames: true,
+  showTactics: true,
+  view: '3d',
   colorblind: false,
   textSize: 'normal',
   contrast: 'normal',
   slowmo: true,
   vibration: true,
   keys: DEFAULT_KEYS,
-  defaultQuarter: 5,
+  defaultQuarter: 0,
 };
 
 const KEY = 'brs-settings-v1';
