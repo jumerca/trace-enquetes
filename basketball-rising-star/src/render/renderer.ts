@@ -53,8 +53,20 @@ export class MatchRenderer {
     this.camY = e.court.cy;
   }
 
+  /** Qualité adaptative : réduit la résolution si les images prennent trop de temps. */
+  frameAvg = 16;
+  dprCap = 2;
+  adapt(frameMs: number): void {
+    this.frameAvg = this.frameAvg * 0.95 + frameMs * 0.05;
+    if (this.frameAvg > 22 && this.dprCap > 1) {
+      this.dprCap = Math.max(1, this.dprCap - 0.5);
+      this.frameAvg = 16;
+      this.resize(this.W, this.H);
+    }
+  }
   resize(w: number, h: number): void {
-    this.dpr = Math.min(window.devicePixelRatio || 1, this.opts.quality === 'high' ? 2 : 1.25);
+    const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    this.dpr = Math.min(window.devicePixelRatio || 1, this.opts.quality === 'high' ? (coarse ? Math.min(1.75, this.dprCap) : this.dprCap) : 1.25);
     this.W = w;
     this.H = h;
     this.canvas.width = Math.round(w * this.dpr);
@@ -226,10 +238,8 @@ export class MatchRenderer {
     type D = { y: number; draw: () => void };
     const list: D[] = [];
     const e = this.e;
-    for (const p of e.players) {
-      if (p.onCourt) list.push({ y: p.pos.y, draw: () => this.drawPlayer(p) });
-      else list.push({ y: p.pos.y, draw: () => this.drawPlayer(p, true) });
-    }
+    for (const p of e.players) if (p.onCourt) list.push({ y: p.pos.y, draw: () => this.drawPlayer(p) });
+    list.push({ y: e.court.g.width + 1.3, draw: () => this.drawBenchPlayers() });
     for (const side of [1, -1] as const) {
       const h = e.court.hoop(side);
       list.push({ y: h.y - 0.3, draw: () => this.drawHoop(side, 'back') });
@@ -262,6 +272,45 @@ export class MatchRenderer {
       }
     }
     ctx.restore();
+  }
+
+  benchCache: { key: string; c: HTMLCanvasElement; x0: number; y0: number } | null = null;
+  /** Joueurs sur le banc : immobiles, rendus une fois dans une image en cache. */
+  drawBenchPlayers(): void {
+    const e = this.e;
+    const bench = e.players.filter((p) => !p.onCourt);
+    if (!bench.length) return;
+    const g = e.court.g;
+    const key = `${this.s.toFixed(1)}|${this.dpr}|${bench.map((p) => p.idx).join(',')}`;
+    const x0 = g.length / 2 - 12;
+    const wM = 24;
+    const S = this.s;
+    const topM = 3.2; // mètres au-dessus du sol du banc (têtes)
+    if (!this.benchCache || this.benchCache.key !== key) {
+      const c = document.createElement('canvas');
+      const wPx = Math.ceil(wM * S);
+      const hPx = Math.ceil(topM * S * ZK + 1.2 * S);
+      c.width = wPx * this.dpr;
+      c.height = hPx * this.dpr;
+      const saved = { ctx: this.ctx, camX: this.camX, camY: this.camY, W: this.W, H: this.H };
+      const cx = c.getContext('2d')!;
+      cx.scale(this.dpr, this.dpr);
+      this.ctx = cx;
+      this.W = wPx;
+      this.H = hPx;
+      this.camX = x0 + wPx / 2 / S;
+      const yB = g.width + 1.3;
+      // py(yB) = (yB - camY)*S*TILT + H*0.54 = hPx - 0.6*S
+      this.camY = yB - (hPx - 0.6 * S - hPx * 0.54) / (S * TILT);
+      for (const p of bench.sort((a, b) => a.pos.y - b.pos.y)) this.drawPlayer(p, true);
+      this.benchCache = { key, c, x0, y0: this.camY };
+      Object.assign(this, saved);
+      this.benchCache.y0 = yB;
+    }
+    const bc = this.benchCache;
+    const wPx = bc.c.width / this.dpr;
+    const hPx = bc.c.height / this.dpr;
+    this.ctx.drawImage(bc.c, this.px(bc.x0), this.py(bc.y0) - (hPx - 0.6 * S), wPx, hPx);
   }
 
   drawBenches(): void {
@@ -504,10 +553,7 @@ export class MatchRenderer {
     // ---- Cou et maillot (débardeur)
     ctx.fillStyle = skinD;
     ctx.fillRect(shX - 0.045 * S, shY - 0.1 * K, 0.09 * S, 0.12 * K);
-    const g = ctx.createLinearGradient(shX - shW, 0, shX + shW, 0);
-    g.addColorStop(0, shade(jersey, side > 0 ? -0.18 : 0.06));
-    g.addColorStop(1, shade(jersey, side > 0 ? 0.06 : -0.18));
-    ctx.fillStyle = g;
+    ctx.fillStyle = jersey;
     ctx.beginPath();
     ctx.moveTo(hipX - hipW * 1.0, hipY);
     ctx.quadraticCurveTo(shX - shW * 0.95, (hipY + shY) / 2, shX - shW * 0.72, shY + 0.13 * K); // emmanchure
@@ -528,15 +574,12 @@ export class MatchRenderer {
     ctx.stroke();
     // Numéro
     if (S > 12) {
-      ctx.fillStyle = trim;
-      ctx.strokeStyle = shade(jersey, -0.35);
-      ctx.lineWidth = Math.max(0.6, 0.01 * S);
-      ctx.font = `800 ${Math.round(0.2 * S)}px 'Barlow Condensed', Inter, system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       const ny = shY + (hipY - shY) * (front ? 0.52 : 0.42);
-      ctx.strokeText(String(p.data.number), shX, ny);
-      ctx.fillText(String(p.data.number), shX, ny);
+      const spr = textSprite(String(p.data.number), 0.2 * S, 800, "'Barlow Condensed', Inter, sans-serif", trim, shade(jersey, -0.35), null, this.dpr);
+      ctx.drawImage(spr, shX - spr.width / this.dpr / 2, ny - spr.height / this.dpr / 2, spr.width / this.dpr, spr.height / this.dpr);
+      // Ombre portée du côté opposé à la lumière
+      ctx.fillStyle = 'rgba(10,14,24,0.16)';
+      ctx.fillRect(side > 0 ? shX - shW * 0.85 : shX + shW * 0.35, shY + 0.14 * K, shW * 0.5, hipY - shY - 0.14 * K);
     }
     drawArm(0);
 
@@ -544,16 +587,24 @@ export class MatchRenderer {
     const hr = 0.105 * S;
     const hx = shX + side * 0.015 * S;
     const hy = shY - 0.1 * K - hr * 1.05;
-    const hg = ctx.createRadialGradient(hx - side * hr * 0.35, hy - hr * 0.4, hr * 0.2, hx, hy, hr * 1.2);
-    hg.addColorStop(0, skinL);
-    hg.addColorStop(1, skinD);
-    ctx.fillStyle = hg;
+    ctx.fillStyle = skin;
     ctx.strokeStyle = line;
     ctx.lineWidth = lw;
     ctx.beginPath();
     ctx.ellipse(hx, hy, hr * 0.9, hr * 1.08, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    // Modelé du visage : reflet côté lumière, ombre côté opposé
+    ctx.fillStyle = skinD;
+    ctx.beginPath();
+    ctx.ellipse(hx + side * hr * 0.32, hy + hr * 0.15, hr * 0.5, hr * 0.85, 0, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.45;
+    ctx.fill();
+    ctx.fillStyle = skinL;
+    ctx.beginPath();
+    ctx.ellipse(hx - side * hr * 0.3, hy - hr * 0.35, hr * 0.32, hr * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
     // Oreille
     if (Math.abs(fsx) > 0.3) {
       ctx.fillStyle = skinD;
@@ -585,15 +636,8 @@ export class MatchRenderer {
     }
     // Nom sous les pieds (lisibilité), en caméra rapprochée
     if (this.opts.showNames && !bench && S > 24) {
-      ctx.font = `700 ${Math.max(9, 0.15 * S)}px Inter, system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      const label = `${p.data.number} ${p.data.lastName}`;
-      const w2 = ctx.measureText(label).width + 8;
-      ctx.fillStyle = 'rgba(16,24,39,0.62)';
-      ctx.fillRect(fx - w2 / 2, this.py(p.pos.y) + 0.12 * S, w2, Math.max(12, 0.2 * S));
-      ctx.fillStyle = p.isUser ? '#DDB65A' : '#F6F4EF';
-      ctx.fillText(label, fx, this.py(p.pos.y) + 0.14 * S);
+      const spr = textSprite(`${p.data.number} ${p.data.lastName}`, Math.max(9, 0.15 * S), 700, 'Inter, system-ui, sans-serif', p.isUser ? '#DDB65A' : '#F6F4EF', null, 'rgba(16,24,39,0.62)', this.dpr);
+      ctx.drawImage(spr, fx - spr.width / this.dpr / 2, this.py(p.pos.y) + 0.12 * S, spr.width / this.dpr, spr.height / this.dpr);
     }
     // Repère du joueur incarné
     if (p.isUser && !bench) {
@@ -769,6 +813,41 @@ export class MatchRenderer {
   }
 }
 
+/** Textes pré-rendus (le rendu de texte sur Canvas est coûteux). */
+const textCache = new Map<string, HTMLCanvasElement>();
+function textSprite(text: string, px: number, weight: number, family: string, fill: string, stroke: string | null, bg: string | null, dpr: number): HTMLCanvasElement {
+  const size = Math.max(6, Math.round(px));
+  const key = `${text}|${size}|${weight}|${family}|${fill}|${stroke}|${bg}|${dpr}`;
+  const hit = textCache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  const x = c.getContext('2d')!;
+  const font = `${weight} ${size}px ${family}`;
+  x.font = font;
+  const w = Math.ceil(x.measureText(text).width) + (bg ? 8 : 4);
+  const h = Math.ceil(size * 1.3) + 2;
+  c.width = w * dpr;
+  c.height = h * dpr;
+  x.scale(dpr, dpr);
+  if (bg) {
+    x.fillStyle = bg;
+    x.fillRect(0, 0, w, h);
+  }
+  x.font = font;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  if (stroke) {
+    x.strokeStyle = stroke;
+    x.lineWidth = Math.max(1, size * 0.1);
+    x.strokeText(text, w / 2, h / 2);
+  }
+  x.fillStyle = fill;
+  x.fillText(text, w / 2, h / 2);
+  if (textCache.size > 600) textCache.clear();
+  textCache.set(key, c);
+  return c;
+}
+
 /** Membre effilé (capsule) avec liseré et reflet de lumière. */
 function limb(ctx: CanvasRenderingContext2D, ax: number, ay: number, bx: number, by: number, wa: number, wb: number, color: string, outline: string, lw: number, light?: string): void {
   const dx = bx - ax;
@@ -787,7 +866,7 @@ function limb(ctx: CanvasRenderingContext2D, ax: number, ay: number, bx: number,
   ctx.arc(ax, ay, wa, Math.atan2(-ny, -nx), Math.atan2(ny, nx));
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
+  if (!light) ctx.stroke();
   if (light) {
     ctx.strokeStyle = light;
     ctx.globalAlpha = 0.55;
@@ -844,7 +923,17 @@ function drawHair(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   }
 }
 
+const shadeCache = new Map<string, string>();
 export function shade(hex: string, k: number): string {
+  const key = hex + k;
+  const hit = shadeCache.get(key);
+  if (hit) return hit;
+  const res = shadeRaw(hex, k);
+  if (shadeCache.size > 4000) shadeCache.clear();
+  shadeCache.set(key, res);
+  return res;
+}
+function shadeRaw(hex: string, k: number): string {
   const n = parseInt(hex.replace('#', ''), 16);
   let r = (n >> 16) & 255;
   let g = (n >> 8) & 255;

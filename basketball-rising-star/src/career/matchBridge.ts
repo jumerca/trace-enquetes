@@ -2,6 +2,7 @@ import { hashString } from '../core/rng';
 import { MatchEngine } from '../sim/engine';
 import type { BoxLine } from '../sim/types';
 import { recordUserMatch, rulesFor, teamInput, type Career } from './career';
+import { extra } from './life';
 import type { SeasonStat } from './fastsim';
 import type { Fixture, UserGameLine } from './world';
 
@@ -57,5 +58,18 @@ export function engineLines(e: MatchEngine): Map<string, SeasonStat & { pm: numb
 }
 
 export function finishMatch(c: Career, f: Fixture, e: MatchEngine, live: boolean): UserGameLine {
+  // Carte des tirs du joueur (positions réellement simulées)
+  const x = extra(c);
+  x.shots ??= [];
+  let pending: { u: number; v: number; type: string } | null = null;
+  for (const ev of e.events) {
+    if (ev.player !== e.userIdx) continue;
+    if (ev.type === 'shot' && ev.sx !== undefined) pending = { u: ev.sx, v: ev.sy ?? 0, type: ev.shotType ?? 'jumper' };
+    else if (pending && (ev.type === 'made' || ev.type === 'miss')) {
+      x.shots.push({ ...pending, made: ev.type === 'made', season: c.world.season });
+      pending = null;
+    }
+  }
+  if (x.shots.length > 600) x.shots.splice(0, x.shots.length - 600);
   return recordUserMatch(c, f, e.teams[0].score, e.teams[1].score, engineLines(e), live);
 }

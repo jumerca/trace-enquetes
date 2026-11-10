@@ -8,7 +8,7 @@ import { FIBA, NBA, NCB, withQuarterLength, type Ruleset } from '../sim/rules';
 import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonStat } from './fastsim';
 import { applyGains, trainWeek, type TrainingPlan } from './training';
 import { createWorld, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
-import { applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
+import { extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
 export const SAVE_VERSION = 3;
@@ -253,6 +253,7 @@ export function createCareer(input: CreationInput): Career {
   generateSchedule(c);
   ensureYouthFixture(c, userRole(c).rank);
   setObjectives(c);
+  extra(c).attrSnap = { season: START_SEASON, attrs: { ...u.attrs } };
   addNews(c, 'league', `${fullName(u)} rejoint ${club.name}`, `À ${input.age} ans, le ${ARCHETYPES[u.archetype].label.toLowerCase()} né à ${u.birthCity} (${NATIONS[u.nationality]?.label ?? u.nationality}) commence son aventure en ${league.name}. L’entraîneur ${club.coach.name} prévient : « Ici, les minutes se méritent. »`);
   return c;
 }
@@ -618,6 +619,10 @@ export function advanceWeek(c: Career): WeekReport {
   }
   for (const n of weeklyLife(c, rng)) injuries.push(n);
   sponsorWeek(c, rng);
+  const ex = extra(c);
+  (ex.wellness ??= []).push({ season: w.season, week: c.week, fatigue: Math.round(u.fatigue), morale: Math.round(u.morale), confidence: Math.round(u.confidence) });
+  if (ex.wellness.length > 120) ex.wellness.shift();
+  if (u.injuryDays > 0 && injuries.length) (ex.injuries ??= []).push({ season: w.season, week: c.week, days: u.injuryDays, cause: injuries[0] });
   injuryWeek(c, rng);
   mentorWeek(c);
   updateFollowers(c);
@@ -1070,6 +1075,7 @@ export function startNextSeason(c: Career): void {
   generateSchedule(c);
   ensureYouthFixture(c, userRole(c).rank);
   setObjectives(c);
+  extra(c).attrSnap = { season: w.season, attrs: { ...u.attrs } };
   const age = ageOf(u, w.season);
   addNews(c, 'league', `Saison ${w.season}-${w.season + 1} : c’est parti`, `${fullName(u)} (${age} ans, ${playerOvr(u)} de note globale) aborde une nouvelle saison avec ${userClub(c).name}.`);
   if (age >= 41) c.retired = true;

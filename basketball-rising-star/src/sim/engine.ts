@@ -525,8 +525,17 @@ export class MatchEngine {
       }
       const a = p.data.attrs;
       const acc = (6 + (a.acceleration / 20) * 9) * (0.8 + 0.2 * p.energy);
-      const dx = p.target.x - p.pos.x;
-      const dy = p.target.y - p.pos.y;
+      // Cible lissée : les petits réajustements de l'IA ne provoquent plus d'à-coups
+      const st = p as MPlayer & { aim?: V2 };
+      const jump = st.aim ? Math.hypot(p.target.x - st.aim.x, p.target.y - st.aim.y) : 99;
+      if (!st.aim || jump > 2.5 || p.urgency >= 0.95 || p.isUser) st.aim = { x: p.target.x, y: p.target.y };
+      else {
+        const k = Math.min(1, dt * 5);
+        st.aim.x += (p.target.x - st.aim.x) * k;
+        st.aim.y += (p.target.y - st.aim.y) * k;
+      }
+      const dx = st.aim.x - p.pos.x;
+      const dy = st.aim.y - p.pos.y;
       const d = Math.hypot(dx, dy);
       const vmax = this.maxSpeed(p) * (0.32 + 0.68 * clamp(p.urgency, 0, 1));
       let desired = Math.min(vmax, d * 2.6);
@@ -845,7 +854,8 @@ export class MatchEngine {
       ft: 'lancer franc',
       tip: 'claquette',
     };
-    this.emit({ type: 'shot', team: p.team, player: p.idx, text: `${this.name(p.idx)} ${label[type]}`, detail: `${Math.round(prob * 100)}%` });
+    const hv = this.court.toHoop(side, p.pos);
+    this.emit({ type: 'shot', team: p.team, player: p.idx, text: `${this.name(p.idx)} ${label[type]}`, detail: `${Math.round(prob * 100)}%`, sx: hv.u, sy: hv.v, shotType: type });
     // Contres : un défenseur en l'air à proximité peut toucher le ballon à la sortie de la main
     for (const o of this.teamOnCourt((1 - p.team) as 0 | 1)) {
       const od = dist(o.pos, start);

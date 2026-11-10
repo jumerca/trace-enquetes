@@ -191,6 +191,10 @@ export interface GameEvent {
   points?: number;
   text: string;
   detail?: string;
+  /** Position du tir dans le repère du panier attaqué (u : profondeur depuis le panier, v : latéral) */
+  sx?: number;
+  sy?: number;
+  shotType?: string;
 }
 
 export interface UserInput {

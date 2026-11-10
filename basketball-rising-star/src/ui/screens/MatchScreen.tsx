@@ -187,7 +187,9 @@ export function MatchScreen({ quick }: { quick: boolean }) {
           engine.ball.z = pb.z + (sb.z - pb.z) * alpha;
         }
       }
+      const t0r = performance.now();
       r.render(pausedRef.current ? 0 : dt);
+      if (!pausedRef.current) r.adapt(dt * 1000 > 40 ? 16 : Math.max(dt * 1000, performance.now() - t0r));
       engine.players.forEach((pl, i) => {
         pl.pos.x = saved[i].x;
         pl.pos.y = saved[i].y;

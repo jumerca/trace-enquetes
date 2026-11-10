@@ -343,6 +343,10 @@ export interface LifeExtra {
   campChoice: CampId | null;
   history: { season: number; league: string; champion: string; mvp: string; userTeam: boolean }[];
   rivalNote: string;
+  shots?: { u: number; v: number; made: boolean; type: string; season: number }[];
+  injuries?: { season: number; week: number; days: number; cause: string }[];
+  attrSnap?: { season: number; attrs: Record<string, number> };
+  wellness?: { season: number; week: number; fatigue: number; morale: number; confidence: number }[];
 }
 
 export function extra(c: Career): LifeExtra {

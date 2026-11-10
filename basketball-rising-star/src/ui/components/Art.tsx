@@ -1,5 +1,5 @@
 import type { Appearance } from '../../data/model';
-import { HAIR, SKIN, shade } from '../../render/renderer';
+import { PlayerPortrait } from './PlayerPortrait';
 
 /** Emblème original : ballon stylisé porté par une trajectoire ascendante vers une étoile. */
 export function Emblem({ size = 48, rounded = true }: { size?: number; rounded?: boolean }) {
@@ -53,72 +53,9 @@ export function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-/** Portrait illustré (cohérent avec le rendu du match). */
-export function Portrait({ a, colors, number, size = 96 }: { a: Appearance; colors: [string, string]; number: number; size?: number }) {
-  const skin = SKIN[a.skin] ?? SKIN[2];
-  const hair = HAIR[a.hairColor] ?? HAIR[0];
-  const jersey = colors[0];
-  const trim = colors[1];
-  const id = `pg${a.skin}${a.hair}${number}${jersey.slice(1)}`;
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Portrait du joueur">
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#24375a" />
-          <stop offset="1" stopColor="#101827" />
-        </linearGradient>
-      </defs>
-      <rect width="100" height="100" rx="18" fill={`url(#${id})`} />
-      <circle cx="78" cy="22" r="26" fill="#3988F5" opacity="0.12" />
-      {/* Épaules et maillot */}
-      <path d="M14 100 C 16 78, 30 70, 50 70 C 70 70, 84 78, 86 100 Z" fill={jersey} />
-      <path d="M36 71 L50 86 L64 71" fill="none" stroke={trim} strokeWidth="3" />
-      <path d="M22 100 C 22 86, 26 80, 30 76" stroke={shade(jersey, -0.3)} strokeWidth="3" fill="none" />
-      <text x="50" y="98" textAnchor="middle" fontFamily="Barlow Condensed, Inter, sans-serif" fontWeight="800" fontSize="14" fill={trim}>
-        {number}
-      </text>
-      {/* Cou et tête */}
-      <rect x="43" y="56" width="14" height="16" rx="5" fill={shade(skin, -0.12)} />
-      <ellipse cx="50" cy="42" rx="17" ry="20" fill={skin} />
-      <ellipse cx="33.5" cy="44" rx="3" ry="5" fill={shade(skin, -0.1)} />
-      <ellipse cx="66.5" cy="44" rx="3" ry="5" fill={shade(skin, -0.1)} />
-      {hairShape(a.hair, hair)}
-      {a.beard > 0 && <path d="M35 46 C 37 62, 63 62, 65 46 C 62 58, 38 58, 35 46 Z" fill={hair} opacity={a.beard === 2 ? 0.95 : 0.55} />}
-      <ellipse cx="43" cy="43" rx="2.2" ry="2.6" fill="#101827" />
-      <ellipse cx="57" cy="43" rx="2.2" ry="2.6" fill="#101827" />
-      <path d="M44 53 Q50 56 56 53" stroke={shade(skin, -0.45)} strokeWidth="1.8" fill="none" strokeLinecap="round" />
-      <path d="M40 37.5 L46 36.5 M54 36.5 L60 37.5" stroke={hair} strokeWidth="2" strokeLinecap="round" />
-      {a.headband && <rect x="32" y="27" width="36" height="5" rx="2" fill={trim} />}
-    </svg>
-  );
-}
-
-function hairShape(style: number, color: string) {
-  switch (style) {
-    case 0:
-      return <path d="M33 38 C 34 22, 66 22, 67 38 C 62 30, 38 30, 33 38 Z" fill={color} />;
-    case 1:
-      return <path d="M32 40 C 30 18, 70 18, 68 40 C 64 28, 36 28, 32 40 Z" fill={color} />;
-    case 2:
-      return <path d="M28 42 C 20 12, 80 12, 72 42 C 70 30, 30 30, 28 42 Z" fill={color} />;
-    case 3:
-      return (
-        <g fill={color}>
-          <path d="M32 40 C 30 18, 70 18, 68 40 C 64 28, 36 28, 32 40 Z" />
-          <rect x="30" y="34" width="5" height="22" rx="2" />
-          <rect x="65" y="34" width="5" height="22" rx="2" />
-        </g>
-      );
-    case 4:
-      return (
-        <g fill={color}>
-          <path d="M32 40 C 30 18, 70 18, 68 40 C 64 28, 36 28, 32 40 Z" />
-          <circle cx="50" cy="18" r="7" />
-        </g>
-      );
-    default:
-      return null;
-  }
+/** Portrait illustré : délègue au générateur détaillé (hauteur = size). */
+export function Portrait({ a, colors, number, size = 96, seedKey, weightKg, heightCm }: { a: Appearance; colors: [string, string]; number: number; size?: number; seedKey?: string; weightKg?: number; heightCm?: number }) {
+  return <PlayerPortrait a={a} colors={colors} number={number} size={size / 1.2} seedKey={seedKey ?? `${a.skin}${a.hair}${a.hairColor}${number}`} weightKg={weightKg} heightCm={heightCm} />;
 }
 
 /** Illustration de l'écran d'accueil : un joueur s'élève vers le cercle dans une salle éclairée. */

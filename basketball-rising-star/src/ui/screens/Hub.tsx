@@ -29,22 +29,27 @@ import { INTENSITY, PROGRAMS, autoProgram, type Intensity, type ProgramId, type 
 import { createMatch, finishMatch } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
 import { Modal } from '../components/Modal';
+import { PlayerTab } from './PlayerTab';
+import { ClubProfile, LeagueCenter, MonthCalendar, TrainingWeek } from './ExtraTabs';
 import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard, RivalCard } from './LifeTab';
 import { extra, legacyScore, negotiate } from '../../career/life';
 import { fixtureName } from '../../career/competitions';
 import { userSideId, userTeams } from '../../career/career';
 import { winterOpen } from '../../career/life';
 
-export type HubTab = 'home' | 'training' | 'life' | 'club' | 'calendar' | 'career';
+export type HubTab = 'home' | 'player' | 'training' | 'life' | 'club' | 'calendar' | 'career';
 
 const NAV: { id: HubTab; label: string; icon: string }[] = [
   { id: 'home', label: 'Accueil', icon: '⌂' },
+  { id: 'player', label: 'Joueur', icon: '◉' },
   { id: 'training', label: 'Entraînement', icon: '◎' },
   { id: 'life', label: 'Vie', icon: '♥' },
   { id: 'club', label: 'Club', icon: '◈' },
   { id: 'calendar', label: 'Calendrier', icon: '▦' },
   { id: 'career', label: 'Carrière', icon: '★' },
 ];
+
+const MOBILE_MAIN: HubTab[] = ['home', 'player', 'training', 'club'];
 
 export function valClass(v: number): string {
   return v >= 17 ? 'v-elite' : v >= 14 ? 'v-great' : v >= 11 ? 'v-good' : v >= 7 ? 'v-mid' : 'v-low';
@@ -56,6 +61,7 @@ export function Hub({ tab }: { tab: HubTab }) {
   const u = user(c);
   const club = userClub(c);
   const go = (t: HubTab) => app.go({ name: 'hub', tab: t });
+  const [moreOpen, setMoreOpen] = useState(false);
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -119,13 +125,14 @@ export function Hub({ tab }: { tab: HubTab }) {
         {tab === 'club' && <ClubTab c={c} />}
         {tab === 'calendar' && <CalendarTab c={c} />}
         {tab === 'career' && <CareerTab c={c} />}
+        {tab === 'player' && <PlayerTab c={c} />}
         {tab === 'life' && <LifeTab c={c} />}
         <div className="muted tiny" style={{ marginTop: 26, textAlign: 'center' }}>
           Univers fictif : clubs, compétitions et joueurs sont inventés. {fullName(u)} · {NATIONS[u.nationality]?.flag}
         </div>
       </main>
       <nav className="bottom-nav" aria-label="Navigation">
-        {NAV.map((n) => (
+        {NAV.filter((n) => MOBILE_MAIN.includes(n.id)).map((n) => (
           <button key={n.id} aria-current={tab === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
             <span style={{ fontSize: '1.25rem' }} aria-hidden="true">
               {n.icon}
@@ -133,7 +140,30 @@ export function Hub({ tab }: { tab: HubTab }) {
             {n.label}
           </button>
         ))}
+        <button aria-current={!MOBILE_MAIN.includes(tab) ? 'page' : undefined} aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)}>
+          <span style={{ fontSize: '1.25rem' }} aria-hidden="true">
+            ⋯
+          </span>
+          Plus
+        </button>
       </nav>
+      {moreOpen && (
+        <div className="more-sheet fade-in" onClick={() => setMoreOpen(false)}>
+          <div className="more-panel" onClick={(e) => e.stopPropagation()}>
+            {NAV.filter((n) => !MOBILE_MAIN.includes(n.id)).map((n) => (
+              <button key={n.id} className="nav-item" aria-current={tab === n.id ? 'page' : undefined} onClick={() => (setMoreOpen(false), go(n.id))}>
+                <span aria-hidden="true">{n.icon}</span> {n.label}
+              </button>
+            ))}
+            <button className="nav-item" onClick={() => app.go({ name: 'settings', back: { name: 'hub', tab } })}>
+              ⚙ Paramètres
+            </button>
+            <button className="nav-item" onClick={() => app.go({ name: 'help', back: { name: 'hub', tab } })}>
+              ? Comment jouer
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`@media (min-width: 861px){ .hide-desktop{ display:none !important } }`}</style>
     </div>
   );
@@ -489,6 +519,7 @@ function TrainingTab({ c }: { c: Career }) {
   const effective: ProgramId = c.plan.mode === 'manual' ? c.plan.program : auto;
   return (
     <div className="grid" style={{ gap: 14 }}>
+      <TrainingWeek c={c} />
       <div className="card">
         <div className="card-title">
           <h3>Mode de programmation</h3>
@@ -591,7 +622,7 @@ export function AttributesCard({ p }: { p: PlayerData }) {
 function ClubTab({ c }: { c: Career }) {
   const club = userClub(c);
   const dc = depthChart(c, club.id);
-  const [view, setView] = useState<'squad' | 'table' | 'leaders' | 'compare'>('squad');
+  const [view, setView] = useState<'squad' | 'table' | 'leaders' | 'compare' | 'profile'>('profile');
   const lid = club.leagueId;
   return (
     <div className="grid" style={{ gap: 14 }}>
@@ -604,6 +635,9 @@ function ClubTab({ c }: { c: Career }) {
             </div>
           </div>
           <div className="seg">
+            <button aria-pressed={view === 'profile'} onClick={() => setView('profile')}>
+              Le club
+            </button>
             <button aria-pressed={view === 'squad'} onClick={() => setView('squad')}>
               Effectif
             </button>
@@ -669,6 +703,7 @@ function ClubTab({ c }: { c: Career }) {
       )}
       {view === 'leaders' && <Leaders c={c} leagueId={lid} />}
       {view === 'compare' && <Comparator c={c} />}
+      {view === 'profile' && <ClubProfile c={c} />}
     </div>
   );
 }
@@ -712,6 +747,7 @@ function CalendarTab({ c }: { c: Career }) {
   const fx = c.world.fixtures.filter((f) => mine.includes(f.home) || mine.includes(f.away)).sort((a, b) => a.week - b.week);
   return (
     <div className="grid" style={{ gap: 14 }}>
+      <CalView c={c} />
       <div className="card">
         <div className="card-title">
           <h3>Calendrier de {club.short}</h3>
@@ -1127,5 +1163,22 @@ export function Sparkline({ points }: { points: number[] }): ReactNode {
         {points[0]} → {points[points.length - 1]}
       </text>
     </svg>
+  );
+}
+
+function CalView({ c }: { c: Career }) {
+  const [v, setV] = useState<'month' | 'league'>('month');
+  return (
+    <>
+      <div className="seg">
+        <button aria-pressed={v === 'month'} onClick={() => setV('month')}>
+          Vue mensuelle
+        </button>
+        <button aria-pressed={v === 'league'} onClick={() => setV('league')}>
+          Centre de la ligue
+        </button>
+      </div>
+      {v === 'month' ? <MonthCalendar c={c} /> : <LeagueCenter c={c} />}
+    </>
   );
 }
