@@ -31,6 +31,9 @@ interface Hud {
   bonus0: boolean;
   bonus1: boolean;
   run: string;
+  top0: string;
+  top1: string;
+  ticker: { sep?: boolean; name: string; color?: string; pts?: number; reb?: number; ast?: number; min?: number; pf?: number; on?: boolean; me?: boolean }[];
   onCourt: boolean;
   hasBall: boolean;
   offense: boolean;
@@ -60,6 +63,18 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const input = useRef<UserInput>(emptyInput());
   const prevBall = useRef<{ x: number; y: number; z: number } | null>(null);
+  const tickerRef = useRef<HTMLDivElement>(null);
+  const tickerHold = useRef(0);
+  // Défilement automatique lent du bandeau ; il s'arrête quelques secondes quand on le fait défiler soi-même
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const el = tickerRef.current;
+      if (!el || Date.now() - tickerHold.current < 6000) return;
+      if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 1) el.scrollLeft = 0;
+      else el.scrollLeft += 1;
+    }, 40);
+    return () => window.clearInterval(id);
+  }, []);
   const [banner, setBanner] = useState<{ text: string; color: string; id: number } | null>(null);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
@@ -247,6 +262,9 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         feed: lastEv ? lastEv.text : '',
         feed2: [...engine.events].reverse().filter((e) => e.type !== 'pass' && e.text && e !== lastEv).slice(0, 1).map((e) => e.text)[0] ?? '',
         poss: engine.possession,
+        top0: topScorers(engine, 0),
+        top1: topScorers(engine, 1),
+        ticker: tickerRows(engine),
         bonus0: engine.teams[1].quarterFouls >= engine.rules.bonusAtFoul,
         bonus1: engine.teams[0].quarterFouls >= engine.rules.bonusAtFoul,
         run: engine.teams[0].run >= 6 ? `${engine.teams[0].short} ${engine.teams[0].run}-0` : engine.teams[1].run >= 6 ? `${engine.teams[1].short} ${engine.teams[1].run}-0` : '',
@@ -416,64 +434,85 @@ export function MatchScreen({ quick }: { quick: boolean }) {
       <canvas ref={canvasRef} aria-label="Terrain de basket : simulation du match en direct" />
       {h && (
         <>
-          <div className="scorebug" aria-live="off">
-            <div className="tm">
-              <i style={{ background: t0.colors[0], outline: '1px solid rgba(255,255,255,.5)' }} />
-              <span>{t0.short}</span>
-              <span className="sc">{h.s0}</span>
-              {h.poss === 0 && <span className="possdot" aria-label="Possession" />}
-              {h.bonus0 && <span className="bonus">BONUS</span>}
+          <div className="mtop">
+            <div className="mtop-btns">
+              <button className="icon-btn" aria-label="Pause" onClick={() => setPaused(true)}>
+                ❚❚
+              </button>
+              <button className="icon-btn" aria-label="Vitesse" onClick={() => setSpeed((s) => (s >= 16 ? 1 : s * 2))}>
+                ×{speed}
+              </button>
+              <button className="icon-btn" aria-label="Aller à la fin du quart-temps" title="Fin du quart-temps" onClick={() => fastForward('quarter')}>
+                ⏭
+              </button>
             </div>
-            <div className="clk">
-              <span>{h.q <= 4 ? `QT${h.q}` : `PR${h.q - 4}`}</span>
-              <b>{fmtClock(h.clock)}</b>
+            <div className="scorebug" aria-live="off">
+              <div className="tm">
+                <div className="tm-line">
+                  <i style={{ background: t0.colors[0], outline: '1px solid rgba(255,255,255,.5)' }} />
+                  <span>{t0.short}</span>
+                  {h.bonus0 && <span className="bonus">BONUS</span>}
+                  {h.poss === 0 && <span className="possdot" aria-label="Possession" />}
+                  <span className="sc">{h.s0}</span>
+                </div>
+                <div className="tops">{h.top0}</div>
+              </div>
+              <div className="clk">
+                <span>{h.q <= 4 ? `QT${h.q}` : `PR${h.q - 4}`}</span>
+                <b>{fmtClock(h.clock)}</b>
+                <span className={`sc24 ${h.shot < 5 ? 'low' : ''}`}>{h.shotOn ? Math.ceil(Math.max(0, h.shot)) : '—'}</span>
+              </div>
+              <div className="tm">
+                <div className="tm-line">
+                  <span className="sc">{h.s1}</span>
+                  {h.poss === 1 && <span className="possdot" aria-label="Possession" />}
+                  {h.bonus1 && <span className="bonus">BONUS</span>}
+                  <span>{t1.short}</span>
+                  <i style={{ background: t1.colors[0] }} />
+                </div>
+                <div className="tops" style={{ textAlign: 'right' }}>{h.top1}</div>
+              </div>
             </div>
-            <div className={`shotclock ${h.shot < 5 ? 'low' : ''}`}>{h.shotOn ? Math.ceil(Math.max(0, h.shot)) : '—'}</div>
-            <div className="tm">
-              {h.bonus1 && <span className="bonus">BONUS</span>}
-              {h.poss === 1 && <span className="possdot" aria-label="Possession" />}
-              <span className="sc">{h.s1}</span>
-              <span>{t1.short}</span>
-              <i style={{ background: t1.colors[0] }} />
+            <div className="mtop-btns">
+              <button className="icon-btn" aria-label="Caméra" title="Caméra" onClick={() => setCamera((v) => (v === 'player' ? 'follow' : v === 'follow' ? 'full' : 'player'))}>
+                {camera === 'full' ? '⤢' : camera === 'follow' ? '⤡' : '◎'}
+              </button>
+              <button className="icon-btn" aria-label="Vue 2D ou 2,5D" title="Vue 2D tactique / vue 2,5D" onClick={() => setView((v) => (v === '3d' ? '2d' : '3d'))} style={{ fontSize: '0.75rem', fontWeight: 800 }}>
+                {view === '3d' ? '2D' : '3D'}
+              </button>
+              <button className="icon-btn" aria-label="Afficher les flèches de jeu" title="Flèches de course et de passe" aria-pressed={tactics} onClick={() => setTactics((t) => !t)} style={{ opacity: tactics ? 1 : 0.5 }}>
+                ✎
+              </button>
+              <button className="icon-btn" aria-label="Statistiques" onClick={() => setStatsOpen(true)}>
+                ≡
+              </button>
             </div>
-          </div>
-          {h.feed && (
+            <div className="ticker" ref={tickerRef} onPointerDown={() => (tickerHold.current = Date.now())} onWheel={() => (tickerHold.current = Date.now())} aria-label="Statistiques individuelles (faire défiler)">
+              {h.ticker.map((row, i) =>
+                row.sep ? (
+                  <span key={i} className="tk-sep" style={{ borderColor: row.color }}>
+                    {row.name}
+                  </span>
+                ) : (
+                  <span key={i} className={`tk ${row.on ? 'on' : ''} ${row.me ? 'me' : ''}`}>
+                    <b>{row.name}</b> {row.pts} pts · {row.reb} rb · {row.ast} pd · {row.min}' {(row.pf ?? 0) >= 3 ? `· ${row.pf} f` : ''}
+                  </span>
+                ),
+              )}
+            </div>
+            {h.feed && (
             <div className="feed">
               <div>{h.feed}</div>
               {h.feed2 && <div className="feed-old">{h.feed2}</div>}
             </div>
           )}
+          </div>
           {h.run && <div className="runbadge">Série {h.run}</div>}
           {banner && (
             <div className="banner" key={banner.id} style={{ borderColor: banner.color }}>
               {banner.text}
             </div>
           )}
-          <div className="hud-tl">
-            <button className="icon-btn" aria-label="Pause" onClick={() => setPaused(true)}>
-              ❚❚
-            </button>
-            <button className="icon-btn" aria-label="Vitesse" onClick={() => setSpeed((s) => (s >= 16 ? 1 : s * 2))}>
-              ×{speed}
-            </button>
-            <button className="icon-btn" aria-label="Aller à la fin du quart-temps" title="Fin du quart-temps" onClick={() => fastForward('quarter')}>
-              ⏭
-            </button>
-          </div>
-          <div className="hud-tr">
-            <button className="icon-btn" aria-label="Caméra" title="Caméra" onClick={() => setCamera((v) => (v === 'player' ? 'follow' : v === 'follow' ? 'full' : 'player'))}>
-              {camera === 'full' ? '⤢' : camera === 'follow' ? '⤡' : '◎'}
-            </button>
-            <button className="icon-btn" aria-label="Vue 2D ou 2,5D" title="Vue 2D tactique / vue 2,5D" onClick={() => setView((v) => (v === '3d' ? '2d' : '3d'))} style={{ fontSize: '0.75rem', fontWeight: 800 }}>
-              {view === '3d' ? '2D' : '3D'}
-            </button>
-            <button className="icon-btn" aria-label="Afficher la tactique" title="Afficher les écrans, coupes et systèmes" aria-pressed={tactics} onClick={() => setTactics((t) => !t)} style={{ opacity: tactics ? 1 : 0.5 }}>
-              ✎
-            </button>
-            <button className="icon-btn" aria-label="Statistiques" onClick={() => setStatsOpen(true)}>
-              ≡
-            </button>
-          </div>
           {u && h.onCourt && (
             <div className="hud-me">
               <div className="row spread">
@@ -777,3 +816,28 @@ function StyleBar({ engine, onChange }: { engine: MatchEngine; onChange: (s: Mat
     </div>
   );
 }
+
+function topScorers(e: MatchEngine, t: 0 | 1): string {
+  return e.teams[t].players
+    .map((i) => e.players[i])
+    .filter((p) => p.box.pts > 0)
+    .sort((a, b) => b.box.pts - a.box.pts)
+    .slice(0, 2)
+    .map((p) => `${p.data.lastName} ${p.box.pts}`)
+    .join(' · ');
+}
+
+function tickerRows(e: MatchEngine): MatchHudRow[] {
+  const official = e.rules.id === 'NBA' ? 12 : 10;
+  const scale = official / e.rules.quarterMin;
+  const rows: MatchHudRow[] = [];
+  for (const t of [0, 1] as const) {
+    rows.push({ sep: true, name: e.teams[t].short, color: e.teams[t].colors[0] });
+    for (const i of e.teams[t].players) {
+      const p = e.players[i];
+      rows.push({ name: `${p.data.number} ${p.data.lastName}`, pts: p.box.pts, reb: p.box.orb + p.box.drb, ast: p.box.ast, min: Math.round((p.box.sec / 60) * scale), pf: p.fouls, on: p.onCourt, me: p.isUser });
+    }
+  }
+  return rows;
+}
+type MatchHudRow = { sep?: boolean; name: string; color?: string; pts?: number; reb?: number; ast?: number; min?: number; pf?: number; on?: boolean; me?: boolean };

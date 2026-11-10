@@ -283,7 +283,6 @@ export class MatchRenderer {
     if (e.phase !== 'live') return;
     const ctx = this.ctx;
     const off = e.possession;
-    const st = e.offense[off];
     const arrow = (x1: number, y1: number, x2: number, y2: number, color: string, dash: number[]) => {
       const [a, b] = P(x1, y1);
       const [c2, d] = P(x2, y2);
@@ -325,11 +324,6 @@ export class MatchRenderer {
         ctx.moveTo(a, b);
         ctx.lineTo(c2, d);
         ctx.stroke();
-        if (p.screenT > 0 && S > 14) {
-          const spr = textSprite('ÉCRAN', Math.max(9, 0.17 * S), 800, 'Inter, sans-serif', '#101827', null, '#F6F4EF', this.dpr);
-          const [lx, ly] = P(p.pos.x, p.pos.y);
-          ctx.drawImage(spr, lx - spr.width / this.dpr / 2, ly + 0.3 * S, spr.width / this.dpr, spr.height / this.dpr);
-        }
       }
     }
     // Aides défensives
@@ -338,14 +332,6 @@ export class MatchRenderer {
     const f = e.ball.flight;
     if (e.ball.state === 'air' && f?.kind === 'pass' && f.to >= 0) arrow(f.start.x, f.start.y, f.end.x, f.end.y, 'rgba(246,244,239,0.7)', [2, 4]);
     ctx.restore();
-    // Système annoncé au-dessus du porteur
-    const h = e.holder();
-    if (h && st.play && !st.transition && S > 9) {
-      const spr = textSprite(st.play.toUpperCase(), Math.max(10, 0.2 * S), 800, 'Inter, sans-serif', '#101827', null, e.teams[off].colors[0] === '#F6F4EF' ? '#DDB65A' : '#DDB65A', this.dpr);
-      const [lx, ly] = P(h.pos.x, h.pos.y);
-      const dy = this.opts.view === '2d' ? 0.7 * S : (h.heightM + 0.75) * S * ZK;
-      ctx.drawImage(spr, lx - spr.width / this.dpr / 2, ly - dy - spr.height / this.dpr, spr.width / this.dpr, spr.height / this.dpr);
-    }
   }
 
   // ------------------------------------------------------------------ Vue 2D tactique (de dessus)

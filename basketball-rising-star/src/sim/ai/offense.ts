@@ -180,6 +180,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     p.target = { ...p.pos };
     return;
   }
+  // Le porteur lève la tête : partenaire seul devant, coupeur libre sous le cercle, prise à deux
+  if (readAdvantage(e, p, hoop)) return;
   const inFront = e.court.inFrontcourt(side, p.pos);
   const shotClockLeft = Math.min(e.shotClock, e.clock);
   const gameClockLimited = e.clock < e.shotClock + 0.5;
@@ -236,7 +238,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   // Valeur de la possession si l'on continue à jouer (diminue avec le chrono)
   const elapsed = e.time - st.startT;
   const early = clamp((e.shotClock - 5) / 13, 0, 1);
-  let possValue = 1.02 + (advantage ? -0.05 : early * 1.18) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
+  let possValue = 1.02 + (advantage ? -0.05 : early * 1.32) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
   if (milk) possValue += 0.3;
   // « 2 pour 1 » : en fin de quart-temps, tirer assez tôt pour récupérer une dernière possession
   if (e.quarter < 4 && e.clock < e.rules.shotClock + 16 && e.clock > e.rules.shotClock + 2) possValue -= 0.3;
@@ -523,13 +525,19 @@ function offBallThink(e: MatchEngine, p: MPlayer, st: OffenseState): void {
   }
   if (st.pnr && e.time - st.pnr.t > 6) st.pnr = null;
 
-  // Contre-attaque : courir les couloirs
-  if (st.transition && e.time - st.startT < 4.5) {
-    const big = p.data.pos === 'C';
-    const lane = big ? { x: hoop.x - side * (p.data.attrs.speed > 11 ? 1.5 : 7.5), y: hoop.y } : spot;
-    p.target = lane;
+  // Contre-attaque : remplir les couloirs vers le panier (ailes larges, pivot rapide au cercle, un joueur en retrait)
+  if (st.transition && e.time - st.startT < 5) {
+    const mates = e.teamOnCourt(p.team).filter((m) => m.idx !== e.ball.holder).sort((x, y) => dist(x.pos, hoop) - dist(y.pos, hoop));
+    const rank = mates.indexOf(p);
+    const lr = p.pos.y < e.court.cy ? -1 : 1;
+    let lane: V2;
+    if (rank === 0) lane = { x: hoop.x - side * 1.4, y: hoop.y + lr * 1.6 }; // le plus avancé file au cercle
+    else if (rank === 1) lane = e.court.fromHoop(side, 1.2, lr * 4.2); // aile opposée, près de la ligne de fond
+    else if (rank === 2) lane = e.court.fromHoop(side, e.court.g.threeRadius * 0.6, lr * 5.6); // coin / aile
+    else lane = e.court.fromHoop(side, e.court.g.threeRadius + 1.5, lr * 1.5); // remorque (trailer)
+    p.target = e.court.clampInside(lane, 0.5);
     p.urgency = 1;
-    p.intent = big ? 'rim run' : 'couloir';
+    p.intent = rank === 0 ? 'rim run' : 'couloir';
     return;
   }
 
@@ -621,4 +629,47 @@ function callPlay(e: MatchEngine, handler: MPlayer, st: OffenseState): void {
     if (scr !== handler) st.pnr = { handler: handler.idx, screener: scr.idx, t: e.time, pop: scr.data.attrs.three >= 13 && e.rng.chance(0.5) };
   }
   e.emit({ type: 'info', team, player: handler.idx, text: `${e.teams[team].short} : système « ${play} »${play === 'Isolation' || play === 'Poste bas' || play === 'Sortie d\u2019écran' ? ` pour ${e.name(st.star)}` : ''}` });
+}
+
+/**
+ * Lecture rapide du porteur, à chaque décision : un partenaire démarqué plus près du panier,
+ * un coupeur seul sous le cercle ou une prise à deux déclenchent la passe immédiatement.
+ * La probabilité de voir l'option dépend de la vision et de l'intelligence de jeu.
+ */
+function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
+  if (p.actionLock > 0 || (p as MPlayer & { shotPlan?: unknown }).shotPlan) return false;
+  const a = p.data.attrs;
+  const side = e.attackSide(p.team);
+  const dMe = dist(p.pos, hoop);
+  if (dMe < 3) return false;
+  const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
+  const trapped = defs.filter((o) => dist(o.pos, p.pos) < 1.7).length >= 2;
+  const see = 0.45 + a.vision / 40 + a.iq / 80; // ~0.9 à 1.2 pour un bon meneur, ~0.6 pour un intérieur peu créatif
+  let best: MPlayer | null = null;
+  let bs = 0;
+  for (const m of e.teamOnCourt(p.team)) {
+    if (m === p || m.keyTime > 2.4) continue;
+    if (e.frontcourtReached && !e.court.inFrontcourt(side, m.pos)) continue;
+    const md = dist(m.pos, hoop);
+    const open = e.nearestDefender(m).d;
+    const risk = e.passRisk(p, m, dist(m.pos, p.pos) > 9);
+    const ahead = dMe - md;
+    let sc = 0;
+    if (ahead > 2 && md < 9 && open > 2.2) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
+    else if (md < 2.8 && open > 1.6) sc = 0.7 + open * 0.15; // coupeur / pivot seul sous le cercle
+    else if (trapped && open > 2.2) sc = 0.55 + open * 0.1;
+    if (risk > 0.32) continue;
+    sc -= risk * 3.5;
+    if (sc > bs) {
+      bs = sc;
+      best = m;
+    }
+  }
+  if (!best || bs < 0.62) return false;
+  if (!e.rng.chance(Math.min(0.95, see * (trapped ? 0.95 : 0.75)))) return false;
+  const far = dist(best.pos, p.pos);
+  e.launchPass(p, best, far > 10 || e.passRisk(p, best) > 0.3 ? 'lob' : 'chest');
+  e.offense[p.team].passes++;
+  p.intent = 'lecture';
+  return true;
 }

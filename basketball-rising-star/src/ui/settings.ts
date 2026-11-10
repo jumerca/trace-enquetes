@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   showOpen: true,
   showNames: true,
-  showTactics: true,
+  showTactics: false,
   view: '3d',
   colorblind: false,
   textSize: 'normal',

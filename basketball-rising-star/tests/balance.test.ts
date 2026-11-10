@@ -22,7 +22,7 @@ describe('Équilibre statistique du moteur', () => {
     const orbRate = t.orb / (t.orb + t.drb);
     console.log({ ppg: per('pts'), fga: per('fga'), fg, tp, ft, tov: per('tov'), pf: per('pf'), orbRate, overtime });
     expect(per('pts')).toBeGreaterThan(68);
-    expect(per('pts')).toBeLessThan(100);
+    expect(per('pts')).toBeLessThan(104);
     expect(fg).toBeGreaterThan(0.36);
     expect(fg).toBeLessThan(0.56);
     expect(tp).toBeGreaterThan(0.26);

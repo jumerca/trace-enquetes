@@ -151,6 +151,24 @@ export function defenseThink(e: MatchEngine, p: MPlayer, userControlled: boolean
 
   // Repli défensif quand l'adversaire remonte vite
   const hOwnD = dist(h.pos, own);
+  // Infériorité numérique en transition : un défenseur stoppe le ballon, les autres protègent le cercle
+  // puis prennent l'attaquant le plus dangereux (le plus proche du panier)
+  const attackersAhead = e.teamOnCourt(offTeam).filter((o) => dist(o.pos, own) < hOwnD + 1);
+  const defendersBack = e.teamOnCourt(p.team).filter((d) => dist(d.pos, own) < hOwnD);
+  if (hOwnD < 16 && attackersAhead.length > defendersBack.length && dist(p.pos, own) < hOwnD + 2) {
+    const stopper = [...defendersBack].sort((x, y) => dist(x.pos, h.pos) - dist(y.pos, h.pos))[0];
+    if (stopper === p) {
+      const dir = norm({ x: own.x - h.pos.x, y: own.y - h.pos.y });
+      p.target = { x: h.pos.x + dir.x * 1.6, y: h.pos.y + dir.y * 1.6 };
+      p.intent = 'stoppe le ballon';
+    } else {
+      const threat = attackersAhead.filter((o) => o !== h).sort((x, y) => dist(x.pos, own) - dist(y.pos, own))[defendersBack.indexOf(p) % Math.max(1, attackersAhead.length - 1)] ?? h;
+      p.target = lerpV(own, threat.pos, 0.45);
+      p.intent = 'protège le cercle';
+    }
+    p.urgency = 1;
+    return;
+  }
   if (!e.frontcourtReached && hOwnD > 13) {
     const man = e.players[p.assign];
     const behindBall = dist(p.pos, own) > hOwnD - 1;
