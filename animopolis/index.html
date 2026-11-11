@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#f3efe4">
 <title>Animopolis</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Animopolis">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="description" content="Enquêtes à la loupe dans une immense ville dessinée peuplée d'animaux.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +29,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .top{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 16px 0;pointer-events:none}
 .logo{pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:4px 12px 2px;box-shadow:var(--shadow);line-height:1}
 .logo b{font-size:24px;letter-spacing:.5px}.logo small{display:block;font-size:13px;color:var(--muted)}
+.tright{display:flex;gap:8px;pointer-events:none}
 .pill{pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:999px;padding:8px 16px;box-shadow:var(--shadow);font-size:18px}
 .zoom{position:fixed;right:16px;top:50%;transform:translateY(-60%);display:flex;flex-direction:column;gap:8px}
 .zoom button{width:44px;height:44px;border-radius:12px;border:2px solid var(--line);background:var(--card);box-shadow:var(--shadow);font-size:24px;line-height:1;padding:0}
@@ -71,7 +80,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <canvas id="map" aria-label="Carte de la ville d'Animopolis"></canvas>
 <header class="top">
   <div class="logo"><b>Animopolis</b><small>enquêtes à la loupe</small></div>
-  <button class="pill" id="btnCases">Dossiers</button>
+  <div class="tright"><button class="pill" id="btnInstall" hidden>Installer</button><button class="pill" id="btnCases">Dossiers</button></div>
 </header>
 <div class="zoom">
   <button id="zin" aria-label="Zoomer">+</button>
@@ -1918,6 +1927,7 @@ function showHelp(){openModal(`<h2>Comment jouer</h2>
   <p>👆 Quand tu as trouvé la scène qui répond à la question, <b>touche-la</b>. Si c'est juste, elle est entourée en rouge.</p>
   <p>🔓 Résous des enquêtes pour <b>débloquer de nouveaux quartiers</b>.</p>
   <p>💡 Bloqué ? Le bouton <b>Indice</b> entoure la zone où chercher. Touche-le une seconde fois pour un cercle plus précis.</p>
+  <p>📲 Le bouton <b>Installer</b> ajoute le jeu sur ton écran d'accueil. Les mises à jour arrivent toutes seules.</p>
   <p>🖼️ À chaque étape, le <b>portrait</b> de la personne à chercher s'affiche à côté de la question.</p>
   <button class="btn" id="ok">C'est parti !</button>`,root=>root.querySelector('#ok').onclick=closeModal);}
 function onTapScreen(sx,sy){
@@ -1948,6 +1958,18 @@ window.addEventListener('resize',resize);resize();
 updateCard();render();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{clearTiles();for(const k in cardImg)delete cardImg[k];req();});
 if(!state.seen){state.seen=true;save();showHelp();}
+/* ---------- installation & mises à jour automatiques ---------- */
+let installEvt=null;const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;if(!standalone)$('btnInstall').hidden=false;});
+window.addEventListener('appinstalled',()=>{$('btnInstall').hidden=true;toast('Animopolis est installé !');});
+$('btnInstall').onclick=async()=>{if(installEvt){installEvt.prompt();try{await installEvt.userChoice;}catch(e){}installEvt=null;$('btnInstall').hidden=true;}else showInstallHelp();};
+function showInstallHelp(){openModal(`<h2>Installer Animopolis</h2><p><b>Sur Android (Chrome)</b> : menu ⋮ puis « Installer l'application » ou « Ajouter à l'écran d'accueil ».</p><p><b>Sur iPhone / iPad (Safari)</b> : bouton Partager puis « Sur l'écran d'accueil ».</p><p class="legend">Les mises à jour du jeu arrivent toutes seules : à chaque ouverture avec Internet, la dernière version est chargée. Sans Internet, la dernière version gardée en mémoire fonctionne.</p><button class="btn" id="okI">Compris</button>`,r=>r.querySelector('#okI').onclick=closeModal);}
+if(!standalone&&/iphone|ipad|ipod/i.test(navigator.userAgent))$('btnInstall').hidden=false;
+try{if('serviceWorker'in navigator&&location.protocol==='https:'&&!/claude\.ai|claudeusercontent/.test(location.hostname)){
+  const hadCtrl=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(reg=>{setInterval(()=>reg.update().catch(()=>{}),30*60*1000);}).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtrl)toast('Nouvelle version installée ✓');});
+}}catch(e){}
 window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unlocked};
 </script>
 </body>
