@@ -1611,12 +1611,36 @@ function drawWorld(c,view){
 function buildCache(){cache=document.createElement('canvas');cache.width=Math.round((WB.x1-WB.x0)*cacheS);cache.height=Math.round((WB.y1-WB.y0)*cacheS);
   const c=cache.getContext('2d');c.setTransform(cacheS,0,0,cacheS,-WB.x0*cacheS,-WB.y0*cacheS);const old=LOD;LOD=1;drawWorld(c,[WB.x0,WB.y0,WB.x1,WB.y1]);LOD=old;cacheKey=DISTRICTS.map((d,i)=>unlocked(i)).join();}
 function req(){if(needs)return;needs=true;requestAnimationFrame(render);}
+/* rendu par tuiles : chaque morceau de carte est dessiné une fois puis réutilisé */
+const TILE=256,LEVELS=[.5,1,2,3],MAXT=140,tiles=new Map();let tileKeyAll='',frameN=0,pending=false;
+const ukey=()=>DISTRICTS.map((d,i)=>unlocked(i)).join();
+function clearTiles(){tiles.clear();cache=null;}
+function makeTile(Lv,tx,ty){const c=document.createElement('canvas');c.width=TILE;c.height=TILE;const g=c.getContext('2d');g.fillStyle='#e3ded2';g.fillRect(0,0,TILE,TILE);
+  g.setTransform(Lv,0,0,Lv,-tx*TILE,-ty*TILE);const old=LOD;LOD=Lv;drawWorld(g,[tx*TILE/Lv-2,ty*TILE/Lv-2,(tx+1)*TILE/Lv+2,(ty+1)*TILE/Lv+2]);LOD=old;return c;}
 function render(){
-  needs=false;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#e3ded2';ctx.fillRect(0,0,vw,vh);
-  const s=cam.s,ox=vw/2-cam.x*s,oy=vh/2-cam.y*s;ctx.setTransform(dpr*s,0,0,dpr*s,dpr*ox,dpr*oy);
-  const view=[cam.x-vw/2/s-10,cam.y-vh/2/s-10,cam.x+vw/2/s+10,cam.y+vh/2/s+10];LOD=s*dpr;
-  if(s*dpr<=cacheS*1.05){const key=DISTRICTS.map((d,i)=>unlocked(i)).join();if(!cache||cacheKey!==key)buildCache();ctx.drawImage(cache,WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);}
-  else drawWorld(ctx,view);
+  needs=false;frameN++;const k0=ukey();if(k0!==tileKeyAll){tileKeyAll=k0;clearTiles();}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#e3ded2';ctx.fillRect(0,0,vw,vh);
+  const s=cam.s,ox=vw/2-cam.x*s,oy=vh/2-cam.y*s,p=s*dpr;
+  const view=[cam.x-vw/2/s-10,cam.y-vh/2/s-10,cam.x+vw/2/s+10,cam.y+vh/2/s+10];
+  if(!cache)buildCache();
+  ctx.setTransform(dpr*s,0,0,dpr*s,dpr*ox,dpr*oy);
+  if(p<=cacheS*1.05){ctx.drawImage(cache,WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);}
+  else if(p>3.3){LOD=p;drawWorld(ctx,view);}
+  else{
+    ctx.drawImage(cache,WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);
+    const Lv=LEVELS.find(l=>l>=p*.92)||3,k=p/Lv;
+    const tx0=Math.floor(view[0]*Lv/TILE),tx1=Math.floor(view[2]*Lv/TILE),ty0=Math.floor(view[1]*Lv/TILE),ty1=Math.floor(view[3]*Lv/TILE);
+    ctx.setTransform(1,0,0,1,0,0);
+    const budget=performance.now()+(ptrs.size||anim?7:24);let missing=0;
+    const cx=(tx0+tx1)/2,cy=(ty0+ty1)/2,list=[];for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++)list.push([tx,ty]);list.sort((a,b)=>Math.hypot(a[0]-cx,a[1]-cy)-Math.hypot(b[0]-cx,b[1]-cy));
+    for(const[tx,ty]of list){const key=Lv+':'+tx+':'+ty;let t=tiles.get(key);
+      if(!t){if(performance.now()<budget){t={c:makeTile(Lv,tx,ty)};tiles.set(key,t);}else{missing++;continue;}}
+      t.f=frameN;const x=Math.floor((tx*TILE/Lv-cam.x)*p+vw*dpr/2),y=Math.floor((ty*TILE/Lv-cam.y)*p+vh*dpr/2),x2=Math.ceil(((tx+1)*TILE/Lv-cam.x)*p+vw*dpr/2),y2=Math.ceil(((ty+1)*TILE/Lv-cam.y)*p+vh*dpr/2);
+      ctx.drawImage(t.c,x,y,x2-x,y2-y);}
+    if(tiles.size>MAXT){const arr=[...tiles.entries()].sort((a,b)=>a[1].f-b[1].f);for(let i=0;i<tiles.size-MAXT;i++)tiles.delete(arr[i][0]);}
+    if(missing&&!pending){pending=true;setTimeout(()=>{pending=false;req();},ptrs.size?40:0);}
+    ctx.setTransform(dpr*s,0,0,dpr*s,dpr*ox,dpr*oy);
+  }
   drawOverlay(ctx,s);
   ctx.setTransform(dpr,0,0,dpr,0,0);drawCards(ctx);
   if(fx.wrong.length||fx.pulse)req();
@@ -1640,7 +1664,7 @@ function cardCanvas(cs){if(cardImg[cs.id])return cardImg[cs.id];const r=2,w=64,h
   g.fillText(l1,w/2-1.5,58);g.fillText(l2,w/2-1.5,67);g.font='8px sans-serif';g.fillText('★'.repeat(cs.diff)+'☆'.repeat(3-cs.diff),w/2-1.5,74.5);
   cardImg[cs.id]=c;return c;}
 function cardRects(){const out=[];if(cam.s>1.3)return out;const a=cam.s>.95?1-(cam.s-.95)/.35:1;
-  for(const cs of CASES){if(!unlocked(cs.dist))continue;const[x,y]=pr(cs.card[0],cs.card[1],0);const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const sc=Math.max(.7,Math.min(1,cam.s*2));out.push({cs,x:sx-32*sc,y:sy-90*sc,w:64*sc,h:82*sc,a});}return out;}
+  const cur=curCase(),focus=cur&&!caseDone(cur);for(const cs of CASES){if(!unlocked(cs.dist))continue;if(focus&&cs!==cur)continue;const[x,y]=pr(cs.card[0],cs.card[1],0);const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const sc=Math.max(.5,Math.min(1,cam.s*1.4));out.push({cs,x:sx-32*sc,y:sy-90*sc,w:64*sc,h:82*sc,a});}return out;}
 function drawCards(c){for(const r of cardRects()){c.globalAlpha=r.a;c.drawImage(cardCanvas(r.cs),r.x,r.y,r.w,r.h);
   if(caseDone(r.cs)){c.save();c.translate(r.x+r.w*.5,r.y+r.h*.38);c.rotate(-.25);c.strokeStyle=RED;c.lineWidth=2.4;c.fillStyle='rgba(255,253,247,.85)';c.beginPath();c.rect(-26,-9,52,18);c.fill();c.stroke();c.fillStyle=RED;c.font='13px "Patrick Hand", cursive';c.textAlign='center';c.textBaseline='middle';c.fillText('CLASSÉE',0,1);c.restore();}
   else if(r.cs.id===state.current){c.strokeStyle=RED;c.lineWidth=3;c.strokeRect(r.x-3,r.y-3,r.w+2,r.h-1);}
@@ -1650,18 +1674,20 @@ function toWorld(sx,sy){return{x:cam.x+(sx-vw/2)/cam.s,y:cam.y+(sy-vh/2)/cam.s};
 function zoomAt(sx,sy,f){const w=toWorld(sx,sy);cam.s=Math.max(minS,Math.min(maxS,cam.s*f));cam.x=w.x-(sx-vw/2)/cam.s;cam.y=w.y-(sy-vh/2)/cam.s;clampCam();req();}
 let anim=null;
 function flyTo(x,y,s,ms){const a={x:cam.x,y:cam.y,s:cam.s},t0=performance.now();ms=ms||700;const id={};anim=id;
-  const step=()=>{if(anim!==id)return;const p=Math.min(1,(performance.now()-t0)/ms),e=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;cam.s=a.s*Math.pow(s/a.s,e);cam.x=a.x+(x-a.x)*e;cam.y=a.y+(y-a.y)*e;clampCam();render();if(p<1)requestAnimationFrame(step);else anim=null;};requestAnimationFrame(step);}
+  const step=()=>{if(anim!==id)return;const p=Math.min(1,(performance.now()-t0)/ms),e=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;cam.s=a.s*Math.pow(s/a.s,e);cam.x=a.x+(x-a.x)*e;cam.y=a.y+(y-a.y)*e;clampCam();render();if(p<1)requestAnimationFrame(step);else{anim=null;req();}};requestAnimationFrame(step);}
 
 /* ---------- gestes ---------- */
-const ptrs=new Map();let tap=null,pinch=null;
+const ptrs=new Map();let tap=null,pinch=null,vel={x:0,y:0,t:0};
 cv.addEventListener('pointerdown',e=>{anim=null;cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===1)tap={x:e.clientX,y:e.clientY,t:performance.now(),moved:false};
   else if(ptrs.size===2){tap=null;const[p1,p2]=[...ptrs.values()];pinch={d:Math.hypot(p1.x-p2.x,p1.y-p2.y),s:cam.s,w:toWorld((p1.x+p2.x)/2,(p1.y+p2.y)/2)};}});
 cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
-  if(ptrs.size===1){if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>8)tap.moved=true;if(!tap||tap.moved){cam.x-=dx/cam.s;cam.y-=dy/cam.s;clampCam();req();}}
+  if(ptrs.size===1){if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>8)tap.moved=true;if(!tap||tap.moved){cam.x-=dx/cam.s;cam.y-=dy/cam.s;clampCam();req();const now=performance.now(),dt=Math.max(1,now-vel.t);vel={x:.7*vel.x+.3*dx/dt,y:.7*vel.y+.3*dy/dt,t:now};}}
   else if(ptrs.size===2&&pinch){const[p1,p2]=[...ptrs.values()];const d=Math.hypot(p1.x-p2.x,p1.y-p2.y);const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;cam.s=Math.max(minS,Math.min(maxS,pinch.s*d/pinch.d));cam.x=pinch.w.x-(mx-vw/2)/cam.s;cam.y=pinch.w.y-(my-vh/2)/cam.s;clampCam();req();}});
 function up(e){const had=ptrs.has(e.pointerId);ptrs.delete(e.pointerId);if(!had)return;if(ptrs.size<2)pinch=null;
-  if(tap&&!tap.moved&&ptrs.size===0&&performance.now()-tap.t<450)onTapScreen(e.clientX,e.clientY);tap=null;}
+  if(tap&&!tap.moved&&ptrs.size===0&&performance.now()-tap.t<450)onTapScreen(e.clientX,e.clientY);
+  else if(ptrs.size===0&&performance.now()-vel.t<80&&Math.hypot(vel.x,vel.y)>.15){let vx=vel.x,vy=vel.y,last=performance.now();const id={};anim=id;const glide=()=>{if(anim!==id)return;const now=performance.now(),dt=now-last;last=now;cam.x-=vx*dt/cam.s;cam.y-=vy*dt/cam.s;clampCam();const f=Math.pow(.993,dt);vx*=f;vy*=f;render();if(Math.hypot(vx,vy)>.02)requestAnimationFrame(glide);else{anim=null;req();}};requestAnimationFrame(glide);}
+  vel={x:0,y:0,t:0};tap=null;}
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*.0015));},{passive:false});
 document.getElementById('zin').onclick=()=>zoomAt(vw/2,vh/2,1.6);
@@ -1691,8 +1717,9 @@ function castHTML(cs){return `<div class="cast">${cs.cast.map((p,i)=>`<div class
 function mountCast(root,cs){root.querySelectorAll('[data-p]').forEach(el=>el.appendChild(portrait(cs.cast[+el.dataset.p].s)));}
 function showCases(){
   openModal(`<h2>Dossiers</h2><p class="legend">Toute la ville est figée : un même suspect apparaît à plusieurs endroits, à différents moments. Résous des enquêtes pour débloquer de nouveaux quartiers.</p>${DISTRICTS.map((D,i)=>{const open=unlocked(i);
-    return `<h3>${open?'':'🔒 '}${D.name}${open?` <span class="legend">${doneIn(i)}/${CASES.filter(c=>c.dist===i).length} classées</span>`:''}</h3>${open?`<div class="cases">${CASES.filter(c=>c.dist===i).sort((a,b)=>a.diff-b.diff).map(cs=>{const n=(state.solved[cs.id]||[]).filter(Boolean).length;return`<button class="case ${cs.id===state.current?'active':''}" data-c="${cs.id}"><div><div class="t">${cs.title}</div><div class="m">${['','Facile','Moyen','Difficile'][cs.diff]} ${stars(cs.diff)} · ${cs.steps.length} étapes</div></div><span class="done">${n===cs.steps.length?'Classée ✓':n+'/'+cs.steps.length}</span></button>`;}).join('')}</div>`:`<p class="legend">Résous ${D.need} enquêtes ${DISTRICTS[i-1].de} pour ouvrir ce quartier (${Math.min(doneIn(i-1),D.need)}/${D.need}).</p>`}`;}).join('')}<button class="btn ghost" id="howto">Comment jouer ?</button>`,root=>{
-    root.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>startCase(b.dataset.c));root.querySelector('#howto').onclick=showHelp;});}
+    return `<h3>${open?'':'🔒 '}${D.name}${open?` <span class="legend">${doneIn(i)}/${CASES.filter(c=>c.dist===i).length} classées</span>`:''}</h3>${open?`<div class="cases">${CASES.filter(c=>c.dist===i).sort((a,b)=>a.diff-b.diff).map(cs=>{const n=(state.solved[cs.id]||[]).filter(Boolean).length;return`<button class="case ${cs.id===state.current?'active':''}" data-c="${cs.id}"><div><div class="t">${cs.title}</div><div class="m">${['','Facile','Moyen','Difficile'][cs.diff]} ${stars(cs.diff)} · ${cs.steps.length} étapes</div></div><span class="done">${n===cs.steps.length?'Classée ✓':(cs.id===state.current?'En cours · ':'')+n+'/'+cs.steps.length}</span></button>`;}).join('')}</div>`:`<p class="legend">Résous ${D.need} enquêtes ${DISTRICTS[i-1].de} pour ouvrir ce quartier (${Math.min(doneIn(i-1),D.need)}/${D.need}).</p>`}`;}).join('')}${curCase()&&!caseDone(curCase())?`<button class="btn ghost" id="quit">Mettre « ${curCase().title} » en pause</button>`:''}<button class="btn ghost" id="howto">Comment jouer ?</button>`,root=>{
+    root.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const cur=curCase(),id=b.dataset.c;if(cur&&cur.id!==id&&!caseDone(cur)&&(state.solved[cur.id]||[]).some(Boolean)){openModal(`<h2>Changer d'enquête ?</h2><p>Tu es en pleine enquête : <b>${cur.title}</b>. Ta progression sera gardée et tu pourras la reprendre plus tard.</p><button class="btn" id="sw">Passer à l'autre enquête</button><button class="btn ghost" id="st">Rester sur ${cur.title}</button>`,r2=>{r2.querySelector('#sw').onclick=()=>startCase(id);r2.querySelector('#st').onclick=closeModal;});}else startCase(id);});root.querySelector('#howto').onclick=showHelp;
+    const q=root.querySelector('#quit');if(q)q.onclick=()=>{state.current=null;save();updateCard();req();closeModal();toast('Enquête mise en pause : toutes les cartes sont de retour');};});}
 function startCase(id){state.current=id;save();updateCard();req();const cs=curCase();
   openModal(`<h2>${cs.title}</h2><p class="legend">${DISTRICTS[cs.dist].name} · ${stars(cs.diff)}</p><p>${cs.intro}</p><h3>Les personnages</h3>${castHTML(cs)}<button class="btn" id="go">${curStep(cs)<0?'Revoir la carte':'Commencer l\'enquête'}</button>${(state.solved[cs.id]||[]).some(Boolean)?'<button class="btn ghost" id="reset">Recommencer cette enquête</button>':''}`,root=>{
     mountCast(root,cs);root.querySelector('#go').onclick=()=>{closeModal();const[x,y]=pr(cs.card[0],cs.card[1],0);flyTo(x,y-20,Math.max(cam.s,Math.min(1.2,vw/700)));};
@@ -1702,7 +1729,7 @@ function showSteps(){const cs=curCase();if(!cs){showCases();return;}const st=sta
     root.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{const t=cs.steps[+b.dataset.v].t;closeModal();flyTo(t.x,t.y,Math.max(cam.s,Math.min(3.2,Math.min(vw,vh)/(t.r*6))));});});}
 function showHelp(){openModal(`<h2>Comment jouer</h2>
   <p>🔎 <b>Zoome</b> en pinçant l'écran (ou molette / boutons +/−) et <b>déplace-toi</b> en glissant le doigt.</p>
-  <p>🃏 Les <b>cartes d'enquête</b> sont posées sur la ville. Touche-en une pour ouvrir l'enquête.</p>
+  <p>🃏 Les <b>cartes d'enquête</b> sont posées sur la ville. Touche-en une pour ouvrir l'enquête. Pendant une enquête, les autres cartes se cachent (les décors restent) : tu peux la mettre en pause depuis les Dossiers.</p>
   <p>🗺️ Le temps est <b>figé</b> : le même suspect apparaît plusieurs fois, à différents moments de l'histoire.</p>
   <p>👆 Quand tu as trouvé la scène qui répond à la question, <b>touche-la</b>. Si c'est juste, elle est entourée en rouge.</p>
   <p>🔓 Résous des enquêtes pour <b>débloquer de nouveaux quartiers</b>.</p>
@@ -1733,7 +1760,7 @@ buildCity();
 window.addEventListener('resize',resize);resize();
 {const[x,y]=pr(590,590,0);cam.x=x;cam.y=y-40;cam.s=Math.max(minS,Math.min(.9,vw/1300));clampCam();}
 updateCard();render();
-if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{cache=null;for(const k in cardImg)delete cardImg[k];req();});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{clearTiles();for(const k in cardImg)delete cardImg[k];req();});
 if(!state.seen){state.seen=true;save();showHelp();}
 window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unlocked};
 </script>
