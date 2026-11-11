@@ -48,7 +48,7 @@ describe('Carrière', () => {
     expect(u.firstName).toBe('Lucas');
     expect(userClub(c).roster).toContain(u.id);
     expect(c.world.leagues.FRA2.teams).toContain(u.clubId);
-    expect(Object.keys(c.world.clubs).length).toBe(48);
+    expect(Object.keys(c.world.clubs).length).toBe(108);
     // Pas de doublon d'identité
     const names = Object.values(c.world.players).map((p) => `${p.firstName} ${p.lastName}`);
     expect(new Set(names).size).toBe(names.length);
@@ -125,14 +125,17 @@ describe('Carrière', () => {
       samples.push(avgOvr());
       for (const cl of Object.values(c.world.clubs).filter((x) => x.leagueId !== 'NAT')) {
         expect(cl.roster.length).toBeGreaterThanOrEqual(12);
-        expect(cl.roster.length).toBeLessThanOrEqual(14);
+        expect(cl.roster.length).toBeLessThanOrEqual(15);
       }
       if (c.retired) break;
     }
     const end = samples[samples.length - 1];
     console.log('note moyenne du monde', start.toFixed(1), '→', samples.map((x) => x.toFixed(1)).join(' '));
     expect(Math.abs(end - start)).toBeLessThan(1.5);
-    expect(Object.keys(c.world.players).length).toBeLessThan(2500);
+    expect(Object.keys(c.world.players).length).toBeLessThan(4500);
+    // Le marché des transferts entre clubs a fonctionné
+    const tr = (c as unknown as { life: { extra: { transfers?: unknown[] } } }).life.extra.transfers ?? [];
+    expect(tr.length).toBeGreaterThan(10);
     expect(user(c).history.length).toBeGreaterThanOrEqual(15);
   }, 300000);
 

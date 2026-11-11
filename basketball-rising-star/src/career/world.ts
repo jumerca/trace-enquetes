@@ -1,4 +1,4 @@
-import { Rng } from '../core/rng';
+import { hashString, Rng } from '../core/rng';
 import { POSITIONS, type Position } from '../data/attributes';
 import { generatePlayer, NameRegistry, newId, playerOvr } from '../data/generate';
 import { DEFAULT_TACTICS, type Club, type PlayerData, type TeamTactics } from '../data/model';
@@ -119,10 +119,48 @@ const NCB: ClubSeed[] = [
   { name: 'Desert Valley Tech', short: 'DVT', city: 'Phoenix', colors: ['#BF360C', '#101827'] },
 ];
 
-export const LEAGUE_DEFS: { id: string; name: string; country: string; level: number; rules: League['rules']; strength: number; seeds: ClubSeed[]; nations: string[]; playoffs: number; promotesTo?: string; relegatesTo?: string; age: [number, number] }[] = [
+
+const mk = (rows: [string, string, string, string, string][]): ClubSeed[] => rows.map(([name, short, city, c1, c2]) => ({ name, short, city, colors: [c1, c2] }));
+const ITA = mk([
+  ['Milano Navigli', 'MIN', 'Milan', '#B71C1C', '#F6F4EF'], ['Bologna Portici', 'BOP', 'Bologne', '#101827', '#F6F4EF'], ['Venezia Laguna', 'VLA', 'Venise', '#7A1C2E', '#DDB65A'],
+  ['Roma Sette Colli', 'RSC', 'Rome', '#8E1B1B', '#F2C14E'], ['Torino Mole', 'TMO', 'Turin', '#F9A825', '#1A237E'], ['Napoli Vesuvio', 'NVE', 'Naples', '#0277BD', '#F6F4EF'],
+  ['Trento Dolomiti', 'TDO', 'Trente', '#212121', '#F6F4EF'], ['Brescia Leonessa', 'BLE', 'Brescia', '#1565C0', '#F6F4EF'], ['Sassari Isola', 'SIS', 'Sassari', '#1A237E', '#F6F4EF'],
+  ['Trieste Bora', 'TBO', 'Trieste', '#C62828', '#F6F4EF'], ['Varese Laghi', 'VLG', 'Varèse', '#B71C1C', '#101827'], ['Pesaro Riviera', 'PRI', 'Pesaro', '#AD1457', '#F6F4EF'],
+]);
+const GER = mk([
+  ['Berlin Spree', 'BSP', 'Berlin', '#F9A825', '#0D47A1'], ['München Isar', 'MIS', 'Munich', '#B71C1C', '#F6F4EF'], ['Hamburg Hafen', 'HHA', 'Hambourg', '#101827', '#F6F4EF'],
+  ['Bamberg Franken', 'BFR', 'Bamberg', '#C62828', '#101827'], ['Ulm Donau', 'UDO', 'Ulm', '#EF6C00', '#101827'], ['Bonn Rhein', 'BRH', 'Bonn', '#AD1457', '#F6F4EF'],
+  ['Oldenburg Hunte', 'OHU', 'Oldenbourg', '#F9A825', '#1A237E'], ['Ludwigsburg Neckar', 'LNE', 'Ludwigsburg', '#FBC02D', '#101827'], ['Göttingen Leine', 'GLE', 'Göttingen', '#4527A0', '#F6F4EF'],
+  ['Würzburg Main', 'WMA', 'Wurtzbourg', '#C62828', '#F6F4EF'], ['Braunschweig Oker', 'BOK', 'Brunswick', '#F9A825', '#0D47A1'], ['Frankfurt Mainufer', 'FMA', 'Francfort', '#1565C0', '#F6F4EF'],
+]);
+const GRE = mk([
+  ['Athina Akropolis', 'ATA', 'Athènes', '#2E7D32', '#F6F4EF'], ['Pireas Limani', 'PIL', 'Le Pirée', '#C62828', '#F6F4EF'], ['Thessaloniki Lefkos', 'THL', 'Thessalonique', '#101827', '#F6F4EF'],
+  ['Patra Gefyra', 'PGE', 'Patras', '#1565C0', '#F9A825'], ['Heraklion Minos', 'HMI', 'Héraklion', '#6A1B9A', '#F6F4EF'], ['Larissa Thessalia', 'LTH', 'Larissa', '#AD1457', '#F6F4EF'],
+  ['Rodos Ilios', 'ROI', 'Rhodes', '#F9A825', '#0D47A1'], ['Volos Argo', 'VAR', 'Volos', '#0277BD', '#F6F4EF'], ['Ioannina Pamvotis', 'IPA', 'Ioannina', '#00695C', '#F6F4EF'],
+  ['Kavala Thassos', 'KTH', 'Kavala', '#1A237E', '#F6F4EF'], ['Chalkida Evripos', 'CEV', 'Chalcis', '#EF6C00', '#101827'], ['Kalamata Messinia', 'KME', 'Kalamata', '#212121', '#DDB65A'],
+]);
+const TUR = mk([
+  ['Istanbul Boğaz', 'IBO', 'Istanbul', '#1A237E', '#F9A825'], ['Istanbul Haliç', 'IHA', 'Istanbul', '#B71C1C', '#F9A825'], ['Ankara Başkent', 'ABA', 'Ankara', '#0D47A1', '#F6F4EF'],
+  ['Izmir Körfez', 'IKO', 'Izmir', '#2E7D32', '#F6F4EF'], ['Bursa Uludağ', 'BUL', 'Bursa', '#2E7D32', '#101827'], ['Antalya Akdeniz', 'AAK', 'Antalya', '#C62828', '#F6F4EF'],
+  ['Konya Mevlana', 'KMV', 'Konya', '#00695C', '#F6F4EF'], ['Gaziantep Zeugma', 'GZE', 'Gaziantep', '#B71C1C', '#101827'], ['Trabzon Karadeniz', 'TKA', 'Trabzon', '#7A1C2E', '#3988F5'],
+  ['Eskişehir Porsuk', 'EPO', 'Eskişehir', '#C62828', '#101827'], ['Adana Seyhan', 'ASE', 'Adana', '#EF6C00', '#1A237E'], ['Kayseri Erciyes', 'KER', 'Kayseri', '#F9A825', '#B71C1C'],
+]);
+const APL = mk([
+  ['New York Empire', 'NYE', 'New York', '#1A237E', '#F36B32'], ['Los Angeles Waves', 'LAW', 'Los Angeles', '#4527A0', '#F9A825'], ['Chicago Wind', 'CHW', 'Chicago', '#B71C1C', '#101827'],
+  ['Houston Oilmen', 'HOU', 'Houston', '#C62828', '#F6F4EF'], ['Miami Tide', 'MIA', 'Miami', '#00838F', '#F6F4EF'], ['Boston Harbor', 'BOS', 'Boston', '#2E7D32', '#F6F4EF'],
+  ['Seattle Rain', 'SEA', 'Seattle', '#1B5E20', '#F9A825'], ['Denver Summit', 'DEN', 'Denver', '#0D47A1', '#F9A825'], ['Atlanta Firebirds', 'ATL', 'Atlanta', '#C62828', '#F9A825'],
+  ['Dallas Lone Stars', 'DAL', 'Dallas', '#0277BD', '#101827'], ['Toronto North', 'TOR', 'Toronto', '#B71C1C', '#101827'], ['Phoenix Scorpions', 'PHX', 'Phoenix', '#4A148C', '#EF6C00'],
+]);
+
+export const LEAGUE_DEFS: { id: string; name: string; country: string; level: number; rules: League['rules']; strength: number; seeds: ClubSeed[]; nations: string[]; playoffs: number; promotesTo?: string; relegatesTo?: string; age: [number, number]; wealth?: number; repBonus?: number }[] = [
   { id: 'FRA1', name: 'Élite Nationale', country: 'FRA', level: 1, rules: 'FIBA', strength: 12.2, seeds: FRA1, nations: ['FRA', 'FRA', 'FRA', 'USA', 'SEN', 'SRB', 'BEL', 'CMR'], playoffs: 4, relegatesTo: 'FRA2', age: [19, 34] },
   { id: 'FRA2', name: 'Pro Nationale', country: 'FRA', level: 2, rules: 'FIBA', strength: 10.4, seeds: FRA2, nations: ['FRA', 'FRA', 'FRA', 'FRA', 'USA', 'BEL', 'SEN'], playoffs: 4, promotesTo: 'FRA1', age: [18, 34] },
   { id: 'ESP1', name: 'Liga Peninsular', country: 'ESP', level: 1, rules: 'FIBA', strength: 12.6, seeds: ESP, nations: ['ESP', 'ESP', 'ESP', 'USA', 'SRB', 'LTU', 'GRE', 'ITA', 'TUR'], playoffs: 4, age: [19, 34] },
+  { id: 'ITA1', name: 'Lega Adriatica', country: 'ITA', level: 1, rules: 'FIBA', strength: 12.3, seeds: ITA, nations: ['ITA', 'ITA', 'ITA', 'USA', 'SRB', 'LTU', 'SEN'], playoffs: 4, age: [19, 34] },
+  { id: 'GER1', name: 'Korbliga', country: 'GER', level: 1, rules: 'FIBA', strength: 12.1, seeds: GER, nations: ['GER', 'GER', 'GER', 'USA', 'USA', 'LTU', 'SRB'], playoffs: 4, age: [19, 34] },
+  { id: 'GRE1', name: 'Elliniki Liga', country: 'GRE', level: 1, rules: 'FIBA', strength: 12.2, seeds: GRE, nations: ['GRE', 'GRE', 'GRE', 'USA', 'SRB', 'TUR'], playoffs: 4, age: [19, 35] },
+  { id: 'TUR1', name: 'Anadolu Ligi', country: 'TUR', level: 1, rules: 'FIBA', strength: 12.5, seeds: TUR, nations: ['TUR', 'TUR', 'TUR', 'USA', 'SRB', 'GRE', 'FRA'], playoffs: 4, age: [19, 35] },
+  { id: 'APL', name: 'American Pro League', country: 'USA', level: 1, rules: 'NBA', strength: 14.6, seeds: APL, nations: ['USA', 'USA', 'USA', 'USA', 'CAN', 'FRA', 'SRB', 'GRE', 'ESP', 'GER', 'CMR', 'SEN'], playoffs: 4, age: [20, 35], wealth: 6, repBonus: 22 },
   { id: 'NCB', name: 'NCB — Conférence universitaire', country: 'USA', level: 3, rules: 'NCB', strength: 9.8, seeds: NCB, nations: ['USA', 'USA', 'USA', 'CAN', 'FRA', 'SEN'], playoffs: 4, age: [18, 22] },
 ];
 
@@ -155,7 +193,26 @@ export function createWorld(seed: number, season: number): World {
   const rng = new Rng(seed);
   const names = new NameRegistry();
   const w: World = { seed, season, leagues: {}, clubs: {}, players: {}, fixtures: [], usedNames: [] };
+  for (const def of LEAGUE_DEFS) addLeague(w, def, rng, names, season);
+  w.usedNames = [...names.used];
+  return w;
+}
+
+/** Ajoute à un monde existant les championnats apparus dans une version plus récente du jeu. */
+export function ensureLeagues(w: World, season: number): string[] {
+  const added: string[] = [];
   for (const def of LEAGUE_DEFS) {
+    if (w.leagues[def.id]) continue;
+    const names = new NameRegistry(w.usedNames);
+    addLeague(w, def, new Rng(hashString(`${w.seed}|${def.id}`)), names, season);
+    w.usedNames = [...names.used];
+    added.push(def.name);
+  }
+  return added;
+}
+
+function addLeague(w: World, def: (typeof LEAGUE_DEFS)[number], rng: Rng, names: NameRegistry, season: number): void {
+  {
     const league: League = {
       id: def.id,
       name: def.name,
@@ -181,8 +238,8 @@ export function createWorld(seed: number, season: number): World {
         country: def.country,
         leagueId: def.id,
         colors: cs.colors,
-        budget: Math.round((def.level === 1 ? 6 : def.level === 2 ? 2.2 : 1.5) * (1 + tier * 0.35 + rng.range(-0.15, 0.15)) * 1e6),
-        reputation: Math.round(Math.max(10, Math.min(95, (def.level === 1 ? 62 : def.level === 2 ? 40 : 45) + tier * 9 + rng.normal(0, 4)))),
+        budget: Math.round((def.level === 1 ? 6 : def.level === 2 ? 2.2 : 1.5) * (1 + tier * 0.35 + rng.range(-0.15, 0.15)) * 1e6 * (def.wealth ?? 1)),
+        reputation: Math.round(Math.max(10, Math.min(95, (def.level === 1 ? 62 : def.level === 2 ? 40 : 45) + tier * 9 + (def.repBonus ?? 0) + rng.normal(0, 4)))),
         coach: {
           name: `${rng.pick(COACH_FIRST)} ${rng.pick(COACH_LAST)}`,
           tactics: tacticsFor(rng),
@@ -211,8 +268,6 @@ export function createWorld(seed: number, season: number): World {
     });
     w.leagues[def.id] = league;
   }
-  w.usedNames = [...names.used];
-  return w;
 }
 
 export function salaryFor(ovr: number, level: number): number {
@@ -227,7 +282,7 @@ export function ensureNumbers(w: World, club: Club): void {
     const p = w.players[id];
     if (!p) continue;
     let n = p.number;
-    while (used.has(n)) n = (n + 7) % 56;
+    while (used.has(n)) n = (n + 1) % 100; // +1 parcourt tous les numéros (l'ancien pas de 7 pouvait boucler sans fin)
     p.number = n;
     used.add(n);
   }

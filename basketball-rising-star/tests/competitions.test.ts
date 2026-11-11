@@ -29,7 +29,7 @@ describe('Compétitions', () => {
     const all = comps(c.world);
     expect(all.CUP_FRA.teams.length).toBe(16);
     expect(all.CUP_ESP.teams.length).toBe(8);
-    expect(all.EURO.teams.length).toBe(8);
+    expect(all.EURO.teams.length).toBe(16);
     expect(c.world.fixtures.filter((f) => f.leagueId === 'CUP_FRA').length).toBe(8);
   });
 

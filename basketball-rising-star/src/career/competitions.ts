@@ -60,8 +60,12 @@ export function createCompetitions(c: Career): void {
     all.CUP_ESP = { id: 'CUP_ESP', name: 'Copa Peninsular', kind: 'cup', teams, rounds: CUP_WEEKS.slice(1).map((wk, i) => ({ week: wk, label: LABELS_8[i] })), round: 0, alive: teams };
   }
   if (fra1.length && esp.length) {
-    const teams = [...byRep(w, fra1).slice(0, 4), ...byRep(w, esp).slice(0, 4)];
-    all.EURO = { id: 'EURO', name: 'EuroCoupe des clubs', kind: 'euro', teams, rounds: EURO_WEEKS.map((wk, i) => ({ week: wk, label: LABELS_8[i] })), round: 0, alive: teams };
+    // 16 clubs si tous les championnats européens existent, sinon 8 (anciennes sauvegardes)
+    const lg = (id: string, n: number) => byRep(w, w.leagues[id]?.teams ?? []).slice(0, n);
+    const wide = ['ITA1', 'GER1', 'GRE1', 'TUR1'].every((id) => w.leagues[id]);
+    const teams = wide ? [...lg('FRA1', 3), ...lg('ESP1', 3), ...lg('ITA1', 3), ...lg('GER1', 3), ...lg('GRE1', 2), ...lg('TUR1', 2)] : [...lg('FRA1', 4), ...lg('ESP1', 4)];
+    const rounds = wide ? [2, 7, 13, 20].map((wk, i) => ({ week: wk, label: CUP_LABELS_16[i] })) : EURO_WEEKS.map((wk, i) => ({ week: wk, label: LABELS_8[i] }));
+    all.EURO = { id: 'EURO', name: 'EuroCoupe des clubs', kind: 'euro', teams, rounds, round: 0, alive: teams };
   }
   for (const comp of Object.values(all)) if (comp.kind === 'cup' || comp.kind === 'euro') drawRound(c, comp);
 }

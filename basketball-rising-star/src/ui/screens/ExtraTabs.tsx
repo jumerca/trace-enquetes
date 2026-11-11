@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { hashString, Rng } from '../../core/rng';
-import { perGame, REGULAR_WEEKS, standings, user, userClub, userTeams, type Career } from '../../career/career';
+import { type TransferLog, perGame, REGULAR_WEEKS, standings, user, userClub, userTeams, type Career } from '../../career/career';
 import { comps } from '../../career/competitions';
 import { extra, WINTER_WINDOW } from '../../career/life';
 import { marketValue } from '../../career/scouting';
@@ -241,6 +241,7 @@ export function LeagueCenter({ c }: { c: Career }) {
           </table>
         </div>
       </div>
+      <TransfersCard c={c} />
       <div className="grid cols-3">
         {cat('Points', (r) => r.s.pts / r.s.gp, (v) => v.toFixed(1))}
         {cat('Rebonds', (r) => r.s.reb / r.s.gp, (v) => v.toFixed(1))}
@@ -373,3 +374,48 @@ export function TrainingWeek({ c }: { c: Career }) {
 }
 
 export { perGame };
+
+/** Derniers transferts entre clubs (marché simulé à chaque intersaison). */
+export function TransfersCard({ c }: { c: Career }) {
+  const list = ((extra(c) as ReturnType<typeof extra> & { transfers?: TransferLog[] }).transfers ?? []).slice(0, 25);
+  return (
+    <div className="card">
+      <div className="card-title">
+        <h3>Marché des transferts</h3>
+        <span className="muted small">Mouvements entre clubs, toutes ligues confondues</span>
+      </div>
+      {list.length === 0 ? (
+        <p className="small muted">Le marché s'anime à chaque intersaison : les clubs ambitieux renforcent leur poste le plus faible.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="t">
+            <thead>
+              <tr>
+                <th>Saison</th>
+                <th>Joueur</th>
+                <th>Poste</th>
+                <th className="r">Note</th>
+                <th>De</th>
+                <th>Vers</th>
+                <th className="r">Indemnité</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((t, i) => (
+                <tr key={i}>
+                  <td>{t.season}</td>
+                  <td>{t.player}</td>
+                  <td>{t.pos}</td>
+                  <td className="r">{t.ovr}</td>
+                  <td>{t.from}</td>
+                  <td>{t.to}</td>
+                  <td className="r">{eur(t.fee)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

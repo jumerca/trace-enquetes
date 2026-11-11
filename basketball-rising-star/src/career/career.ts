@@ -7,7 +7,7 @@ import { DEFAULT_STYLE, type TeamInput, type UserStyle } from '../sim/engine';
 import { FIBA, NBA, NCB, withQuarterLength, type Ruleset } from '../sim/rules';
 import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonStat } from './fastsim';
 import { applyGains, trainWeek, type TrainingPlan } from './training';
-import { createWorld, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
+import { createWorld, ensureLeagues, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
 import { desk, focusWork, trainingReport, updateInterest, weeklyMessages, extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
@@ -724,13 +724,165 @@ const EVENTS: { id: string; cond: (c: Career) => boolean; title: string; body: (
       { label: 'Préserver son corps', effect: 'Relations staff médical +6', apply: (c) => (c.relations.medical = clamp100(c.relations.medical + 6)) },
     ],
   },
+  {
+    id: 'coach-position',
+    cond: (c) => userRole(c).rank >= 5 && c.week % 6 === 4,
+    title: 'Dépanner à un autre poste',
+    body: (c) => `Un coéquipier est touché. ${userClub(c).coach.name} vous demande de jouer quelques matchs au poste ${user(c).pos2}.`,
+    choices: [
+      { label: 'Accepter sans discuter', effect: 'Confiance du coach +7, confiance en soi −3', apply: (c) => ((c.trust = clamp100(c.trust + 7)), (user(c).confidence = clamp100(user(c).confidence - 3))) },
+      { label: 'Accepter en demandant du temps de jeu en échange', effect: 'Confiance du coach +3, relation coach −2', apply: (c) => ((c.trust = clamp100(c.trust + 3)), (c.relations.coach = clamp100(c.relations.coach - 2))) },
+      { label: 'Refuser', effect: 'Confiance du coach −6', apply: (c) => (c.trust = clamp100(c.trust - 6)) },
+    ],
+  },
+  {
+    id: 'agent-pitch',
+    cond: (c) => c.agentId === 'none' && user(c).reputation > 12,
+    title: 'Un agent vous approche',
+    body: () => 'Claire Duvernois (Sportis Conseil) a suivi vos derniers matchs et propose de vous représenter contre 6 % de commission.',
+    choices: [
+      { label: 'Signer avec elle', effect: 'Agent : réseau 12/20, négociation 14/20', apply: (c) => ((c.agentId = 'a1'), (c.relations.agent = 60)) },
+      { label: 'Rester sans agent pour l\u2019instant', effect: 'Aucune commission, moins d\u2019offres', apply: () => undefined },
+    ],
+  },
+  {
+    id: 'homesick',
+    cond: (c) => userClub(c).country !== user(c).nationality && user(c).morale < 75,
+    title: 'Loin de chez soi',
+    body: (c) => `La vie à ${userClub(c).city} n\u2019est pas toujours simple, loin de la famille.`,
+    choices: [
+      { label: 'Faire venir ses proches un week-end', effect: 'Moral +8, fatigue +4', apply: (c) => ((user(c).morale = clamp100(user(c).morale + 8)), (user(c).fatigue = Math.min(100, user(c).fatigue + 4))) },
+      { label: 'Apprendre la langue avec un coéquipier', effect: 'Intégration +7, coéquipiers +4', apply: (c) => ((user(c).teamFit = clamp100(user(c).teamFit + 7)), (c.relations.teammates = clamp100(c.relations.teammates + 4))) },
+      { label: 'Se concentrer sur le basket', effect: 'Détermination +1, moral −3', apply: (c) => ((user(c).attrs.determination = Math.min(20, user(c).attrs.determination + 1)), (user(c).morale = clamp100(user(c).morale - 3))) },
+    ],
+  },
+  {
+    id: 'night-out',
+    cond: (c) => c.week % 4 === 1,
+    title: 'Sortie d\u2019équipe',
+    body: () => 'Plusieurs coéquipiers organisent une soirée, deux jours avant le match.',
+    choices: [
+      { label: 'Y aller', effect: 'Coéquipiers +6, fatigue +8', apply: (c) => ((c.relations.teammates = clamp100(c.relations.teammates + 6)), (user(c).fatigue = Math.min(100, user(c).fatigue + 8))) },
+      { label: 'Passer une heure puis rentrer', effect: 'Coéquipiers +3', apply: (c) => (c.relations.teammates = clamp100(c.relations.teammates + 3)) },
+      { label: 'Rester se reposer', effect: 'Coéquipiers −2, fatigue −6, discipline remarquée par le coach', apply: (c) => ((c.relations.teammates = clamp100(c.relations.teammates - 2)), (user(c).fatigue = Math.max(0, user(c).fatigue - 6)), (c.trust = clamp100(c.trust + 1))) },
+    ],
+  },
+  {
+    id: 'studies',
+    cond: (c) => ageOf(user(c), c.world.season) <= 19 && c.week % 8 === 5,
+    title: 'Études ou tout pour le basket ?',
+    body: () => 'Votre famille insiste pour que vous poursuiviez vos études en parallèle.',
+    choices: [
+      { label: 'Continuer les études', effect: 'Intelligence de jeu +1, fatigue +6, médias +2', apply: (c) => ((user(c).attrs.iq = Math.min(20, user(c).attrs.iq + 1)), (user(c).fatigue = Math.min(100, user(c).fatigue + 6)), (c.relations.media = clamp100(c.relations.media + 2))) },
+      { label: 'Tout miser sur le basket', effect: 'Confiance du coach +3, moral −2', apply: (c) => ((c.trust = clamp100(c.trust + 3)), (user(c).morale = clamp100(user(c).morale - 2))) },
+    ],
+  },
+  {
+    id: 'rival-talk',
+    cond: (c) => user(c).reputation > 20 && c.week % 5 === 0,
+    title: 'Provocation avant le match',
+    body: () => 'Un joueur adverse déclare dans la presse que vous êtes « surcoté ».',
+    choices: [
+      { label: 'Répondre dans les médias', effect: 'Médias +6, supporters +3, concentration −1', apply: (c) => ((c.relations.media = clamp100(c.relations.media + 6)), (c.relations.fans = clamp100(c.relations.fans + 3)), (user(c).attrs.concentration = Math.max(1, user(c).attrs.concentration - 1))) },
+      { label: 'Répondre sur le terrain', effect: 'Confiance en soi +6', apply: (c) => (user(c).confidence = clamp100(user(c).confidence + 6)) },
+      { label: 'Ignorer', effect: 'Sang-froid +1', apply: (c) => (user(c).attrs.composure = Math.min(20, user(c).attrs.composure + 1)) },
+    ],
+  },
+  {
+    id: 'kids-clinic',
+    cond: (c) => c.relations.fans < 70 && c.week % 7 === 6,
+    title: 'Entraînement avec les jeunes du club',
+    body: (c) => `${userClub(c).name} vous propose d\u2019animer une séance pour l\u2019école de basket.`,
+    choices: [
+      { label: 'Animer la séance', effect: 'Supporters +6, dirigeants +4, fatigue +3', apply: (c) => ((c.relations.fans = clamp100(c.relations.fans + 6)), (c.relations.board = clamp100(c.relations.board + 4)), (user(c).fatigue = Math.min(100, user(c).fatigue + 3))) },
+      { label: 'Décliner poliment', effect: 'Dirigeants −3', apply: (c) => (c.relations.board = clamp100(c.relations.board - 3)) },
+    ],
+  },
+  {
+    id: 'bonus',
+    cond: (c) => c.trust > 65 && !!user(c).contract?.salary && c.week % 9 === 7,
+    title: 'Prime de performance',
+    body: () => 'Satisfaits de vos prestations, les dirigeants vous proposent une prime… ou de l\u2019investir dans votre suivi.',
+    choices: [
+      { label: 'Prendre la prime (5 000 €)', effect: 'Épargne +5 000 €', apply: (c) => (life(c).money += 5000) },
+      { label: 'Financer un mois de kiné et de nutrition', effect: 'Risque de blessure réduit, fatigue −10', apply: (c) => ((user(c).injuryRisk = Math.max(0.55, user(c).injuryRisk * 0.94)), (user(c).fatigue = Math.max(0, user(c).fatigue - 10))) },
+      { label: 'La partager avec le vestiaire', effect: 'Coéquipiers +8, capitaine +5', apply: (c) => ((c.relations.teammates = clamp100(c.relations.teammates + 8)), (c.relations.captain = clamp100(c.relations.captain + 5))) },
+    ],
+  },
 ];
 
+/** Marché des transferts entre clubs : les clubs ambitieux achètent le meilleur renfort possible à leur poste le plus faible. */
+export interface TransferLog {
+  season: number;
+  player: string;
+  pos: string;
+  ovr: number;
+  from: string;
+  to: string;
+  fee: number;
+}
+function aiTransfers(c: Career, rng: Rng): void {
+  const w = c.world;
+  const log = (extra(c) as ReturnType<typeof extra> & { transfers?: TransferLog[] });
+  log.transfers ??= [];
+  const pro = Object.values(w.clubs).filter((cl) => w.leagues[cl.leagueId] && cl.leagueId !== 'NCB').sort((a, b) => b.reputation - a.reputation);
+  const moved = new Set<string>();
+  const POS: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const value = (p: PlayerData) => {
+    const a = ageOf(p, w.season);
+    return Math.round((Math.max(0, playerOvr(p) - 48) ** 2.6 * 55 * (a <= 25 ? 1.25 : a <= 29 ? 1 : 0.6)) / 5000) * 5000;
+  };
+  const done: TransferLog[] = [];
+  for (const buyer of pro.slice(0, Math.floor(pro.length * 0.65))) {
+    if (!rng.chance(0.6)) continue;
+    const roster = buyer.roster.map((id) => w.players[id]).filter((p) => p && !p.isUser);
+    const weak = POS.map((pos) => ({ pos, best: Math.max(0, ...roster.filter((p) => p.pos === pos).map(playerOvr)) })).sort((a, b) => a.best - b.best)[0];
+    const cands = pro
+      .filter((s) => s.reputation < buyer.reputation - 4)
+      .flatMap((s) => s.roster.map((id) => w.players[id]))
+      .filter((p) => p && !p.isUser && !moved.has(p.id) && p.pos === weak.pos && playerOvr(p) >= weak.best + 2 && ageOf(p, w.season) <= 30 && value(p) < buyer.budget * 0.5);
+    if (!cands.length) continue;
+    const target = cands.sort((a, b) => playerOvr(b) - playerOvr(a))[Math.min(cands.length - 1, rng.int(0, 2))];
+    const seller = w.clubs[target.clubId!];
+    const fee = value(target);
+    const out = roster.filter((p) => p.pos === weak.pos && !moved.has(p.id)).sort((a, b) => playerOvr(a) - playerOvr(b))[0];
+    seller.roster = seller.roster.filter((id) => id !== target.id);
+    buyer.roster.push(target.id);
+    target.clubId = buyer.id;
+    target.contract = { clubId: buyer.id, salary: salaryFor(playerOvr(target), w.leagues[buyer.leagueId].level), until: w.season + 3, role: 'starter' };
+    if (out) {
+      buyer.roster = buyer.roster.filter((id) => id !== out.id);
+      seller.roster.push(out.id);
+      out.clubId = seller.id;
+      out.contract = { clubId: seller.id, salary: salaryFor(playerOvr(out), w.leagues[seller.leagueId].level), until: w.season + 2, role: 'rotation' };
+      moved.add(out.id);
+    }
+    buyer.budget -= fee;
+    seller.budget += fee;
+    moved.add(target.id);
+    done.push({ season: w.season + 1, player: fullName(target), pos: target.pos, ovr: playerOvr(target), from: seller.name, to: buyer.name, fee });
+  }
+  // Recettes annuelles des clubs (billetterie, droits, partenaires) selon leur réputation
+  for (const cl of pro) cl.budget = Math.round(cl.budget * 0.8 + (w.leagues[cl.leagueId].level === 1 ? 6e6 : 2.2e6) * (cl.leagueId === 'APL' ? 6 : 1) * (0.5 + cl.reputation / 100) * 0.35);
+  log.transfers.unshift(...done.sort((a, b) => b.fee - a.fee));
+  log.transfers.length = Math.min(log.transfers.length, 120);
+  const myLeague = userClub(c).leagueId;
+  const mine = done.filter((t) => Object.values(w.clubs).some((cl) => cl.leagueId === myLeague && (cl.name === t.to || cl.name === t.from)));
+  for (const t of [...done.slice(0, 3), ...mine.slice(0, 3)].filter((t, i, arr) => arr.indexOf(t) === i)) {
+    addNews(c, 'transfer', `${t.player} rejoint ${t.to}`, `${t.pos}, note ${t.ovr}. ${t.to} verse ${(t.fee / 1e6).toFixed(2)} M€ à ${t.from}.`);
+  }
+}
+
 function maybeEvent(c: Career, rng: Rng): void {
-  if (c.event || !rng.chance(0.22)) return;
-  const ok = EVENTS.filter((e) => e.cond(c));
+  if (c.event || !rng.chance(0.3)) return;
+  // Pas deux fois le même événement à peu d'intervalle
+  const mem = extra(c) as ReturnType<typeof extra> & { recentEvents?: string[] };
+  mem.recentEvents ??= [];
+  const ok = EVENTS.filter((e) => !mem.recentEvents!.includes(e.id) && e.cond(c));
   if (!ok.length) return;
   const e = rng.pick(ok);
+  mem.recentEvents.push(e.id);
+  if (mem.recentEvents.length > 6) mem.recentEvents.shift();
   c.event = { id: e.id, title: e.title, body: e.body(c), choices: e.choices.map((ch) => ({ label: ch.label, effect: ch.effect })) };
 }
 
@@ -848,7 +1000,7 @@ export function generateOffers(c: Career): void {
     const interest = followed * 0.6 + (life(c).transferRequest ? 0.2 : 0) + 0.08 + (fitLevel + 9) / 40 + needPos + u.reputation / 300 + agent.network / 120 - (cl.reputation - u.reputation) / 400;
     if (!rng.chance(Math.max(0, Math.min(0.8, interest)))) continue;
     const role: Offer['role'] = fitLevel > 4 ? 'star' : fitLevel > 0 ? 'starter' : fitLevel > -5 ? 'rotation' : 'prospect';
-    const salary = Math.round((salaryFor(ovr, league.level) * (1 + agent.negotiation / 60) * rng.range(0.85, 1.2)) / 1000) * 1000;
+    const salary = Math.round((salaryFor(ovr, league.level) * (league.id === 'APL' ? 5 : 1) * (1 + agent.negotiation / 60) * rng.range(0.85, 1.2)) / 1000) * 1000;
     offers.push({ id: `o${cl.id}${w.season}`, clubId: cl.id, salary, years: rng.int(1, 3), role, note: `${league.name} · niveau d’équipe ${Math.round(lvl)}` });
   }
   offers.sort((a, b) => w.clubs[b.clubId].reputation - w.clubs[a.clubId].reputation);
@@ -1033,6 +1185,7 @@ export function startNextSeason(c: Career): void {
       acceptOffer(c, c.offers[0].id);
     }
   }
+  aiTransfers(c, rng);
   // Recrutement : chaque club complète son effectif (agents libres puis jeunes du centre de formation)
   const free = Object.values(w.players).filter((p) => !p.retired && !p.clubId && !p.isUser);
   for (const cl of Object.values(w.clubs).sort((a, b) => b.reputation - a.reputation)) {
@@ -1067,6 +1220,8 @@ export function startNextSeason(c: Career): void {
       }
     }
   }
+  // Joueurs sans club depuis l'intersaison : les plus âgés arrêtent, pour ne pas gonfler le monde
+  for (const [id, p] of Object.entries(w.players)) if (!p.clubId && !p.isUser && !p.retired && ageOf(p, w.season) >= 27) delete w.players[id];
   // Nettoyage des retraités anciens pour garder des sauvegardes compactes
   for (const [id, p] of Object.entries(w.players)) if (p.retired && !p.isUser && ageOf(p, w.season) > 42) delete w.players[id];
   w.usedNames = [...names.used];
@@ -1077,6 +1232,8 @@ export function startNextSeason(c: Career): void {
   c.phase = 'regular';
   c.offers = [];
   u.fatigue = 0;
+  const fresh = ensureLeagues(w, w.season);
+  if (fresh.length) addNews(c, 'league', 'De nouveaux championnats à suivre', `Le monde du basket s\u2019agrandit : ${fresh.join(', ')}. Leurs clubs peuvent désormais vous recruter.`);
   generateSchedule(c);
   ensureYouthFixture(c, userRole(c).rank);
   setObjectives(c);
@@ -1087,7 +1244,7 @@ export function startNextSeason(c: Career): void {
   c.updatedAt = Date.now();
 }
 
-const LEAGUE_NATIONS: Record<string, string[]> = { FRA1: ['FRA', 'FRA', 'FRA', 'SEN', 'BEL'], FRA2: ['FRA', 'FRA', 'FRA', 'BEL'], ESP1: ['ESP', 'ESP', 'SRB', 'LTU', 'ITA', 'GRE', 'TUR'], NCB: ['USA', 'USA', 'CAN', 'FRA'] };
+const LEAGUE_NATIONS: Record<string, string[]> = { FRA1: ['FRA', 'FRA', 'FRA', 'SEN', 'BEL'], FRA2: ['FRA', 'FRA', 'FRA', 'BEL'], ESP1: ['ESP', 'ESP', 'SRB', 'LTU', 'ITA', 'GRE', 'TUR'], NCB: ['USA', 'USA', 'CAN', 'FRA'], ITA1: ['ITA', 'ITA', 'ITA', 'SRB'], GER1: ['GER', 'GER', 'GER', 'LTU'], GRE1: ['GRE', 'GRE', 'GRE', 'SRB'], TUR1: ['TUR', 'TUR', 'TUR', 'GRE'], APL: ['USA', 'USA', 'USA', 'CAN'] };
 
 export function retirePlayer(c: Career): void {
   c.retired = true;
