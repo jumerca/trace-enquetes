@@ -1,0 +1,31 @@
+{
+  "name": "basketball-rising-star",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Basketball Rising Star — JLG Creative",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node scripts/e2e.cjs",
+    "icons": "node scripts/icons.cjs",
+    "sim": "vite-node scripts/sim.ts",
+    "build:pages": "npm run build && rm -rf ../brs && cp -r dist ../brs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "fake-indexeddb": "^6.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
