@@ -9,6 +9,8 @@ import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonSta
 import { applyGains, trainWeek, type TrainingPlan } from './training';
 import { createWorld, ensureLeagues, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
 import { desk, focusWork, trainingReport, updateInterest, weeklyMessages, extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
+import { matchArticle, seasonRecap, weeklyPress } from './press';
+import { draftState, mockDraftNews, rightsOffer, runDraft } from './draft';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
 export const SAVE_VERSION = 4;
@@ -50,6 +52,8 @@ export interface NewsItem {
   kind: 'match' | 'transfer' | 'rumor' | 'award' | 'injury' | 'coach' | 'league' | 'national' | 'training' | 'event';
   title: string;
   body: string;
+  /** Média (fictif) qui publie l'article */
+  source?: string;
 }
 
 export interface Trophy {
@@ -138,9 +142,9 @@ export interface Career {
 }
 
 let newsCounter = 0;
-export function addNews(c: Career, kind: NewsItem['kind'], title: string, body: string): void {
+export function addNews(c: Career, kind: NewsItem['kind'], title: string, body: string, source?: string): void {
   newsCounter++;
-  c.news.unshift({ id: `n${Date.now().toString(36)}${newsCounter}`, season: c.world.season, week: c.week, kind, title, body });
+  c.news.unshift({ id: `n${Date.now().toString(36)}${newsCounter}`, season: c.world.season, week: c.week, kind, title, body, source });
   if (c.news.length > 120) c.news.length = 120;
 }
 
@@ -261,7 +265,7 @@ export function createCareer(input: CreationInput): Career {
 // ------------------------------------------------------------------ Calendrier
 export function generateSchedule(c: Career): void {
   const w = c.world;
-  w.fixtures = w.fixtures.filter((f) => false && f);
+  w.fixtures = [];
   for (const league of Object.values(w.leagues)) {
     const teams = [...league.teams];
     const n = teams.length;
@@ -514,40 +518,12 @@ export function recordUserMatch(
   }
   u.fatigue = Math.min(100, u.fatigue + line.min * 0.55);
   if (line.min > 0 && fixture.stage !== 'youth') life(c).pendingPress = fixture.id;
-  matchNews(c, fixture, line, won);
+  matchArticle(c, fixture, line, won, lines, side);
   return line;
 }
 
 function clamp100(v: number): number {
   return Math.max(0, Math.min(100, v));
-}
-
-function matchNews(c: Career, f: Fixture, l: UserGameLine, won: boolean): void {
-  const u = user(c);
-  const club = userClub(c);
-  const opp = c.world.clubs[f.home === club.id ? f.away : f.home];
-  const score = f.home === club.id ? `${f.hs}-${f.as}` : `${f.as}-${f.hs}`;
-  const rng = rngFor(c, 'news' + f.id);
-  const name = fullName(u);
-  if (l.min <= 0) {
-    addNews(c, 'match', `${club.short} ${won ? 'bat' : 's’incline face à'} ${opp.name} (${score})`, `${name} n’est pas entré en jeu. ${rng.pick(['Le staff lui demande de rester patient.', 'Une soirée passée à observer depuis le banc.', 'Il faudra convaincre à l’entraînement.'])}`);
-    return;
-  }
-  const big = l.pts >= 20 || l.rating >= 8;
-  const titles = big
-    ? [`${name} crève l’écran contre ${opp.name}`, `Soirée de gala pour ${u.lastName}`, `${u.lastName}, l’homme du match`]
-    : l.rating < 4.5
-      ? [`Match difficile pour ${u.lastName}`, `${u.lastName} en manque de repères`]
-      : [`${club.short} ${won ? 's’impose' : 'tombe'} face à ${opp.short}`, `${won ? 'Victoire' : 'Défaite'} ${score} pour ${club.name}`];
-  const coachQuotes = won
-    ? ['« On a défendu ensemble, c’est la clé. »', '« Je suis content de l’énergie du banc. »', '« Il faudra confirmer la semaine prochaine. »']
-    : ['« Trop de pertes de balle, on doit être plus lucides. »', '« On n’a pas su contrôler le rebond. »', '« La défense n’a pas tenu dans le dernier quart. »'];
-  addNews(
-    c,
-    'match',
-    rng.pick(titles),
-    `${club.name} ${won ? 'bat' : 'perd contre'} ${opp.name} (${score}). ${u.lastName} : ${l.pts} pts, ${l.reb} rbd, ${l.ast} pd en ${l.min} min (${l.fgm}/${l.fga} aux tirs, note ${l.rating.toFixed(1)}). ${club.coach.name} : ${rng.pick(coachQuotes)}`,
-  );
 }
 
 // ------------------------------------------------------------------ Semaine
@@ -635,7 +611,8 @@ export function advanceWeek(c: Career): WeekReport {
   c.ovrHistory.push({ season: w.season, week: c.week, ovr: playerOvr(u) });
   if (c.ovrHistory.length > 400) c.ovrHistory.shift();
   maybeEvent(c, rng);
-  leagueNews(c, rng);
+  weeklyPress(c, rng);
+  if (c.phase === 'regular' && (c.week === 8 || c.week === 16)) mockDraftNews(c);
   c.week++;
   if (c.phase === 'regular' && c.week > REGULAR_WEEKS) startPlayoffs(c);
   else if (c.phase === 'playoffs') progressPlayoffs(c);
@@ -654,24 +631,6 @@ export function simFixture(c: Career, f: Fixture): void {
   if (!w.leagues[f.leagueId]) return;
   for (const [id, st] of res.lines) if (w.players[id]) addStat(ensureStat(c, id), st);
   for (const [id, st] of res.lines) if (w.players[id]) w.players[id].fatigue = Math.min(100, w.players[id].fatigue + st.min * 0.5);
-}
-
-function leagueNews(c: Career, rng: Rng): void {
-  const u = user(c);
-  const lid = userClub(c).leagueId;
-  if (c.week % 4 === 0) {
-    const st = standings(c, lid);
-    const lead = c.world.clubs[st[0].clubId];
-    addNews(c, 'league', `${lead.name} en tête de ${c.world.leagues[lid].name}`, `Après ${c.week} journées, ${lead.name} compte ${st[0].w} victoires pour ${st[0].l} défaites. ${rng.pick(['Les poursuivants restent à portée.', 'Une domination qui interroge la concurrence.', 'La course aux playoffs s’annonce serrée.'])}`);
-  }
-  // Rumeurs de transfert fondées sur la réputation réelle
-  if (u.reputation > 35 && rng.chance(0.12 + u.reputation / 400)) {
-    const clubs = Object.values(c.world.clubs).filter((cl) => cl.id !== u.clubId && cl.reputation > userClub(c).reputation - 10 && Math.abs(teamLevel(c, cl.id) - playerOvr(u)) < 8);
-    if (clubs.length) {
-      const cl = rng.pick(clubs);
-      addNews(c, 'rumor', `Rumeur : ${cl.name} s’intéresse à ${u.lastName}`, `Selon nos informations, la cellule de recrutement de ${cl.name} a suivi ${u.lastName} lors de ses dernières sorties. Rien de concret à ce stade.`);
-    }
-  }
 }
 
 export function teamLevel(c: Career, clubId: string): number {
@@ -976,6 +935,8 @@ function seasonReview(c: Career): void {
     u.reputation = clamp100(u.reputation + (cat === 'A' ? 6 : 3));
   }
   addNews(c, 'coach', 'Bilan des objectifs de la saison', `${reviewObjectives(c)}. Le staff en tient compte pour la saison prochaine.`);
+  seasonRecap(c);
+  runDraft(c);
   generateOffers(c);
 }
 
@@ -1005,6 +966,9 @@ export function generateOffers(c: Career): void {
   }
   offers.sort((a, b) => w.clubs[b.clubId].reputation - w.clubs[a.clubId].reputation);
   c.offers = offers.slice(0, 2 + Math.floor(agent.network / 6));
+  // Droits de draft : le club américain qui vous a choisi garde une offre ouverte
+  const ro = rightsOffer(c);
+  if (ro) c.offers = [ro, ...c.offers.filter((o) => o.clubId !== ro.clubId)];
   // Prolongation proposée par le club actuel si le contrat expire
   if (u.contract && u.contract.until <= w.season && u.clubId) {
     const club = w.clubs[u.clubId];
@@ -1017,6 +981,7 @@ export function generateOffers(c: Career): void {
 export function acceptOffer(c: Career, offerId: string): void {
   const o = c.offers.find((x) => x.id === offerId);
   if (!o) return;
+  if (o.id.startsWith('draft')) draftState(c).rights = null;
   const w = c.world;
   const u = user(c);
   const old = u.clubId ? w.clubs[u.clubId] : null;

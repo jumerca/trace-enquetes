@@ -32,7 +32,7 @@ import { Modal } from '../components/Modal';
 import { PlayerTab } from './PlayerTab';
 import { FocusCard, InboxTab, InterestCard } from './InboxTab';
 import { unread } from '../../career/life';
-import { ClubProfile, LeagueCenter, MonthCalendar, TrainingWeek } from './ExtraTabs';
+import { ClubProfile, DraftCard, LeagueCenter, MonthCalendar, TrainingWeek } from './ExtraTabs';
 import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard, RivalCard } from './LifeTab';
 import { extra, legacyScore, negotiate } from '../../career/life';
 import { fixtureName } from '../../career/competitions';
@@ -378,7 +378,7 @@ function HomeTab({ c }: { c: Career }) {
               <b>{n.title}</b>
               <div className="small muted">{n.body}</div>
               <div className="tiny muted">
-                {kindLabel(n.kind)} · S{n.week}
+                {n.source ? `${n.source} · ` : ''}{kindLabel(n.kind)} · S{n.week}
               </div>
             </div>
           ))}
@@ -818,7 +818,7 @@ function CalendarTab({ c }: { c: Career }) {
 function CareerTab({ c }: { c: Career }) {
   const app = useApp();
   const u = user(c);
-  const [view, setView] = useState<'profile' | 'contract' | 'history' | 'media' | 'legacy'>('profile');
+  const [view, setView] = useState<'profile' | 'contract' | 'history' | 'media' | 'legacy' | 'draft'>('profile');
   const [agentModal, setAgentModal] = useState(false);
   const agent = AGENTS.find((a) => a.id === c.agentId) ?? AGENTS[0];
   const club = userClub(c);
@@ -843,6 +843,7 @@ function CareerTab({ c }: { c: Career }) {
             ['contract', `Contrat & offres${c.offers.length ? ` (${c.offers.length})` : ''}`],
             ['history', 'Historique & palmarès'],
             ['media', 'Médias & relations'],
+            ['draft', 'Draft APL'],
             ['legacy', 'Histoire & héritage'],
           ] as [typeof view, string][]
         ).map(([k, l]) => (
@@ -986,6 +987,7 @@ function CareerTab({ c }: { c: Career }) {
           </div>
         </>
       )}
+      {view === 'draft' && <DraftCard c={c} />}
       {view === 'legacy' && (
         <div className="grid cols-2">
           <div className="card">
@@ -1072,7 +1074,7 @@ function CareerTab({ c }: { c: Career }) {
                   <b>{n.title}</b>
                   <div className="small muted">{n.body}</div>
                   <div className="tiny muted">
-                    {kindLabel(n.kind)} · {n.season} S{n.week}
+                    {n.source ? `${n.source} · ` : ''}{kindLabel(n.kind)} · {n.season} S{n.week}
                   </div>
                 </div>
               ))}

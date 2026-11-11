@@ -5,7 +5,8 @@ import { comps } from '../../career/competitions';
 import { extra, WINTER_WINDOW } from '../../career/life';
 import { marketValue } from '../../career/scouting';
 import { INTENSITY, PROGRAMS, autoProgram } from '../../career/training';
-import { playerOvr } from '../../data/generate';
+import { age as ageOf, playerOvr } from '../../data/generate';
+import { draftBoard, draftExists, draftState, userProjection } from '../../career/draft';
 import { fullName } from '../../data/model';
 import { Bar } from './Hub';
 
@@ -416,6 +417,104 @@ export function TransfersCard({ c }: { c: Career }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Draft de l'American Pro League : projection, tableau des espoirs, résultats. */
+export function DraftCard({ c }: { c: Career }) {
+  const pr = userProjection(c);
+  const st = draftState(c);
+  const board = draftExists(c) ? draftBoard(c).slice(0, 24) : [];
+  const last = st.results[0];
+  return (
+    <div className="grid" style={{ gap: 14 }}>
+      <div className="card">
+        <div className="card-title">
+          <h3>Votre situation</h3>
+          {pr.eligible && pr.rank > 0 && <span className={`pill ${pr.rank <= 12 ? 'gold' : pr.rank <= 24 ? 'green' : ''}`}>Projeté n°{pr.rank}</span>}
+        </div>
+        <p className="small">
+          {pr.eligible
+            ? pr.rank > 0
+              ? pr.rank <= 12
+                ? 'Vous êtes attendu au premier tour : contrat garanti et salaire élevé.'
+                : pr.rank <= 24
+                  ? 'Vous êtes attendu au second tour : vous seriez choisi, sans garantie de rôle.'
+                  : 'Vous êtes suivi, mais hors des 24 choix pour l’instant.'
+              : pr.reason
+            : pr.reason}
+        </p>
+        <p className="tiny muted">
+          La draft a lieu chaque été après les playoffs : 12 clubs, deux tours, du dernier au premier du classement. Sont éligibles les joueurs de 19 à 22 ans hors de la ligue. Les recruteurs regardent d'abord le potentiel, puis le niveau actuel, la réputation et l'âge. Si vous êtes choisi, le club garde vos droits : vous pouvez signer tout de suite ou plus tard (onglet Contrat & offres).
+        </p>
+      </div>
+      <div className="grid cols-2">
+        <div className="card">
+          <h3 style={{ marginBottom: 8 }}>Tableau des espoirs (projection)</h3>
+          {board.length === 0 ? (
+            <p className="small muted">Disponible dès que la ligue américaine existe dans votre monde.</p>
+          ) : (
+            <div className="table-wrap" style={{ maxHeight: 460 }}>
+              <table className="t">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Joueur</th>
+                    <th>Poste</th>
+                    <th className="r">Âge</th>
+                    <th className="r">Note</th>
+                    <th>Club</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {board.map((x, i) => (
+                    <tr key={x.p.id} className={x.p.isUser ? 'me' : ''}>
+                      <td>{i + 1}</td>
+                      <td>{fullName(x.p)}</td>
+                      <td>{x.p.pos}</td>
+                      <td className="r">{ageOf(x.p, c.world.season)}</td>
+                      <td className="r">{playerOvr(x.p)}</td>
+                      <td>{c.world.clubs[x.p.clubId!]?.short}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className="card">
+          <h3 style={{ marginBottom: 8 }}>Dernière draft {last ? `(${last.season})` : ''}</h3>
+          {!last ? (
+            <p className="small muted">Les résultats s'afficheront après la première draft.</p>
+          ) : (
+            <div className="table-wrap" style={{ maxHeight: 460 }}>
+              <table className="t">
+                <thead>
+                  <tr>
+                    <th>Choix</th>
+                    <th>Joueur</th>
+                    <th>Poste</th>
+                    <th>Venu de</th>
+                    <th>Sélectionné par</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {last.picks.map((x) => (
+                    <tr key={x.pick} className={x.user ? 'me' : ''}>
+                      <td>{x.pick}</td>
+                      <td>{x.player}</td>
+                      <td>{x.pos}</td>
+                      <td>{x.from}</td>
+                      <td>{x.to}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
