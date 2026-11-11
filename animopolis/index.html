@@ -213,6 +213,12 @@ function POSE(p,d,tt,hip){
     case 'dig':return{F:[d*6.5,tt+5],B:[d*2.5,tt+9.5],legs:[[[-2,hip],[-3.6,0]],[[2,hip],[3.6,0]]]};
     case 'carry':return{F:[d*3,tt+7],B:[-d*3,tt+7],legs:std};
     case 'row':return{F:[d*7,tt+7],B:[d*3.5,tt+9],legs:[]};
+    case 'crouch':return{F:[d*7.4,hip-.4],B:[-d*7.4,hip-.4],legs:[[[-2,hip],[-8,hip-.6],[-4.4,0]],[[2,hip],[8,hip-.6],[4.4,0]]]};
+    case 'hide':return{F:[d*1.8,tt-3],B:[-d*1.8,tt-3],legs:[[[-2,hip],[-8,hip-.6],[-4.4,0]],[[2,hip],[8,hip-.6],[4.4,0]]]};
+    case 'ground':return{F:[d*7,hip+1.6],B:[-d*7,hip+1.6],legs:[[[-2,hip],[-6,hip+1.4],[-10,hip+2]],[[2,hip],[6,hip+1.6],[10,hip+2.4]]]};
+    case 'lean':return{F:[d*6,hip+2],B:[d*2,hip+3],legs:[[[-2,hip],[-3,0]],[[2,hip],[3,0]]]};
+    case 'wave':return{F:[d*7.4,tt-7.5],B:[-d*5.6,hip-1],legs:[[[-2,hip],[-2.3,0]],[[2,hip],[2.3,0]]]};
+    case 'think':return{F:[d*1.6,tt-2.4],B:[d*1.4,tt+7],legs:[[[-2,hip],[-2.3,0]],[[2,hip],[2.6,0]]]};
     default:return{F:[d*5.6,hip-1],B:[-d*5.6,hip-1],legs:std};
   }
 }
@@ -288,6 +294,7 @@ function drawChar(c,x,y,s,noHalo){
   if(!noHalo&&LOD>.45){const h=haloCtx(c);h.save();drawCharIn(h,x,y,s);h.restore();}
   drawCharIn(c,x,y,s);
 }
+const BUILDS={normal:{bw:1,tk:1,lk:1,hs:1},round:{bw:1.38,tk:1,lk:.8,hs:1,belly:1},slim:{bw:.76,tk:1.06,lk:1.18,hs:.94},tall:{bw:.95,tk:1.14,lk:1.32,hs:1},small:{bw:.98,tk:.78,lk:.72,hs:1.16},old:{bw:1,tk:.94,lk:.9,hs:1,hunch:.24}};
 function drawCharIn(c,x,y,s){
   c.save();c.translate(x,y);
   if(s.scale)c.scale(s.scale,s.scale);
@@ -297,35 +304,42 @@ function drawCharIn(c,x,y,s){
   const fallen=pose==='fallen', lying=pose==='lie', sleeping=pose==='sleep';
   if(fallen||lying){c.translate(15,-4);c.rotate(-PI/2);pose=fallen?'arms_up':'stand';}
   if(sleeping)pose='sit';
-  const d=s.flip?-1:1;
+  const d=s.flip?-1:1,BD=BUILDS[s.build||'normal']||BUILDS.normal;
   c.lineJoin='round';c.lineCap='round';c.strokeStyle=INK;
-  const sit=pose==='sit'||pose==='row';
-  const tt=sit?-19:-24, hip=sit?-8:-11;
-  const pd=POSE(pose,d,tt,hip);
-  if(pd.lean){c.translate(0,0);c.transform(1,0,d*-.12,1,0,0);}
+  const low=pose==='sit'||pose==='row'||pose==='crouch'||pose==='hide'||pose==='ground';
+  const tt0=pose==='crouch'||pose==='hide'?-19:pose==='ground'?-16:low?-19:-24, hip0=pose==='crouch'||pose==='hide'?-6:pose==='ground'?-3:low?-8:-11;
+  const lkE=low?1:BD.lk,bw=BD.bw,tk=BD.tk,hip=hip0*lkE,tt=hip+(tt0-hip0)*tk;
+  const pd=POSE(pose,d,tt0,hip0);
+  const M=pt=>[pt[0]+Math.sign(pt[0])*(bw-1)*3.8,hip+(pt[1]-hip0)*tk];
+  if(pd.lean){c.transform(1,0,d*-.12,1,0,0);}
   if(pose!=='row'&&!s.noTail)drawTail(c,s.head,d,hip,s);
-  c.lineWidth=1.5;
+  c.lineWidth=1.5*(BD.lk<.8?.9:1);
   for(const lg of pd.legs){
-    const st=s.body==='dress'?[lg[0][0],lg[0][1]+2]:lg[0];
-    c.beginPath();c.moveTo(st[0],st[1]);for(let i=1;i<lg.length;i++)c.lineTo(lg[i][0],lg[i][1]);c.stroke();
-    const f=lg[lg.length-1];c.lineWidth=.6;E(c,f[0]+d*.7,f[1]-.5,2,1.15,INK);c.lineWidth=1.5;
+    const pts=lg.map(q=>[q[0]*(bw>1.2?1.15:1),q[1]*lkE]);const st=s.body==='dress'?[pts[0][0],pts[0][1]+2]:pts[0];
+    c.beginPath();c.moveTo(st[0],st[1]);for(let i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]);c.stroke();
+    const f=pts[pts.length-1];const lw=c.lineWidth;c.lineWidth=.6;E(c,f[0]+d*.7,f[1]-.5,2,1.15,INK);c.lineWidth=lw;
   }
+  const leanK=(pose==='lean'?.5:0)+(BD.hunch||0);
+  if(leanK){c.translate(0,hip);c.transform(1,0,-d*leanK,1,0,0);c.translate(0,-hip);}
   if(pose==='run'){c.lineWidth=.5;for(let k=0;k<3;k++)L(c,-d*(9+k),tt+6+k*4,-d*(15+k*2),tt+6+k*4);}
-  if(s.pack){c.lineWidth=1;Rc(c,-d*7.2,tt+2,4,9,s.pack);}
-  c.lineWidth=1.05;
-  bodyPath(c,s,tt,hip);
-  fillWith(c,s.fill||'white',[-8,tt-1,8,hip+5]);
+  if(s.pack){c.lineWidth=1;Rc(c,-d*(3.4+3.8*bw),tt+2,4,9*tk,s.pack);}
+  c.save();c.translate(0,hip);c.scale(bw,tk);c.translate(0,-hip0);
+  c.lineWidth=1.05;bodyPath(c,s,tt0,hip0);fillWith(c,s.fill||'white',[-8,tt0-1,8,hip0+5]);
+  if(BD.belly){c.beginPath();c.ellipse(0,(tt0+hip0)/2+2.4,4.6,4.4,0,0,TAU);fillWith(c,s.fill||'white',[-6,tt0,6,hip0+4]);}
   const dark=s.fill==='black';
-  if(s.body==='suit'){P(c,[[0,tt+.4],[.95,tt+2],[0,tt+7.5],[-.95,tt+2]],dark?WHITE:INK);}
-  else if(s.body==='coat'){D(c,0,tt+5,.5,dark?WHITE:INK);D(c,0,tt+8.5,.5,dark?WHITE:INK);}
-  else if(s.body==='chef'){Rc(c,-3.4,tt+5,6.8,hip-tt-3,WHITE);}
+  if(s.body==='suit'){P(c,[[0,tt0+.4],[.95,tt0+2],[0,tt0+7.5],[-.95,tt0+2]],dark?WHITE:INK);}
+  else if(s.body==='coat'){D(c,0,tt0+5,.5,dark?WHITE:INK);D(c,0,tt0+8.5,.5,dark?WHITE:INK);}
+  else if(s.body==='chef'){Rc(c,-3.4,tt0+5,6.8,hip0-tt0-3,WHITE);}
+  c.restore();
+  const F=M(pd.F),B=M(pd.B),shY=tt+1.6*tk,shX=3.8*bw;
   const slv=s.fill==='black'?INK:s.fill==='grey'?'#a8a296':s.fill==='check'?'#d6d1c5':WHITE;
-  for(const[sx,h]of[[-d*3.8,pd.B],[d*3.8,pd.F]]){c.lineCap='round';c.lineWidth=2.9;c.strokeStyle=INK;L(c,sx,tt+1.6,h[0],h[1]);c.lineWidth=1.3;c.strokeStyle=slv;L(c,sx,tt+1.6,h[0]-(h[0]-sx)*.15,h[1]-(h[1]-tt-1.6)*.15);c.strokeStyle=INK;}
-  c.lineWidth=.8;C(c,pd.B[0],pd.B[1],.95,WHITE);C(c,pd.F[0],pd.F[1],.95,WHITE);
-  c.save();c.translate(0,tt-5.1);drawHead(c,s,d);c.restore();
-  if(s.scarf){c.lineWidth=.8;P(c,[[-3.6,tt-.6],[3.6,tt-.6],[3.2,tt+1.8],[-3.2,tt+1.8]],s.scarf);P(c,[[-d*1.5,tt+1],[-d*.2,tt+1],[-d*.6,tt+7],[-d*2.2,tt+6.6]],s.scarf);}
+  for(const[sx,h]of[[-d*shX,B],[d*shX,F]]){c.lineCap='round';c.lineWidth=2.9;c.strokeStyle=INK;L(c,sx,shY,h[0],h[1]);c.lineWidth=1.3;c.strokeStyle=slv;L(c,sx,shY,h[0]-(h[0]-sx)*.15,h[1]-(h[1]-shY)*.15);c.strokeStyle=INK;}
+  c.lineWidth=.8;C(c,B[0],B[1],.95,WHITE);C(c,F[0],F[1],.95,WHITE);
+  c.save();c.translate(BD.hunch?d*2:0,tt-5.1*BD.hs);c.scale(BD.hs,BD.hs);drawHead(c,s,d);c.restore();
+  if(s.scarf){c.lineWidth=.8;P(c,[[-3.6*bw,tt-.6],[3.6*bw,tt-.6],[3.2*bw,tt+1.8],[-3.2*bw,tt+1.8]],s.scarf);P(c,[[-d*1.5,tt+1],[-d*.2,tt+1],[-d*.6,tt+7],[-d*2.2,tt+6.6]],s.scarf);}
   if(s.bell){c.lineWidth=.6;L(c,-2.6,tt+.6,2.6,tt+.6);D(c,0,tt+1.8,1.5,RED);}
-  if(s.prop)drawProp(c,s.prop,pd.F[0],pd.F[1],d);
+  if(s.prop)drawProp(c,s.prop,F[0],F[1],d);
+  if(pose==='think'){c.strokeStyle=INK;c.lineWidth=.6;C(c,d*7,tt-10,1,WHITE);C(c,d*9.5,tt-14,1.6,WHITE);E(c,d*13,tt-20,4.6,3.2,WHITE);txt(c,'?',d*13,tt-20,5);}
   if(sleeping){c.fillStyle=INK;c.font='7px "Patrick Hand", cursive';c.textAlign='left';c.fillText('z',6,tt-9);c.font='9px "Patrick Hand", cursive';c.fillText('Z',9,tt-14);}
   if(fallen){c.lineWidth=.6;for(const[sx,sy]of[[-7,-33],[6,-35],[0,-38]]){L(c,sx-1.3,sy,sx+1.3,sy);L(c,sx,sy-1.3,sx,sy+1.3);}}
   c.restore();
@@ -636,7 +650,8 @@ function randomSpec(beach){
   for(;;){const s={head:pick(HEADS),body:pick(BODIES),fill:pick(FILLS),hat:pick(HATS),prop:pick(PROPS),pose:pick(POSES),flip:rnd()<.5};
     if(beach){s.body=pick(['shirt','shirt','dress']);s.hat=pick(['none','none','straw','glasses','cap']);s.prop=pick([null,null,'icecream','ring','book','camera']);}
     if(RESERVED.has(s.head+'|'+s.fill))continue;
-    if(s.head==='fox'&&s.hat==='cap')continue;if(s.head==='owl'&&s.hat==='beret')continue;if(s.head==='bear'&&s.hat==='top')continue;if(s.head==='cat'&&(s.prop==='flowers'||s.hat==='cap'||s.hat==='bow'))continue;if(s.head==='croc'&&s.hat==='cap')continue;if(s.head==='mouse'&&(s.hat==='cap'||s.hat==='bow'))continue;if(s.head==='pig'&&s.hat==='flower')continue;if(s.head==='lion'&&s.hat==='top')continue;if(s.head==='penguin')s.hat='none';if(s.head==='hedgehog'&&s.hat==='beret')continue;if(rnd()<.14)s.scarf=pick(['#3a3733','#c9c2b2',WHITE]);if(rnd()<.12)s.pack=pick([GREY,'#3a3733']);if(rnd()<.08)s.scale=.78;
+    if(s.head==='fox'&&s.hat==='cap')continue;if(s.head==='owl'&&s.hat==='beret')continue;if(s.head==='bear'&&s.hat==='top')continue;if(s.head==='cat'&&(s.prop==='flowers'||s.hat==='cap'||s.hat==='bow'))continue;if(s.head==='croc'&&s.hat==='cap')continue;if(s.head==='mouse'&&(s.hat==='cap'||s.hat==='bow'))continue;if(s.head==='pig'&&s.hat==='flower')continue;if(s.head==='lion'&&s.hat==='top')continue;if(s.head==='penguin')s.hat='none';if(s.head==='hedgehog'&&s.hat==='beret')continue;if(rnd()<.14)s.scarf=pick(['#3a3733','#c9c2b2',WHITE]);if(rnd()<.12)s.pack=pick([GREY,'#3a3733']);{const r=rnd();s.build=r<.42?'normal':r<.56?'round':r<.68?'slim':r<.78?'tall':r<.9?'old':'small';}if(s.build==='small'){s.scale=.84;if(s.hat==='top')s.hat='none';}if(s.build==='old'&&rnd()<.6&&!beach)s.prop='cane';
+    if(!beach){const r=rnd();if(r<.05)s.pose='wave';else if(r<.09)s.pose='lean';else if(r<.12)s.pose='crouch';else if(r<.15)s.pose='think';else if(r<.18)s.pose='ground';}
     if(s.head==='rabbit'&&s.hat!=='none'&&s.hat!=='glasses'&&s.hat!=='flower'&&s.hat!=='bow')s.hat='none';
     return s;}
 }
@@ -719,13 +734,13 @@ function addBalloonSeller(u,v,who){addSpr(u,v,(c,x,y)=>{const bs=[[-8,-50,WHITE]
    PERSONNAGES DES ENQUÊTES
    ========================================================= */
 const KIT=SP('cat','shirt','grey','none','stand',null,false,{scale:.78,bell:true});
-const PIQ=SP('hedgehog','dress','check','straw'),GROIN=SP('pig','chef','white','chef'),LAPIN=SP('rabbit','shirt','stripes');
-const MOUST=SP('cat','suit','black'),TRUFFE=SP('pig','dress','white','flower'),TROTT=SP('mouse','suit','white','cap','stand','bag');
-const MIAOU=SP('cat','dress','dots','bow'),RENARD=SP('fox','coat','black','cap'),RENARD2=SP('fox','suit','stripes','top'),HULOTTE=SP('owl','suit','grey','beret'),PATAUD=SP('dog','suit','black'),LEONIE=SP('lion','suit','white','police'),BROC=SP('croc','suit','check');
-const ECAILLE=SP('croc','coat','white','cap'),MATOU=SP('cat','shirt','stripes');
-const PLOUF=SP('penguin','coat','black','captain'),MOUSSE=SP('mouse','shirt','white','bandana');
-const OURS1=SP('bear','coat','grey','glasses'),OURS2=SP('bear','coat','black','mask'),OURS3=SP('bear','suit','stripes','top'),CANARD=SP('duck','coat','black','cap'),CANARD2=SP('duck','shirt','dots','straw'),TOUTOU=SP('dog','suit','grey','police');
-const NOIS=SP('mouse','dress','dots','bow','stand','redballoon',false,{scale:.8}),MAMAN=SP('mouse','dress','white','straw'),CLOWN=SP('dog','suit','check','clown'),DIRO=SP('lion','suit','black','top'),FORAIN=SP('croc','shirt','check','cap');
+const PIQ=SP('hedgehog','dress','check','straw',null,null,false,{build:'old'}),GROIN=SP('pig','chef','white','chef',null,null,false,{build:'round'}),LAPIN=SP('rabbit','shirt','stripes',null,null,null,false,{build:'small'});
+const MOUST=SP('cat','suit','black',null,null,null,false,{build:'slim'}),TRUFFE=SP('pig','dress','white','flower',null,null,false,{build:'round'}),TROTT=SP('mouse','suit','white','cap','stand','bag');
+const MIAOU=SP('cat','dress','dots','bow'),RENARD=SP('fox','coat','black','cap',null,null,false,{build:'slim'}),RENARD2=SP('fox','suit','stripes','top',null,null,false,{build:'slim'}),HULOTTE=SP('owl','suit','grey','beret',null,null,false,{build:'round'}),PATAUD=SP('dog','suit','black',null,null,null,false,{build:'old'}),LEONIE=SP('lion','suit','white','police',null,null,false,{build:'tall'}),BROC=SP('croc','suit','check',null,null,null,false,{build:'round'});
+const ECAILLE=SP('croc','coat','white','cap',null,null,false,{build:'round'}),MATOU=SP('cat','shirt','stripes',null,null,null,false,{build:'slim'});
+const PLOUF=SP('penguin','coat','black','captain',null,null,false,{build:'old'}),MOUSSE=SP('mouse','shirt','white','bandana',null,null,false,{build:'small'});
+const OURS1=SP('bear','coat','grey','glasses',null,null,false,{build:'round'}),OURS2=SP('bear','coat','black','mask',null,null,false,{build:'round'}),OURS3=SP('bear','suit','stripes','top',null,null,false,{build:'round'}),CANARD=SP('duck','coat','black','cap',null,null,false,{build:'slim'}),CANARD2=SP('duck','shirt','dots','straw',null,null,false,{build:'slim'}),TOUTOU=SP('dog','suit','grey','police',null,null,false,{build:'tall'});
+const NOIS=SP('mouse','dress','dots','bow','stand','redballoon',false,{scale:.8,build:'small'}),MAMAN=SP('mouse','dress','white','straw'),CLOWN=SP('dog','suit','check','clown',null,null,false,{build:'round'}),DIRO=SP('lion','suit','black','top',null,null,false,{build:'tall'}),FORAIN=SP('croc','shirt','check','cap',null,null,false,{build:'slim'});
 const GHOST={head:'ghost'};
 const as=(s,o)=>Object.assign({},s,o);
 
@@ -909,12 +924,12 @@ function buildCity(){
    addSpr(tu,tv,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;E(c,x,y,9,4.5,'#dcd6c6');P(c,[[x-2.4,y],[x-1.6,y-22],[x+1.6,y-22],[x+2.4,y]],WHITE);c.lineWidth=1.4;L(c,x,y-18,x+14,y-28);
      const bl=[[-10,-34,10],[10,-34,10],[0,-44,11],[-14,-24,8],[14,-24,8],[0,-28,10]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle=WHITE;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}
      drawChar(c,x+12,y-26,as(KIT,{pose:'sit',scale:.85}));},{ht:62,hw:28});
-   addChar(tu+14,tv+14,SP('dog','coat','white','none','arms_up'));setT('chaton',4,tu+6,tv+4,32,14);
+   addChar(tu+14,tv+14,SP('dog','coat','white','none','arms_up',null,false,{build:'round'}));setT('chaton',4,tu+6,tv+4,32,14);
    // collier 2 : le renard aux jumelles
-   const fu=k.u0+30,fv=k.v0+120;addTree(fu-4,fv-10,1.15);addChar(fu+6,fv+2,as(RENARD,{pose:'carry',prop:'binoculars'}));setT('collier',2,fu+4,fv,26);
+   const fu=k.u0+30,fv=k.v0+120;addTree(fu-4,fv-10,1.15);addChar(fu+6,fv+2,as(RENARD,{pose:'lean',prop:'binoculars'}));setT('collier',2,fu+4,fv,26);
    // collier 10 : l'échelle abandonnée
    const lu=k.u0+150,lv=k.v0+40;G(lu-24,lv-10,lu+24,lv+10,c=>{c.save();c.translate(...pr(lu,lv,0));groundT(c);c.strokeStyle=INK;c.lineWidth=1.4;L(c,-22,-4,22,-4);L(c,-22,4,22,4);c.lineWidth=.9;for(let x=-20;x<=20;x+=6)L(c,x,-4,x,4);c.restore();});
-   addChar(lu+14,lv+12,as(LEONIE,{pose:'point',prop:'magnifier',flip:true}));setT('collier',10,lu+6,lv+6,28);
+   addChar(lu+14,lv+12,as(LEONIE,{pose:'crouch',prop:'magnifier',flip:true}));setT('collier',10,lu+6,lv+6,28);
    for(let n=0;n<16;n++){const u=R(k.u0+20,k.u1-20),v=R(k.v0+20,k.v1-20);if(Math.abs(u-k.uc)<18||Math.abs(v-k.vc)<18||!free(u,v,10))continue;n%3?addTree(u,v):addBush(u,v,true);}
    addBench(k.uc-40,k.vc-14);addBench(k.uc+44,k.vc+22);areas.push({u0:k.u0+14,v0:k.v0+14,u1:k.u1-14,v1:k.v1-14,n:20,dist:0});}
   // (2,0) Villa de la Comtesse + Café Plume
@@ -968,7 +983,7 @@ function buildCity(){
    setT('lettre',6,fu,fv,22,30);
    // gâteau 2 : la table du concours
    const ju=t.pu0+30,jv=t.pv0+30;addSpr(ju,jv,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-22,y-12,44,12,WHITE);L(c,x-20,y,x-20,y-12);E(c,x-6,y-14,7,2.2,WHITE);c.lineWidth=.7;L(c,x-6,y-12,x-6,y-17);E(c,x-6,y-17,4,1.2,WHITE);txt(c,'CONCOURS',x,y-6,6);},{ht:20,hw:26});
-   addChar(ju+12,jv-12,SP('owl','suit','black','glasses','arms_up'));addChar(ju+26,jv-6,SP('elephant','dress','white','none','arms_up',null,true));setT('gateau',2,ju+6,jv-4,28);
+   addChar(ju+12,jv-12,SP('owl','suit','black','glasses','arms_up',null,false,{build:'old'}));addChar(ju+26,jv-6,SP('elephant','dress','white','none','arms_up',null,true));setT('gateau',2,ju+6,jv-4,28);
    addTree(k.u1-14,k.v1-14);addTree(k.u0+14,k.v1-12);}
   // (1,2) Parc du Lac
   {const k=park(1,2,'Parc du Lac');const cu=k.uc+10,cv=k.vc-20,ru=80,rv=54;
@@ -1083,9 +1098,9 @@ function buildCity(){
    const k=t.k,h=bld.homard;
    addTable(h.u0+16,h.v1+16);addTable(h.u0+44,h.v1+20);addParasol(h.u0+44,h.v1+16,true);
    addChar(h.u0+26,h.v1+16,as(PLOUF,{pose:'carry',prop:'map'}));addChar(h.u0+12,h.v1+22,SP('duck','coat','white','none','sit'));setT('tresor',1,h.u0+22,h.v1+18,24);
-   addBarrel(h.u1+10,h.v1+14);addChar(h.u1+18,h.v1+8,as(MOUSSE,{pose:'stand',flip:true}));setT('tresor',2,h.u1+14,h.v1+11,20);
+   addBarrel(h.u1+10,h.v1+14);addChar(h.u1+18,h.v1+8,as(MOUSSE,{pose:'crouch',flip:true}));setT('tresor',2,h.u1+14,h.v1+11,20);
    for(const[su,sv]of[[k.u0+60,k.v0+140],[k.u0+130,k.v0+140]]){addChar(su-4,sv-14,randomSpec());addStall(su,sv,'Poissons','fish');}
-   addCrate(k.u0+170,k.v0+120);addCrate(k.u0+180,k.v0+124);addCrate(k.u0+174,k.v0+112,8);addChar(k.u0+188,k.v0+132,as(MATOU,{pose:'stand',flip:true}));setT('poisson',2,k.u0+182,k.v0+128,22);
+   addCrate(k.u0+170,k.v0+120);addCrate(k.u0+180,k.v0+124);addCrate(k.u0+174,k.v0+112,8);addChar(k.u0+188,k.v0+132,as(MATOU,{pose:'hide',flip:true}));setT('poisson',2,k.u0+182,k.v0+128,22);
    const cu=k.u0+90,cv=k.v0+196;addCar(cu,cv,'u',{col:'#3a3733',driver:CANARD});for(const[a,b]of[[-20,-10],[-26,4],[-14,10]])addCrate(cu+a,cv+b,8);addChar(cu-34,cv-10,as(ECAILLE,{pose:'arms_up',hat:'none',fill:'grey'}));setT('banque',5,cu-12,cv,30,6);}
   // bassin
   addBoat(1360,990,1,{len:18,who:as(ECAILLE,{prop:'goldfish',pose:'arms_up'})});setT('poisson',1,1360,990,24);
@@ -1214,10 +1229,10 @@ function addTrain(u,v,cars,o){o=o||{};const len=58,gap=3,tot=cars*(len+gap)+50;c
 function drawWagon(c,x,y,who){c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-12,y-12,24,10,'#3a3733');C(c,x-7,y-2,2.6,INK);C(c,x+7,y-2,2.6,INK);c.save();c.translate(x+6,y-8);C(c,0,0,3,WHITE);D(c,-1,-.5,.8,INK);D(c,1,-.5,.8,INK);c.restore();if(who){c.save();c.translate(x-3,y-17);drawHead(c,who,1);c.restore();}}
 
 /* ---------- personnages ---------- */
-const ZORBO=SP('owl','suit','black','top','stand','cane'),ZORBO2=SP('owl','shirt','stripes','straw'),BARRIT=SP('elephant','dress','dots','flower'),HUISS=SP('croc','suit','grey','glasses','stand','letter');
-const COA=SP('frog','dress','check','straw','stand','suitcase'),LARD=SP('pig','suit','black','glasses','stand','suitcase');
-const EPINE=SP('hedgehog','coat','white','beret',null,null,false,{scarf:'#3a3733'}),EPINETTE=SP('hedgehog','dress','dots','bow','stand',null,false,{scale:.75}),CHEFG=SP('lion','coat','grey','cap'),DEMIN=SP('elephant','shirt','grey','helmet');
-const BISCOTTE=SP('pig','dress','black','top'),LIVREUR=SP('rabbit','suit','grey','cap'),LAPNOIR=SP('rabbit','suit','black','glasses'),SOURIS=SP('mouse','shirt','check','none'),CROQ=SP('croc','suit','black','top'),GARDIEN=SP('dog','coat','grey','cap');
+const ZORBO=SP('owl','suit','black','top','stand','cane',false,{build:'tall'}),ZORBO2=SP('owl','shirt','stripes','straw',null,null,false,{build:'tall'}),BARRIT=SP('elephant','dress','dots','flower',null,null,false,{build:'round'}),HUISS=SP('croc','suit','grey','glasses','stand','letter',false,{build:'slim'});
+const COA=SP('frog','dress','check','straw','stand','suitcase',false,{build:'old'}),LARD=SP('pig','suit','black','glasses','stand','suitcase',false,{build:'round'});
+const EPINE=SP('hedgehog','coat','white','beret',null,null,false,{scarf:'#3a3733',build:'old'}),EPINETTE=SP('hedgehog','dress','dots','bow','stand',null,false,{scale:.75}),CHEFG=SP('lion','coat','grey','cap'),DEMIN=SP('elephant','shirt','grey','helmet');
+const BISCOTTE=SP('pig','dress','black','top',null,null,false,{build:'round'}),LIVREUR=SP('rabbit','suit','grey','cap',null,null,false,{build:'tall'}),LAPNOIR=SP('rabbit','suit','black','glasses',null,null,false,{build:'tall'}),SOURIS=SP('mouse','shirt','check','none',null,null,false,{build:'small'}),CROQ=SP('croc','suit','black','top',null,null,false,{build:'slim'}),GARDIEN=SP('dog','coat','grey','cap',null,null,false,{build:'old'});
 
 CASES.push(
  {id:'zorbo',dist:2,title:'La disparition de Zorbo',diff:3,card:[520,1560],
@@ -1361,7 +1376,7 @@ function buildGare(){
    {const p=fr(u,.15,16);addChar(p[0],p[1],as(BISCOTTE,{pose:'arms_up',prop:'map'}));addChar(p[0]+14,p[1]+6,SP('mouse','chef','white','chef'));setT('recette',1,p[0]+5,p[1]+2,24);}
    {const p=fr(u,.5,16);addChar(p[0],p[1],as(BISCOTTE,{pose:'arms_up',prop:null}));setT('recette',8,p[0],p[1],22);}
    {const p=fr(u,.82,16);addChar(p[0],p[1],as(LIVREUR,{pose:'carry',prop:'sack'}));setT('recette',2,p[0],p[1],22);}
-   for(const[du,dv]of[[0,0],[12,2],[5,-10]])addCrate(k.u0+150+du,k.v0+150+dv);addChar(k.u0+166,k.v0+160,as(LIVREUR,{pose:'carry',prop:'camera',flip:true}));setT('recette',3,k.u0+160,k.v0+154,24);
+   for(const[du,dv]of[[0,0],[12,2],[5,-10]])addCrate(k.u0+150+du,k.v0+150+dv);addChar(k.u0+166,k.v0+160,as(LIVREUR,{pose:'crouch',prop:'camera',flip:true}));setT('recette',3,k.u0+160,k.v0+154,24);
    const gu=k.u1-30,gv=k.v0+120;addPhone(gu,gv,null);addChar(gu-14,gv+6,as(GARDIEN,{pose:'stand'}));addChar(gu-28,gv+8,as(LEONIE,{pose:'carry',prop:'notepad'}));setT('recette',9,gu-20,gv+6,26);}
   // (5,6) Entrepôts
   {const t=townBlock(5,6,[{w:110,sign:'Entrepôts',roof:'saw',bigDoor:true,h:60},{w:90,roof:'saw',bigDoor:true,h:56},{}],null,{n:12});
@@ -1420,9 +1435,9 @@ function addBanner(u,v,z){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;L
 function addFootprints(u0,v0,u1,v1,n){G(Math.min(u0,u1)-6,Math.min(v0,v1)-6,Math.max(u0,u1)+6,Math.max(v0,v1)+6,c=>{for(let k=0;k<n;k++){const t=k/(n-1),u=u0+(u1-u0)*t,v=v0+(v1-v0)*t;const[x,y]=pr(u+(k%2?2:-2),v,0);c.fillStyle='#fdfcf8';c.strokeStyle='#8f8a7c';c.lineWidth=.5;c.beginPath();c.ellipse(x,y,2.4,1.2,0,0,TAU);c.fill();c.stroke();}});}
 
 /* ---------- personnages ---------- */
-const LILI=SP('rabbit','dress','dots','bow','stand','basket',false,{scale:.82}),GROGNON=SP('pig','coat','check','straw');
-const COCOTTE=SP('duck','dress','white','flower'),RAPE1=SP('mouse','shirt','stripes','cap'),RAPE2=SP('mouse','shirt','stripes','beret'),BASTIEN=SP('bear','coat','check','cap'),FERMIER=SP('pig','shirt','white','straw');
-const HERMINE=SP('rabbit','dress','white','crown'),GIGOT=SP('frog','suit','stripes','jester'),GIGOT2=SP('frog','coat','grey','cap'),LARDON=SP('croc','chef','white','chef'),BOUBOULE=SP('bear','suit','grey','knight');
+const LILI=SP('rabbit','dress','dots','bow','stand','basket',false,{scale:.82,build:'small'}),GROGNON=SP('pig','coat','check','straw',null,null,false,{build:'round'});
+const COCOTTE=SP('duck','dress','white','flower',null,null,false,{build:'round'}),RAPE1=SP('mouse','shirt','stripes','cap',null,null,false,{build:'slim'}),RAPE2=SP('mouse','shirt','stripes','beret',null,null,false,{build:'small'}),BASTIEN=SP('bear','coat','check','cap',null,null,false,{build:'round'}),FERMIER=SP('pig','shirt','white','straw',null,null,false,{build:'old'});
+const HERMINE=SP('rabbit','dress','white','crown',null,null,false,{build:'tall'}),GIGOT=SP('frog','suit','stripes','jester',null,null,false,{build:'small'}),GIGOT2=SP('frog','coat','grey','cap',null,null,false,{build:'small'}),LARDON=SP('croc','chef','white','chef',null,null,false,{build:'round'}),BOUBOULE=SP('bear','suit','grey','knight',null,null,false,{build:'round'});
 
 CASES.push(
  {id:'lili',dist:4,title:'Le panier de Lili',diff:1,card:[230,2110],
@@ -1488,7 +1503,7 @@ function buildColline(){
   const cab1=makeBuilding({u0:90,v0:2360,u1:160,v1:2400,h:40,front:'v',roof:'gable',tone:'#e9dcc0',sign:'Grognon',chim:true});
   const cab2=makeBuilding({u0:40,v0:2080,u1:100,v1:2116,h:38,front:'v',roof:'gable',tone:'#e9dcc0',sign:'Bûcheron'});
   // Lili 1 : la clairière
-  for(const[du,dv]of[[-14,8],[16,6],[8,20]])addMushrooms(300+du,2130+dv);addChar(300,2134,as(LILI,{pose:'point'}));setT('lili',1,300,2134,24);
+  for(const[du,dv]of[[-14,8],[16,6],[8,20]])addMushrooms(300+du,2130+dv);addChar(300,2134,as(LILI,{pose:'crouch'}));setT('lili',1,300,2134,24);
   // Lili 2 : la balançoire
   addTreeSwing(420,2060,as(LILI,{pose:'sit',prop:null}));addSpr(400,2070,(c,x,y)=>drawProp(c,'basket',x,y-6,1),{ht:12});{const[x,y]=pr(420,2060,0);setTxy('lili',2,x+8,y-20,24);}
   // Lili 3
@@ -1504,7 +1519,7 @@ function buildColline(){
   addFootprints(610,2150,700,2165,9);addChar(720,2170,as(BASTIEN,{pose:'point',prop:'magnifier',flip:true}));setT('farine',8,690,2162,28);
   // couronne 9, 11, 12
   addOak(800,2470,true,(c,x,y)=>{c.save();c.translate(x-1,y+3);c.scale(.8,.8);drawProp(c,'crownp',0,0,1);c.restore();});addChar(818,2480,as(GIGOT,{pose:'give',flip:true}));setT('couronne',9,808,2474,26,10);
-  addFootprints(420,2400,500,2430,8);addChar(408,2394,as(BASTIEN,{pose:'carry',prop:'magnifier'}));setT('couronne',11,440,2410,28);
+  addFootprints(420,2400,500,2430,8);addChar(408,2394,as(BASTIEN,{pose:'lean',prop:'magnifier'}));setT('couronne',11,440,2410,28);
   addClothesline(cab2.cx+30,cab2.v1+26,false);addChar(cab2.cx,cab2.v1+16,as(GIGOT2,{pose:'stand',prop:'axe'}));setT('couronne',12,cab2.cx,cab2.v1+16,22);
   // arbres de la forêt (en évitant de cacher les scènes)
   const tg=CASES.filter(c=>c.dist===4).flatMap(c=>c.steps.map(s=>s.t)).filter(Boolean);
@@ -1526,7 +1541,7 @@ function buildColline(){
   // champs, vignes, moulin
   {const k3=blk(3,8),k4=blk(4,8);G(k3.u0,k3.v0,k4.u1,k4.v1,c=>{c.strokeStyle=INK;c.lineWidth=1;rectG(c,k3.u0,k3.v0,k3.u1,k3.v1,'#ebe6cf');rectG(c,k4.u0,k4.v0,k4.u1,k4.v1,'#efe8c8');c.strokeStyle='#cfc49e';c.lineWidth=.6;for(let u=k4.u0+10;u<k4.u1;u+=10){const a=pr(u,k4.v0+4,0),b=pr(u,k4.v1-4,0);L(c,a[0],a[1],b[0],b[1]);}});
    labelG(k3.u0+10,k3.v0+14,'Vignes');addVines(k3.u0+20,k3.v0+40,k3.u1-30,k3.v0+130);
-   addHay(k3.u0+60,k3.v0+176);addChar(k3.u0+80,k3.v0+176,as(RAPE1,{pose:'stand'}));addChar(k3.u0+86,k3.v0+188,as(RAPE2,{pose:'point',flip:true}));setT('farine',3,k3.u0+78,k3.v0+180,26);
+   addHay(k3.u0+60,k3.v0+176);addChar(k3.u0+80,k3.v0+176,as(RAPE1,{pose:'hide'}));addChar(k3.u0+86,k3.v0+188,as(RAPE2,{pose:'crouch',flip:true}));setT('farine',3,k3.u0+78,k3.v0+180,26);
    addCampfire(k3.u0+170,k3.v0+190,false);addChar(k3.u0+160,k3.v0+186,as(RAPE1,{pose:'arms_up',prop:'pie'}));addChar(k3.u0+182,k3.v0+186,as(RAPE2,{pose:'arms_up'}));addChar(k3.u0+170,k3.v0+206,as(BASTIEN,{pose:'point'}));setT('farine',10,k3.u0+170,k3.v0+194,30);
    
    addMill(k4.u0+120,k4.v0+80);addChar(k4.u0+200,k4.v0+140,as(GIGOT2,{pose:'run',prop:'axe'}));addChar(k4.u0+180,k4.v0+144,as(BOUBOULE,{pose:'run',prop:'sword'}));setT('couronne',14,k4.u0+190,k4.v0+142,28);addChar(k4.u0+150,k4.v0+110,as(COCOTTE,{pose:'carry',prop:'sack'}));setT('farine',1,k4.u0+150,k4.v0+110,24);
