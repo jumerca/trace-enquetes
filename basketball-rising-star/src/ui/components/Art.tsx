@@ -2,39 +2,42 @@ import type { Appearance } from '../../data/model';
 import { PlayerPortrait } from './PlayerPortrait';
 
 /** Emblème original : ballon stylisé porté par une trajectoire ascendante vers une étoile. */
-export function Emblem({ size = 48, rounded = true }: { size?: number; rounded?: boolean }) {
+export function Emblem({ size = 48 }: { size?: number; rounded?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Emblème Basketball Rising Star">
-      <defs>
-        <linearGradient id="em-bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#17233a" />
-          <stop offset="1" stopColor="#0b111d" />
-        </linearGradient>
-        <linearGradient id="em-arc" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stopColor="#3988F5" stopOpacity="0" />
-          <stop offset="0.45" stopColor="#3988F5" />
-          <stop offset="1" stopColor="#DDB65A" />
-        </linearGradient>
-        <radialGradient id="em-ball" cx="0.35" cy="0.3" r="0.8">
-          <stop offset="0" stopColor="#ff9d63" />
-          <stop offset="0.6" stopColor="#F36B32" />
-          <stop offset="1" stopColor="#b9461a" />
-        </radialGradient>
-      </defs>
-      {rounded && <rect x="0" y="0" width="100" height="100" rx="24" fill="url(#em-bg)" />}
-      <path d="M10 86 C 34 80, 58 58, 80 20" fill="none" stroke="url(#em-arc)" strokeWidth="7" strokeLinecap="round" />
-      <path d="M20 90 C 40 86, 60 70, 76 44" fill="none" stroke="#3988F5" strokeOpacity="0.35" strokeWidth="3" strokeLinecap="round" />
-      <g transform="translate(42 60)">
-        <circle r="23" fill="url(#em-ball)" />
-        <g fill="none" stroke="#2a1206" strokeWidth="2.6" strokeLinecap="round" opacity="0.85">
-          <path d="M0 -23 C 9 -10, 9 10, 0 23" />
-          <path d="M-23 0 H 23" />
-          <path d="M-16 -16.5 C -6 -7, -6 7, -16 16.5" />
-          <path d="M16 -16.5 C 6 -7, 6 7, 16 16.5" />
-        </g>
-        <path d="M-12 -14 A 18 18 0 0 1 8 -19" stroke="#fff" strokeOpacity="0.35" strokeWidth="3" fill="none" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 512 512" role="img" aria-label="Emblème Basketball Rising Star">
+<defs>
+    <linearGradient id="em2-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#1b2c4d"/><stop offset="0.55" stopColor="#101827"/><stop offset="1" stopColor="#070b14"/></linearGradient>
+    <radialGradient id="em2-glow" cx="0.72" cy="0.2" r="0.7"><stop offset="0" stopColor="#3988F5" stopOpacity="0.55"/><stop offset="1" stopColor="#3988F5" stopOpacity="0"/></radialGradient>
+    <linearGradient id="em2-arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#F36B32" stopOpacity="0"/><stop offset="0.35" stopColor="#F36B32"/><stop offset="1" stopColor="#FFD98A"/></linearGradient>
+    <radialGradient id="em2-ball" cx="0.34" cy="0.28" r="0.85"><stop offset="0" stopColor="#ffb07a"/><stop offset="0.5" stopColor="#F36B32"/><stop offset="1" stopColor="#a53c12"/></radialGradient>
+    <linearGradient id="em2-star" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FFE9A8"/><stop offset="1" stopColor="#DDB65A"/></linearGradient>
+    <clipPath id="em2-clip"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clipPath="url(#em2-clip)">
+    <rect width="512" height="512" fill="url(#em2-bg)"/>
+    <rect width="512" height="512" fill="url(#em2-glow)"/>
+    
+    <g stroke="#ffffff" strokeOpacity="0.05" strokeWidth="10"><path d="M-20 420 L540 330"/><path d="M-20 480 L540 390"/></g>
+    
+    <path d="M40 452 C 170 430, 300 320, 398 120" fill="none" stroke="url(#em2-arc)" strokeWidth="34" strokeLinecap="round"/>
+    <path d="M96 476 C 210 452, 320 370, 392 250" fill="none" stroke="#3988F5" strokeOpacity="0.45" strokeWidth="12" strokeLinecap="round"/>
+    
+    <g transform="translate(214 306)">
+      <circle r="128" fill="#000" opacity="0.25" transform="translate(8 12)"/>
+      <circle r="124" fill="url(#em2-ball)"/>
+      <g fill="none" stroke="#2a1206" strokeWidth="11" strokeLinecap="round" opacity="0.88">
+        <path d="M0 -124 C 46 -54, 46 54, 0 124"/>
+        <path d="M-124 0 H 124"/>
+        <path d="M-88 -88 C -34 -36, -34 36, -88 88"/>
+        <path d="M88 -88 C 34 -36, 34 36, 88 88"/>
       </g>
-      <path d="M80 8 L83.5 16.5 L92 20 L83.5 23.5 L80 32 L76.5 23.5 L68 20 L76.5 16.5 Z" fill="#DDB65A" />
+      <path d="M-70 -84 A 104 104 0 0 1 34 -104" stroke="#fff" strokeOpacity="0.4" strokeWidth="14" fill="none" strokeLinecap="round"/>
+    </g>
+    
+    <path d="M404 40 L424 92 L478 96 L436 130 L450 184 L404 154 L358 184 L372 130 L330 96 L384 92 Z" fill="url(#em2-star)" stroke="#8a6a22" strokeWidth="3" strokeLinejoin="round"/>
+    <path d="M404 62 L416 100 L404 96 Z" fill="#fff" opacity="0.5"/>
+  </g>
+
     </svg>
   );
 }

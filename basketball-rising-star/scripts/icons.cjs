@@ -9,14 +9,16 @@ const path = require('path');
   const out = [
     ['icon-192.png', 192, 0],
     ['icon-512.png', 512, 0],
-    ['apple-touch-icon.png', 180, 0],
+    ['apple-touch-icon.png', 180, 0.0001],
     ['favicon-32.png', 32, 0],
     ['icon-maskable-512.png', 512, 0.12],
+    ['icon-maskable-192.png', 192, 0.12],
   ];
   for (const [name, size, pad] of out) {
     const inner = Math.round(size * (1 - pad * 2));
+    const full = pad > 0; // icônes pleines (iOS, maskable) : pas de coins arrondis transparents
     await p.setViewportSize({ width: size, height: size });
-    await p.setContent(`<html><body style="margin:0;background:${pad ? '#101827' : 'transparent'};display:grid;place-items:center;width:${size}px;height:${size}px">${svg.replace('<svg ', `<svg width="${inner}" height="${inner}" `)}</body></html>`);
+    await p.setContent(`<html><body style="margin:0;background:${pad ? '#101827' : 'transparent'};display:grid;place-items:center;width:${size}px;height:${size}px">${(full ? svg.replace('rx="116"', 'rx="0"') : svg).replace('<svg ', `<svg width="${full ? size : inner}" height="${full ? size : inner}" `)}</body></html>`);
     await p.screenshot({ path: path.join(__dirname, '../public/icons', name), omitBackground: !pad });
   }
   await b.close();
