@@ -72,6 +72,19 @@ button{font:inherit;color:inherit;cursor:pointer}
 .steps button{margin-top:6px;border:2px solid var(--line);background:transparent;border-radius:10px;padding:2px 10px;font-size:15px}
 .stamp{display:inline-block;border:3px solid var(--red);color:var(--red);transform:rotate(-6deg);padding:2px 12px;border-radius:8px;font-size:24px;margin:6px 0}
 .legend{font-size:15px;color:var(--muted)}
+.stars{color:#d8a21a;letter-spacing:1px;white-space:nowrap}
+.bigstars{font-size:40px;text-align:center;color:#d8a21a;letter-spacing:6px;margin:6px 0 0}
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stat{border:2px solid var(--line);border-radius:14px;padding:8px;text-align:center;line-height:1.1}
+.stat b{display:block;font-size:26px;font-weight:400}
+.stat span{font-size:14px;color:var(--muted)}
+.rank{text-align:center;font-size:22px;margin:4px 0}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:8px}
+.mug{border:2px solid var(--line);border-radius:12px;padding:4px;text-align:center;background:#fffdf7;color:#1d1b18;font-size:13px;line-height:1.15}
+.mug canvas{display:block;width:100%;height:auto;border-radius:8px}
+.mug b{display:block;font-weight:400;font-size:15px}
+.mug.no{opacity:.45;border-style:dashed}
+.mug .q{display:grid;place-items:center;aspect-ratio:.9;font-size:40px;background:#e2ddd0;border-radius:8px}
 .case.lock{opacity:.5;border-style:dashed}
 .clue{background:#1d1b18;color:#fffdf7;border-radius:14px;padding:10px 12px;margin:10px 0}
 .clue b{display:block;font-weight:400;font-size:19px}
@@ -90,7 +103,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <canvas id="map" aria-label="Carte de la ville d'Animopolis"></canvas>
 <header class="top">
   <div class="logo"><b>Animopolis</b><small>enquêtes à la loupe</small></div>
-  <div class="tright"><button class="pill" id="btnInstall" hidden>Installer</button><button class="pill" id="btnCases">Dossiers</button></div>
+  <div class="tright"><button class="pill" id="btnInstall" hidden>Installer</button><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
 </header>
 <div class="zoom">
   <button id="zin" aria-label="Zoomer">+</button>
@@ -2064,7 +2077,7 @@ const cam={x:0,y:400,s:.5};
 let minS=.1,maxS=7,cache=null,cacheKey='',cacheS=.5,needs=false;
 const fx={wrong:[],pulse:null};
 const SAVE='animopolis-v3';
-let state={solved:{},hints:{},current:null,seen:false,unlockSeen:{}};
+let state={solved:{},hints:{},wrong:{},current:null,seen:false,unlockSeen:{}};
 try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');if(s)state=Object.assign(state,s);}catch(e){}
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){}}
 const caseDone=cs=>(state.solved[cs.id]||[]).filter(Boolean).length===cs.steps.length;
@@ -2074,6 +2087,26 @@ const started=cs=>(state.solved[cs.id]||[]).some(Boolean);
 const unlocked=d=>d===0||(unlocked(d-1)&&(caseDone(mediumOf(d-1))||CASES.some(c=>c.dist===d&&!c.final&&started(c))));
 const cluesFound=()=>HARD.filter(id=>caseDone(CASES.find(c=>c.id===id))).length;
 function caseOpen(cs){if(started(cs))return true;if(!unlocked(cs.dist))return false;if(cs.final)return cluesFound()===HARD.length;if(cs.diff===1)return true;return CASES.some(c=>c.dist===cs.dist&&!c.final&&c.diff===cs.diff-1&&caseDone(c));}
+function hintsUsed(cs){let n=0;for(const k in state.hints)if(k.startsWith(cs.id+':'))n+=+state.hints[k]||0;return n;}
+function caseStars(cs){if(!caseDone(cs))return 0;const h=hintsUsed(cs),w=(state.wrong||{})[cs.id]||0;return h===0&&w<=2?3:h<=2&&w<=6?2:1;}
+const starStr=n=>'★'.repeat(n)+'☆'.repeat(3-n);
+function addWrong(cs){state.wrong=state.wrong||{};state.wrong[cs.id]=(state.wrong[cs.id]||0)+1;save();}
+const totalStars=()=>CASES.reduce((a,c)=>a+caseStars(c),0);
+const RANKS=[[0,'Apprenti détective'],[10,'Fin limier'],[25,'Inspecteur en herbe'],[45,'Inspecteur chevronné'],[60,'Commissaire'],[75,"Légende d'Animopolis"]];
+const rankOf=n=>RANKS.filter(r=>n>=r[0]).pop()[1];
+const KEYCHAR={chaton:[1,'Le fugueur'],gateau:[1,'Le voleur de gâteau'],lettre:[0,"L'amoureux"],collier:[1,'Le cambrioleur'],ombre:[1,"L'Ombre"],vase:[null,'La maladroite'],
+ poisson:[1,'Le voleur de poisson'],tresor:[1,'La chasseuse de trésor'],banque:[1,'Le braqueur'],chapeau:[0,'La propriétaire'],phare:[null,'Le contrebandier'],
+ ballon:[2,'Le héros du jour'],fantome:[2,'Le faux fantôme'],zorbo:[0,'Le magicien endetté'],peche:[null,'Le tricheur'],tickets:[0,'Le resquilleur'],
+ valise:[1,'Le distrait'],colis:[0,'Le propriétaire du colis'],recette:[4,'Le commanditaire'],chiot:[1,'Le fugueur'],controleur:[null,'Le faux contrôleur'],
+ lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],tartes:[null,'Le gourmand au miel']};
+function keySpec(cs){const kc=KEYCHAR[cs.id]||[0,''];if(kc[0]===null){const st=cs.steps[cs.steps.length-1];return st.choice[st.ans].s;}return(cs.cast[kc[0]]||cs.cast[0]).s;}
+function showBook(){const n=CASES.filter(caseDone).length,st=totalStars(),max=CASES.length*3;
+  const ordered=[...CASES].sort((a,b)=>a.dist-b.dist||(a.final?1:0)-(b.final?1:0)||a.diff-b.diff);
+  openModal(`<h2>📒 Carnet d'enquêteur</h2><p class="rank">${rankOf(st)}</p>
+  <div class="statrow"><div class="stat"><b>${n}/${CASES.length}</b><span>enquêtes classées</span></div><div class="stat"><b class="stars">${st}★</b><span>sur ${max}</span></div><div class="stat"><b>${cluesFound()}/5</b><span>indices de l'Ombre</span></div></div>
+  <p class="legend">3 étoiles : sans indice et avec 2 erreurs au plus. Rejoue une enquête depuis les Dossiers pour améliorer ta note.</p>
+  <h3>Fiches des affaires</h3><div class="gallery">${ordered.map(cs=>caseDone(cs)?`<div class="mug"><div data-m="${cs.id}"></div><b>${(KEYCHAR[cs.id]||[0,''])[1]}</b>${cs.title}<br><span class="stars">${starStr(caseStars(cs))}</span></div>`:`<div class="mug no"><div class="q">?</div><b>???</b>${caseOpen(cs)?cs.title:'Enquête fermée'}</div>`).join('')}</div>
+  <button class="btn" id="okB">Fermer le carnet</button>`,r=>{r.querySelectorAll('[data-m]').forEach(el=>el.appendChild(portrait(keySpec(CASES.find(c=>c.id===el.dataset.m)))));r.querySelector('#okB').onclick=closeModal;});}
 function lockReason(cs){if(!unlocked(cs.dist))return 'Ce quartier n\'est pas encore ouvert.';if(cs.final)return `Réunis les 5 indices de l'Ombre (${cluesFound()}/5) en résolvant les enquêtes difficiles.`;if(cs.diff===2)return 'Résous d\'abord une enquête facile de ce quartier.';const m=mediumOf(cs.dist);return `Résous d'abord « ${m.title} ».`;}
 
 function resize(){dpr=Math.min(2,window.devicePixelRatio||1);vw=window.innerWidth;vh=window.innerHeight;cv.width=Math.round(vw*dpr);cv.height=Math.round(vh*dpr);minS=Math.min(vw/(WB.x1-WB.x0),vh/(WB.y1-WB.y0))*.95;clampCam();req();}
@@ -2162,7 +2195,7 @@ function cardRects(){const out=[];if(cam.s>1.3)return out;const a=cam.s>.95?1-(c
   const cur=curCase(),focus=cur&&!caseDone(cur);for(const cs of CASES){if(!unlocked(cs.dist))continue;if(focus&&cs!==cur)continue;if(cs.final&&!caseOpen(cs)&&cluesFound()===0)continue;const[x,y]=pr(cs.card[0],cs.card[1],0);const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const sc=Math.max(.5,Math.min(1,cam.s*1.4));out.push({cs,x:sx-32*sc,y:sy-90*sc,w:64*sc,h:82*sc,a});}return out;}
 function drawCards(c){for(const r of cardRects()){const open=caseOpen(r.cs);c.globalAlpha=r.a*(open?1:.55);c.drawImage(cardCanvas(r.cs),r.x,r.y,r.w,r.h);
   if(!open){c.globalAlpha=r.a;c.font=`${Math.round(r.w*.42)}px sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('🔒',r.x+r.w/2,r.y+r.h*.38);}
-  if(caseDone(r.cs)){c.save();c.translate(r.x+r.w*.5,r.y+r.h*.38);c.rotate(-.25);c.strokeStyle=RED;c.lineWidth=2.4;c.fillStyle='rgba(255,253,247,.85)';c.beginPath();c.rect(-26,-9,52,18);c.fill();c.stroke();c.fillStyle=RED;c.font='13px "Patrick Hand", cursive';c.textAlign='center';c.textBaseline='middle';c.fillText('CLASSÉE',0,1);c.restore();}
+  if(caseDone(r.cs)){c.save();c.translate(r.x+r.w*.5,r.y+r.h*.38);c.rotate(-.25);c.strokeStyle=RED;c.lineWidth=2.4;c.fillStyle='rgba(255,253,247,.85)';c.beginPath();c.rect(-26,-9,52,18);c.fill();c.stroke();c.fillStyle=RED;c.font='13px "Patrick Hand", cursive';c.textAlign='center';c.textBaseline='middle';c.fillText('CLASSÉE',0,1);c.restore();c.save();c.fillStyle='#d8a21a';c.strokeStyle='#1d1b18';c.lineWidth=2.5;c.font=`${Math.round(r.w*.2)}px sans-serif`;c.textAlign='center';c.textBaseline='middle';const ss=starStr(caseStars(r.cs));c.strokeText(ss,r.x+r.w/2,r.y+r.h*.66);c.fillText(ss,r.x+r.w/2,r.y+r.h*.66);c.restore();}
   else if(r.cs.id===state.current){c.strokeStyle=RED;c.lineWidth=3;c.strokeRect(r.x-3,r.y-3,r.w+2,r.h-1);}
   c.globalAlpha=1;}}
 function hintCircle(cs,k,lvl){const t=cs.steps[k].t;const a=k*2.3+cs.id.length;return lvl>=2?{x:t.x+Math.cos(a)*16,y:t.y+Math.sin(a)*12,r:t.r+34}:{x:t.x+Math.cos(a)*70,y:t.y+Math.sin(a)*50,r:170};}
@@ -2214,13 +2247,13 @@ function castHTML(cs){return `<div class="cast">${cs.cast.map((p,i)=>`<div class
 function mountCast(root,cs){root.querySelectorAll('[data-p]').forEach(el=>el.appendChild(portrait(cs.cast[+el.dataset.p].s)));}
 function showCases(){
   openModal(`<h2>Dossiers</h2><p class="legend">Toute la ville est figée : un même suspect apparaît à plusieurs endroits, à différents moments. Résous des enquêtes pour débloquer de nouveaux quartiers.</p><button class="ombrebtn" id="ombreBtn"><span style="font-size:26px">🕵️</span><span>Le dossier de l'Ombre<br><small>${cluesFound()}/5 indices${caseOpen(CASES.find(c=>c.final))?' · enquête finale ouverte !':''}</small></span></button>${DISTRICTS.map((D,i)=>{const open=unlocked(i);
-    return `<h3>${open?'':'🔒 '}${D.name}${open?` <span class="legend">${doneIn(i)}/${CASES.filter(c=>c.dist===i).length} classées</span>`:''}</h3>${open?`<div class="cases">${CASES.filter(c=>c.dist===i&&!c.final).sort((a,b)=>a.diff-b.diff).map(cs=>{const n=(state.solved[cs.id]||[]).filter(Boolean).length;const op=caseOpen(cs);return`<button class="case ${cs.id===state.current?'active':''} ${op?'':'lock'}" data-c="${cs.id}"><div><div class="t">${cs.title}</div><div class="m">${['','Facile','Moyen','Difficile'][cs.diff]} ${stars(cs.diff)} · ${cs.steps.length} étapes</div></div><span class="done">${!op?'🔒':n===cs.steps.length?'Classée ✓':(cs.id===state.current?'En cours · ':'')+n+'/'+cs.steps.length}</span></button>`;}).join('')}</div>`:`<p class="legend">Résous « ${mediumOf(i-1).title} » pour ouvrir ce quartier.</p>`}`;}).join('')}${curCase()&&!caseDone(curCase())?`<button class="btn ghost" id="quit">Mettre « ${curCase().title} » en pause</button>`:''}<button class="btn ghost" id="howto">Comment jouer ?</button>`,root=>{
+    return `<h3>${open?'':'🔒 '}${D.name}${open?` <span class="legend">${doneIn(i)}/${CASES.filter(c=>c.dist===i).length} classées</span>`:''}</h3>${open?`<div class="cases">${CASES.filter(c=>c.dist===i&&!c.final).sort((a,b)=>a.diff-b.diff).map(cs=>{const n=(state.solved[cs.id]||[]).filter(Boolean).length;const op=caseOpen(cs);return`<button class="case ${cs.id===state.current?'active':''} ${op?'':'lock'}" data-c="${cs.id}"><div><div class="t">${cs.title}</div><div class="m">${['','Facile','Moyen','Difficile'][cs.diff]} ${stars(cs.diff)} · ${cs.steps.length} étapes</div></div><span class="done">${!op?'🔒':n===cs.steps.length?`<span class="stars">${starStr(caseStars(cs))}</span>`:(cs.id===state.current?'En cours · ':'')+n+'/'+cs.steps.length}</span></button>`;}).join('')}</div>`:`<p class="legend">Résous « ${mediumOf(i-1).title} » pour ouvrir ce quartier.</p>`}`;}).join('')}${curCase()&&!caseDone(curCase())?`<button class="btn ghost" id="quit">Mettre « ${curCase().title} » en pause</button>`:''}<button class="btn ghost" id="howto">Comment jouer ?</button>`,root=>{
     root.querySelector('#ombreBtn').onclick=showClues;root.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const cur=curCase(),id=b.dataset.c;if(!caseOpen(CASES.find(c=>c.id===id))){toast(lockReason(CASES.find(c=>c.id===id)));return;}if(cur&&cur.id!==id&&!caseDone(cur)&&(state.solved[cur.id]||[]).some(Boolean)){openModal(`<h2>Changer d'enquête ?</h2><p>Tu es en pleine enquête : <b>${cur.title}</b>. Ta progression sera gardée et tu pourras la reprendre plus tard.</p><button class="btn" id="sw">Passer à l'autre enquête</button><button class="btn ghost" id="st">Rester sur ${cur.title}</button>`,r2=>{r2.querySelector('#sw').onclick=()=>startCase(id);r2.querySelector('#st').onclick=closeModal;});}else startCase(id);});root.querySelector('#howto').onclick=showHelp;
     const q=root.querySelector('#quit');if(q)q.onclick=()=>{state.current=null;save();updateCard();req();closeModal();toast('Enquête mise en pause : toutes les cartes sont de retour');};});}
 function startCase(id){state.current=id;save();updateCard();req();const cs=curCase();
   openModal(`<h2>${cs.title}</h2><p class="legend">${DISTRICTS[cs.dist].name} · ${stars(cs.diff)}</p><p>${cs.intro}</p><h3>Les personnages</h3>${castHTML(cs)}<button class="btn" id="go">${curStep(cs)<0?'Revoir la carte':'Commencer l\'enquête'}</button>${(state.solved[cs.id]||[]).some(Boolean)?'<button class="btn ghost" id="reset">Recommencer cette enquête</button>':''}`,root=>{
     mountCast(root,cs);root.querySelector('#go').onclick=()=>{closeModal();const[x,y]=pr(cs.card[0],cs.card[1],0);flyTo(x,y-20,Math.max(cam.s,Math.min(1.2,vw/700)));};
-    const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
+    const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];if(state.wrong)delete state.wrong[cs.id];Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
 function showSteps(){const cs=curCase();if(!cs){showCases();return;}const st=state.solved[cs.id]||[];const k=curStep(cs);
   openModal(`<h2>${cs.title}</h2><ul class="steps">${cs.steps.map((s,i)=>st[i]?`<li><span class="n">${i+1}</span>${s.q}<span class="ok">${s.ok}</span>${s.t?`<button data-v="${i}">Voir sur la carte</button>`:''}</li>`:i===k?`<li><span class="n" style="background:var(--ink);color:var(--card)">${i+1}</span>${s.q}</li>`:`<li class="lock">Étape ${i+1} — encore secrète</li>`).join('')}</ul>${k<0?`<p class="stamp">Enquête classée</p><p>${cs.outro}</p>`:''}`,root=>{
     root.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{const t=cs.steps[+b.dataset.v].t;closeModal();flyTo(t.x,t.y,Math.max(cam.s,Math.min(3.2,Math.min(vw,vh)/(t.r*6))));});});}
@@ -2236,19 +2269,20 @@ function showHelp(){openModal(`<h2>Comment jouer</h2>
   <p>🕵️ Chaque enquête difficile révèle un <b>indice sur l'Ombre</b>. Réunis les 5 pour ouvrir l'enquête finale.</p>
   <p>💡 Bloqué ? Le bouton <b>Indice</b> entoure la zone où chercher. Touche-le une seconde fois pour un cercle plus précis.</p>
   <p>📲 Le bouton <b>Installer</b> ajoute le jeu sur ton écran d'accueil. Les mises à jour arrivent toutes seules.</p>
+  <p>⭐ Chaque enquête rapporte jusqu'à <b>3 étoiles</b> (sans indice et avec peu d'erreurs). Ton <b>Carnet</b> garde tes étoiles, ton grade et les fiches des affaires classées.</p>
   <p>🖼️ À chaque étape, le <b>portrait</b> de la personne à chercher s'affiche à côté de la question.</p>
   <button class="btn" id="ok">C'est parti !</button>`,root=>root.querySelector('#ok').onclick=closeModal);}
 function onTapScreen(sx,sy){
   const rs=cardRects();for(let i=rs.length-1;i>=0;i--){const r=rs[i];if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h){if(caseOpen(r.cs))startCase(r.cs.id);else toast(lockReason(r.cs));return;}}
   const w=toWorld(sx,sy);onTap(w.x,w.y);}
-function answerChoice(cs,k,i){if(i===cs.steps[k].ans){const t={x:cam.x,y:cam.y,r:1};solveStep(cs,k,t);}else{toast('Non… relis bien tes indices.');const b=document.querySelectorAll('.choice');b.forEach(x=>x.classList.add('shake'));setTimeout(()=>b.forEach(x=>x.classList.remove('shake')),400);}}
+function answerChoice(cs,k,i){if(i===cs.steps[k].ans){const t={x:cam.x,y:cam.y,r:1};solveStep(cs,k,t);}else{addWrong(cs);toast('Non… relis bien tes indices.');const b=document.querySelectorAll('.choice');b.forEach(x=>x.classList.add('shake'));setTimeout(()=>b.forEach(x=>x.classList.remove('shake')),400);}}
 function onTap(x,y){
   const cs=curCase();if(!cs){toast('Touche une carte d\'enquête');return;}
   const k=curStep(cs);if(k<0){toast('Enquête déjà classée !');return;}
   if(cs.steps[k].choice){toast('Choisis ta réponse dans le cadre en bas');return;}
   const t=cs.steps[k].t,slack=Math.min(12,Math.max(0,8/cam.s-6));
   if(Math.hypot(x-t.x,y-t.y)<=t.r+slack){solveStep(cs,k,t);}
-  else{fx.wrong.push({x,y,t:performance.now()});req();const w=cs.steps[k].w,who=w!=null&&cs.cast[w]?cs.cast[w].s:null,dc=decoyAt(x,y);
+  else{addWrong(cs);fx.wrong.push({x,y,t:performance.now()});req();const w=cs.steps[k].w,who=w!=null&&cs.cast[w]?cs.cast[w].s:null,dc=decoyAt(x,y);
     if(dc&&who&&dc.head===who.head&&dc.dist===cs.dist)toast('Fausse piste ! Regarde bien '+DIFF[dc.diff]+'.');
     else toast(pick(['Rien de suspect ici…','Hmm, pas ici.','Continue de chercher !','Ce n\'est pas ça…']));}
 }
@@ -2257,11 +2291,11 @@ function solveStep(cs,k,t){{
     (state.solved[cs.id]=state.solved[cs.id]||[])[k]=true;save();fx.pulse={x:t.x,y:t.y,r:t.r,t:performance.now()};req();updateCard();
     const done=curStep(cs)<0;const newD=DISTRICTS.findIndex((d,i)=>unlocked(i)&&!before[i]);const newC=CASES.filter((c,i)=>caseOpen(c)&&!openBefore[i]&&c.dist!==newD);
     const clue=done&&CLUES[cs.id]?`<div class="clue"><b>🕵️ Indice sur l'Ombre ${cluesFound()}/5 : ${CLUES[cs.id].t}</b>${CLUES[cs.id].x}</div>${cluesFound()===5?'<h3>🔓 Le dossier de l\'Ombre est ouvert !</h3><p>L\'enquête finale t\'attend devant la Mairie.</p>':''}`:'';
-    setTimeout(()=>openModal(`<h2>Bien vu !</h2><p>${cs.steps[k].ok}</p>${done?`<p class="stamp">Enquête classée</p><p>${cs.outro}</p>`:''}${clue}${newC.filter(c=>!c.final).map(c=>`<h3>🔓 Nouvelle enquête : ${c.title}</h3>`).join('')}${newD>=0?`<h3>🔓 Nouveau quartier : ${DISTRICTS[newD].name} !</h3><p>${INTROS[newD]||''}</p>`:''}<button class="btn" id="next">${newD>=0?'Découvrir '+DISTRICTS[newD].name:done?'Retour aux dossiers':'Étape suivante'}</button>`,root=>root.querySelector('#next').onclick=()=>{
+    setTimeout(()=>openModal(`<h2>Bien vu !</h2><p>${cs.steps[k].ok}</p>${done?`<p class="stamp">Enquête classée</p><p class="bigstars">${starStr(caseStars(cs))}</p><p class="legend" style="text-align:center">${hintsUsed(cs)} indice${hintsUsed(cs)>1?'s':''} · ${(state.wrong||{})[cs.id]||0} erreur${((state.wrong||{})[cs.id]||0)>1?'s':''}${caseStars(cs)<3?' — rejoue-la plus tard pour viser 3 étoiles':' — parfait !'}</p><p>${cs.outro}</p>`:''}${clue}${newC.filter(c=>!c.final).map(c=>`<h3>🔓 Nouvelle enquête : ${c.title}</h3>`).join('')}${newD>=0?`<h3>🔓 Nouveau quartier : ${DISTRICTS[newD].name} !</h3><p>${INTROS[newD]||''}</p>`:''}<button class="btn" id="next">${newD>=0?'Découvrir '+DISTRICTS[newD].name:done?'Retour aux dossiers':'Étape suivante'}</button>`,root=>root.querySelector('#next').onclick=()=>{
       if(newD>=0){closeModal();state.current=null;save();updateCard();const D=DISTRICTS[newD];const[x2,y2]=pr((D.u0+D.u1)/2,(D.v0+D.v1)/2,0);flyTo(x2,y2,Math.max(minS,vw/1500),1100);setTimeout(()=>{reveal={d:newD,t0:performance.now()};req();},1150);}else if(done){showCases();}else closeModal();}),450);
   }
 }
-$('btnCases').onclick=showCases;$('caseTitle').onclick=()=>curCase()?showSteps():showCases();$('btnSteps').onclick=showSteps;
+$('btnCases').onclick=showCases;$('btnBook').onclick=showBook;$('caseTitle').onclick=()=>curCase()?showSteps():showCases();$('btnSteps').onclick=showSteps;
 $('btnCast').onclick=()=>{const cs=curCase();if(!cs){showCases();return;}openModal(`<h2>Personnages</h2><p class="legend">${cs.title}</p>${castHTML(cs)}`,root=>mountCast(root,cs));};
 $('btnHint').onclick=()=>{const cs=curCase();if(!cs)return;const k=curStep(cs);if(k<0)return;if(cs.steps[k].choice){const key=cs.id+':'+k;state.hints[key]=Math.min(2,(+state.hints[key]||0)+1);save();updateCard();toast('Indice : une mauvaise réponse a été retirée');return;}const key=cs.id+':'+k;const lvl=Math.min(2,(+state.hints[key]||0)+1);state.hints[key]=lvl;save();const h=hintCircle(cs,k,lvl);flyTo(h.x,h.y,Math.max(minS,Math.min(vw,vh)/(h.r*2.6)));toast(lvl>=2?'Indice 2/2 : c\'est tout près !':'Indice 1/2 : cherche dans le cercle');updateCard();};
 
