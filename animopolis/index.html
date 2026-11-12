@@ -328,6 +328,7 @@ function drawChar(c,x,y,s,noHalo){
   if(!noHalo&&LOD>.45){const h=haloCtx(c);h.save();drawCharIn(h,x,y,s);h.restore();}
   drawCharIn(c,x,y,s);
 }
+const BIGP=new Set(['letter','money','ticket','bag','necklace','notepad','map','camera','book','newspaper','cake','plate','sack','trophy','pie','basket','vial','goldfish','fish','magnifier','binoculars','cotton','icecream','flowers','clothes','crownp','cushion','can']);
 const BUILDS={normal:{bw:1,tk:1,lk:1,hs:1},round:{bw:1.38,tk:1,lk:.8,hs:1,belly:1},slim:{bw:.76,tk:1.06,lk:1.18,hs:.94},tall:{bw:.95,tk:1.14,lk:1.32,hs:1},small:{bw:.98,tk:.78,lk:.72,hs:1.16},old:{bw:1,tk:.94,lk:.9,hs:1,hunch:.24}};
 function drawCharIn(c,x,y,s){
   c.save();c.translate(x,y);
@@ -373,7 +374,7 @@ function drawCharIn(c,x,y,s){
   c.save();c.translate(BD.hunch?d*2:0,tt-5.1*BD.hs);c.scale(BD.hs,BD.hs);drawHead(c,s,d);c.restore();
   if(s.scarf){c.lineWidth=.8;P(c,[[-3.6*bw,tt-.6],[3.6*bw,tt-.6],[3.2*bw,tt+1.8],[-3.2*bw,tt+1.8]],s.scarf);P(c,[[-d*1.5,tt+1],[-d*.2,tt+1],[-d*.6,tt+7],[-d*2.2,tt+6.6]],s.scarf);}
   if(s.bell){c.lineWidth=.6;L(c,-2.6,tt+.6,2.6,tt+.6);D(c,0,tt+1.8,1.5,RED);}
-  if(s.prop)drawProp(c,s.prop,F[0],F[1],d);
+  if(s.prop){if(BIGP.has(s.prop)){c.save();c.translate(F[0],F[1]);c.scale(1.45,1.45);drawProp(c,s.prop,0,0,d);c.restore();}else drawProp(c,s.prop,F[0],F[1],d);}
   if(pose==='think'){c.strokeStyle=INK;c.lineWidth=.6;C(c,d*7,tt-10,1,WHITE);C(c,d*9.5,tt-14,1.6,WHITE);E(c,d*13,tt-20,4.6,3.2,WHITE);txt(c,'?',d*13,tt-20,5);}
   if(sleeping){c.fillStyle=INK;c.font='7px "Patrick Hand", cursive';c.textAlign='left';c.fillText('z',6,tt-9);c.font='9px "Patrick Hand", cursive';c.fillText('Z',9,tt-14);}
   if(fallen){c.lineWidth=.6;for(const[sx,sy]of[[-7,-33],[6,-35],[0,-38]]){L(c,sx-1.3,sy,sx+1.3,sy);L(c,sx,sy-1.3,sx,sy+1.3);}}
@@ -1029,7 +1030,7 @@ function buildCity(){
    setT('lettre',6,fu,fv,22,30);
    // gâteau 2 : la table du concours
    const ju=t.pu0+30,jv=t.pv0+30;addSpr(ju,jv,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-22,y-12,44,12,WHITE);L(c,x-20,y,x-20,y-12);E(c,x-6,y-14,7,2.2,WHITE);c.lineWidth=.7;L(c,x-6,y-12,x-6,y-17);E(c,x-6,y-17,4,1.2,WHITE);txt(c,'CONCOURS',x,y-6,6);},{ht:20,hw:26});
-   addChar(ju+12,jv-12,SP('owl','suit','black','glasses','arms_up',null,false,{build:'old'}));addChar(ju+26,jv-6,SP('elephant','dress','white','none','arms_up',null,true));setT('gateau',2,ju+6,jv-4,28);
+   avoid(ju+6,jv-4,70);addChar(ju+12,jv-12,SP('owl','suit','black','glasses','arms_up',null,false,{build:'old'}));addChar(ju+26,jv-6,SP('elephant','dress','white','none','arms_up',null,true));setT('gateau',2,ju+6,jv-4,28);
    addTree(k.u1-14,k.v1-14);addTree(k.u0+14,k.v1-12);}
   // (1,2) Parc du Lac
   {const k=park(1,2,'Parc du Lac');const cu=k.uc+10,cv=k.vc-20,ru=80,rv=54;
@@ -1455,7 +1456,7 @@ function addOak(u,v,hole,extra){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWid
   if(hole){E(c,x,y-13,2.8,4.4,'#2b2926');if(extra)extra(c,x,y-13);}
   const bl=[[-14,-36,12],[12,-36,12],[0,-48,13],[-20,-26,9],[20,-26,9],[0,-32,11]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle='#f4f5ec';for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}
   c.lineWidth=.6;for(const[dx,dy]of[[-10,-40],[8,-44],[0,-30],[14,-30]]){c.beginPath();c.arc(x+dx,y+dy,2.4,PI*.2,PI*.9);c.stroke();}},{hw:34,ht:66});avoid(u,v,14);}
-function addTreeSwing(u,v,who){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;P(c,[[x-18,y],[x-15,y-30],[x-11,y-30],[x-12,y]],'#efe8d6');c.lineWidth=1.6;L(c,x-14,y-30,x+18,y-38);c.lineWidth=.6;L(c,x+4,y-35,x+4,y-12);L(c,x+12,y-37,x+12,y-12);c.lineWidth=1;Rc(c,x+2,y-12,12,2,WHITE);if(who)drawChar(c,x+8,y-4,who);
+function addTreeSwing(u,v,who){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;P(c,[[x-18,y],[x-15,y-30],[x-11,y-30],[x-12,y]],'#efe8d6');c.lineWidth=1.6;L(c,x-14,y-30,x+18,y-38);c.lineWidth=.6;L(c,x+4,y-35,x+4,y-12);L(c,x+12,y-37,x+12,y-12);c.lineWidth=1;Rc(c,x+2,y-12,12,2,WHITE);if(who)drawChar(c,x+8,y-4,Object.assign({},who,{scale:1.15}));
   const bl=[[-16,-44,11],[4,-50,12],[20,-44,10],[-4,-38,9]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle='#f4f5ec';for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}},{hw:34,ht:64});avoid(u,v,16);}
 function addCampfire(u,v,pot){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;for(const a of[-.5,.5]){c.save();c.translate(x,y);c.rotate(a);Rc(c,-8,-1.5,16,3,'#a8946a');c.restore();}
   P(c,[[x-5,y-2],[x,y-12],[x+5,y-2]],'#e6c14a');P(c,[[x-2.6,y-2],[x,y-8],[x+2.6,y-2]],RED);
@@ -1549,7 +1550,7 @@ function buildColline(){
   // Lili 1 : la clairière
   for(const[du,dv]of[[-14,8],[16,6],[8,20]])addMushrooms(300+du,2130+dv);addChar(300,2134,as(LILI,{pose:'crouch'}));setT('lili',1,300,2134,24);
   // Lili 2 : la balançoire
-  addTreeSwing(420,2060,as(LILI,{pose:'sit',prop:null}));addSpr(400,2070,(c,x,y)=>drawProp(c,'basket',x,y-6,1),{ht:12});{const[x,y]=pr(420,2060,0);setTxy('lili',2,x+8,y-20,24);}
+  addTreeSwing(420,2060,as(LILI,{pose:'sit',prop:null}));avoid(420,2060,40);addSpr(400,2070,(c,x,y)=>drawProp(c,'basket',x,y-6,1),{ht:12});{const[x,y]=pr(420,2060,0);setTxy('lili',2,x+8,y-20,24);}
   // Lili 3
   addChar(560,2300,as(GROGNON,{pose:'run',prop:'basket'}));setT('lili',3,560,2300,22);
   // Lili 4
@@ -1741,7 +1742,7 @@ function buildOmbre(){
   addChar(300,626,as(LEONIE,{pose:'arms_up'}));addChar(312,630,as(TOUTOU,{pose:'point',flip:true}));S(18,306,628,24);
   addChar(470,620,as(O,{pose:'stand',mask:false,prop:null}));addSpr(478,622,(c,x,y)=>{c.fillStyle=INK;c.fillRect(x-1,y-4,7,2.4);},{ht:6});addChar(484,626,as(LEONIE,{pose:'point',flip:true}));S(19,476,622,24);
   {const[u,v]=placeNear(700,744);addChar(u,v,as(LEONIE,{pose:'arms_up',prop:'trophy'}));for(const[du,dv,s]of[[-14,6,MIAOU],[14,6,HERMINE],[-6,16,BISCOTTE],[8,18,ZORBO]])addChar(u+du,v+dv,as(s,{pose:'arms_up',prop:null}));
-   addSpr(u,v,(c,x,y)=>{for(const[dx,dy,col]of[[-12,-50,RED],[10,-54,'#e6c14a'],[0,-60,RED],[18,-44,'#7fb0d6'],[-20,-42,'#e6c14a']]){c.fillStyle=col;c.fillRect(x+dx,y+dy,2,3);}},{top:true,ht:64});S(20,u,v+6,32);}
+   addSpr(u,v,(c,x,y)=>{for(const[dx,dy,col]of[[-12,-50,RED],[10,-54,'#e6c14a'],[0,-60,RED],[18,-44,'#7fb0d6'],[-20,-42,'#e6c14a']]){c.fillStyle=col;c.fillRect(x+dx,y+dy,2,3);}},{top:true,ht:64});S(20,u,v+6,32);avoid(u,v+6,80);}
   {const k=blk(0,1);const[u,v]=placeNear(k.u0+200,k.v0+24);addChar(u,v,as(LEONIE,{pose:'give',prop:'notepad'}));addChar(u+14,v+2,SP('hedgehog','dress','white','flower','think',null,true,{build:'old'}));addSpr(u+6,v-2,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;C(c,x+6,y-24,2.2,WHITE);},{top:true,ht:30});S(15,u+7,v+1,24);}
   // ---- Port
   CURD=1;
@@ -2327,16 +2328,23 @@ function drawOverlay(c,s){
 const cardImg={};
 function cardCanvas(cs){if(cardImg[cs.id])return cardImg[cs.id];const r=2,w=64,h=82;const c=document.createElement('canvas');c.width=w*r;c.height=h*r;const g=c.getContext('2d');g.scale(r,r);
   g.fillStyle='rgba(0,0,0,.18)';g.fillRect(3,4,w-3,h-3);g.fillStyle='#fffdf7';g.strokeStyle=INK;g.lineWidth=1.5;g.fillRect(1,1,w-4,h-5);g.strokeRect(1,1,w-4,h-5);
-  g.save();g.beginPath();g.arc(w/2-1.5,29,22,0,TAU);g.fillStyle='#f3efe4';g.fill();g.strokeStyle=RED;g.lineWidth=1.6;g.stroke();g.clip();g.translate(w/2-1.5,62);g.scale(1.65,1.65);drawChar(g,0,0,cs.cast[cs.cast.length>1&&cs.id!=='fantome'?1:0].s);g.restore();
+  g.save();g.beginPath();g.arc(w/2-1.5,29,22,0,TAU);g.fillStyle='#f3efe4';g.fill();g.strokeStyle=RED;g.lineWidth=1.6;g.stroke();g.clip();g.translate(w/2-1.5,62);g.scale(1.65,1.65);drawChar(g,0,0,cs.cast[cs.cast.length>1&&cs.id!=='fantome'&&cs.id!=='ombre'?1:0].s);g.restore();
   g.fillStyle=INK;g.font='9.5px "Patrick Hand", cursive';g.textAlign='center';g.textBaseline='middle';const words=cs.title.split(' ');let l1='',l2='';for(const wd of words){if((l1+' '+wd).trim().length<=12&&!l2)l1=(l1+' '+wd).trim();else l2=(l2+' '+wd).trim();}
   g.fillText(l1,w/2-1.5,58);g.fillText(l2,w/2-1.5,67);g.font='8px sans-serif';g.fillText('★'.repeat(cs.diff)+'☆'.repeat(3-cs.diff),w/2-1.5,74.5);
   cardImg[cs.id]=c;return c;}
-function cardRects(){const out=[];if(cam.s>1.3)return out;const a=cam.s>.95?1-(cam.s-.95)/.35:1;
-  const cur=curCase(),focus=cur&&(!caseDone(cur)||chal);for(const cs of CASES){if(!unlocked(cs.dist))continue;if(focus&&cs!==cur)continue;if(cs.final&&!caseOpen(cs)&&cluesFound()===0)continue;const[x,y]=pr(cs.card[0],cs.card[1],0);const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const sc=Math.max(.5,Math.min(1,cam.s*1.4));out.push({cs,x:sx-32*sc,y:sy-90*sc,w:64*sc,h:82*sc,a});}return out;}
+const cardSlot={};
+function layoutCards(){DISTRICTS.forEach((D,d)=>{const list=CASES.filter(c=>c.dist===d).sort((a,b)=>(a.final?1:0)-(b.final?1:0)||a.diff-b.diff);const n=list.length,cols=Math.min(4,Math.ceil(n/2)),rows=Math.ceil(n/cols);
+  const[cx,cy]=pr((D.u0+D.u1)/2,(D.v0+D.v1)/2,0);list.forEach((cs,i)=>{const col=i%cols,row=Math.floor(i/cols);cardSlot[cs.id]=[cx+(col-(cols-1)/2)*180,cy+(row-(rows-1)/2)*160];});});}
+function cardRects(){const out=[];if(cam.s>1.3)return out;const a=cam.s>.95?1-(cam.s-.95)/.35:1;if(!cardSlot[CASES[0].id])layoutCards();
+  const cur=curCase(),busy=cur&&(!caseDone(cur)||chal);
+  for(const cs of CASES){if(!unlocked(cs.dist))continue;const[x,y]=cardSlot[cs.id];const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const isCur=cur&&cs===cur;const k=busy&&!isCur?.78:1;const sc=Math.max(.62,Math.min(1,cam.s*1.4))*k;
+    out.push({cs,x:sx-32*sc,y:sy-90*sc,w:64*sc,h:82*sc,a:a*(busy&&!isCur?.62:1),cur:isCur});}
+  out.sort((p,q)=>(p.cur?1:0)-(q.cur?1:0));return out;}
 function drawCards(c){for(const r of cardRects()){const open=caseOpen(r.cs);c.globalAlpha=r.a*(open?1:.55);c.drawImage(cardCanvas(r.cs),r.x,r.y,r.w,r.h);
   if(!open){c.globalAlpha=r.a;c.font=`${Math.round(r.w*.42)}px sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('🔒',r.x+r.w/2,r.y+r.h*.38);}
   if(caseDone(r.cs)){c.save();c.translate(r.x+r.w*.5,r.y+r.h*.38);c.rotate(-.25);c.strokeStyle=RED;c.lineWidth=2.4;c.fillStyle='rgba(255,253,247,.85)';c.beginPath();c.rect(-26,-9,52,18);c.fill();c.stroke();c.fillStyle=RED;c.font='13px "Patrick Hand", cursive';c.textAlign='center';c.textBaseline='middle';c.fillText('CLASSÉE',0,1);c.restore();c.save();c.fillStyle='#d8a21a';c.strokeStyle='#1d1b18';c.lineWidth=2.5;c.font=`${Math.round(r.w*.2)}px sans-serif`;c.textAlign='center';c.textBaseline='middle';const ss=starStr(caseStars(r.cs));c.strokeText(ss,r.x+r.w/2,r.y+r.h*.66);c.fillText(ss,r.x+r.w/2,r.y+r.h*.66);c.restore();}
-  else if(r.cs.id===state.current){c.strokeStyle=RED;c.lineWidth=3;c.strokeRect(r.x-3,r.y-3,r.w+2,r.h-1);}
+  else{const n=prog(r.cs).filter(Boolean).length;if(n>0&&open){c.save();c.fillStyle=RED;const pw=r.w*.62,ph=Math.max(11,r.w*.2);c.beginPath();c.roundRect(r.x+r.w*.5-pw/2-1,r.y+r.h*.5-ph/2,pw,ph,ph/2);c.fill();c.fillStyle='#fff';c.font=`${Math.round(ph*.85)}px "Patrick Hand", cursive`;c.textAlign='center';c.textBaseline='middle';c.fillText(n+'/'+r.cs.steps.length,r.x+r.w*.5-1,r.y+r.h*.5+1);c.restore();}}
+  if(r.cur&&!caseDone(r.cs)){c.strokeStyle=RED;c.lineWidth=3;c.strokeRect(r.x-3,r.y-3,r.w+2,r.h-1);}
   c.globalAlpha=1;}}
 function hintCircle(cs,k,lvl){const t=cs.steps[k].t;const a=k*2.3+cs.id.length;return lvl>=2?{x:t.x+Math.cos(a)*16,y:t.y+Math.sin(a)*12,r:t.r+34}:{x:t.x+Math.cos(a)*70,y:t.y+Math.sin(a)*50,r:170};}
 function toWorld(sx,sy){return{x:cam.x+(sx-vw/2)/cam.s,y:cam.y+(sy-vh/2)/cam.s};}
@@ -2389,12 +2397,15 @@ function mountCast(root,cs){root.querySelectorAll('[data-p]').forEach(el=>el.app
 function showCases(){
   openModal(`<h2>Dossiers</h2><p class="legend">Toute la ville est figée : un même suspect apparaît à plusieurs endroits, à différents moments. Résous des enquêtes pour débloquer de nouveaux quartiers.</p><button class="ombrebtn" id="ombreBtn"><span style="font-size:26px">🕵️</span><span>Le dossier de l'Ombre<br><small>${cluesFound()}/5 indices${caseOpen(CASES.find(c=>c.final))?' · enquête finale ouverte !':''}</small></span></button>${DISTRICTS.map((D,i)=>{const open=unlocked(i);
     return `<h3>${open?'':'🔒 '}${D.name}${open?` <span class="legend">${doneIn(i)}/${CASES.filter(c=>c.dist===i).length} classées</span>`:''}</h3>${open?`<div class="cases">${CASES.filter(c=>c.dist===i&&!c.final).sort((a,b)=>a.diff-b.diff).map(cs=>{const n=(state.solved[cs.id]||[]).filter(Boolean).length;const op=caseOpen(cs);return`<button class="case ${cs.id===state.current?'active':''} ${op?'':'lock'}" data-c="${cs.id}"><div><div class="t">${cs.title}</div><div class="m">${['','Facile','Moyen','Difficile'][cs.diff]} ${stars(cs.diff)} · ${cs.steps.length} étapes</div></div><span class="done">${!op?'🔒':n===cs.steps.length?`<span class="stars">${starStr(caseStars(cs))}</span>`:(cs.id===state.current?'En cours · ':'')+n+'/'+cs.steps.length}</span></button>`;}).join('')}</div>`:`<p class="legend">Résous « ${mediumOf(i-1).title} » pour ouvrir ce quartier.</p>`}`;}).join('')}${curCase()&&!caseDone(curCase())?`<button class="btn ghost" id="quit">Mettre « ${curCase().title} » en pause</button>`:''}<button class="btn ghost" id="howto">Comment jouer ?</button>`,root=>{
-    root.querySelector('#ombreBtn').onclick=showClues;root.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const cur=curCase(),id=b.dataset.c;if(!caseOpen(CASES.find(c=>c.id===id))){toast(lockReason(CASES.find(c=>c.id===id)));return;}if(cur&&cur.id!==id&&!caseDone(cur)&&(state.solved[cur.id]||[]).some(Boolean)){openModal(`<h2>Changer d'enquête ?</h2><p>Tu es en pleine enquête : <b>${cur.title}</b>. Ta progression sera gardée et tu pourras la reprendre plus tard.</p><button class="btn" id="sw">Passer à l'autre enquête</button><button class="btn ghost" id="st">Rester sur ${cur.title}</button>`,r2=>{r2.querySelector('#sw').onclick=()=>startCase(id);r2.querySelector('#st').onclick=closeModal;});}else startCase(id);});root.querySelector('#howto').onclick=showHelp;
+    root.querySelector('#ombreBtn').onclick=showClues;root.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>pickCase(b.dataset.c));root.querySelector('#howto').onclick=showHelp;
     const q=root.querySelector('#quit');if(q)q.onclick=()=>{chal=null;state.current=null;save();updateCard();req();closeModal();toast('Enquête mise en pause : toutes les cartes sont de retour');};});}
+function pickCase(id){const cs=CASES.find(c=>c.id===id);if(!caseOpen(cs)){toast(lockReason(cs));return;}const cur=curCase();
+  if(cur&&cur.id!==id&&!caseDone(cur)&&started(cur)){openModal(`<h2>Changer d'enquête ?</h2><p>Tu es en pleine enquête : <b>${cur.title}</b>. Ta progression sera gardée et tu pourras la reprendre plus tard.</p><button class="btn" id="sw">Passer à « ${cs.title} »</button><button class="btn ghost" id="st">Rester sur ${cur.title}</button>`,r2=>{r2.querySelector('#sw').onclick=()=>startCase(id);r2.querySelector('#st').onclick=closeModal;});}else startCase(id);}
+function focusPoint(cs){const k=Math.max(0,curStep(cs));for(let i=k;i>=0;i--)if(cs.steps[i].t)return cs.steps[i].t;return cs.steps[0].t;}
 function startCase(id){chal=null;state.current=id;save();updateCard();req();const cs=curCase();
   openModal(`<h2>${cs.title}</h2><p class="legend">${DISTRICTS[cs.dist].name} · ${stars(cs.diff)}</p><p>${cs.intro}</p><h3>Les personnages</h3>${castHTML(cs)}<button class="btn" id="go">${curStep(cs)<0?'Revoir la carte':'Commencer l\'enquête'}</button>${caseDone(cs)?`<button class="btn ghost" id="chrono">⏱ Défi chrono${(state.best||{})[cs.id]?' — record '+fmtT(state.best[cs.id])+' '+medal(cs,state.best[cs.id]):''}</button>`:''}${(state.solved[cs.id]||[]).some(Boolean)?'<button class="btn ghost" id="reset">Recommencer cette enquête</button>':''}`,root=>{
     const ch=root.querySelector('#chrono');if(ch)ch.onclick=()=>startChal(cs);
-    mountCast(root,cs);root.querySelector('#go').onclick=()=>{closeModal();const[x,y]=pr(cs.card[0],cs.card[1],0);flyTo(x,y-20,Math.max(cam.s,Math.min(1.2,vw/700)));};
+    mountCast(root,cs);root.querySelector('#go').onclick=()=>{closeModal();const t=focusPoint(cs);flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.2,vw/700)));};
     const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];if(state.wrong)delete state.wrong[cs.id];Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
 function showSteps(){const cs=curCase();if(!cs){showCases();return;}const st=prog(cs);const k=curStep(cs);
   openModal(`<h2>${cs.title}</h2><ul class="steps">${cs.steps.map((s,i)=>st[i]?`<li><span class="n">${i+1}</span>${s.q}<span class="ok">${s.ok}</span>${s.t?`<button data-v="${i}">Voir sur la carte</button>`:''}</li>`:i===k?`<li><span class="n" style="background:var(--ink);color:var(--card)">${i+1}</span>${s.q}</li>`:`<li class="lock">Étape ${i+1} — encore secrète</li>`).join('')}</ul>${k<0?`<p class="stamp">Enquête classée</p><p>${cs.outro}</p>`:''}`,root=>{
@@ -2416,7 +2427,7 @@ function showHelp(){openModal(`<h2>Comment jouer</h2>
   <p>🖼️ À chaque étape, le <b>portrait</b> de la personne à chercher s'affiche à côté de la question.</p>
   <button class="btn" id="ok">C'est parti !</button>`,root=>root.querySelector('#ok').onclick=closeModal);}
 function onTapScreen(sx,sy){
-  const rs=cardRects();for(let i=rs.length-1;i>=0;i--){const r=rs[i];if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h){if(caseOpen(r.cs))startCase(r.cs.id);else toast(lockReason(r.cs));return;}}
+  const rs=cardRects();for(let i=rs.length-1;i>=0;i--){const r=rs[i];if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h){pickCase(r.cs.id);return;}}
   const w=toWorld(sx,sy);onTap(w.x,w.y);}
 function answerChoice(cs,k,i){if(i===cs.steps[k].ans){const t={x:cam.x,y:cam.y,r:1};solveStep(cs,k,t);}else{addWrong(cs);toast('Non… relis bien tes indices.');const b=document.querySelectorAll('.choice');b.forEach(x=>x.classList.add('shake'));setTimeout(()=>b.forEach(x=>x.classList.remove('shake')),400);}}
 function onTap(x,y){
@@ -2433,7 +2444,7 @@ let toastNext='';
 const fmtT=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const medal=(cs,s)=>s<=cs.steps.length*10?'🥇':s<=cs.steps.length*20?'🥈':'🥉';
 const chalTime=()=>chal?(performance.now()-chal.t0)/1000+chal.pen:0;
-function startChal(cs){chal={id:cs.id,solved:[],t0:performance.now(),pen:0};state.current=cs.id;closeModal();updateCard();req();const[x,y]=pr(cs.card[0],cs.card[1],0);flyTo(x,y-20,Math.max(cam.s,Math.min(1.2,vw/700)));toast('Défi chrono : c\'est parti !');}
+function startChal(cs){chal={id:cs.id,solved:[],t0:performance.now(),pen:0};state.current=cs.id;closeModal();updateCard();req();const t=focusPoint(cs);flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.2,vw/700)));toast('Défi chrono : c\'est parti !');}
 function chalSolve(cs,k,t){chal.solved[k]=true;fx.pulse={x:t.x,y:t.y,r:t.r,t:performance.now()};req();
   if(curStep(cs)>=0){updateCard();return;}
   const time=chalTime(),pen=chal.pen;chal=null;state.best=state.best||{};const old=state.best[cs.id];const rec=!old||time<old;if(rec)state.best[cs.id]=Math.round(time*10)/10;save();updateCard();req();
