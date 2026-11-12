@@ -496,7 +496,12 @@ export class MatchEngine {
         const tgt = this.pickPassTarget(u, inp.mx, inp.my);
         if (tgt) this.launchPass(u, tgt, inp.lob ? 'lob' : 'chest');
       }
-      if (pressed('action')) this.callScreen(u);
+      if (pressed('action')) {
+        // Défenseur au contact : dribble de débordement (crossover) ; sinon appel d'écran
+        const nd = this.nearestDefender(u);
+        if (nd.pl && nd.d < 1.9 && u.actionLock <= 0) this.userDribbleMove(u, nd.pl);
+        else this.callScreen(u);
+      }
     } else if (u.team === this.possession) {
       if (pressed('action')) this.userSetScreen(u);
       if (pressed('callBall')) {
@@ -513,6 +518,24 @@ export class MatchEngine {
     } else {
       if (pressed('jump') || pressed('shoot')) this.defensiveJump(u);
       if (pressed('action') || pressed('pass')) this.attemptSteal(u, true);
+    }
+  }
+
+  /** Contrôle manuel : changement de main appuyé. Réussi, il déséquilibre le défenseur et ouvre le drive. */
+  userDribbleMove(u: MPlayer, def: MPlayer): void {
+    u.ballHand = (-(u.ballHand ?? 1)) as 1 | -1;
+    u.xoverT = 0;
+    u.xoverKind = u.data.attrs.dribble >= 14 ? Math.floor(this.rng.next() * 3) : u.data.attrs.dribble >= 10 ? Math.floor(this.rng.next() * 2) : 0;
+    u.actionLock = 0.18;
+    u.energy = Math.max(0, u.energy - 0.004);
+    const edge = (u.data.attrs.dribble - def.data.attrs.perimeterD) / 20;
+    if (this.rng.chance(clamp(0.22 + edge * 0.6, 0.06, 0.7))) {
+      def.slowT = Math.max(def.slowT, 0.55);
+      def.anim = 'stumble';
+      def.animT = 0;
+      this.emit({ type: 'info', team: u.team, player: u.idx, text: `${this.name(u.idx)} efface ${this.name(def.idx)} sur le dribble !` });
+    } else if (this.rng.chance(clamp(0.05 - edge * 0.08, 0.01, 0.12))) {
+      this.attemptSteal(def);
     }
   }
 

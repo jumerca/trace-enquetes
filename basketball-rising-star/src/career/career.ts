@@ -633,6 +633,16 @@ export function simFixture(c: Career, f: Fixture): void {
   for (const [id, st] of res.lines) if (w.players[id]) w.players[id].fatigue = Math.min(100, w.players[id].fatigue + st.min * 0.5);
 }
 
+export function recordWatchedStats(c: Career, f: Fixture, lines: Map<string, SeasonStat & { pm?: number }>): void {
+  const w = c.world;
+  if (!w.leagues[f.leagueId]) return;
+  for (const [id, st] of lines) {
+    if (!w.players[id] || st.gp === 0) continue;
+    addStat(ensureStat(c, id), st);
+    w.players[id].fatigue = Math.min(100, w.players[id].fatigue + st.min * 0.5);
+  }
+}
+
 export function teamLevel(c: Career, clubId: string): number {
   const dc = depthChart(c, clubId);
   const top = dc.order.slice(0, 8);

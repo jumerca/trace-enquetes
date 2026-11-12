@@ -22,7 +22,7 @@ export type Screen =
   | { name: 'create' }
   | { name: 'hub'; tab: HubTab }
   | { name: 'prematch' }
-  | { name: 'match'; quick?: boolean }
+  | { name: 'match'; quick?: boolean; watch?: string }
   | { name: 'postmatch' }
   | { name: 'settings'; back: Screen }
   | { name: 'help'; back: Screen };
@@ -32,6 +32,8 @@ export interface LastMatch {
   line: UserGameLine | null;
   fixtureId: string | null;
   quick: boolean;
+  /** Match d'autres équipes regardé en spectateur */
+  watch?: boolean;
   reputationBefore: number;
 }
 
@@ -152,7 +154,7 @@ export function App() {
       body = career ? <PreMatch /> : <Home />;
       break;
     case 'match':
-      body = <MatchScreen quick={!!screen.quick} />;
+      body = <MatchScreen key={screen.watch ?? 'own'} quick={!!screen.quick} watch={screen.watch} />;
       break;
     case 'postmatch':
       body = <PostMatch />;

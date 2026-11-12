@@ -31,7 +31,7 @@ export function Help({ back }: { back: Screen }) {
               Se déplacer : {keyLabel(k.up)} {keyLabel(k.left)} {keyLabel(k.down)} {keyLabel(k.right)} ou flèches · Sprint : {keyLabel(k.sprint)}
             </li>
             <li>
-              Avec le ballon : <b>{keyLabel(k.shoot)}</b> tirer (maintenez, relâchez au sommet du saut — la jauge dorée indique le bon moment ; près du cercle : lay-up ou dunk automatiquement), <b>{keyLabel(k.pass)}</b> passe (vers la direction du déplacement, sinon vers le partenaire le plus libre), <b>{keyLabel(k.lob)}</b> passe lobée, <b>{keyLabel(k.action)}</b> appeler un écran.
+              Avec le ballon : <b>{keyLabel(k.shoot)}</b> tirer (maintenez, relâchez au sommet du saut — la jauge dorée indique le bon moment ; près du cercle : lay-up ou dunk automatiquement), <b>{keyLabel(k.pass)}</b> passe (vers la direction du déplacement, sinon vers le partenaire le plus libre), <b>{keyLabel(k.lob)}</b> passe lobée, <b>{keyLabel(k.action)}</b> dribble de débordement si un défenseur est au contact (crossover, entre les jambes ou dans le dos selon votre technique), sinon appeler un écran.
             </li>
             <li>
               Sans ballon en attaque : <b>{keyLabel(k.shoot)}</b> couper vers le cercle, <b>{keyLabel(k.pass)}</b> demander le ballon, <b>{keyLabel(k.action)}</b> poser un écran au porteur.

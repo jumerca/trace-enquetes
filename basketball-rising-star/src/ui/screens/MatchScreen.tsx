@@ -7,7 +7,7 @@ import { FIBA, withQuarterLength } from '../../sim/rules';
 import { quickTeam } from '../../sim/testTeams';
 import { NameRegistry } from '../../data/generate';
 import { user, userFixture } from '../../career/career';
-import { createMatch, finishMatch } from '../../career/matchBridge';
+import { createMatch, finishMatch, finishWatched } from '../../career/matchBridge';
 import { simulateAsync } from '../simulate';
 import { crowdLevel, crowdSfx, sfx, startAmbience, stopAmbience } from '../audio';
 import { keyLabel } from '../settings';
@@ -56,7 +56,7 @@ function fmtClock(s: number): string {
   return `${m}:${String(ss).padStart(2, '0')}`;
 }
 
-export function MatchScreen({ quick }: { quick: boolean }) {
+export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }) {
   const app = useApp();
   const c = app.career;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -93,12 +93,12 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   tacticsRef.current = tactics;
   const doneRef = useRef(false);
   const timingRef = useRef<HTMLDivElement>(null);
-  const fixture = useMemo(() => (c && !quick ? userFixture(c) : null), [c, quick]);
+  const fixture = useMemo(() => (c && !quick ? (watch ? c.world.fixtures.find((f) => f.id === watch && !f.played) ?? null : userFixture(c)) : null), [c, quick, watch]);
   const repBefore = useMemo(() => (c ? user(c).reputation : 0), [c]);
 
   const engine = useMemo(() => {
     const control = app.settings.controlMode === 'play';
-    if (!quick && c && fixture) return createMatch(c, fixture, control);
+    if (!quick && c && fixture) return createMatch(c, fixture, control && !watch, !!watch);
     const reg = new NameRegistry();
     const home = quickTeam(Date.now() & 0xffff, 'Riverside', 12, ['#3988F5', '#F6F4EF'], reg);
     const away = quickTeam((Date.now() >> 3) & 0xffff, 'Northport', 12, ['#F36B32', '#101827'], reg);
@@ -124,8 +124,8 @@ export function MatchScreen({ quick }: { quick: boolean }) {
     const r = new MatchRenderer(canvas, engine);
     r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind, showNames: app.settings.showNames };
     const resize = () => {
-      const w = wrapRef.current!;
-      r.resize(w.clientWidth, w.clientHeight);
+      const w = wrapRef.current;
+      if (w) r.resize(w.clientWidth, w.clientHeight);
     };
     resize();
     window.addEventListener('resize', resize);
@@ -400,7 +400,11 @@ export function MatchScreen({ quick }: { quick: boolean }) {
 
   // ---------------------------------------------------------------- Fin / simulation
   const onFinish = () => {
-    if (!quick && c && fixture) {
+    if (!quick && c && fixture && watch) {
+      finishWatched(c, fixture, engine);
+      app.setLastMatch({ engine, line: null, fixtureId: fixture.id, quick: true, watch: true, reputationBefore: 0 });
+      void app.persist(c);
+    } else if (!quick && c && fixture) {
       const line = finishMatch(c, fixture, engine, true);
       app.setLastMatch({ engine, line, fixtureId: fixture.id, quick: false, reputationBefore: repBefore });
       void app.persist(c);
@@ -427,7 +431,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
   const t1 = engine.teams[1];
   const u = engine.userIdx >= 0 ? engine.players[engine.userIdx] : null;
   const keys = app.settings.keys;
-  const labels = !h || !h.onCourt ? null : h.hasBall ? { shoot: 'TIRER', pass: 'PASSE', lob: 'LOB', action: 'ÉCRAN' } : h.offense ? { shoot: 'COUPER', pass: 'DEMANDER', lob: '', action: 'ÉCRAN' } : { shoot: 'CONTRE', pass: 'INTER-\nCEPTER', lob: '', action: 'AIDE' };
+  const labels = !h || !h.onCourt ? null : h.hasBall ? { shoot: 'TIRER', pass: 'PASSE', lob: 'LOB', action: 'DRIBBLE\nÉCRAN' } : h.offense ? { shoot: 'COUPER', pass: 'DEMANDER', lob: '', action: 'ÉCRAN' } : { shoot: 'CONTRE', pass: 'INTER-\nCEPTER', lob: '', action: 'AIDE' };
 
   return (
     <div className="match" ref={wrapRef}>
@@ -539,7 +543,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
         <i />
         <b style={{ bottom: `${(1 / 1.6) * 100}%` }} />
       </div>
-      {h && !h.finished && !simMsg && !engine.userControl && <StyleBar engine={engine} onChange={(st) => c && (c.style = st)} />}
+      {h && !h.finished && !simMsg && !engine.userControl && engine.userIdx >= 0 && <StyleBar engine={engine} onChange={(st) => c && (c.style = st)} />}
       {h && h.onCourt && !h.finished && labels && engine.userControl && (
         <div className="controls touch-only">
           <div className="joy" ref={joyRef} onPointerDown={(e) => ((joyActive.current = true), (e.target as HTMLElement).setPointerCapture(e.pointerId), joyMove(e))} onPointerMove={(e) => joyActive.current && joyMove(e)} onPointerUp={joyEnd} onPointerCancel={joyEnd} aria-label="Joystick de déplacement">
@@ -557,7 +561,7 @@ export function MatchScreen({ quick }: { quick: boolean }) {
           </div>
         </div>
       )}
-      {h && !h.onCourt && !h.finished && !simMsg && (
+      {h && !h.onCourt && !h.finished && !simMsg && engine.userIdx >= 0 && (
         <div className="bench-banner fade-in">
           <b>Vous êtes sur le banc</b>
           <span className="small muted">Le coach décide des rotations selon la fatigue, les fautes et votre niveau de confiance.</span>
@@ -590,6 +594,11 @@ export function MatchScreen({ quick }: { quick: boolean }) {
               >
                 Simuler la fin du match
               </button>
+              {watch && (
+                <button className="btn danger" onClick={() => app.go({ name: 'hub', tab: 'calendar' })}>
+                  Quitter (le match sera simulé)
+                </button>
+              )}
               {quick && (
                 <button className="btn danger" onClick={() => app.go({ name: 'home' })}>
                   Quitter

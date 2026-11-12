@@ -1,22 +1,31 @@
 import { hashString } from '../core/rng';
 import { MatchEngine } from '../sim/engine';
 import type { BoxLine } from '../sim/types';
-import { recordUserMatch, rulesFor, teamInput, type Career } from './career';
+import { recordUserMatch, recordWatchedStats, rulesFor, teamInput, type Career } from './career';
 import { extra } from './life';
 import type { SeasonStat } from './fastsim';
 import type { Fixture, UserGameLine } from './world';
 
-export function createMatch(c: Career, f: Fixture, control = false): MatchEngine {
+export function createMatch(c: Career, f: Fixture, control = false, spectator = false): MatchEngine {
   return new MatchEngine({
     home: teamInput(c, f.home, f),
     away: teamInput(c, f.away, f),
     rules: rulesFor(c, f.leagueId),
     seed: hashString(`${f.id}|${c.world.seed}`),
-    userPlayerId: c.userId,
+    userPlayerId: spectator ? null : c.userId,
     userAssist: c.settings.assist,
     userControl: control,
     userStyle: c.style,
   });
+}
+
+/** Match d'autres équipes regardé en direct : le résultat réellement joué remplace la simulation rapide. */
+export function finishWatched(c: Career, f: Fixture, e: MatchEngine): void {
+  if (f.played) return;
+  f.played = true;
+  f.hs = e.teams[0].score;
+  f.as = e.teams[1].score;
+  recordWatchedStats(c, f, engineLines(e));
 }
 
 export function boxToStat(b: BoxLine, started: boolean): SeasonStat & { pm: number } {
