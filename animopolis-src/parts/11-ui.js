@@ -144,9 +144,9 @@ function cardCanvas(cs){if(cardImg[cs.id])return cardImg[cs.id];const r=2,w=64,h
 const cardSlot={};
 function layoutCards(){DISTRICTS.forEach((D,d)=>{const list=CASES.filter(c=>c.dist===d).sort((a,b)=>(a.final?1:0)-(b.final?1:0)||a.diff-b.diff);const n=list.length,cols=Math.min(4,Math.ceil(n/2)),rows=Math.ceil(n/cols);
   const[cx,cy]=pr((D.u0+D.u1)/2,(D.v0+D.v1)/2,0);list.forEach((cs,i)=>{const col=i%cols,row=Math.floor(i/cols);cardSlot[cs.id]=[cx+(col-(cols-1)/2)*180,cy+(row-(rows-1)/2)*160];});});}
-function cardRects(){const out=[];if(cam.s>1.3)return out;const a=cam.s>.95?1-(cam.s-.95)/.35:1;if(!cardSlot[CASES[0].id])layoutCards();
+function cardRects(){const out=[];if(cam.s>1.05)return out;const a=cam.s>.7?1-(cam.s-.7)/.35:1;if(!cardSlot[CASES[0].id])layoutCards();
   const cur=curCase(),busy=cur&&(!caseDone(cur)||chal);
-  for(const cs of CASES){if(!unlocked(cs.dist))continue;const[x,y]=cardSlot[cs.id];const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const isCur=cur&&cs===cur;const k=busy&&!isCur?.78:1;const sc=Math.max(.62,Math.min(1,cam.s*1.4))*k;
+  for(const cs of CASES){if(!unlocked(cs.dist))continue;const[x,y]=cardSlot[cs.id];const sx=(x-cam.x)*cam.s+vw/2,sy=(y-cam.y)*cam.s+vh/2;const isCur=cur&&cs===cur;const k=busy&&!isCur?.78:1;const sc=Math.max(.56,Math.min(.88,cam.s*1.15))*k;
     out.push({cs,x:sx-32*sc,y:sy-90*sc,w:64*sc,h:82*sc,a:a*(busy&&!isCur?.62:1),cur:isCur});}
   out.sort((p,q)=>(p.cur?1:0)-(q.cur?1:0));return out;}
 function drawCards(c){for(const r of cardRects()){const open=caseOpen(r.cs);c.globalAlpha=r.a*(open?1:.55);c.drawImage(cardCanvas(r.cs),r.x,r.y,r.w,r.h);

@@ -160,6 +160,8 @@ function drawProp(c,p,hx,hy,d){
 const HALO='#fffdf8';let haloP=null;
 function haloCtx(c){if(haloP&&haloP.t===c)return haloP.p;const fns=new Map();const p=new Proxy(c,{get(t,k){const v=t[k];if(typeof v==='function'){let f=fns.get(k);if(!f){f=v.bind(t);fns.set(k,f);}return f;}return v;},set(t,k,v){if(k==='fillStyle'||k==='strokeStyle')t[k]=HALO;else if(k==='lineWidth')t[k]=v+2.8;else t[k]=v;return true;}});haloP={t:c,p};return p;}
 function drawChar(c,x,y,s,noHalo){
+  if(!noHalo&&LOD>.3&&s.head!=='ghost'){const sz=(SIZE[s.head]||1)*(s.scale||1)*((BUILDS[s.build||'normal']||BUILDS.normal).bw>1.2?1.2:1),lay=s.pose==='fallen'||s.pose==='lie';
+    c.save();c.fillStyle='rgba(70,58,38,.14)';c.beginPath();c.ellipse(x+(lay?3:0),y+1,(lay?17:9)*sz,(lay?4.5:3.4)*sz,0,0,TAU);c.fill();c.restore();}
   if(!noHalo&&LOD>.45){const h=haloCtx(c);h.save();drawCharIn(h,x,y,s);h.restore();}
   drawCharIn(c,x,y,s);
 }
