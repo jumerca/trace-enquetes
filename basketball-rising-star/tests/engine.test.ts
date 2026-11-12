@@ -261,3 +261,33 @@ describe('échappée en contre-attaque', () => {
     expect(shots).toBeGreaterThanOrEqual(done - 1);
   });
 });
+
+describe('lisibilité : passes et tirs', () => {
+  it('aucune passe ne monte aussi haut qu’un tir, et le ballon ne circule pas sans raison', () => {
+    const reg = new NameRegistry();
+    const e = new MatchEngine({ home: quickTeam(21, 'A', 12, undefined, reg), away: quickTeam(61, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 77 });
+    let passTop = 0;
+    let shotLow = 99;
+    let passes = 0;
+    let cur: { kind: string; max: number } | null = null;
+    let last: unknown = null;
+    while (!e.finished) {
+      e.step();
+      const f = e.ball.flight;
+      if (f && f !== last && (f.kind === 'shot' || (f.kind === 'pass' && f.from >= 0))) {
+        cur = { kind: f.kind, max: e.ball.z };
+        if (f.kind === 'pass') passes++;
+      }
+      if (cur && f && f.kind === cur.kind) cur.max = Math.max(cur.max, e.ball.z);
+      else if (cur) {
+        if (cur.kind === 'pass') passTop = Math.max(passTop, cur.max);
+        else shotLow = Math.min(shotLow, cur.max);
+        cur = null;
+      }
+      last = f;
+    }
+    expect(passTop).toBeLessThan(3.1);
+    expect(shotLow).toBeGreaterThan(3.2);
+    expect(passes).toBeLessThan(850); // environ 4 passes par attaque (il y en avait plus de 6)
+  });
+});

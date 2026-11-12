@@ -1117,13 +1117,19 @@ export class MatchEngine {
     const skill = from.data.attrs.passing;
     const recvOpen = this.nearestDefender(to).d;
     const lob = this.passRisk(from, to, true) + 0.06 + Math.max(0, 12 - skill) / 40 + Math.max(0, 1.6 - recvOpen) * 0.12;
-    return lob < direct ? { risk: lob, kind: 'lob' } : { risk: direct, kind: 'chest' };
+    // La passe tendue est la règle ; la passe lobée ne sert que si la ligne directe est vraiment coupée
+    // (un défenseur planté au milieu de la trajectoire ; celui qui colle le receveur n'est pas battu par un lob)
+    const cut = this.teamOnCourt((1 - from.team) as 0 | 1).some((o) => {
+      const { d, t } = distToSegment(o.pos, from.pos, to.pos);
+      return d < 0.7 && t > 0.25 && t < 0.75;
+    });
+    return cut && direct > 0.3 && lob < direct - 0.12 ? { risk: lob, kind: 'lob' } : { risk: direct, kind: 'chest' };
   }
 
   launchPass(from: MPlayer, to: MPlayer, kind: 'chest' | 'lob' | 'bounce' | 'tip' | 'inbound'): void {
     const b = this.ball;
     const lob = kind === 'lob';
-    const speed = kind === 'tip' ? 7 : lob ? 9.5 : 13.5 + (from.data.attrs.passing / 20) * 3.5;
+    const speed = kind === 'tip' ? 7 : lob ? 12.5 : 13.5 + (from.data.attrs.passing / 20) * 3.5;
     const d0 = dist(from.pos, to.pos);
     const T0 = d0 / speed;
     // Passe dans la course du receveur
@@ -1153,7 +1159,7 @@ export class MatchEngine {
     const end = { x: lead.x, y: lead.y, z: lob ? 2.1 : 1.25 };
     // Passes tendues, bien plus basses qu'un tir : on ne les confond pas à l'image
     const rise = (9.81 * T0 * T0) / 8; // flèche naturelle d'une passe lancée à cette vitesse
-    const apex = lob ? Math.max(2.7, Math.max(start.z, end.z) + rise) : Math.max(start.z, end.z) + 0.04 + rise;
+    const apex = lob ? Math.min(3.0, Math.max(2.5, Math.max(start.z, end.z) + rise)) : Math.max(start.z, end.z) + 0.04 + rise;
     const v = launchVelocity(start, end, apex);
     b.state = 'air';
     b.holder = -1;

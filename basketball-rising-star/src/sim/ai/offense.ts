@@ -673,6 +673,9 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
   if (dMe < 3) return false;
   const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
   const trapped = defs.filter((o) => dist(o.pos, p.pos) < 1.7).length >= 2;
+  const trans = e.offense[p.team].transition || !e.frontcourtReached;
+  // Le porteur prend le temps de regarder avant de redonner (sauf en transition ou pris à deux)
+  if (!trans && !trapped && p.pickupT < 0.7) return false;
   const see = 0.45 + a.vision / 40 + a.iq / 80; // ~0.9 à 1.2 pour un bon meneur, ~0.6 pour un intérieur peu créatif
   let best: MPlayer | null = null;
   let bs = 0;
@@ -684,8 +687,9 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     const risk = e.bestPass(p, m).risk;
     const ahead = dMe - md;
     let sc = 0;
-    if (ahead > 2 && md < 9 && open > 2.2) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
-    else if (md < 2.8 && open > 1.6) sc = 0.7 + open * 0.15; // coupeur / pivot seul sous le cercle
+    // En attaque placée, on ne donne vers l'avant que pour un vrai décalage : le ballon ne tourne pas sans raison
+    if (ahead > (trans ? 2 : 4.5) && md < (trans ? 9 : 5) && open > (trans ? 2.2 : 2.8)) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
+    else if (md < 2.6 && open > 2) sc = 0.7 + open * 0.15; // coupeur / pivot seul sous le cercle
     else if (trapped && open > 2.2) sc = 0.55 + open * 0.1;
     if (risk > 0.32) continue;
     sc -= risk * 3.5;
@@ -695,7 +699,7 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     }
   }
   if (!best || bs < 0.62) return false;
-  if (!e.rng.chance(Math.min(0.95, see * (trapped ? 0.95 : 0.75)))) return false;
+  if (!e.rng.chance(Math.min(0.95, see * (trapped ? 0.95 : trans ? 0.75 : 0.5)))) return false;
   const far = dist(best.pos, p.pos);
   e.launchPass(p, best, far > 12 ? 'lob' : e.bestPass(p, best).kind);
   e.offense[p.team].passes++;
@@ -721,7 +725,7 @@ function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     const along = rx * toHoop.x + ry * toHoop.y;
     return along > 0 && along < 1.6 && Math.abs(-rx * toHoop.y + ry * toHoop.x) < 0.9;
   });
-  const pressure = trapped || p.keyTime > 1.3 || p.pickupT > 2.2 || (sealed && p.pickupT > 0.9);
+  const pressure = trapped || p.keyTime > 1.7 || p.pickupT > 2.8 || (sealed && p.pickupT > 1.4);
   if (!pressure) return false;
   // Meilleure solution à l'extérieur (lecture plus ou moins rapide selon la vision)
   const side = e.attackSide(p.team);
