@@ -21,6 +21,7 @@
   <circle cx="222" cy="214" r="128" fill="#fffdf8"/>
   <g clip-path="url(#lens)">
     <path d="M94 304 Q222 262 350 304 L350 360 L94 360 Z" fill="#ebe6da" stroke="#1d1b18" stroke-width="5"/>
+    <g transform="translate(222 236) scale(.80) translate(-222 -214)">
     <g stroke="#1d1b18" stroke-width="9" stroke-linejoin="round" fill="#fff">
       <path d="M150 300 Q148 252 180 240 L264 240 Q296 252 294 300 Z" fill="#1d1b18"/>
       <path d="M160 170 L154 96 L206 140 Z"/>
@@ -39,6 +40,7 @@
     </g>
     <path d="M222 258 L192 244 L192 274 Z M222 258 L252 244 L252 274 Z" fill="#d8352a" stroke="#1d1b18" stroke-width="5" stroke-linejoin="round"/>
     <circle cx="222" cy="258" r="7" fill="#d8352a" stroke="#1d1b18" stroke-width="5"/>
+    </g>
   </g>
   <circle cx="222" cy="214" r="128" fill="none" stroke="#1d1b18" stroke-width="30"/>
   <path d="M138 156 A100 100 0 0 1 196 112" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" opacity=".9"/>
