@@ -11,7 +11,7 @@ export const ZK = 0.92;
 export const SKIN = ['#f3d2b3', '#e6b48f', '#c98e66', '#a06a45', '#7a4b2e', '#4f2f1d'];
 export const HAIR = ['#1b1410', '#3b2617', '#6b4423', '#c49a55'];
 
-export type CameraMode = 'full' | 'follow' | 'player';
+export type CameraMode = 'full' | 'follow' | 'player' | 'close';
 
 export interface RenderOptions {
   camera: CameraMode;
@@ -20,6 +20,8 @@ export interface RenderOptions {
   colorblind: boolean;
   showNames?: boolean;
   showTactics?: boolean;
+  /** Cadrage de la vue 2D : terrain entier, demi-terrain où se joue l'action, ou zoom qui suit le ballon */
+  view2d?: 'full' | 'half' | 'follow';
   view?: '3d' | '2d';
 }
 
@@ -90,7 +92,8 @@ export class MatchRenderer {
     const g = this.e.court.g;
     const full = this.opts.camera === 'full';
     const sFull = Math.min(this.W / (g.length + 2.2), (this.H * 0.92) / (g.width * TILT + 4.6 * ZK));
-    const target = full ? sFull : Math.max(sFull * 1.4, Math.min(this.W / 17, this.H / 8.4));
+    const close = this.opts.camera === 'close';
+    const target = full ? sFull : close ? Math.max(sFull * 2.1, Math.min(this.W / 11.5, this.H / 6)) : Math.max(sFull * 1.4, Math.min(this.W / 17, this.H / 8.4));
     this.s += (target - this.s) * Math.min(1, dt * 4);
     const b = this.e.ball;
     let tx = g.length / 2;
@@ -232,6 +235,7 @@ export class MatchRenderer {
 
   // ------------------------------------------------------------------ Image
   handMem = new Map<number, [number, number][]>();
+  cam2 = { s: 0, x: 14, y: 7.5 };
   poseMem = new Map<number, { crouch: number; lean: number; legs: number[]; z: number; land: number; init: boolean }>();
   frameDt = 1 / 60;
   render(dt: number): void {
@@ -343,9 +347,33 @@ export class MatchRenderer {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.fillStyle = '#0d1422';
     ctx.fillRect(0, 0, this.W, this.H);
-    const S = Math.min((this.W - 24) / (g.length + 2), (this.H - 90) / (g.width + 2));
-    const ox = (this.W - g.length * S) / 2;
-    const oy = (this.H - g.width * S) / 2 + 18;
+    const mode = this.opts.view2d ?? 'full';
+    const sFull2 = Math.min((this.W - 16) / (g.length + 2), (this.H - 16) / (g.width + 2));
+    const sHalf = Math.min((this.W - 16) / (g.length / 2 + 3), (this.H - 16) / (g.width + 2));
+    const sT = mode === 'full' ? sFull2 : mode === 'half' ? Math.max(sHalf, Math.min(sFull2 * 1.3, (this.W - 16) / (g.length / 2 + 3))) : Math.max(sFull2 * 1.9, Math.min(this.W / 16, this.H / 10));
+    // Point visé : centre du terrain, centre du demi-terrain où est le ballon, ou le ballon lui-même
+    let cxT = g.length / 2;
+    let cyT = g.width / 2;
+    if (mode === 'half') {
+      cxT = e.ball.x < g.length / 2 ? g.length / 4 : (g.length * 3) / 4;
+      cyT = e.ball.y;
+    }
+    else if (mode === 'follow') {
+      cxT = e.ball.x;
+      cyT = e.ball.y;
+    }
+    const k2 = this.cam2.s === 0 ? 1 : Math.min(1, dt * 3);
+    this.cam2.s += (sT - this.cam2.s) * k2;
+    this.cam2.x += (cxT - this.cam2.x) * k2;
+    this.cam2.y += (cyT - this.cam2.y) * k2;
+    const S = this.cam2.s;
+    // Le terrain ne quitte pas l'écran : on borne le centre de la vue
+    const hw = this.W / 2 / S;
+    const hh = this.H / 2 / S;
+    const ccx = hw >= g.length / 2 + 1 ? g.length / 2 : Math.max(hw - 1, Math.min(g.length + 1 - hw, this.cam2.x));
+    const ccy = hh >= g.width / 2 + 1 ? g.width / 2 : Math.max(hh - 1, Math.min(g.width + 1 - hh, this.cam2.y));
+    const ox = this.W / 2 - ccx * S;
+    const oy = this.H / 2 - ccy * S;
     const P = (x: number, y: number): [number, number] => [ox + x * S, oy + y * S];
     // Parquet et lignes
     ctx.fillStyle = '#c99158';

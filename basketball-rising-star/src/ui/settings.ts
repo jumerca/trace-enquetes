@@ -14,7 +14,7 @@ export interface KeyMap {
 
 export interface Settings {
   volume: number; // 0..1
-  camera: 'full' | 'follow' | 'player';
+  camera: 'full' | 'follow' | 'player' | 'close';
   controlMode: 'watch' | 'play';
   quality: 'low' | 'high';
   showOpen: boolean;
