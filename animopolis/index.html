@@ -975,7 +975,7 @@ function buildCity(){
    const fu=k.u0+30,fv=k.v0+120;addTree(fu-4,fv-10,1.15);addChar(fu+6,fv+2,as(RENARD,{pose:'lean',prop:'binoculars'}));setT('collier',2,fu+4,fv,26);
    // collier 10 : l'échelle abandonnée
    const lu=k.u0+150,lv=k.v0+40;G(lu-24,lv-10,lu+24,lv+10,c=>{c.save();c.translate(...pr(lu,lv,0));groundT(c);c.strokeStyle=INK;c.lineWidth=1.4;L(c,-22,-4,22,-4);L(c,-22,4,22,4);c.lineWidth=.9;for(let x=-20;x<=20;x+=6)L(c,x,-4,x,4);c.restore();});
-   addChar(lu+14,lv+12,as(LEONIE,{pose:'crouch',prop:'magnifier',flip:true}));setT('collier',10,lu+6,lv+6,28);
+   addSpr(lu-6,lv+16,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.5;L(c,x-24,y-8,x+20,y+6);L(c,x-21,y-14,x+23,y);c.lineWidth=1;for(let k=0;k<8;k++){const t=k/7;L(c,x-24+44*t,y-8+14*t,x-21+44*t,y-14+14*t);}},{top:true,ht:20,hw:28});avoid(lu-6,lv+16,18);addChar(lu+14,lv+12,as(LEONIE,{pose:'crouch',prop:'magnifier',flip:true}));setT('collier',10,lu+6,lv+6,28);
    for(let n=0;n<16;n++){const u=R(k.u0+20,k.u1-20),v=R(k.v0+20,k.v1-20);if(Math.abs(u-k.uc)<18||Math.abs(v-k.vc)<18||!free(u,v,10))continue;n%3?addTree(u,v):addBush(u,v,true);}
    addBench(k.uc-40,k.vc-14);addBench(k.uc+44,k.vc+22);areas.push({u0:k.u0+14,v0:k.v0+14,u1:k.u1-14,v1:k.v1-14,n:20,dist:0});}
   // (2,0) Villa de la Comtesse + Café Plume
@@ -1055,11 +1055,11 @@ function buildCity(){
    const su=k.u0+190,sv=k.v0+120;addSpr(su,sv,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.3;L(c,x,y,x,y-36);c.lineWidth=1;Rc(c,x-7,y-44,14,9,WHITE);txt(c,'BUS',x,y-39.5,6);},{ht:48,hw:10});
    addChar(su-12,sv,as(RENARD2,{pose:'stand',prop:'suitcase'}));setT('collier',12,su-8,sv,22);
    // lettre 5 : le pigeon dans le ciel
-   addSpr(600,700,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y,7,3.4,'#cfcac0');C(c,x+7,y-3,3,'#cfcac0');D(c,x+8,y-3.6,.6);P(c,[[x+9.6,y-3],[x+13,y-2],[x+9.6,y-1.4]],'#e6c14a');
+   addSpr(760,420,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y,7,3.4,'#cfcac0');C(c,x+7,y-3,3,'#cfcac0');D(c,x+8,y-3.6,.6);P(c,[[x+9.6,y-3],[x+13,y-2],[x+9.6,y-1.4]],'#e6c14a');
      c.beginPath();c.moveTo(x-2,y-2);c.quadraticCurveTo(x-8,y-14,x-16,y-12);c.quadraticCurveTo(x-8,y-8,x+2,y-1);c.fillStyle=WHITE;c.fill();c.stroke();
      c.beginPath();c.moveTo(x+1,y-2);c.quadraticCurveTo(x+2,y-16,x-4,y-20);c.quadraticCurveTo(x+4,y-10,x+4,y-1);c.fill();c.stroke();
      c.save();c.translate(x+14,y+1);c.rotate(.2);Rc(c,-4,-2.6,8,5.2,WHITE);D(c,0,0,1.3,RED);c.restore();},{top:true,z:130,ht:30,hw:22});
-   {const[x,y]=pr(600,700,130);setTxy('lettre',5,x,y-6,24);}}
+   {const[x,y]=pr(760,420,130);setTxy('lettre',5,x,y-6,24);}}
   // (3,2) Commissariat / Garage / Quincaillerie
   {const t=townBlock(3,2,[{id:'police',w:84,sign:'COMMISSARIAT',roof:'flat',h:74,signSize:6.5},{id:'garage',w:70,sign:'Garage',bigDoor:true,roof:'flat',h:56}],[{id:'quinc',w:60,sign:'Quincaillerie',awn:true,signSize:6.5},{}],{n:20});
    {const p=fr(bld.quinc,.5,14);addChar(p[0],p[1],as(RENARD,{pose:'carry',prop:'ladder'}));setT('collier',3,p[0],p[1],26);}
@@ -1566,7 +1566,7 @@ function buildColline(){
   addFootprints(420,2400,500,2430,8);addChar(408,2394,as(BASTIEN,{pose:'lean',prop:'magnifier'}));setT('couronne',11,440,2410,28);
   addClothesline(cab2.cx+30,cab2.v1+26,false);addChar(cab2.cx,cab2.v1+16,as(GIGOT2,{pose:'stand',prop:'axe'}));setT('couronne',12,cab2.cx,cab2.v1+16,22);
   // arbres de la forêt (en évitant de cacher les scènes)
-  const tg=CASES.filter(c=>c.dist===4).flatMap(c=>c.steps.map(s=>s.t)).filter(Boolean);for(const[u,v]of[[120,2250],[650,2080],[560,2060]]){const[x,y]=pr(u,v,0);tg.push({x,y:y-14});avoid(u,v,22);}
+  const tg=CASES.filter(c=>c.dist===4).flatMap(c=>c.steps.map(s=>s.t)).filter(Boolean);for(const[u,v]of[[120,2250],[650,2080],[560,2060],[698,2516],[690,2506],[706,2526]]){const[x,y]=pr(u,v,0);tg.push({x,y:y-14});avoid(u,v,22);}
   const hides=(u,v)=>{const[x,y]=pr(u,v,0);return tg.some(t=>Math.abs(x-t.x)<34&&y>t.y-10&&y<t.y+70);};
   for(let n=0;n<420;n++){const u=R(10,870),v=R(2044,2590);if(inPond(u,v,8)||!free(u,v,10)||hides(u,v))continue;const pk=rnd();pk<.45?addPine(u,v):pk<.9?addTree(u,v,R(.9,1.3)):addMushrooms(u,v);}
   areas.push({u0:20,v0:2050,u1:860,v1:2580,n:30,dist:4,ok:(u,v)=>!inPond(u,v,6)});
@@ -1588,7 +1588,7 @@ function buildColline(){
    addHay(k3.u0+60,k3.v0+176);addChar(k3.u0+80,k3.v0+176,as(RAPE1,{pose:'hide'}));addChar(k3.u0+86,k3.v0+188,as(RAPE2,{pose:'crouch',flip:true}));setT('farine',3,k3.u0+78,k3.v0+180,26);
    addCampfire(k3.u0+170,k3.v0+190,false);addChar(k3.u0+160,k3.v0+186,as(RAPE1,{pose:'arms_up',prop:'pie'}));addChar(k3.u0+182,k3.v0+186,as(RAPE2,{pose:'arms_up'}));addChar(k3.u0+170,k3.v0+206,as(BASTIEN,{pose:'point'}));setT('farine',10,k3.u0+170,k3.v0+194,30);
    
-   addMill(k4.u0+120,k4.v0+80);addChar(k4.u0+200,k4.v0+140,as(GIGOT2,{pose:'run',prop:'axe'}));addChar(k4.u0+180,k4.v0+144,as(BOUBOULE,{pose:'run',prop:'sword'}));setT('couronne',14,k4.u0+190,k4.v0+142,28);addChar(k4.u0+150,k4.v0+110,as(COCOTTE,{pose:'carry',prop:'sack'}));setT('farine',1,k4.u0+150,k4.v0+110,24);
+   addMill(k4.u0+120,k4.v0+80);addChar(k4.u0+140,k4.v0+204,as(GIGOT2,{pose:'run',prop:'axe'}));addChar(k4.u0+120,k4.v0+208,as(BOUBOULE,{pose:'run',prop:'sword'}));setT('couronne',14,k4.u0+130,k4.v0+206,28);addChar(k4.u0+150,k4.v0+110,as(COCOTTE,{pose:'carry',prop:'sack'}));setT('farine',1,k4.u0+150,k4.v0+110,24);
    for(const[du,dv]of[[40,170],[200,180],[60,60]])addHay(k4.u0+du,k4.v0+dv);addScarecrow(k4.u0+200,k4.v0+60);
    addCart(k4.u0+120,2294,4,as(FERMIER,{pose:'walk'}));setT('farine',2,k4.u0+132,2294,30);
    areas.push({u0:k3.u0+10,v0:k3.v0+150,u1:k4.u1-10,v1:k4.v1-10,n:14,dist:4});}
@@ -1823,7 +1823,7 @@ CASES.push(
   steps:[
    {w:null,q:"Un enfant pleure : il n'a rien gagné. Trouve-le.",ok:"Près du stand de pêche aux canards, un petit lapin sanglote."},
    {w:null,q:"Les canards en plastique sont trop lourds. Pourquoi ?",ok:"Une caisse de plombs cachée près du stand : ils sont tous lestés !"},
-   {w:0,q:"Les lots du stand ne sont jamais donnés. Où sont-ils ?",ok:"Derrière le Train fantôme, entassés dans une brouette."},
+   {w:0,q:"Les lots du stand ne sont jamais donnés. Où sont-ils ?",ok:"Près du Train fantôme, entassés dans une brouette."},
    {w:0,q:"Que deviennent ces lots ?",ok:"Au bord du lac, quelqu'un les revend en douce, à moitié prix."},
    {w:null,q:"Alors, qui triche ?",choice:[CH('Monsieur Goupil',FORPECHE),CH('Bobo le clown',CLOWN),CH('Monsieur Souriceau',PAPA),CH('Monsieur Crinière',DIRO)],ans:0,ok:"Monsieur Goupil, le forain du stand ! Il lestait les canards pour revendre les lots."}],
   outro:"Tous les enfants ont reçu un lot, et Monsieur Goupil tient désormais… le stand de nettoyage. Enquête classée !"},
@@ -1957,7 +1957,7 @@ function buildMore(){
   G(1240,2160,1320,2250,c=>{c.fillStyle='#a8946a';for(let k=0;k<14;k++){const[x,y]=pr(1250+k*5,2170+k*5.6,0);c.fillRect(x+(k%2?2:-2),y,1.6,1.6);}});setT('tartes',2,1280,2210,26);
   {const k4=blk(4,8);const p=placeNear(k4.u0+60,k4.v0+120,8);for(const dx of[-16,-4])scene(p[0]+dx,p[1]-8,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;c.beginPath();c.moveTo(x-6,y);c.quadraticCurveTo(x-8,y-14,x,y-16);c.quadraticCurveTo(x+8,y-14,x+6,y);c.closePath();c.fillStyle='#efe3b0';c.fill();c.stroke();c.lineWidth=.5;for(let k=1;k<4;k++)L(c,x-6,y-k*4,x+6,y-k*4);D(c,x,y-4,1,INK);},{ht:20});
    scene(p[0]+8,p[1],(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;c.save();c.translate(x,y-3);c.rotate(1.3);Rc(c,-3,-4,6,7,'#d8c8a4');c.restore();E(c,x+6,y,6,2,'#e6c14a');},{ht:10});setT('tartes',3,p[0],p[1]-2,26);}
-  G(670,2490,720,2530,c=>{c.fillStyle='#8f8a7c';for(let k=0;k<7;k++){const[x,y]=pr(680+k*6,2500+k*4,0);c.beginPath();c.ellipse(x,y,2,1.2,0,0,TAU);c.fill();for(const d of[-1.6,0,1.6])c.fillRect(x+d,y-2.2,.8,.8);}});setT('tartes',4,698,2516,22);
+  G(670,2490,720,2530,c=>{c.fillStyle='#5b5750';for(let k=0;k<7;k++){const[x,y]=pr(680+k*6,2500+k*4,0);c.beginPath();c.ellipse(x,y,2.8,1.7,0,0,TAU);c.fill();for(const d of[-1.6,0,1.6])c.fillRect(x+d,y-2.2,.8,.8);}});setT('tartes',4,698,2516,22);
   {const p=placeNear(1027,2090,6);addChar(p[0],p[1],as(HIBOUV,{pose:'wave'}));setT('tartes',5,p[0],p[1],20);}
   {const p=placeNear(960,2200,8);addTable(p[0]+10,p[1]);addChar(p[0],p[1],as(RENARDV,{pose:'sit',prop:'book'}));addChar(p[0]+20,p[1]+1,SP('pig','coat','white','straw','sit',null,true));setT('tartes',6,p[0]+8,p[1],22);}
   {const p=placeNear(1110,2400,10);addChar(p[0],p[1],as(OURSON,{pose:'sleep'}));scene(p[0],p[1],(c,x,y)=>{c.fillStyle='#e6c14a';c.beginPath();c.arc(x+2,y-22,2,0,TAU);c.fill();c.fillRect(x-4,y-14,2,3);},{top:true,ht:30});setT('tartes',7,p[0],p[1],20);}
@@ -2074,7 +2074,7 @@ function buildIle(){
   addChar(2606,676,as(PLUME,{pose:'give',prop:'money'}));addChar(2620,678,as(TIKI,{pose:'arms_up',flip:true}));setT('epave',4,2613,677,24);
   addBoat(2690,1110,-1,{len:16,who:as(TIKI,{})});addSwimmer(2668,1124,'duck');addSpr(2668,1124,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;L(c,x+5,y-6,x+7,y-14);for(const[dx,dy]of[[-8,-12],[-11,-18]])C(c,x+dx,y+dy,1.6,null);},{top:true,ht:22});setT('epave',5,2680,1114,28);
   addChar(2510,1010,as(PLUME,{pose:'give'}));addChar(2538,1012,as(TIKI,{pose:'give',flip:true}));addSpr(2524,1014,(c,x,y)=>{drawChest(c,x,y,false);c.strokeStyle='#7d8f6a';c.lineWidth=1.2;L(c,x-6,y-12,x-9,y-2);L(c,x+3,y-13,x+6,y-4);},{ht:18});setT('epave',6,2524,1010,26);
-  addChar(2612,790,as(SBIRE,{pose:'walk'}));addChar(2636,794,as(SBIRE,{pose:'walk',hat:'beret'}));addSpr(2624,794,(c,x,y)=>drawChest(c,x,y-12,false),{top:true,ht:28});setT('epave',7,2624,790,26);
+  addChar(2678,716,as(SBIRE,{pose:'walk'}));addChar(2702,720,as(SBIRE,{pose:'walk',hat:'beret'}));addSpr(2690,720,(c,x,y)=>drawChest(c,x,y-12,false),{top:true,ht:28});setT('epave',7,2690,716,26);
   addBoat(2818,650,1,{len:16});addChar(2776,640,as(SBIRE,{pose:'give'}));addChar(2784,654,as(SBIRE,{pose:'give',hat:'beret'}));addSpr(2818,650,(c,x,y)=>drawChest(c,x,y-9,false),{top:true,ht:22});setT('epave',8,2798,646,30);
   addSpr(2440,830,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;P(c,[[x-18,y],[x,y-26],[x+18,y]],'#d9d3c5');P(c,[[x-5,y],[x,y-14],[x+5,y]],'#3a3733');L(c,x,y-26,x,y-30);},{ht:34,hw:20});avoid(2440,830,14);addChar(2462,838,as(PLUME,{pose:'arms_up'}));setT('epave',9,2454,834,26);
   G(2540,880,2600,940,c=>{c.strokeStyle='#8f8a7c';c.lineWidth=1;for(const d of[-3,3]){const a=pr(2548+d,888,0),b=pr(2594+d,934,0);L(c,a[0],a[1],b[0],b[1]);}});addChar(2560,912,as(TIKI,{pose:'crouch'}));setT('epave',10,2564,908,24);
