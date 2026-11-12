@@ -8,7 +8,7 @@ import { FIBA, NBA, NCB, withQuarterLength, type Ruleset } from '../sim/rules';
 import { addStat, emptySeasonStat, fastSimGame, type RosterEntry, type SeasonStat } from './fastsim';
 import { applyGains, trainWeek, type TrainingPlan } from './training';
 import { createWorld, ensureLeagues, ensureNumbers, salaryFor, type Fixture, type UserGameLine, type World } from './world';
-import { desk, focusWork, trainingReport, updateInterest, weeklyMessages, extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
+import { monthlyAward, desk, focusWork, trainingReport, updateInterest, weeklyMessages, extra, applyCamp, endLoan, injuryWeek, life, mentorWeek, recordHistory, reviewObjectives, setObjectives, sponsorWeek, updateFollowers, weeklyLife, winterOffers, WINTER_WINDOW } from './life';
 import { matchArticle, seasonRecap, weeklyPress } from './press';
 import { draftState, mockDraftNews, rightsOffer, runDraft } from './draft';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
@@ -554,6 +554,12 @@ export function advanceWeek(c: Career): WeekReport {
       u.reputation = clamp100(u.reputation + (comp.kind === 'euro' || comp.kind === 'nat' ? 5 : 3));
     }
   }
+  // Joueur du mois
+  const award = monthlyAward(c);
+  if (award) {
+    const [title, body] = award.split('|');
+    addNews(c, 'award', title, body);
+  }
   // Entraînement du joueur
   const club = userClub(c);
   const lastMin = c.world.fixtures.filter((f) => f.week === c.week && f.userLine).map((f) => f.userLine!.min)[0] ?? 0;
@@ -926,6 +932,25 @@ function seasonReview(c: Career): void {
     if (mvp) {
       addNews(c, 'award', `${fullName(mvp)} élu MVP de ${l.name}`, `${(c.seasonStats[mvp.id].pts / c.seasonStats[mvp.id].gp).toFixed(1)} points de moyenne pour le joueur de ${w.clubs[mvp.clubId!]?.name ?? 'son club'}.`);
       if (mvp.isUser) c.trophies.push({ season: w.season, title: `MVP — ${l.name}`, kind: 'individual' });
+    }
+    // Cinq majeur de la saison, meilleur défenseur, meilleur marqueur, meilleur sixième homme
+    const five = [...elig].sort((a, b) => score(b) - score(a)).slice(0, 5);
+    if (five.length === 5) {
+      addNews(c, 'award', `Le cinq majeur de la saison en ${l.name}`, five.map((p) => `${fullName(p)} (${w.clubs[p.clubId!]?.short ?? '—'})`).join(', ') + '.');
+      if (five.some((p) => p.isUser)) c.trophies.push({ season: w.season, title: `Cinq majeur de la saison — ${l.name}`, kind: 'individual' });
+    }
+    const per = (p: PlayerData, f: (s: SeasonStat) => number) => f(c.seasonStats[p.id]) / c.seasonStats[p.id].gp;
+    const dpoy = [...elig].sort((a, b) => per(b, (s) => s.stl * 1.4 + s.blk * 1.6 + s.reb * 0.25) - per(a, (s) => s.stl * 1.4 + s.blk * 1.6 + s.reb * 0.25))[0];
+    const scorer = [...elig].sort((a, b) => per(b, (s) => s.pts) - per(a, (s) => s.pts))[0];
+    const sixth = elig.filter((p) => c.seasonStats[p.id].gs < c.seasonStats[p.id].gp * 0.3).sort((a, b) => score(b) - score(a))[0];
+    for (const [p, label, why] of [
+      [dpoy, 'Meilleur défenseur', 'Interceptions, contres et rebonds : la référence défensive de la saison.'],
+      [scorer, 'Meilleur marqueur', scorer ? `${per(scorer, (s) => s.pts).toFixed(1)} points de moyenne.` : ''],
+      [sixth, 'Meilleur sixième homme', 'L’impact le plus fort en sortie de banc.'],
+    ] as [PlayerData | undefined, string, string][]) {
+      if (!p) continue;
+      addNews(c, 'award', `${fullName(p)} — ${label.toLowerCase()} de ${l.name}`, why);
+      if (p.isUser) c.trophies.push({ season: w.season, title: `${label} — ${l.name}`, kind: 'individual' });
     }
     if (young) {
       if (young.isUser) c.trophies.push({ season: w.season, title: `Meilleur jeune — ${l.name}`, kind: 'individual' });

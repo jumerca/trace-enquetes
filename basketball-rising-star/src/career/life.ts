@@ -544,6 +544,116 @@ export function legacyScore(c: Career): number {
   return Math.round(tot.gp * 0.4 + tot.pts * 0.05 + team * 40 + ind * 25 + c.nationalCaps * 3 + u.reputation * 2);
 }
 
+// ================================================================== Récompenses du mois
+const MONTHS = ['octobre', 'novembre', 'décembre', 'janvier', 'février', 'mars'];
+
+/** Toutes les quatre semaines : joueur du mois du championnat du joueur, d'après les statistiques réelles de la période. */
+export function monthlyAward(c: Career): string | null {
+  const x = extra(c) as LifeExtra & { monthSnap?: Record<string, [number, number, number, number]>; monthSeason?: number };
+  const w = c.world;
+  const lid = w.clubs[user(c).clubId!]?.leagueId;
+  const l = lid ? w.leagues[lid] : null;
+  if (!l) return null;
+  const ids = l.teams.flatMap((t) => w.clubs[t].roster);
+  const snap = () => {
+    x.monthSnap = {};
+    x.monthSeason = w.season;
+    for (const id of ids) {
+      const s = c.seasonStats[id];
+      if (s) x.monthSnap[id] = [s.gp, s.pts, s.reb, s.ast];
+    }
+  };
+  if (x.monthSeason !== w.season || !x.monthSnap) {
+    snap();
+    if (c.week % 4 !== 0) return null;
+    x.monthSnap = {};
+  }
+  if (c.week % 4 !== 0 || c.week > 24) return null;
+  let best: { id: string; v: number; line: string } | null = null;
+  for (const id of ids) {
+    const s = c.seasonStats[id];
+    const p = w.players[id];
+    if (!s || !p) continue;
+    const o = x.monthSnap[id] ?? [0, 0, 0, 0];
+    const gp = s.gp - o[0];
+    if (gp < 2) continue;
+    const pts = (s.pts - o[1]) / gp;
+    const reb = (s.reb - o[2]) / gp;
+    const ast = (s.ast - o[3]) / gp;
+    const v = pts + reb * 1.1 + ast * 1.4;
+    if (!best || v > best.v) best = { id, v, line: `${pts.toFixed(1)} points, ${reb.toFixed(1)} rebonds et ${ast.toFixed(1)} passes de moyenne` };
+  }
+  snap();
+  if (!best) return null;
+  const p = w.players[best.id];
+  const month = MONTHS[Math.min(MONTHS.length - 1, Math.floor(c.week / 4) - 1)];
+  const title = `${fullName(p)} joueur du mois de ${month} en ${l.name}`;
+  if (p.isUser) {
+    c.trophies.push({ season: w.season, title: `Joueur du mois (${month}) — ${l.name}`, kind: 'individual' });
+    p.reputation = Math.min(100, p.reputation + 1.5);
+    p.morale = Math.min(100, p.morale + 5);
+  }
+  return `${title}|${best.line} pour le joueur de ${w.clubs[p.clubId!]?.name ?? 'son club'}.`;
+}
+
+// ================================================================== Bilan de carrière (retraite)
+export interface CareerVerdict {
+  tier: string;
+  text: string;
+  hallOfFame: boolean;
+  retiredJersey: string | null;
+  seasons: number;
+  gp: number;
+  pts: number;
+  reb: number;
+  ast: number;
+  ppg: number;
+  best: { season: number; club: string; ppg: number } | null;
+  clubs: { name: string; seasons: number }[];
+  teamTitles: number;
+  individual: number;
+  caps: number;
+  score: number;
+}
+
+/** Bilan complet au moment de la retraite : place dans l'histoire, temple de la renommée, maillot retiré. */
+export function careerVerdict(c: Career): CareerVerdict {
+  const u = user(c);
+  const tot = u.history.reduce((a, h) => ({ gp: a.gp + h.gp, pts: a.pts + h.pts, reb: a.reb + h.reb, ast: a.ast + h.ast }), { gp: 0, pts: 0, reb: 0, ast: 0 });
+  const score = legacyScore(c);
+  const teamTitles = c.trophies.filter((t) => t.kind === 'team').length;
+  const individual = c.trophies.filter((t) => t.kind === 'individual').length;
+  const byClub = new Map<string, number>();
+  for (const h of u.history) byClub.set(h.clubName, (byClub.get(h.clubName) ?? 0) + 1);
+  const clubs = [...byClub.entries()].map(([name, seasons]) => ({ name, seasons })).sort((a, b) => b.seasons - a.seasons);
+  const bestH = [...u.history].filter((h) => h.gp >= 8).sort((a, b) => b.pts / b.gp - a.pts / a.gp)[0];
+  const tiers: [number, string, string][] = [
+    [900, 'Légende du jeu', 'Un nom qui restera : on citera cette carrière en exemple pendant des décennies.'],
+    [600, 'Immense champion', 'Une carrière de tout premier plan, respectée partout où le basket se joue.'],
+    [380, 'Grand joueur', 'Un joueur majeur de sa génération, dont les supporters se souviendront longtemps.'],
+    [200, 'Joueur important', 'Une belle carrière professionnelle, faite de saisons solides et de vrais moments forts.'],
+    [90, 'Professionnel respecté', 'Un parcours honnête, construit au travail, loin des projecteurs.'],
+    [0, 'Carrière discrète', 'Un passage bref au plus haut niveau, mais le rêve a été vécu.'],
+  ];
+  const [, tier, text] = tiers.find(([min]) => score >= min)!;
+  const main = clubs[0];
+  return {
+    tier,
+    text,
+    hallOfFame: score >= 600,
+    retiredJersey: main && main.seasons >= 6 && score >= 380 ? main.name : null,
+    seasons: u.history.length,
+    ...tot,
+    ppg: tot.gp ? tot.pts / tot.gp : 0,
+    best: bestH ? { season: bestH.season, club: bestH.clubName, ppg: bestH.pts / bestH.gp } : null,
+    clubs,
+    teamTitles,
+    individual,
+    caps: c.nationalCaps,
+    score,
+  };
+}
+
 // ================================================================== Intérêt des clubs, messagerie, rapports
 export interface Message {
   id: string;

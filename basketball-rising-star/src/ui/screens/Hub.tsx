@@ -34,7 +34,7 @@ import { FocusCard, InboxTab, InterestCard } from './InboxTab';
 import { unread } from '../../career/life';
 import { ClubProfile, DraftCard, LeagueCenter, MonthCalendar, TrainingWeek } from './ExtraTabs';
 import { Comparator, CompetitionsCard, LifeTab, ObjectivesCard, PressCard, RivalCard } from './LifeTab';
-import { extra, legacyScore, negotiate } from '../../career/life';
+import { careerVerdict, extra, legacyScore, negotiate } from '../../career/life';
 import { fixtureName } from '../../career/competitions';
 import { userSideId, userTeams } from '../../career/career';
 import { winterOpen } from '../../career/life';
@@ -822,20 +822,9 @@ function CareerTab({ c }: { c: Career }) {
   const [agentModal, setAgentModal] = useState(false);
   const agent = AGENTS.find((a) => a.id === c.agentId) ?? AGENTS[0];
   const club = userClub(c);
-  const totals = u.history.reduce(
-    (a, h) => ({ gp: a.gp + h.gp, pts: a.pts + h.pts, reb: a.reb + h.reb, ast: a.ast + h.ast }),
-    { gp: 0, pts: 0, reb: 0, ast: 0 },
-  );
   return (
     <div className="grid" style={{ gap: 14 }}>
-      {c.retired && (
-        <div className="card" style={{ borderColor: 'var(--gold)' }}>
-          <h3 style={{ color: 'var(--gold)' }}>Carrière terminée</h3>
-          <p>
-            {fullName(u)} a pris sa retraite après {u.history.length} saison(s) : {totals.gp} matchs, {totals.pts} points, {c.trophies.length} distinction(s).
-          </p>
-        </div>
-      )}
+      {c.retired && <RetirementCard c={c} />}
       <div className="seg">
         {(
           [
@@ -1194,5 +1183,57 @@ function CalView({ c }: { c: Career }) {
       </div>
       {v === 'month' ? <MonthCalendar c={c} /> : <LeagueCenter c={c} />}
     </>
+  );
+}
+
+/** Bilan de fin de carrière : place dans l'histoire, temple de la renommée, maillot retiré. */
+function RetirementCard({ c }: { c: Career }) {
+  const u = user(c);
+  const v = careerVerdict(c);
+  return (
+    <div className="card" style={{ borderColor: 'var(--gold)' }}>
+      <div className="card-title">
+        <h3 style={{ color: 'var(--gold)' }}>Carrière terminée — {v.tier}</h3>
+        <span className="pill gold">Héritage {v.score}</span>
+      </div>
+      <p>
+        {fullName(u)} range ses chaussures après {v.seasons} saison(s). {v.text}
+      </p>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, margin: '10px 0' }}>
+        {(
+          [
+            ['Matchs', v.gp],
+            ['Points', v.pts],
+            ['Rebonds', v.reb],
+            ['Passes', v.ast],
+            ['Moyenne', `${v.ppg.toFixed(1)} pts`],
+            ['Titres collectifs', v.teamTitles],
+            ['Distinctions', v.individual],
+            ['Sélections', v.caps],
+          ] as [string, string | number][]
+        ).map(([l, x]) => (
+          <div key={l}>
+            <div className="tiny muted">{l.toUpperCase()}</div>
+            <b className="num" style={{ fontSize: '1.2rem' }}>
+              {x}
+            </b>
+          </div>
+        ))}
+      </div>
+      {v.best && (
+        <p className="small">
+          Meilleure saison : {v.best.season}-{v.best.season + 1} avec {v.best.club} ({v.best.ppg.toFixed(1)} points de moyenne).
+        </p>
+      )}
+      <p className="small">Clubs : {v.clubs.map((k) => `${k.name} (${k.seasons} saison${k.seasons > 1 ? 's' : ''})`).join(', ') || '—'}.</p>
+      <p className="small" style={{ color: v.hallOfFame ? 'var(--gold)' : undefined }}>
+        {v.hallOfFame ? '★ Élu au Temple de la renommée dès la première année d’éligibilité.' : 'Le Temple de la renommée reste hors de portée : il fallait un héritage d’au moins 600.'}
+      </p>
+      {v.retiredJersey && (
+        <p className="small" style={{ color: 'var(--gold)' }}>
+          ★ {v.retiredJersey} retire le numéro {u.number} : plus personne ne le portera.
+        </p>
+      )}
+    </div>
   );
 }
