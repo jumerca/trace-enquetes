@@ -27,7 +27,7 @@ canvas#map{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;touch-a
 canvas#map:active{cursor:grabbing}
 button{font:inherit;color:inherit;cursor:pointer}
 .top{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 16px 0;pointer-events:none}
-.logo{pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:4px 12px 2px;box-shadow:var(--shadow);line-height:1}
+.logo{text-align:left;pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:4px 12px 2px;box-shadow:var(--shadow);line-height:1}
 .logo b{font-size:24px;letter-spacing:.5px}.logo small{display:block;font-size:13px;color:var(--muted)}
 .tright{display:flex;gap:8px;pointer-events:none}
 .pill{pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:999px;padding:8px 16px;box-shadow:var(--shadow);font-size:18px}
@@ -43,9 +43,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .actions button{flex:1;border:2px solid var(--line);background:transparent;border-radius:12px;padding:6px 4px;font-size:17px}
 .actions button.main{background:var(--ink);color:var(--card)}
 .card.min #question,.card.min .actions{display:none}
-#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 74px);transform:translateX(-50%) translateY(-10px);background:var(--ink);color:var(--card);padding:6px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;font-size:18px}
+#toast{z-index:50;position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 74px);transform:translateX(-50%) translateY(-10px);background:var(--ink);color:var(--card);padding:6px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;font-size:18px}
 #toast.on{opacity:1;transform:translateX(-50%)}
-.modal{position:fixed;inset:0;background:rgba(29,27,24,.45);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:10}
+.modal{position:fixed;inset:0;background:rgba(29,27,24,.45);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:40}
 .modal.hidden{display:none}
 .sheet{position:relative;background:var(--card);border:2px solid var(--line);border-radius:20px;box-shadow:var(--shadow);width:min(560px,100%);max-height:min(82vh,82dvh);overflow:auto;padding:18px 18px 16px}
 @media (min-height:700px) and (min-width:700px){.modal{align-items:center}}
@@ -72,6 +72,30 @@ button{font:inherit;color:inherit;cursor:pointer}
 .steps button{margin-top:6px;border:2px solid var(--line);background:transparent;border-radius:10px;padding:2px 10px;font-size:15px}
 .stamp{display:inline-block;border:3px solid var(--red);color:var(--red);transform:rotate(-6deg);padding:2px 12px;border-radius:8px;font-size:24px;margin:6px 0}
 .legend{font-size:15px;color:var(--muted)}
+.home{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 16px) 20px calc(env(safe-area-inset-bottom) + 16px);background:rgba(243,239,228,.9);background:color-mix(in srgb,var(--paper) 88%,transparent);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);overflow:auto}
+.home.hidden{display:none}
+.home-in{width:min(380px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;margin:auto}
+.home-logo{width:112px;height:112px;border-radius:26px;border:2px solid var(--line);box-shadow:var(--shadow)}
+.home h1{margin:4px 0 0;font-size:46px;font-weight:400;line-height:1}
+.home-sub{margin:0 0 8px;color:var(--muted);font-size:19px}
+.hbtn{width:100%;border:2px solid var(--line);background:var(--card);border-radius:16px;padding:11px 12px;font-size:22px;box-shadow:var(--shadow);line-height:1.1}
+.hbtn:disabled{opacity:.45;box-shadow:none}
+.hbtn small{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.hbtn.main{background:var(--ink);color:var(--card)}.hbtn.main small{color:inherit;opacity:.78}
+.hbtn[hidden],.home-upd[hidden],#updBar[hidden]{display:none}
+.home-ver{margin:12px 0 0;font-size:13px;color:var(--muted);line-height:1.35}
+.home-upd{width:100%;border:2px solid var(--red);border-radius:14px;padding:8px 10px;background:var(--card);font-size:17px}
+.home-upd button{margin-top:6px;border:2px solid var(--line);background:var(--ink);color:var(--card);border-radius:10px;padding:4px 14px;font-size:17px}
+#updBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 66px);z-index:15;display:flex;gap:10px;align-items:center;background:var(--ink);color:var(--card);padding:6px 8px 6px 14px;border-radius:999px;font-size:16px;white-space:nowrap}
+#updBar button{border:0;border-radius:999px;background:var(--card);color:var(--ink);padding:3px 12px;font-size:16px}
+.slot{display:flex;gap:10px;align-items:center;justify-content:space-between;text-align:left;border:2px solid var(--line);border-radius:14px;padding:8px 12px;margin-top:8px;background:transparent;width:100%}
+.slot.empty{border-style:dashed;color:var(--muted)}
+.slot .t{font-size:20px;line-height:1.1}.slot .m{font-size:15px;color:var(--muted)}
+.slot .sbtns{display:flex;gap:6px;flex-shrink:0}
+.slot .sbtns button{border:2px solid var(--line);background:transparent;border-radius:10px;padding:3px 10px;font-size:16px}
+.slot .sbtns button.go{background:var(--ink);color:var(--card)}
+.slot .sbtns button.del{color:var(--red);border-color:var(--red)}
+
 .stars{color:#d8a21a;letter-spacing:1px;white-space:nowrap}
 .bigstars{font-size:40px;text-align:center;color:#d8a21a;letter-spacing:6px;margin:6px 0 0}
 .statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
@@ -102,7 +126,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <body>
 <canvas id="map" aria-label="Carte de la ville d'Animopolis"></canvas>
 <header class="top">
-  <div class="logo"><b>Animopolis</b><small>enquêtes à la loupe</small></div>
+  <button class="logo" id="logoBtn" aria-label="Menu principal"><b>Animopolis</b><small>enquêtes à la loupe</small></button>
   <div class="tright"><button class="pill" id="btnInstall" hidden>Installer</button><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
 </header>
 <div class="zoom">
@@ -119,7 +143,21 @@ button{font:inherit;color:inherit;cursor:pointer}
     <button id="btnSteps">Étapes</button>
   </div>
 </section>
+<div id="updBar" hidden><span>Nouvelle version disponible</span><button id="updGo">Mettre à jour</button></div>
 <div id="toast"></div>
+<div id="home" class="home hidden" role="dialog" aria-label="Accueil">
+  <div class="home-in">
+    <img class="home-logo" src="icon.svg" alt="" onerror="this.style.display='none'">
+    <h1>Animopolis</h1><p class="home-sub">enquêtes à la loupe</p>
+    <div id="homeUpd" class="home-upd" hidden></div>
+    <button class="hbtn main" id="hContinue" hidden>Continuer<small></small></button>
+    <button class="hbtn" id="hNew">Nouvelle partie</button>
+    <button class="hbtn" id="hLoad">Charger une partie<small></small></button>
+    <button class="hbtn" id="hSave">Sauvegarder la partie<small></small></button>
+    <button class="hbtn" id="hOpts">Options</button>
+    <p class="home-ver" id="homeVer"></p>
+  </div>
+</div>
 <div id="modal" class="modal hidden"><div class="sheet"><button class="close" aria-label="Fermer">×</button><div id="modalBody"></div></div></div>
 
 <script>
@@ -469,7 +507,7 @@ function sortItems(){
 
 /* ---------- éléments animés, redessinés par-dessus les tuiles ---------- */
 const movers=[];function addMover(bb,d){movers.push({bb,d,dist:CURD});}
-const animOn=()=>!(typeof state!=='undefined'&&state.anim===false);
+const animOn=()=>!(typeof opts!=='undefined'&&opts.anim===false);
 const animT=()=>animOn()?performance.now()/1000:0;
 /* ---------- objets du décor ---------- */
 function addTree(u,v,k){
@@ -2215,10 +2253,16 @@ let vw=0,vh=0,dpr=1,LOD=1;
 const cam={x:0,y:400,s:.5};
 let minS=.1,maxS=7,cache=null,cacheKey='',cacheS=.5,needs=false;
 const fx={wrong:[],pulse:null};
-const SAVE='animopolis-v3';
-let state={solved:{},hints:{},wrong:{},current:null,seen:false,unlockSeen:{}};
-try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');if(s)state=Object.assign(state,s);}catch(e){}
-function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){}}
+const NSLOTS=3,SLOTKEY=n=>'animopolis-s'+n;
+const freshState=()=>({solved:{},hints:{},wrong:{},best:{},current:null,seen:false,unlockSeen:{}});
+function readSlot(n){try{return JSON.parse(localStorage.getItem(SLOTKEY(n))||'null');}catch(e){return null;}}
+var opts={anim:true};try{Object.assign(opts,JSON.parse(localStorage.getItem('animopolis-opts')||'{}'));}catch(e){}
+function saveOpts(){try{localStorage.setItem('animopolis-opts',JSON.stringify(opts));}catch(e){}}
+let slot=1;try{slot=+localStorage.getItem('animopolis-active')||1;
+  if(!localStorage.getItem(SLOTKEY(1))){const old=localStorage.getItem('animopolis-v3');if(old){localStorage.setItem(SLOTKEY(1),old);try{const o=JSON.parse(old);if(typeof o.anim==='boolean')opts.anim=o.anim;}catch(e){}}}}catch(e){}
+let state=Object.assign(freshState(),readSlot(slot)||{});
+function setState(d){for(const k of Object.keys(state))delete state[k];Object.assign(state,freshState(),d||{});}
+function save(){try{state.saved=Date.now();localStorage.setItem(SLOTKEY(slot),JSON.stringify(state));localStorage.setItem('animopolis-active',String(slot));}catch(e){}}
 const caseDone=cs=>(state.solved[cs.id]||[]).filter(Boolean).length===cs.steps.length;
 const doneIn=d=>CASES.filter(cs=>cs.dist===d&&caseDone(cs)).length;
 const mediumOf=d=>CASES.find(c=>c.dist===d&&c.diff===2&&!c.final);
@@ -2226,8 +2270,8 @@ const started=cs=>(state.solved[cs.id]||[]).some(Boolean);
 const unlocked=d=>d===0||(unlocked(d-1)&&(caseDone(mediumOf(d-1))||CASES.some(c=>c.dist===d&&!c.final&&started(c))));
 const cluesFound=()=>HARD.filter(id=>caseDone(CASES.find(c=>c.id===id))).length;
 function caseOpen(cs){if(started(cs))return true;if(!unlocked(cs.dist))return false;if(cs.final)return cluesFound()===HARD.length;if(cs.diff===1)return true;return CASES.some(c=>c.dist===cs.dist&&!c.final&&c.diff===cs.diff-1&&caseDone(c));}
-function hintsUsed(cs){let n=0;for(const k in state.hints)if(k.startsWith(cs.id+':'))n+=+state.hints[k]||0;return n;}
-function caseStars(cs){if(!caseDone(cs))return 0;const h=hintsUsed(cs),w=(state.wrong||{})[cs.id]||0;return h===0&&w<=2?3:h<=2&&w<=6?2:1;}
+function hintsUsed(cs,d){d=d||state;let n=0;for(const k in(d.hints||{}))if(k.startsWith(cs.id+':'))n+=+d.hints[k]||0;return n;}
+function caseStars(cs,d){d=d||state;if((d.solved[cs.id]||[]).filter(Boolean).length!==cs.steps.length)return 0;const h=hintsUsed(cs,d),w=(d.wrong||{})[cs.id]||0;return h===0&&w<=2?3:h<=2&&w<=6?2:1;}
 const starStr=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function addWrong(cs){if(chal){chal.pen+=5;toastNext='+5 secondes';return;}state.wrong=state.wrong||{};state.wrong[cs.id]=(state.wrong[cs.id]||0)+1;save();}
 const totalStars=()=>CASES.reduce((a,c)=>a+caseStars(c),0);
@@ -2245,7 +2289,7 @@ function showBook(){const n=CASES.filter(caseDone).length,st=totalStars(),max=CA
   <div class="statrow"><div class="stat"><b>${n}/${CASES.length}</b><span>enquêtes classées</span></div><div class="stat"><b class="stars">${st}★</b><span>sur ${max}</span></div><div class="stat"><b>${cluesFound()}/5</b><span>indices de l'Ombre</span></div></div>
   <p class="legend">3 étoiles : sans indice et avec 2 erreurs au plus. Rejoue une enquête depuis les Dossiers pour améliorer ta note.</p>
   <h3>Fiches des affaires</h3><div class="gallery">${ordered.map(cs=>caseDone(cs)?`<div class="mug"><div data-m="${cs.id}"></div><b>${(KEYCHAR[cs.id]||[0,''])[1]}</b>${cs.title}<br><span class="stars">${starStr(caseStars(cs))}</span>${(state.best||{})[cs.id]?`<br>⏱ ${fmtT(state.best[cs.id])} ${medal(cs,state.best[cs.id])}`:''}</div>`:`<div class="mug no"><div class="q">?</div><b>???</b>${caseOpen(cs)?cs.title:'Enquête fermée'}</div>`).join('')}</div>
-  <button class="btn ghost" id="anT">Animations du décor : ${animOn()?'activées':'coupées'}</button><button class="btn" id="okB">Fermer le carnet</button>`,r=>{r.querySelector('#anT').onclick=()=>{state.anim=!animOn();save();req();showBook();};r.querySelectorAll('[data-m]').forEach(el=>el.appendChild(portrait(keySpec(CASES.find(c=>c.id===el.dataset.m)))));r.querySelector('#okB').onclick=closeModal;});}
+  <button class="btn" id="okB">Fermer le carnet</button>`,r=>{r.querySelectorAll('[data-m]').forEach(el=>el.appendChild(portrait(keySpec(CASES.find(c=>c.id===el.dataset.m)))));r.querySelector('#okB').onclick=closeModal;});}
 function lockReason(cs){if(!unlocked(cs.dist))return 'Ce quartier n\'est pas encore ouvert.';if(cs.final)return `Réunis les 5 indices de l'Ombre (${cluesFound()}/5) en résolvant les enquêtes difficiles.`;if(cs.diff===2)return 'Résous d\'abord une enquête facile de ce quartier.';const m=mediumOf(cs.dist);return `Résous d'abord « ${m.title} ».`;}
 
 function resize(){dpr=Math.min(2,window.devicePixelRatio||1);vw=window.innerWidth;vh=window.innerHeight;cv.width=Math.round(vw*dpr);cv.height=Math.round(vh*dpr);minS=Math.min(vw/(WB.x1-WB.x0),vh/(WB.y1-WB.y0))*.95;clampCam();req();}
@@ -2469,7 +2513,6 @@ window.addEventListener('resize',resize);resize();
 {const[x,y]=pr(590,590,0);cam.x=x;cam.y=y-40;cam.s=Math.max(minS,Math.min(.9,vw/1300));clampCam();}
 updateCard();render();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{clearTiles();for(const k in cardImg)delete cardImg[k];req();});
-if(!state.seen){state.seen=true;save();showHelp();}
 /* ---------- installation & mises à jour automatiques ---------- */
 let installEvt=null;const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;if(!standalone)$('btnInstall').hidden=false;});
@@ -2483,6 +2526,111 @@ try{if('serviceWorker'in navigator&&location.protocol==='https:'&&!/claude\.ai|c
   navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtrl)toast('Nouvelle version installée ✓');});
 }}catch(e){}
 window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unlocked};
+
+
+/* =========================================================
+   ACCUEIL · PARTIES · OPTIONS · VERSION & MISES À JOUR
+   ========================================================= */
+const APP_VERSION='2.0',APP_BUILD='202611120830';
+const homeEl=$('home');
+const fmtBuild=b=>/^\d{12}$/.test(b)?`${b.slice(0,8)}-${b.slice(8)}`:b;
+const fmtDate=ts=>{if(!ts)return '';const d=new Date(ts);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+const hasSave=n=>{try{return localStorage.getItem(SLOTKEY(n))!==null;}catch(e){return false;}};
+const anySave=()=>{for(let n=1;n<=NSLOTS;n++)if(hasSave(n))return true;return false;};
+function slotInfo(n){if(!hasSave(n))return{n,empty:true};const d=n===slot?state:readSlot(n)||freshState();
+  const done=CASES.filter(c=>(d.solved[c.id]||[]).filter(Boolean).length===c.steps.length).length,stars=CASES.reduce((a,c)=>a+caseStars(c,d),0);
+  const cur=CASES.find(c=>c.id===d.current);return{n,empty:false,done,total:CASES.length,stars,rank:rankOf(stars),date:d.saved,cur:cur&&(d.solved[cur.id]||[]).filter(Boolean).length<cur.steps.length?cur.title:''};}
+const slotLine=i=>`${i.done}/${i.total} enquêtes · ${i.stars}★ · ${i.rank}`;
+
+/* ---------- accueil ---------- */
+function refreshHome(){
+  const info=slotInfo(slot),has=anySave();
+  const c=$('hContinue');c.hidden=!has||info.empty;
+  if(!c.hidden){c.firstChild.textContent=info.cur||info.done>0?'Reprendre la partie':'Commencer la partie';c.querySelector('small').textContent=`Partie ${slot} · ${slotLine(info)}${info.cur?' · en cours : '+info.cur:''}`;}
+  const l=$('hLoad'),sv=$('hSave');
+  const used=[1,2,3].filter(hasSave).length;l.disabled=!used;l.querySelector('small').textContent=used?`${used} partie${used>1?'s':''} sauvegardée${used>1?'s':''}`:'Aucune partie sauvegardée';
+  sv.disabled=!has||info.empty;sv.querySelector('small').textContent=info.empty?'':'Automatique'+(state.saved?' · dernière : '+fmtDate(state.saved):'');
+  $('hNew').classList.toggle('main',!has);
+  updateVerUI();
+}
+function showHome(){closeModal();refreshHome();homeEl.classList.remove('hidden');}
+function hideHome(){homeEl.classList.add('hidden');}
+function toStart(){if(typeof clearTiles==='function'){clearTiles();for(const k in cardImg)delete cardImg[k];}updateCard();req();
+  const cs=curCase();if(cs&&!caseDone(cs)){const t=focusPoint(cs);flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.2,vw/700)),900);}else{const[x,y]=pr(590,590,0);flyTo(x,y-40,Math.max(minS,Math.min(.9,vw/1300)),700);}}
+function loadSlot(n){const d=readSlot(n);if(!d){toast('Emplacement vide');return;}setState(d);slot=n;save();hideHome();closeModal();toStart();toast(`Partie ${n} chargée`);}
+function startNew(n){setState(freshState());state.seen=true;slot=n;save();hideHome();closeModal();toStart();showHelp();}
+function deleteSlot(n){try{localStorage.removeItem(SLOTKEY(n));}catch(e){}
+  if(n===slot){const next=[1,2,3].find(hasSave);if(next){setState(readSlot(next));slot=next;try{localStorage.setItem('animopolis-active',String(next));}catch(e){}}else{setState(freshState());}}}
+
+/* ---------- modales ---------- */
+function slotsHTML(mode){return [1,2,3].map(n=>{const i=slotInfo(n);
+  if(i.empty)return `<div class="slot empty"><div><div class="t">Partie ${n}</div><div class="m">Emplacement vide</div></div><div class="sbtns">${mode==='new'||mode==='copy'?`<button class="go" data-a="${mode}" data-n="${n}">${mode==='copy'?'Copier ici':'Commencer'}</button>`:''}</div></div>`;
+  const cur=n===slot?' · partie actuelle':'';
+  return `<div class="slot"><div><div class="t">Partie ${n}${cur}</div><div class="m">${slotLine(i)}<br>${fmtDate(i.date)}</div></div><div class="sbtns">${
+    mode==='load'?`<button class="go" data-a="load" data-n="${n}">Charger</button><button class="del" data-a="del" data-n="${n}">Supprimer</button>`
+    :mode==='new'?`<button class="del" data-a="new" data-n="${n}">Écraser</button>`
+    :n===slot?'':`<button class="del" data-a="copy" data-n="${n}">Écraser</button>`}</div></div>`;}).join('');}
+function bindSlots(root,mode){root.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const n=+b.dataset.n,a=b.dataset.a;
+  if(a==='load')loadSlot(n);
+  else if(a==='new'){if(hasSave(n)&&!b.classList.contains('sure')){b.classList.add('sure');b.textContent='Confirmer';b.classList.add('go');return;}startNew(n);}
+  else if(a==='copy'){if(hasSave(n)&&!b.classList.contains('sure')){b.classList.add('sure');b.textContent='Confirmer';b.classList.add('go');return;}try{const d=Object.assign({},state,{saved:Date.now()});localStorage.setItem(SLOTKEY(n),JSON.stringify(d));}catch(e){}closeModal();refreshHome();toast(`Copie enregistrée dans la partie ${n}`);}
+  else if(a==='del'){if(!b.classList.contains('sure')){b.classList.add('sure');b.textContent='Confirmer';return;}deleteSlot(n);refreshHome();openLoad();}});}
+function openNew(){openModal(`<h2>Nouvelle partie</h2><p class="legend">Choisis un emplacement. Une partie existante sera effacée.</p>${slotsHTML('new')}`,r=>bindSlots(r,'new'));}
+function openLoad(){if(![1,2,3].some(hasSave)){closeModal();return;}openModal(`<h2>Charger une partie</h2>${slotsHTML('load')}`,r=>bindSlots(r,'load'));}
+function openSave(){openModal(`<h2>Sauvegarder la partie</h2><p>Ta partie (<b>Partie ${slot}</b>) est <b>sauvegardée automatiquement</b> à chaque étape${state.saved?' — dernière sauvegarde : '+fmtDate(state.saved):''}.</p><p class="legend">Tu peux aussi en garder une copie dans un autre emplacement, par exemple avant d'essayer autre chose.</p>${slotsHTML('copy')}<button class="btn ghost" id="okS">Fermer</button>`,r=>{bindSlots(r,'copy');r.querySelector('#okS').onclick=closeModal;});}
+function openOptions(){
+  openModal(`<h2>Options</h2>
+  <button class="btn ghost" id="oAnim">Animations du décor : ${opts.anim?'activées':'coupées'}</button>
+  ${(!standalone)?'<button class="btn ghost" id="oInst">Installer l\'application</button>':''}
+  <button class="btn ghost" id="oUpd">Vérifier les mises à jour</button>
+  <button class="btn ghost" id="oHelp">Comment jouer ?</button>
+  <button class="btn ghost" id="oClr">Recharger le jeu (vider le cache)</button>
+  <p class="legend" id="oVer" style="margin-top:12px"></p><button class="btn" id="oOk">Fermer</button>`,r=>{
+    const ver=()=>{r.querySelector('#oVer').innerHTML=verText(true);};ver();
+    r.querySelector('#oAnim').onclick=e=>{opts.anim=!opts.anim;saveOpts();req();e.target.textContent='Animations du décor : '+(opts.anim?'activées':'coupées');};
+    const ib=r.querySelector('#oInst');if(ib)ib.onclick=()=>{closeModal();$('btnInstall').click();};
+    r.querySelector('#oUpd').onclick=async e=>{e.target.textContent='Vérification…';const a=await checkUpdate({});
+      e.target.textContent=a===null?'Vérification impossible (hors ligne ?)':a?'Mise à jour disponible — touche pour l\'installer':'Tu as la dernière version ✓';ver();if(a)e.target.onclick=applyUpdate;};
+    r.querySelector('#oHelp').onclick=showHelp;
+    r.querySelector('#oClr').onclick=()=>applyUpdate();
+    r.querySelector('#oOk').onclick=closeModal;});}
+
+/* ---------- version & mises à jour ---------- */
+const updState={checked:0,latest:null,avail:false,err:false};
+const verText=long=>{let s=`Version ${APP_VERSION} · build ${fmtBuild(APP_BUILD)}`;
+  if(updState.avail)s+=` — mise à jour ${updState.latest.version} disponible`;else if(updState.checked&&!updState.err)s+=' — à jour ✓';else if(updState.err)s+=' — vérification impossible';
+  if(long&&updState.checked)s+=`<br>Dernière vérification : ${fmtDate(updState.checked)}`;return s;};
+function updateVerUI(){$('homeVer').textContent=verText(false).replace(/<br>.*/,'');
+  const box=$('homeUpd');if(updState.avail){box.hidden=false;if(!box.dataset.busy)box.innerHTML=`Nouvelle version <b>${updState.latest.version}</b> disponible.<br><button id="homeUpdGo">Mettre à jour maintenant</button>`;const g=$('homeUpdGo');if(g)g.onclick=()=>applyUpdate();}else if(!box.dataset.busy)box.hidden=true;
+  $('updBar').hidden=!(updState.avail&&homeEl.classList.contains('hidden'));}
+async function checkUpdate(o){o=o||{};
+  try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('http');const j=await r.json();
+    updState.latest=j;updState.checked=Date.now();updState.err=false;updState.avail=+j.build>+APP_BUILD;updateVerUI();
+    if(updState.avail&&o.auto&&!homeEl.classList.contains('hidden')){const k='animopolis-upd-'+j.build;let tried=false;try{tried=!!sessionStorage.getItem(k);sessionStorage.setItem(k,'1');}catch(e){}if(!tried)applyUpdate();else{$('homeUpd').dataset.busy='';$('homeUpd').innerHTML='La mise à jour ne s\'est pas chargée. Va dans <b>Options › Recharger le jeu</b>.';}}
+    return updState.avail;}
+  catch(e){updState.checked=Date.now();updState.err=true;updateVerUI();return null;}}
+async function applyUpdate(){const box=$('homeUpd');box.hidden=false;box.dataset.busy='1';box.textContent='Mise à jour en cours…';closeModal();homeEl.classList.remove('hidden');
+  try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));}}catch(e){}
+  try{if(window.caches){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('animopolis-')).map(k=>caches.delete(k)));}}catch(e){}
+  location.reload();}
+$('updGo').onclick=()=>applyUpdate();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-updState.checked>45000)checkUpdate({auto:true});});
+window.addEventListener('pageshow',e=>{if(e.persisted)checkUpdate({auto:true});});
+setInterval(()=>{if(!document.hidden)checkUpdate({auto:true});},10*60*1000);
+
+/* ---------- boutons ---------- */
+$('hContinue').onclick=()=>{hideHome();toStart();updateVerUI();};
+$('hNew').onclick=()=>{if(!anySave()){startNew(1);}else openNew();};
+$('hLoad').onclick=openLoad;
+$('hSave').onclick=openSave;
+$('hOpts').onclick=openOptions;
+$('logoBtn').onclick=showHome;
+Object.assign(window.__animopolis,{showHome,startNew,loadSlot,slotInfo,APP_VERSION,APP_BUILD,checkUpdate,updState});
+
+/* ---------- démarrage ---------- */
+if(/[?&]nohome/.test(location.search)){hideHome();if(!state.seen){state.seen=true;save();showHelp();}}
+else showHome();
+checkUpdate({auto:true});
 </script>
 </body>
 </html>
