@@ -134,6 +134,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .choice canvas{display:block;width:100%;height:auto;border-radius:8px}
 .choice.shake{animation:sh .35s}
 @keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.choices.txtgrid{grid-template-columns:repeat(4,1fr)}
+.choice.txt{display:grid;place-items:center;min-height:54px;font-size:26px;padding:4px}
+.prog{color:var(--red);white-space:nowrap}
+.lookbtn{display:block;margin-top:8px;border:2px solid var(--line);background:transparent;border-radius:12px;padding:4px 12px;font-size:17px}
+.card{max-height:min(66vh,540px);overflow:auto}
+.card .actions{position:sticky;bottom:-12px;background:var(--card);padding-top:6px;margin-top:4px}
 .qwho{float:left;width:46px;height:52px;margin:0 10px 2px 0;border:2px solid var(--line);border-radius:10px}
 #question{min-height:52px}
 </style>

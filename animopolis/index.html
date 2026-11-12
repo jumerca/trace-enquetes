@@ -134,6 +134,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .choice canvas{display:block;width:100%;height:auto;border-radius:8px}
 .choice.shake{animation:sh .35s}
 @keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.choices.txtgrid{grid-template-columns:repeat(4,1fr)}
+.choice.txt{display:grid;place-items:center;min-height:54px;font-size:26px;padding:4px}
+.prog{color:var(--red);white-space:nowrap}
+.lookbtn{display:block;margin-top:8px;border:2px solid var(--line);background:transparent;border-radius:12px;padding:4px 12px;font-size:17px}
+.card{max-height:min(66vh,540px);overflow:auto}
+.card .actions{position:sticky;bottom:-12px;background:var(--card);padding-top:6px;margin-top:4px}
 .qwho{float:left;width:46px;height:52px;margin:0 10px 2px 0;border:2px solid var(--line);border-radius:10px}
 #question{min-height:52px}
 </style>
@@ -1291,7 +1297,7 @@ function buildCity(){
    const rr=mulberry32(99);for(let a=0;a<=n;a++){for(let b=0;b<n;b++){if(rr()<.62&&!(a===0&&b===0))addHedge(u0+a*cs-2,v0+b*cs,u0+a*cs+2,v0+(b+1)*cs);if(rr()<.62&&!(b===n-1&&a===n))addHedge(u0+b*cs,v0+a*cs-2,u0+(b+1)*cs,v0+a*cs+2);}}
    addChar(u0+3.5*cs,v0+2.5*cs,as(GHOST,{}));setT('fantome',7,u0+3.5*cs,v0+2.5*cs,22);}
 
-  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildBirds();buildDecoys();
+  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildBirds();buildDecoys();
   /* ---- foule ---- */
   for(const a of areas){CURD=a.dist;let n=0,tries=0;while(n<a.n&&tries<a.n*60){tries++;const u=R(a.u0,a.u1),v=R(a.v0,a.v1);if(a.ok&&!a.ok(u,v))continue;if(!free(u,v,2))continue;addChar(u,v,randomSpec(a.beach));n++;}}
   sortItems();
@@ -2146,6 +2152,111 @@ function buildIle(){
 }
 
 /* =========================================================
+   VARIÉTÉ : étapes « trouver plusieurs objets », « compter »,
+   « trouver l'intrus », « déduire le coupable » + l'enquête
+   « Le jeu de piste de Bobo » qui les réunit.
+   ========================================================= */
+const BOBO_CAT=SP('cat','coat','white','none',null,null,false,{build:'slim'}),BOBO_FOX=SP('fox','coat','white','cap',null,null,false,{build:'slim'}),BOBO_DUCK=SP('duck','coat','white','none',null,null,false,{build:'slim'}),BOBO_CROC=SP('croc','coat','white','cap',null,null,false,{build:'slim'});
+CASES.push(
+ {id:'bobo',dist:2,title:'Le jeu de piste de Bobo',diff:2,
+  intro:"Bobo le clown prépare sa grande parade… mais sa trompette d'or a disparu ! Pour la retrouver, il a lancé un jeu de piste plein d'énigmes. Ouvre l'œil, compte, déduis !",
+  cast:[{n:'Bobo',r:'clown farceur',s:CLOWN},{n:'Le voleur',r:'un chat, sans chapeau',s:BOBO_CAT}],
+  steps:[
+   {w:0,q:"Trouve Bobo, qui cherche partout sa trompette d'or.",ok:"Il fait les cent pas devant l'entrée : « Ma trompette ! Qui a vu ma trompette ? »"},
+   {q:"Pour la parade, Bobo a gonflé tout un bouquet de ballons. Combien en compte-t-il ?",choice:[CH('4'),CH('5'),CH('6'),CH('7')],ans:2,ok:"Six ballons : le compte est bon. Mais la trompette, elle, manque toujours."},
+   {q:"La trompette était ornée de trois étoiles dorées, tombées pendant la fuite du voleur. Retrouve les trois étoiles !",ok:"Trois étoiles, trois indices : le voleur est passé par ici."},
+   {q:"Deux témoins se souviennent du voleur :<br>🍦 <i>Le glacier</i> : « Ce n'est ni un oiseau, ni un reptile. »<br>🍭 <i>La vendeuse de barbe à papa</i> : « Il ne portait pas de chapeau. »<br><b>Qui a volé la trompette ?</b>",choice:[CH('Le renard à casquette',BOBO_FOX),CH('Le chat sans chapeau',BOBO_CAT),CH('Le canard',BOBO_DUCK),CH('Le crocodile à casquette',BOBO_CROC)],ans:1,ok:"Ni oiseau ni reptile, et pas de chapeau : c'est le chat !"},
+   {q:"Le chat s'est glissé dans la troupe des rayés pour passer inaperçu. Tous portent un maillot rayé… sauf lui. Trouve l'intrus !",ok:"Le voilà, en maillot à pois, qui serre quelque chose sous sa veste !"},
+   {q:"Le chat avoue : « Elle est dans l'un de ces trois coffres. Pas dans le rouge. Et le coffre qui la cache est juste à côté du bleu. » Quel coffre ouvres-tu ?",ok:"Le coffre vert ! Les trois étoiles brillent sur la trompette d'or."},
+   {w:0,q:"La parade peut commencer. Trouve Bobo, trompette en main.",ok:"Bobo souffle dans sa trompette d'or, sous le chapiteau : le meilleur concert de la fête !"}],
+  outro:"Le chat voulait seulement jouer de la trompette. Bobo l'a engagé comme second trompettiste. Enquête classée !"}
+);
+
+/* ---------- outils ---------- */
+const vr=mulberry32(90210);const vpick=a=>a[Math.floor(vr()*a.length)];
+function stepAt(st,u,v,r,z){const[x,y]=pr(u,v,z||0);st.t={x,y:y-14,r:r||22,u,v};avoid(u,v,(r||22)*.8+8);return st;}
+function stepMulti(st,pts,r){r=r||16;st.ts=pts.map(([u,v,z])=>{const[x,y]=pr(u,v,z||0);avoid(u,v,r+8);return{x,y:y-12,r};});
+  const cx=st.ts.reduce((a,q)=>a+q.x,0)/st.ts.length,cy=st.ts.reduce((a,q)=>a+q.y,0)/st.ts.length;
+  st.t={x:cx,y:cy,r:Math.max(...st.ts.map(q=>Math.hypot(q.x-cx,q.y-cy)+q.r))+12};return st;}
+function insertAfter(cid,ref,st){const cs=CASES.find(c=>c.id===cid);cs.steps.splice(cs.steps.indexOf(ref)+1,0,st);return st;}
+function findSpot(u,v,hw,hh){for(let k=0;k<90;k++){const a=k*2.4,d=k*3.2,uu=u+Math.cos(a)*d,vv=v+Math.sin(a)*d;let ok=true;
+  for(let du=-hw;du<=hw&&ok;du+=8)for(let dv=-hh;dv<=hh;dv+=8)if(!free(uu+du,vv+dv,2)){ok=false;}
+  if(ok){avoidRect(uu-hw-8,vv-hh-8,uu+hw+8,vv+hh+8);return[uu,vv];}}return[u,v];}
+const HATHEADS=['cat','dog','pig','mouse','frog','duck','bear','fox','lion','croc','owl'];
+/* petit groupe de personnages presque identiques dont un seul diffère */
+function oddGroup(u,v,n,common,odd,exclude,sp){sp=sp||12;const heads=HATHEADS.filter(h=>!(exclude||[]).includes(h));const idx=1+Math.floor(vr()*(n-2));const pts=[];
+  for(let i=0;i<n;i++){const row=i%2,col=Math.floor(i/2),c=col-(n/2-1)/2;pts.push([u+c*sp+row*(sp/2+18),v-c*sp-row*(sp/2)+row*18]);}
+  pts.forEach(([pu,pv],i)=>{const base={head:vpick(heads),body:'shirt',fill:'white',hat:'none',prop:null,pose:'stand',flip:vr()<.5,build:vpick(['normal','normal','round','slim'])};
+    addChar(pu,pv,Object.assign(base,i===idx?odd:common));});
+  return pts[idx];}
+function drawStar(c,x,y,r){c.strokeStyle=INK;c.lineWidth=1;c.beginPath();for(let i=0;i<10;i++){const a=-PI/2+i*PI/5,rr=i%2?r*.45:r;c[i?'lineTo':'moveTo'](x+Math.cos(a)*rr,y+Math.sin(a)*rr);}c.closePath();c.fillStyle='#e6c14a';c.fill();c.stroke();}
+function addStarSpr(u,v){addSpr(u,v,(c,x,y)=>drawStar(c,x,y-9,8),{ht:16,hw:10});}
+function addBiscuit(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;C(c,x,y-4,4.6,'#e3cf9a');for(const[dx,dy]of[[-1.6,-5.4],[1.4,-3],[-.4,-2.4]])D(c,x+dx,y+dy,.6);c.fillStyle='#f3efe4';c.beginPath();c.arc(x+3.6,y-6.6,1.8,0,TAU);c.fill();},{ht:12,hw:8});}
+function addTicketSpr(u,v){addSpr(u,v,(c,x,y)=>{c.save();c.translate(x,y-3);c.rotate(-.5);c.strokeStyle=INK;c.lineWidth=1;Rc(c,-6,-3.4,12,6.8,'#efe6c8');D(c,-6,0,1.2,'#e9e4d8');D(c,6,0,1.2,'#e9e4d8');c.lineWidth=.4;L(c,-3,-3.4,-3,3.4);c.restore();},{ht:12,hw:10});}
+function addPaw(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-2,4.6,2.8,WHITE);for(const dx of[-4.6,-1.6,1.6,4.6])E(c,x+dx*1.1,y-6.2-(Math.abs(dx)>3?-.6:0),1.5,1.2,WHITE);},{ht:12,hw:12});}
+function chestSpr(c,x,y,lid){c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-9,y-10,18,10,'#a8946a');c.beginPath();c.moveTo(x-9,y-10);c.quadraticCurveTo(x,y-18,x+9,y-10);c.fillStyle=lid;c.fill();c.stroke();Rc(c,x-1.4,y-9,2.8,5,'#e6c14a');}
+function bubble(c,x,y,t){c.fillStyle=INK;c.font='9px "Patrick Hand", cursive';c.textAlign='center';c.textBaseline='middle';c.fillText(t,x,y);}
+
+function buildVariety(){
+  const O={};['chaton','gateau','poisson','ballon','chiot','lettre','tresor','fantome','farine','tickets'].forEach(id=>{O[id]=CASES.find(c=>c.id===id).steps.slice();});
+  const TXT=(arr)=>arr.map(n=>CH(String(n)));
+
+  /* ---- Le chaton fugueur : 3 autres affiches à retrouver (plusieurs objets) */
+  CURD=0;
+  {const pts=[[396,196],[140,796],[430,798]].map(([u,v])=>{const p=placeNear(u,v,8);addLamp(p[0],p[1],true);return[p[0],p[1],10];});
+   insertAfter('chaton',O.chaton[0],stepMulti({q:"Madame Piquante a collé trois autres affiches « PERDU » sur des lampadaires du quartier. Retrouve-les toutes !",ok:"Trois affiches de plus : tout le quartier cherche Pompon. Un marchand croit l'avoir vu du côté du marché…"},pts,15));}
+  /* ---- Le gâteau envolé : compter les canards */
+  {const st=O.gateau[3];delete st.w;st.q="Des canards se régalent des miettes de gâteau, au bord du lac. Combien sont-ils ?";st.choice=TXT([2,3,4,5]);st.ans=2;st.ok="Quatre canards bien rassasiés… et Lapinou file finir son gâteau ailleurs.";}
+  /* ---- Les tickets envolés : une piste de 3 tickets */
+  CURD=2;
+  {const st=O.tickets[4];const pts=[[472,1352],[900,1236],[500,1690]].map(([u,v])=>{const p=placeNear(u,v,8);addTicketSpr(p[0],p[1]);return[p[0],p[1],0];});
+   delete st.w;st.q="Filou sème des tickets en courant. Retrouve les trois tickets tombés sur son chemin !";st.ok="Une piste de tickets : du carrousel aux autos-tamponneuses, puis jusqu'aux stands de jeux. Le labyrinthe n'est plus très loin…";stepMulti(st,pts,16);delete st.t.u;}
+  /* ---- Le fantôme de la fête : l'intrus qui n'a pas peur */
+  {const k05=blk(0,5);const p=findSpot(k05.u0+150,k05.v0+130,52,40);const odd=oddGroup(p[0],p[1],8,{pose:'run',body:'shirt',fill:'white'},as(FORAIN,{pose:'stand',hat:'cap'}),['croc'],17);
+   insertAfter('fantome',O.fantome[0],stepAt({q:"À la sortie du Train fantôme, tout le monde s'enfuit en courant… tous, sauf un spectateur bien calme. Trouve l'intrus !",ok:"Un crocodile à casquette, tout sourire, reste planté là : pas du tout effrayé… étrange pour quelqu'un qui vient de croiser un fantôme !"},odd[0],odd[1],17));}
+  /* ---- La pêche… non : Le jeu de piste de Bobo */
+  {const k4=blk(0,4),k5=blk(1,5),k6=blk(1,6),B=CASES.find(c=>c.id==='bobo').steps;
+   // 1 · Bobo à l'entrée
+   {const p=placeNear(k4.u0+120,k4.v0+190,8);addChar(p[0],p[1],as(CLOWN,{pose:'think'}));addSpr(p[0],p[1],(c,x,y)=>bubble(c,x+16,y-52,'MA TROMPETTE ?'),{top:true,ht:60});stepAt(B[0],p[0],p[1],24);}
+   // 2 · le bouquet de ballons (6)
+   {const p=placeNear(k5.u0+200,k5.v0+190,10);addChar(p[0],p[1],as(CLOWN,{pose:'carry'}));
+    addSpr(p[0],p[1],(c,x,y)=>{const cols=[WHITE,'#e6c14a',RED,'#c9c2b2',WHITE,'#7fb0d6'];const pos=[[-14,-52],[-4,-60],[8,-56],[16,-48],[-9,-44],[3,-46]];c.strokeStyle=INK;c.lineWidth=.4;pos.forEach(([dx,dy])=>L(c,x+4,y-16,x+dx,y+dy+6));c.lineWidth=.9;pos.forEach(([dx,dy],i)=>E(c,x+dx,y+dy,4.6,5.6,cols[i]));},{top:true,ht:70,hw:26});stepAt(B[1],p[0],p[1],26);}
+   // 3 · trois étoiles dorées
+   {const spots=[[k5.u0+60,k5.v0+112],[blk(2,4).u0+200,blk(2,4).v0+170],[blk(3,5).u0+110,blk(3,5).v0+200]].map(([u,v])=>{const p=placeNear(u,v,8);addStarSpr(p[0],p[1]);return[p[0],p[1],8];});stepMulti(B[2],spots,15);}
+   // 5 · l'intrus à pois parmi des rayés
+   {const p=findSpot(k5.u0+120,k5.v0+150,46,36);const odd=oddGroup(p[0],p[1],8,{fill:'stripes',body:'shirt',hat:'none'},{head:'cat',fill:'dots',body:'shirt',hat:'none'},['cat'],14);stepAt(B[4],odd[0],odd[1],17);}
+   // 6 · trois coffres (rouge, vert, bleu) — le bon : le vert
+   {const p=findSpot(k6.u0+70,k6.v0+150,34,16);const lids=[RED,'#7d8f6a','#7fb0d6'];
+    lids.forEach((lid,i)=>addSpr(p[0]+(i-1)*22,p[1]-(i-1)*22,(c,x,y)=>chestSpr(c,x,y,lid),{ht:20,hw:12}));
+    stepAt(B[5],p[0],p[1],16);}
+   // 7 · Bobo et sa trompette sous le chapiteau
+   {const p=placeNear(k6.uc+60,k6.v0+120,10);addChar(p[0],p[1],as(CLOWN,{pose:'point',prop:'trumpet'}));addSpr(p[0],p[1],(c,x,y)=>{c.fillStyle=INK;c.font='11px "Patrick Hand", cursive';c.textAlign='center';c.fillText('♪ ♫',x+22,y-40);},{top:true,ht:50});stepAt(B[6],p[0],p[1],24);}
+  }
+  /* ---- Le ballon rouge : compter les ballons du vendeur */
+  {const st=insertAfter('ballon',O.ballon[0],{q:"Chez le vendeur, un gros bouquet de ballons attend les enfants. Combien de ballons tient-il, sans compter le ballon rouge de Noisette ?",choice:TXT([3,4,5,6]),ans:2,ok:"Cinq ballons : assez pour tous les enfants de la fête."});st.t=Object.assign({},O.ballon[0].t);avoid(214,1290,70);}
+  /* ---- Le chiot du train : trois biscuits tombés */
+  CURD=3;
+  {const k=blk(4,4);const pts=[[k.u0+150,k.v0+120],[k.u0+205,k.v0+185],[k.u0+105,k.v0+222]].map(([u,v])=>{const p=placeNear(u,v,8);addBiscuit(p[0],p[1]);return[p[0],p[1],0];});
+   insertAfter('chiot',O.chiot[1],stepMulti({q:"Biscuit dévale le parvis en laissant tomber des biscuits. Retrouve les trois biscuits tombés !",ok:"Une petite piste de miettes… qui file droit vers les entrepôts."},pts,15));}
+  /* ---- La lettre d'amour : compter les cœurs */
+  CURD=0;
+  {const st=insertAfter('lettre',O.lettre[6],{q:"Mademoiselle Truffe rougit en lisant la lettre. Combien de petits cœurs flottent autour d'elle ?",choice:TXT([2,3,4,5]),ans:1,ok:"Trois cœurs : elle a tout compris, et la réponse sera « oui » !"});st.t=Object.assign({},O.lettre[6].t);}
+  /* ---- Le poisson d'or : un curieux sans casquette parmi les marins */
+  CURD=1;
+  {const k=blk(5,2);const sp=findSpot(k.u0+110,k.v0+170,40,36);addStall(sp[0],sp[1]-26,"Poisson d'or",'fish');
+   const odd=oddGroup(sp[0],sp[1]+16,7,{hat:'cap',body:'coat',fill:'white'},as(MATOU,{hat:'none'}),['cat','fox','owl','rabbit'],13);
+   insertAfter('poisson',O.poisson[0],stepAt({q:"Tous les curieux admirent le poisson d'or sur son étal, avec la même casquette de marin… tous sauf un seul. Trouve l'intrus !",ok:"Matou, le chat de gouttière, n'a pas de casquette : il ne regarde pas le poisson, mais la sortie du marché…"},odd[0],odd[1],17));}
+  /* ---- La carte au trésor : qui écoute ? (déduction) */
+  {const M=(h,hat)=>SP(h,'shirt','white',hat,null,null,false,{build:'small'});
+   insertAfter('tresor',O.tresor[0],{q:"Quelqu'un a écouté le capitaine en cachette. Voici ce que disent deux témoins :<br>🍽️ <i>Le serveur</i> : « Je n'ai pas vu son visage, mais elle avait de petites oreilles rondes. »<br>⚓ <i>Le capitaine</i> : « Elle portait un bandana sur la tête. »<br><b>Qui est l'espionne ?</b>",
+     choice:[CH('Souris à bandana',M('mouse','bandana')),CH('Souris à casquette',M('mouse','cap')),CH('Chat à bandana',M('cat','bandana')),CH('Cane à bandana',M('duck','bandana'))],ans:0,ok:"Oreilles rondes et bandana : c'est Mousse Bandana, la petite souris pirate !"});}
+  /* ---- La farine envolée : trois grosses empreintes */
+  CURD=4;
+  {const st=O.farine[7];const pts=[[621,2152],[655,2157.5],[689,2163]].map(([u,v])=>{addPaw(u,v);return[u,v,0];});
+   st.q="Bastien a repéré des traces blanches de farine sur le sentier. Retrouve les trois grosses empreintes !";st.ok="Trois empreintes toutes blanches : elles filent tout droit vers les vignes…";stepMulti(st,pts,15);delete st.t.u;}
+}
+
+/* =========================================================
    QUESTIONS ÉNIGMATIQUES + FAUX SUSPECTS (SOSIES)
    ========================================================= */
 const ENIGMES={
@@ -2270,15 +2381,24 @@ const cam={x:0,y:400,s:.5};
 let minS=.1,maxS=7,cache=null,cacheKey='',cacheS=.5,needs=false;
 const fx={wrong:[],pulse:null};
 const NSLOTS=3,SLOTKEY=n=>'animopolis-s'+n;
-const freshState=()=>({solved:{},hints:{},wrong:{},best:{},current:null,seen:false,unlockSeen:{}});
-function readSlot(n){try{return JSON.parse(localStorage.getItem(SLOTKEY(n))||'null');}catch(e){return null;}}
+const freshState=()=>({solved:{},hints:{},wrong:{},part:{},best:{},current:null,seen:false,unlockSeen:{}});
+const LEGACY_LEN={chaton:5,gateau:5,lettre:9,collier:15,poisson:5,tresor:10,banque:15,ballon:5,fantome:10,zorbo:15,valise:5,colis:10,recette:15,lili:5,farine:10,couronne:15,ombre:20,vase:5,chapeau:5,phare:8,peche:5,tickets:8,chiot:5,controleur:7,oeufs:5,tartes:8,bouteille:5,volcan:9,epave:15};
+const caseLens=()=>Object.fromEntries(CASES.map(c=>[c.id,c.steps.length]));
+/* Quand une enquête gagne des étapes : une enquête déjà classée reste classée, une enquête commencée repart de zéro. */
+function migrate(d){if(!d||!d.solved)return d;const L=d.caseLen||LEGACY_LEN;
+  for(const c of CASES){const old=L[c.id];if(!old||old===c.steps.length)continue;const n=(d.solved[c.id]||[]).filter(Boolean).length;
+    if(n>=old)d.solved[c.id]=c.steps.map(()=>true);
+    else if(n>0){d.solved[c.id]=[];for(const k of Object.keys(d.hints||{}))if(k.startsWith(c.id+':'))delete d.hints[k];if(d.part)for(const k of Object.keys(d.part))if(k.startsWith(c.id+':'))delete d.part[k];}}
+  d.caseLen=caseLens();return d;}
+let built=false;
+function readSlot(n){try{const d=JSON.parse(localStorage.getItem(SLOTKEY(n))||'null');return built?migrate(d):d;}catch(e){return null;}}
 var opts={anim:true};try{Object.assign(opts,JSON.parse(localStorage.getItem('animopolis-opts')||'{}'));}catch(e){}
 function saveOpts(){try{localStorage.setItem('animopolis-opts',JSON.stringify(opts));}catch(e){}}
 let slot=1;try{slot=+localStorage.getItem('animopolis-active')||1;
   if(!localStorage.getItem(SLOTKEY(1))){const old=localStorage.getItem('animopolis-v3');if(old){localStorage.setItem(SLOTKEY(1),old);try{const o=JSON.parse(old);if(typeof o.anim==='boolean')opts.anim=o.anim;}catch(e){}}}}catch(e){}
 let state=Object.assign(freshState(),readSlot(slot)||{});
 function setState(d){for(const k of Object.keys(state))delete state[k];Object.assign(state,freshState(),d||{});}
-function save(){try{state.saved=Date.now();localStorage.setItem(SLOTKEY(slot),JSON.stringify(state));localStorage.setItem('animopolis-active',String(slot));}catch(e){}}
+function save(){try{state.saved=Date.now();state.caseLen=caseLens();localStorage.setItem(SLOTKEY(slot),JSON.stringify(state));localStorage.setItem('animopolis-active',String(slot));}catch(e){}}
 const caseDone=cs=>(state.solved[cs.id]||[]).filter(Boolean).length===cs.steps.length;
 const doneIn=d=>CASES.filter(cs=>cs.dist===d&&caseDone(cs)).length;
 const mediumOf=d=>CASES.find(c=>c.dist===d&&c.diff===2&&!c.final);
@@ -2297,7 +2417,7 @@ const KEYCHAR={chaton:[1,'Le fugueur'],gateau:[1,'Le voleur de gâteau'],lettre:
  poisson:[1,'Le voleur de poisson'],tresor:[1,'La chasseuse de trésor'],banque:[1,'Le braqueur'],chapeau:[0,'La propriétaire'],phare:[null,'Le contrebandier'],
  ballon:[2,'Le héros du jour'],fantome:[2,'Le faux fantôme'],zorbo:[0,'Le magicien endetté'],peche:[null,'Le tricheur'],tickets:[0,'Le resquilleur'],
  valise:[1,'Le distrait'],colis:[0,'Le propriétaire du colis'],recette:[4,'Le commanditaire'],chiot:[1,'Le fugueur'],controleur:[null,'Le faux contrôleur'],
- lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],bouteille:[0,'Le petit explorateur'],volcan:[null,'Le faux volcan'],epave:[1,'Le Baron'],tartes:[null,'Le gourmand au miel']};
+ lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],bouteille:[0,'Le petit explorateur'],volcan:[null,'Le faux volcan'],epave:[1,'Le Baron'],bobo:[1,'Le chat voleur'],tartes:[null,'Le gourmand au miel']};
 function keySpec(cs){const kc=KEYCHAR[cs.id]||[0,''];if(kc[0]===null){const st=cs.steps[cs.steps.length-1];return st.choice[st.ans].s;}return(cs.cast[kc[0]]||cs.cast[0]).s;}
 function showBook(){const n=CASES.filter(caseDone).length,st=totalStars(),max=CASES.length*3;
   const ordered=[...CASES].sort((a,b)=>a.dist-b.dist||(a.final?1:0)-(b.final?1:0)||a.diff-b.diff);
@@ -2377,9 +2497,10 @@ function render(){
 function drawOverlay(c,s){
   const now=performance.now(),cs=curCase();
   if(cs){const st=prog(cs);
-    cs.steps.forEach((step,k)=>{if(!st[k]||!step.t)return;const t=step.t;c.strokeStyle=RED;c.lineWidth=Math.max(2.2/s,1.2);c.beginPath();c.arc(t.x,t.y,t.r,0,TAU);c.stroke();
-      const br=Math.max(9/s,5),bx=t.x+t.r*.72,by=t.y-t.r*.72;c.fillStyle=RED;c.beginPath();c.arc(bx,by,br,0,TAU);c.fill();c.fillStyle='#fff';c.font=`${br*1.3}px "Patrick Hand", cursive`;c.textAlign='center';c.textBaseline='middle';c.fillText(String(k+1),bx,by+br*.08);});
-    const k=curStep(cs);if(k>=0&&state.hints[cs.id+':'+k]&&cs.steps[k].t){const h=hintCircle(cs,k,state.hints[cs.id+':'+k]);c.setLineDash([10/s,8/s]);c.strokeStyle=RED;c.lineWidth=Math.max(2.5/s,1.4);c.beginPath();c.arc(h.x,h.y,h.r,0,TAU);c.stroke();c.setLineDash([]);}}
+    cs.steps.forEach((step,k)=>{if(!st[k]||!step.t)return;(step.ts||[step.t]).forEach((t,i)=>{c.strokeStyle=RED;c.lineWidth=Math.max(2.2/s,1.2);c.beginPath();c.arc(t.x,t.y,t.r,0,TAU);c.stroke();
+      if(i===0){const br=Math.max(9/s,5),bx=t.x+t.r*.72,by=t.y-t.r*.72;c.fillStyle=RED;c.beginPath();c.arc(bx,by,br,0,TAU);c.fill();c.fillStyle='#fff';c.font=`${br*1.3}px "Patrick Hand", cursive`;c.textAlign='center';c.textBaseline='middle';c.fillText(String(k+1),bx,by+br*.08);}});});
+    {const k0=curStep(cs);if(k0>=0&&cs.steps[k0].ts){const part=partOf(cs,k0);cs.steps[k0].ts.forEach((q,i)=>{if(part[i]){c.strokeStyle=RED;c.lineWidth=Math.max(2.2/s,1.2);c.beginPath();c.arc(q.x,q.y,q.r,0,TAU);c.stroke();}});}}
+    const k=curStep(cs);if(k>=0&&state.hints[cs.id+':'+k]&&cs.steps[k].t&&!cs.steps[k].choice){const h=hintCircle(cs,k,state.hints[cs.id+':'+k]);c.setLineDash([10/s,8/s]);c.strokeStyle=RED;c.lineWidth=Math.max(2.5/s,1.4);c.beginPath();c.arc(h.x,h.y,h.r,0,TAU);c.stroke();c.setLineDash([]);}}
   fx.wrong=fx.wrong.filter(w=>now-w.t<700);
   for(const w of fx.wrong){c.globalAlpha=1-(now-w.t)/700;c.strokeStyle=RED;c.lineWidth=3/s;const z=10/s;L(c,w.x-z,w.y-z,w.x+z,w.y+z);L(c,w.x+z,w.y-z,w.x-z,w.y+z);c.globalAlpha=1;}
   if(fx.pulse){const p=(now-fx.pulse.t)/900;if(p>1)fx.pulse=null;else{c.globalAlpha=1-p;c.strokeStyle=RED;c.lineWidth=4/s;c.beginPath();c.arc(fx.pulse.x,fx.pulse.y,fx.pulse.r*(1+p*1.4),0,TAU);c.stroke();c.globalAlpha=1;}}
@@ -2437,6 +2558,7 @@ window.addEventListener('keydown',e=>{if(e.key==='+'||e.key==='=')zoomAt(vw/2,vh
    ========================================================= */
 const curCase=()=>CASES.find(c=>c.id===state.current)||null;
 const prog=cs=>chal&&chal.id===cs.id?chal.solved:(state.solved[cs.id]||[]);
+function partOf(cs,k){const key=cs.id+':'+k;const st=chal&&chal.id===cs.id?(chal.part=chal.part||{}):(state.part=state.part||{});return st[key]||(st[key]=[]);}
 function curStep(cs){const st=prog(cs);for(let k=0;k<cs.steps.length;k++)if(!st[k])return k;return -1;}
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(msg){if(toastNext){msg=msg+' ('+toastNext+')';toastNext='';}const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),1700);}
@@ -2444,8 +2566,11 @@ const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function updateCard(){const cs=curCase();
   if(!cs){$('caseTitle').textContent='Choisis une enquête ▸';$('stepNum').textContent='';$('question').textContent="Touche une carte d'enquête posée sur la ville, ou ouvre les Dossiers.";$('btnHint').disabled=true;return;}
   $('btnHint').disabled=false;const k=curStep(cs);$('caseTitle').textContent=cs.title+' ▸';
-  if(k<0){$('stepNum').textContent='Classée ✓';$('question').textContent=cs.outro;}else{$('stepNum').textContent=chal?`⏱ ${fmtT(chalTime())} · ${k+1}/${cs.steps.length}`:`Étape ${k+1}/${cs.steps.length}`;$('question').textContent=cs.steps[k].q;const w=cs.steps[k].w;if(w!=null&&cs.cast[w]){const pc=portrait(cs.cast[w].s);pc.className='qwho';pc.title=cs.cast[w].n;$('question').prepend(pc);}
-    const ch=cs.steps[k].choice;if(ch){const lvl=+state.hints[cs.id+':'+k]||0;const wrong=ch.map((o,i)=>i).filter(i=>i!==cs.steps[k].ans);const hide=new Set(wrong.slice(0,lvl));const box=document.createElement('div');box.className='choices';ch.forEach((o,i)=>{if(hide.has(i))return;const b=document.createElement('button');b.className='choice';b.appendChild(portrait(o.s));const sp=document.createElement('span');sp.textContent=o.n;b.appendChild(sp);b.onclick=()=>answerChoice(cs,k,i);box.appendChild(b);});$('question').appendChild(box);}}
+  if(k<0){$('stepNum').textContent='Classée ✓';$('question').textContent=cs.outro;}else{$('stepNum').textContent=chal?`⏱ ${fmtT(chalTime())} · ${k+1}/${cs.steps.length}`:`Étape ${k+1}/${cs.steps.length}`;$('question').innerHTML=cs.steps[k].q;const w=cs.steps[k].w;if(w!=null&&cs.cast[w]){const pc=portrait(cs.cast[w].s);pc.className='qwho';pc.title=cs.cast[w].n;$('question').prepend(pc);}
+    const st0=cs.steps[k];if(st0.ts){const n=partOf(cs,k).filter(Boolean).length;const bd=document.createElement('span');bd.className='prog';bd.textContent=` — ${n}/${st0.ts.length} trouvés`;$('question').appendChild(bd);}
+    const ch=cs.steps[k].choice;if(ch){const lvl=+state.hints[cs.id+':'+k]||0;const wrong=ch.map((o,i)=>i).filter(i=>i!==cs.steps[k].ans);const hide=new Set(wrong.slice(0,lvl));const box=document.createElement('div');box.className='choices';if(!ch[0].s)box.classList.add('txtgrid');ch.forEach((o,i)=>{if(hide.has(i))return;const b=document.createElement('button');b.className='choice';if(o.s){b.appendChild(portrait(o.s));const sp=document.createElement('span');sp.textContent=o.n;b.appendChild(sp);}else{b.classList.add('txt');b.textContent=o.n;}b.onclick=()=>answerChoice(cs,k,i);box.appendChild(b);});
+      if(st0.t){const lb=document.createElement('button');lb.className='lookbtn';lb.textContent='🔎 Voir la scène';lb.onclick=()=>{const t=st0.t;flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.6,vw/420)));};$('question').appendChild(lb);}
+      $('question').appendChild(box);}}
   $('btnHint').textContent=k>=0&&+state.hints[cs.id+':'+k]>=1?(+state.hints[cs.id+':'+k]>=2?'Indice ✓✓':'Indice +'):'Indice';}
 function portrait(spec){const c=document.createElement('canvas');const r=2;c.width=90*r;c.height=100*r;const g=c.getContext('2d');g.setTransform(r,0,0,r,0,0);g.fillStyle='#f3efe4';g.fillRect(0,0,90,100);g.strokeStyle='#d6d0c2';g.lineWidth=1;for(let y=10;y<100;y+=10){g.beginPath();g.moveTo(0,y);g.lineTo(90,y);g.stroke();}
   const sc=spec.scale?2.35/spec.scale*.75:2.35;g.translate(45,95);g.scale(sc,sc);drawChar(g,0,0,Object.assign({},spec,{pose:'stand'}));return c;}
@@ -2466,7 +2591,7 @@ function startCase(id){chal=null;state.current=id;save();updateCard();req();cons
   openModal(`<h2>${cs.title}</h2><p class="legend">${DISTRICTS[cs.dist].name} · ${stars(cs.diff)}</p><p>${cs.intro}</p><h3>Les personnages</h3>${castHTML(cs)}<button class="btn" id="go">${curStep(cs)<0?'Revoir la carte':'Commencer l\'enquête'}</button>${caseDone(cs)?`<button class="btn ghost" id="chrono">⏱ Défi chrono${(state.best||{})[cs.id]?' — record '+fmtT(state.best[cs.id])+' '+medal(cs,state.best[cs.id]):''}</button>`:''}${(state.solved[cs.id]||[]).some(Boolean)?'<button class="btn ghost" id="reset">Recommencer cette enquête</button>':''}`,root=>{
     const ch=root.querySelector('#chrono');if(ch)ch.onclick=()=>startChal(cs);
     mountCast(root,cs);root.querySelector('#go').onclick=()=>{closeModal();const t=focusPoint(cs);flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.2,vw/700)));};
-    const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];if(state.wrong)delete state.wrong[cs.id];Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
+    const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];if(state.wrong)delete state.wrong[cs.id];if(state.part)Object.keys(state.part).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.part[k];});Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
 function showSteps(){const cs=curCase();if(!cs){showCases();return;}const st=prog(cs);const k=curStep(cs);
   openModal(`<h2>${cs.title}</h2><ul class="steps">${cs.steps.map((s,i)=>st[i]?`<li><span class="n">${i+1}</span>${s.q}<span class="ok">${s.ok}</span>${s.t?`<button data-v="${i}">Voir sur la carte</button>`:''}</li>`:i===k?`<li><span class="n" style="background:var(--ink);color:var(--card)">${i+1}</span>${s.q}</li>`:`<li class="lock">Étape ${i+1} — encore secrète</li>`).join('')}</ul>${k<0?`<p class="stamp">Enquête classée</p><p>${cs.outro}</p>`:''}`,root=>{
     root.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{const t=cs.steps[+b.dataset.v].t;closeModal();flyTo(t.x,t.y,Math.max(cam.s,Math.min(3.2,Math.min(vw,vh)/(t.r*6))));});});}
@@ -2490,15 +2615,21 @@ function onTapScreen(sx,sy){
   const rs=cardRects();for(let i=rs.length-1;i>=0;i--){const r=rs[i];if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h){pickCase(r.cs.id);return;}}
   const w=toWorld(sx,sy);onTap(w.x,w.y);}
 function answerChoice(cs,k,i){if(i===cs.steps[k].ans){const t={x:cam.x,y:cam.y,r:1};solveStep(cs,k,t);}else{addWrong(cs);toast('Non… relis bien tes indices.');const b=document.querySelectorAll('.choice');b.forEach(x=>x.classList.add('shake'));setTimeout(()=>b.forEach(x=>x.classList.remove('shake')),400);}}
+function wrongTap(cs,k,x,y){addWrong(cs);fx.wrong.push({x,y,t:performance.now()});req();const w=cs.steps[k].w,who=w!=null&&cs.cast[w]?cs.cast[w].s:null,dc=decoyAt(x,y);
+  if(dc&&who&&dc.head===who.head&&dc.dist===cs.dist)toast('Fausse piste ! Regarde bien '+DIFF[dc.diff]+'.');
+  else toast(pick(['Rien de suspect ici…','Hmm, pas ici.','Continue de chercher !','Ce n\'est pas ça…']));}
 function onTap(x,y){
   const cs=curCase();if(!cs){toast('Touche une carte d\'enquête');return;}
   const k=curStep(cs);if(k<0){toast('Enquête déjà classée !');return;}
-  if(cs.steps[k].choice){toast('Choisis ta réponse dans le cadre en bas');return;}
-  const t=cs.steps[k].t,slack=Math.min(12,Math.max(0,8/cam.s-6));
-  if(Math.hypot(x-t.x,y-t.y)<=t.r+slack){solveStep(cs,k,t);}
-  else{addWrong(cs);fx.wrong.push({x,y,t:performance.now()});req();const w=cs.steps[k].w,who=w!=null&&cs.cast[w]?cs.cast[w].s:null,dc=decoyAt(x,y);
-    if(dc&&who&&dc.head===who.head&&dc.dist===cs.dist)toast('Fausse piste ! Regarde bien '+DIFF[dc.diff]+'.');
-    else toast(pick(['Rien de suspect ici…','Hmm, pas ici.','Continue de chercher !','Ce n\'est pas ça…']));}
+  const st=cs.steps[k];
+  if(st.choice){toast('Choisis ta réponse dans le cadre en bas');return;}
+  const slack=Math.min(12,Math.max(0,8/cam.s-6));
+  if(st.ts){const part=partOf(cs,k);let hit=-1;st.ts.forEach((q,i)=>{if(hit<0&&!part[i]&&Math.hypot(x-q.x,y-q.y)<=q.r+slack)hit=i;});
+    if(hit<0){if(st.ts.some((q,i)=>part[i]&&Math.hypot(x-q.x,y-q.y)<=q.r+slack)){toast('Déjà trouvé : cherche les autres !');return;}wrongTap(cs,k,x,y);return;}
+    part[hit]=true;save();const q=st.ts[hit];fx.pulse={x:q.x,y:q.y,r:q.r,t:performance.now()};req();
+    const n=part.filter(Boolean).length;if(n===st.ts.length)solveStep(cs,k,st.t);else{toast(`${n}/${st.ts.length} trouvés !`);updateCard();}return;}
+  const t=st.t;
+  if(Math.hypot(x-t.x,y-t.y)<=t.r+slack)solveStep(cs,k,t);else wrongTap(cs,k,x,y);
 }
 let toastNext='';
 const fmtT=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -2524,7 +2655,7 @@ $('btnCast').onclick=()=>{const cs=curCase();if(!cs){showCases();return;}openMod
 $('btnHint').onclick=()=>{const cs=curCase();if(!cs)return;const k=curStep(cs);if(k<0)return;if(chal){toast('Pas d\'indice pendant un défi chrono !');return;}if(cs.steps[k].choice){const key=cs.id+':'+k;state.hints[key]=Math.min(2,(+state.hints[key]||0)+1);save();updateCard();toast('Indice : une mauvaise réponse a été retirée');return;}const key=cs.id+':'+k;const lvl=Math.min(2,(+state.hints[key]||0)+1);state.hints[key]=lvl;save();const h=hintCircle(cs,k,lvl);flyTo(h.x,h.y,Math.max(minS,Math.min(vw,vh)/(h.r*2.6)));toast(lvl>=2?'Indice 2/2 : c\'est tout près !':'Indice 1/2 : cherche dans le cercle');updateCard();};
 
 /* ---------- démarrage ---------- */
-buildCity();
+buildCity();built=true;migrate(state);
 window.addEventListener('resize',resize);resize();
 {const[x,y]=pr(590,590,0);cam.x=x;cam.y=y-40;cam.s=Math.max(minS,Math.min(.9,vw/1300));clampCam();}
 updateCard();render();
@@ -2542,7 +2673,7 @@ window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unloc
 /* =========================================================
    ACCUEIL · PARTIES · OPTIONS · VERSION & MISES À JOUR
    ========================================================= */
-const APP_VERSION='2.1',APP_BUILD='202611120921';
+const APP_VERSION='2.2',APP_BUILD='202611120952';
 const homeEl=$('home');
 const fmtBuild=b=>/^\d{12}$/.test(b)?`${b.slice(0,8)}-${b.slice(8)}`:b;
 const fmtDate=ts=>{if(!ts)return '';const d=new Date(ts);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
