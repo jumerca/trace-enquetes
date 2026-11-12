@@ -221,3 +221,43 @@ describe('Consignes avancées', () => {
     expect(u.assign).toBe(best.idx);
   });
 });
+
+describe('échappée en contre-attaque', () => {
+  it('un joueur parti seul va au cercle sans ressortir le ballon', () => {
+    let done = 0;
+    let shots = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const reg = new NameRegistry();
+      const e = new MatchEngine({ home: quickTeam(10 + seed, 'A', 12, undefined, reg), away: quickTeam(50 + seed, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 300 + seed });
+      for (let i = 0; i < 60 * 40 && !(e.phase === 'live' && e.holder() && e.frontcourtReached); i++) e.step();
+      const h = e.holder();
+      if (!h || e.phase !== 'live') continue;
+      const side = e.attackSide(h.team);
+      const hoop = e.court.hoop(side);
+      const mid = e.court.g.length / 2;
+      // Le porteur a pris tout le monde de vitesse : défenseurs et partenaires sont derrière lui
+      h.pos = { x: mid + side * 3, y: hoop.y };
+      h.vel = { x: side * 5, y: 0 };
+      (h as typeof h & { pickedUp?: boolean }).pickedUp = false; // il dribble encore
+      let k = 0;
+      for (const o of e.onCourt) {
+        if (o === h) continue;
+        o.pos = { x: mid - side * (2 + (k % 5)), y: 2 + (k % 5) * 2.6 };
+        o.vel = { x: 0, y: 0 };
+        k++;
+      }
+      const ev0 = e.events.length;
+      for (let i = 0; i < 60 * 5; i++) {
+        e.step();
+        if (e.events.slice(ev0).some((x) => x.type === 'shot' || x.type === 'turnover' || x.type === 'foul')) break;
+      }
+      const evs = e.events.slice(ev0);
+      expect(evs.some((x) => x.type === 'pass' && x.player === h.idx)).toBe(false);
+      if (evs.some((x) => x.type === 'shot' && x.player === h.idx)) shots++;
+      done++;
+    }
+    expect(done).toBeGreaterThan(2);
+    // Il va tirer au cercle (un marcher isolé reste possible, comme en vrai)
+    expect(shots).toBeGreaterThanOrEqual(done - 1);
+  });
+});

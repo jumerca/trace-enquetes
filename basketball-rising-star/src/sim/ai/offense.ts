@@ -181,6 +181,28 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     p.target = { ...p.pos };
     return;
   }
+  // Échappée : plus aucun défenseur entre le porteur et le cercle -> il va marquer, sans s'arrêter ni ressortir le ballon
+  if (e.phase === 'live' && d > 1.2 && d < 22) {
+    const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
+    // Vraie échappée : elle démarre loin du cercle, tous les défenseurs nettement derrière ; une fois lancée, elle va au bout
+    const brk = p as MPlayer & { breakT?: number };
+    const running = brk.breakT !== undefined && e.time - brk.breakT < 3.5;
+    const beaten = defs.every((o) => dist(o.pos, hoop) > d + (running ? -0.3 : 0.6)) && (running || d > 8);
+    // Seule exception : un partenaire encore mieux placé, seul plus près du cercle (passe vers l'avant)
+    const mateAhead = e.teamOnCourt(p.team).some((m) => m !== p && dist(m.pos, hoop) < d - 3 && e.nearestDefender(m).d > 2.5);
+    if (beaten && !mateAhead) {
+      if (!running) brk.breakT = e.time;
+      p.intent = 'drive';
+      (p as MPlayer & { driveT?: number }).driveT = e.time;
+      p.urgency = 1;
+      if (d < 2.7) {
+        e.beginShot(p);
+        return;
+      }
+      p.target = { x: hoop.x - side * 0.9, y: hoop.y };
+      return;
+    }
+  }
   // Le porteur lève la tête : partenaire seul devant, coupeur libre sous le cercle, prise à deux
   if (readAdvantage(e, p, hoop)) return;
   // Intérieur enfermé ou pris à deux dans la raquette : ressortir vers un shooteur extérieur

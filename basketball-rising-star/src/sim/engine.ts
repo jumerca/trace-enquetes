@@ -1123,7 +1123,7 @@ export class MatchEngine {
   launchPass(from: MPlayer, to: MPlayer, kind: 'chest' | 'lob' | 'bounce' | 'tip' | 'inbound'): void {
     const b = this.ball;
     const lob = kind === 'lob';
-    const speed = kind === 'tip' ? 7 : lob ? 8 : 11 + (from.data.attrs.passing / 20) * 3;
+    const speed = kind === 'tip' ? 7 : lob ? 9.5 : 13.5 + (from.data.attrs.passing / 20) * 3.5;
     const d0 = dist(from.pos, to.pos);
     const T0 = d0 / speed;
     // Passe dans la course du receveur
@@ -1149,9 +1149,11 @@ export class MatchEngine {
         lead.y += Math.sin(a) * 2.2;
       }
     }
-    const start = kind === 'tip' ? { x: b.x, y: b.y, z: b.z } : { x: from.pos.x, y: from.pos.y, z: 1.35 };
-    const end = { x: lead.x, y: lead.y, z: lob ? 2.6 : 1.3 };
-    const apex = lob ? Math.max(3.6, 2.5 + d0 * 0.18) : Math.max(start.z, end.z) + 0.15 + d0 * 0.02;
+    const start = kind === 'tip' ? { x: b.x, y: b.y, z: b.z } : { x: from.pos.x, y: from.pos.y, z: 1.25 };
+    const end = { x: lead.x, y: lead.y, z: lob ? 2.1 : 1.25 };
+    // Passes tendues, bien plus basses qu'un tir : on ne les confond pas à l'image
+    const rise = (9.81 * T0 * T0) / 8; // flèche naturelle d'une passe lancée à cette vitesse
+    const apex = lob ? Math.max(2.7, Math.max(start.z, end.z) + rise) : Math.max(start.z, end.z) + 0.04 + rise;
     const v = launchVelocity(start, end, apex);
     b.state = 'air';
     b.holder = -1;
@@ -1301,7 +1303,7 @@ export class MatchEngine {
           const lunge = (o as MPlayer & { lungeT?: number }).lungeT;
           const bonus = lunge !== undefined && this.time - lunge < 0.6 ? 0.18 : 0;
           const close = 1 - d / 0.8;
-          const p = (0.016 + (o.data.attrs.passReading / 20) * 0.065 + (o.data.attrs.steal / 20) * 0.035 + bonus * 0.6) * (0.4 + close * 0.6) * (f.lob ? 0.5 : 1);
+          const p = (0.012 + (o.data.attrs.passReading / 20) * 0.05 + (o.data.attrs.steal / 20) * 0.028 + bonus * 0.6) * (0.4 + close * 0.6) * (f.lob ? 0.5 : 1);
           if (this.rng.chance(p)) {
             this.interception(o, f);
             return;

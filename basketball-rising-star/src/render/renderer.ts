@@ -998,7 +998,7 @@ export class MatchRenderer {
         break;
       case 'pass': {
         const lob = e.ball.flight?.kind === 'pass' && e.ball.flight.from === p.idx && e.ball.flight.lob;
-        if (lob) hands = [hand(side * 0.22, 0.52), hand(side * 0.14, 0.48)]; // passe au-dessus de la tête
+        if (lob) hands = [hand(side * 0.44, 0.22), hand(-side * 0.24, -0.16)]; // longue passe à une main, bras tendu vers l'avant
         else if (hv % 3 === 1) hands = [hand(side * 0.52, -0.06), hand(-side * 0.2, -0.3)]; // une main, à terre
         else if (hv % 3 === 2) hands = [hand(side * 0.5, 0.12), hand(-side * 0.26, -0.1)]; // une main, tendue
         else hands = [hand(side * 0.46, 0.02), hand(side * 0.42, -0.06)]; // deux mains, poitrine
@@ -1328,8 +1328,19 @@ export class MatchRenderer {
       ctx.lineWidth = r * 0.8;
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x - b.vx * this.s * 0.05, y - (b.vy * TILT - b.vz * ZK) * this.s * 0.05);
+      ctx.lineTo(x - b.vx * this.s * 0.09, y - (b.vy * TILT - b.vz * ZK) * this.s * 0.09);
       ctx.stroke();
+    }
+    // Passe : trait blanc fin et tendu, pour la distinguer d'un tir au premier coup d'œil
+    if (b.state === 'air' && b.flight && b.flight.kind === 'pass') {
+      ctx.strokeStyle = 'rgba(246,244,239,0.4)';
+      ctx.lineWidth = Math.max(1.5, r * 0.35);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - b.vx * this.s * 0.07, y - (b.vy * TILT - b.vz * ZK) * this.s * 0.07);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     }
     const grd = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.2, x, y, r);
     grd.addColorStop(0, '#ff9a5c');
