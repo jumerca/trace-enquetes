@@ -114,7 +114,7 @@ function render(){
     if(missing&&!pending){pending=true;setTimeout(()=>{pending=false;req();},ptrs.size?40:0);}
     ctx.setTransform(dpr*s,0,0,dpr*s,dpr*ox,dpr*oy);
   }
-  {let anyM=false;const tA=animT();for(const m of movers){if(!unlocked(m.dist))continue;const bb=m.bb;if(bb[2]<view[0]||bb[0]>view[2]||bb[3]<view[1]||bb[1]>view[3])continue;anyM=true;ctx.save();m.d(ctx,tA);ctx.restore();}
+  {let anyM=false;const tA=animT();for(const m of movers){if(!unlocked(m.dist))continue;const bb=m.bb;if(bb[2]<view[0]||bb[0]>view[2]||bb[3]<view[1]||bb[1]>view[3])continue;anyM=true;ctx.save();m.d(ctx,tA);ctx.restore();for(const it of m.over){ctx.save();it.d(ctx);ctx.restore();}}
    if(anyM&&animOn()&&!animTimer&&!document.hidden)animTimer=setTimeout(()=>{animTimer=0;req();},70);}
   if(reveal){const p=(performance.now()-reveal.t0)/2600;if(p>=1)reveal=null;else{const D=DISTRICTS[reveal.d];const[cx,cy]=pr((D.u0+D.u1)/2,(D.v0+D.v1)/2,0);const e=p*p*(3-2*p),Rr=e*Math.hypot(D.u1-D.u0,D.v1-D.v0)*.9;
     ctx.save();ctx.beginPath();ctx.rect(WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);ctx.ellipse(cx,cy,Rr*1.4,Rr*.8,0,0,TAU);ctx.clip('evenodd');ctx.globalAlpha=1-Math.max(0,p-.75)*4;drawLocked(ctx,D);ctx.restore();req();}}

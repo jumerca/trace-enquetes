@@ -121,26 +121,31 @@ CASES.push(
 
 /* ---------- décors propres à ces enquêtes ---------- */
 const ball=(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;C(c,x,y-3,3,WHITE);D(c,x,y-3,1,INK);D(c,x-1.8,y-4.6,.6,INK);D(c,x+1.8,y-1.6,.6,INK);};
-const egg=(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-5,4,5.4,'#e6c14a');c.fillStyle=RED;c.fillRect(x-4,y-5.6,8,1.6);c.fillStyle=WHITE;c.beginPath();c.arc(x-1.4,y-7.4,1,0,TAU);c.fill();};
+const egg=(c,x,y)=>{c.save();c.fillStyle='rgba(60,50,30,.22)';c.beginPath();c.ellipse(x,y+.4,5.6,2,0,0,TAU);c.fill();c.strokeStyle=INK;c.lineWidth=.9;c.beginPath();c.moveTo(x-6.4,y-.6);for(let k=0;k<7;k++)c.lineTo(x-5+k*1.7,y+(k%2?1.8:-.4));c.stroke();   // paille du nid
+  c.lineWidth=1.1;E(c,x,y-5.6,4.6,6,'#e6c14a');c.fillStyle=RED;c.fillRect(x-4.4,y-6,8.8,1.7);c.fillStyle=WHITE;c.beginPath();c.arc(x-1.6,y-8,1.1,0,TAU);c.fill();c.restore();};
 function scene(u,v,draw,o){return addSpr(u,v,draw,Object.assign({ht:30,hw:20},o||{}));}
 function buildMore(){
   /* ---- Le vase brisé (Centre) */
   CURD=0;
   {const p=placeNear(1045,100);addChar(p[0],p[1],as(GARDIEN_M,{pose:'crouch'}));scene(p[0]+10,p[1]+4,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;for(const[dx,dy,a]of[[-3,0,.4],[3,-1,-.6],[0,2,1.1],[6,1,.2]]){c.save();c.translate(x+dx,y+dy);c.rotate(a);P(c,[[-2,0],[2,0],[1,-3]],'#7fb0d6');c.restore();}},{ht:8});setT('vase',1,p[0]+4,p[1],22);}
-  {const k=blk(3,0);const p=placeNear(k.u0+200,k.v0+130);addBush(p[0],p[1]);scene(p[0]+6,p[1]+2,(c,x,y)=>ball(c,x,y),{top:true,ht:10});setT('vase',2,p[0]+3,p[1],20);}
+  {const k=blk(3,0);const p=placeNear(k.u0+200,k.v0+130);scene(p[0],p[1],(c,x,y)=>{c.strokeStyle=INK;const bl=[[-12,-8,8],[0,-12,9],[12,-8,8],[-6,-4,7],[7,-4,7]];c.lineWidth=2.2;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle=WHITE;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}
+    ball(c,x+3,y-10);                                                      // le ballon, pris dans les branches
+    c.strokeStyle=INK;c.fillStyle=WHITE;c.lineWidth=2;for(const b of[[-1,-3,5],[9,-3,5]]){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}for(const b of[[-1,-3,5],[9,-3,5]]){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}},{ht:26,hw:22});avoid(p[0],p[1],14);setT('vase',2,p[0],p[1],22);}
   {const k=blk(3,1);const p=placeNear(k.u0+120,k.v0+150);addChar(p[0],p[1],as(KIDR,{pose:'run'}));addChar(p[0]+14,p[1]+4,as(KIDP,{pose:'arms_up'}));addChar(p[0]-12,p[1]+8,as(KIDC,{pose:'point'}));scene(p[0]+6,p[1]+12,(c,x,y)=>ball(c,x,y),{ht:8});setT('vase',3,p[0]+2,p[1]+4,30);}
   {const k=blk(3,1);const p=placeNear(k.u0+210,k.v0+164);addChar(p[0],p[1],as(KIDM,{pose:'hide'}));setT('vase',4,p[0],p[1],20);}
   /* ---- Le chapeau envolé (Port) */
   CURD=1;
   addChar(1880,606,as(DAME,{pose:'arms_up',hat:'none'}));setT('chapeau',1,1880,606,22);
-  scene(1990,560,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y,7.6,1.8,'#efe6c8');E(c,x,y-1.8,3.8,2.4,'#efe6c8');c.fillStyle=INK;c.fillRect(x-3.8,y-1.2,7.6,.9);c.lineWidth=.5;for(const k of[0,3,6])L(c,x-16-k,y+2+k,x-10-k,y+1+k);},{top:true,z:46,ht:12});{const[x,y]=pr(1990,560,46);setTxy('chapeau',2,x,y,20);}
+  scene(1990,560,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y,7.6,1.8,'#efe6c8');E(c,x,y-1.8,3.8,2.4,'#efe6c8');c.fillStyle=INK;c.fillRect(x-3.8,y-1.2,7.6,.9);c.lineWidth=.5;for(const k of[0,3,6])L(c,x-16-k,y+2+k,x-10-k,y+1+k);},{top:true,z:60,ht:12});{const[x,y]=pr(1990,560,60);setTxy('chapeau',2,x,y,22);}
+  G(1976,552,2004,568,c=>{const[x,y]=pr(1990,560,0);c.save();c.globalAlpha=.28;c.fillStyle=INK;c.beginPath();c.ellipse(x,y,9,3,0,0,TAU);c.fill();c.restore();});
   addSpr(2000,880,(c,x,y)=>{drawBoat(c,x,y,1,{sail:true,len:26});c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-52,7,1.6,'#efe6c8');E(c,x,y-53.6,3.6,2.2,'#efe6c8');},{hw:34,ht:62});{const[x,y]=pr(2000,880,0);setTxy('chapeau',3,x,y-46,22);}
   addSpr(1940,760,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.7;c.beginPath();c.arc(x-5,y,3,PI*1.1,PI*1.9);c.stroke();c.beginPath();c.arc(x+5,y,3,PI*1.1,PI*1.9);c.stroke();c.save();c.translate(x,y-4);drawHead(c,{head:'dog',hat:'straw'},1);c.restore();},{ht:18,hw:14});setT('chapeau',4,1940,760,20);
   {const p=placeNear(1820,700,10);addChar(p[0],p[1],as(MEDOR2,{pose:'run',hat:'straw'}));addChar(p[0]-14,p[1]-4,as(DAME,{pose:'arms_up',hat:'none',flip:true}));setT('chapeau',5,p[0]-6,p[1]-2,24);}
   /* ---- Le phare éteint (Port) */
   addChar(1960,50,as(GARDPH,{pose:'arms_up'}));setT('phare',1,1960,50,22);
   G(1810,80,1870,140,c=>{c.fillStyle='#7fb0d6';c.strokeStyle=INK;c.lineWidth=.4;for(let k=0;k<12;k++){const[x,y]=pr(1860-k*4,90+k*3.4,0);c.beginPath();c.moveTo(x,y);c.lineTo(x+2,y-1.4);c.lineTo(x+1,y+1);c.closePath();c.fill();c.stroke();}});setT('phare',2,1845,102,24);
-  addSpr(1784,82,(c,x,y)=>{drawBoat(c,x,y,-1,{len:18,col:'#3a3733'});c.strokeStyle=INK;c.lineWidth=1;P(c,[[x-18,y-12],[x+16,y-12],[x+12,y-4],[x-14,y-4]],'#8f8a7c');},{hw:26,ht:22});avoid(1784,82,18);setT('phare',3,1784,82,24);
+  addSpr(1784,82,(c,x,y)=>{drawBoat(c,x,y,-1,{len:18,col:'#3a3733'});c.strokeStyle=INK;c.lineWidth=1.1;c.beginPath();c.moveTo(x-19,y-8);c.quadraticCurveTo(x-12,y-22,x-2,y-19);c.quadraticCurveTo(x+9,y-23,x+17,y-9);c.lineTo(x+14,y-3);c.quadraticCurveTo(x,y-1,x-16,y-3);c.closePath();c.fillStyle='#bdb7a6';c.fill();c.stroke();
+    c.lineWidth=.6;for(const dx of[-9,-1,7])L(c,x+dx,y-18,x+dx+1.4,y-3);c.lineWidth=.9;for(const dx of[-17,15])L(c,x+dx,y-7,x+dx*1.15,y+1);D(c,x-12,y-5,1,WHITE);D(c,x+11,y-5,1,WHITE);},{hw:26,ht:26});avoid(1784,82,18);setT('phare',3,1784,82,24);
   {const k=blk(4,0);const p=placeNear(k.u0+200,k.v0+150,10);for(const[du,dv]of[[0,0],[10,2],[4,-9]])addCrate(p[0]+du,p[1]+dv,9);scene(p[0]+6,p[1],(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;P(c,[[x-12,y-14],[x+10,y-16],[x+14,y-4],[x-10,y-2]],'#8f8a7c');},{ht:20,top:true});setT('phare',4,p[0]+5,p[1]-2,24);}
   {const k=blk(5,1);const p=placeNear(1568,388,8);addChar(p[0],p[1],as(CONTRE,{pose:'give',prop:'bag'}));addChar(p[0]+14,p[1]+2,SP('pig','chef','white','chef','stand',null,true));setT('phare',5,p[0]+7,p[1]+1,24);}
   {const p=placeNear(1390,400,8);addChar(p[0],p[1],as(PECHEUR,{pose:'point'}));setT('phare',6,p[0],p[1],22);}
@@ -155,7 +160,6 @@ function buildMore(){
   delete CASES.find(c=>c.id==='peche').steps[4].t;
   /* ---- Les tickets envolés (Fête) */
   {const k=blk(2,4);const p=placeNear(k.u0+170,k.v0+60,8);addChar(p[0],p[1],as(OPER,{pose:'arms_up'}));scene(p[0]+12,p[1]+2,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-5,y-8,10,8,'#d8c8a4');Rc(c,x-5,y-10,10,2,'#2b2926');},{ht:12});setT('tickets',1,p[0]+6,p[1],22);}
-  {const k=blk(1,4);const p=placeNear(k.u0+150,k.v0+126,8);addChar(p[0],p[1],as(FILOU,{pose:'climb'}));setT('tickets',2,p[0],p[1],20);}
   {const p=placeNear(372,1548,8);addChar(p[0],p[1],as(FILOU,{pose:'give',prop:'ticket'}));setT('tickets',3,p[0],p[1],20);}
   {const p=placeNear(530,1374,8);addChar(p[0],p[1],as(FILOU,{pose:'carry',prop:'cotton'}));setT('tickets',4,p[0],p[1],20);}
   {const p=placeNear(1080,1252,8);G(p[0]-20,p[1]-10,p[0]+20,p[1]+10,c=>{for(let k=0;k<8;k++){const[x,y]=pr(p[0]-18+k*5,p[1]-8+k*2.4+(k%2)*3,0);c.save();c.translate(x,y);c.rotate(k*.7);c.strokeStyle=INK;c.lineWidth=.5;Rc(c,-2.4,-1.3,4.8,2.6,'#efe6c8');c.restore();}});setT('tickets',5,p[0],p[1],24);}
@@ -183,7 +187,7 @@ function buildMore(){
   {const k3=blk(3,8);const p=[k3.u0+40,k3.v0+142];scene(p[0],p[1],egg,{ht:12});avoid(p[0],p[1],10);setT('oeufs',2,p[0],p[1],16);}
   {const k=blk(4,7);scene(k.u0+150+40,k.v0+150+2,egg,{ht:12,top:true});setT('oeufs',3,k.u0+190,k.v0+152,16);}
   {const p=placeNear(860,2140,8);scene(p[0],p[1],(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;P(c,[[x-9,y],[x-7,y-16],[x+7,y-16],[x+9,y]],'#efe8d6');E(c,x,y-16,7,2.4,'#5b5750');E(c,x,y-9,3,4.4,'#2b2926');egg(c,x,y-6);},{ht:24,hw:12});setT('oeufs',4,p[0],p[1],18);}
-  {const[x,y]=pr(1748,2540,ZL);scene(1748,2560,(c)=>egg(c,x,y),{top:true,ht:20,hw:10});setTxy('oeufs',5,x,y-8,16);}
+  {const[x,y]=pr(1732,2561,7);scene(1732,2562,(c)=>egg(c,x,y),{top:true,ht:20,hw:10});setTxy('oeufs',5,x,y-8,16);}
   /* ---- Les tartes de la ferme (Colline) */
   {const p=placeNear(1215,2090,6);addChar(p[0],p[1],as(FERMIERE,{pose:'arms_up'}));scene(p[0]+12,p[1]+2,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;E(c,x,y-2,6,1.8,WHITE);D(c,x-2,y-2.4,.4);D(c,x+1,y-2,.4);},{ht:6});setT('tartes',1,p[0]+4,p[1],22);}
   G(1240,2160,1320,2250,c=>{c.fillStyle='#a8946a';for(let k=0;k<14;k++){const[x,y]=pr(1250+k*5,2170+k*5.6,0);c.fillRect(x+(k%2?2:-2),y,1.6,1.6);}});setT('tartes',2,1280,2210,26);

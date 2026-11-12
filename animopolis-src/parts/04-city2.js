@@ -117,8 +117,10 @@ function buildZorbo(){
    setT('zorbo',5,u-6,v,30,10);
    for(const[du,dv]of[[-14,22],[2,26],[18,24],[-30,20],[30,28]])addChar(u+du,v+dv,as(randomSpec(),{pose:'arms_up',flip:rnd()<.5}));
    const hu=k.u0+70,hv=k.v0+70;addSpr(hu,hv,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-1,9,3,'#3a3733');Rc(c,x-5,y-12,10,11,'#3a3733');c.lineWidth=.6;for(const s of[-1,1]){c.beginPath();c.arc(x+s*12,y+1,4,PI*1.1,PI*1.9);c.stroke();}},{ht:16,hw:18});setT('zorbo',10,hu,hv,22);}
-  {const k=B(2,5);const u=k.u0+60,v=k.v0+196;G(u-8,v-6,u+8,v+6,c=>{c.save();c.translate(...pr(u,v,0));c.scale(1,.5);C(c,0,0,9,'#5b5750');c.lineWidth=.6;for(let k=-6;k<=6;k+=3)L(c,k,-7,k,7);c.restore();});addChar(u+4,v+4,as(ZORBO,{pose:'climb',prop:null}));setT('zorbo',6,u+3,v+2,22);}
-  {const k=B(1,6);const u=k.u0+50,v=k.v0+190;addClothesline(u,v,false);addChar(u+22,v+12,as(ZORBO,{pose:'carry',prop:'clothes'}));setT('zorbo',7,u+10,v+6,26);
+  {const k=B(2,5);const u=k.u0+60,v=k.v0+196;G(u-12,v-8,u+12,v+8,c=>{c.save();c.translate(...pr(u,v,0));c.scale(1,.5);C(c,0,0,11,'#2b2926');c.lineWidth=1.6;c.beginPath();c.arc(0,0,11,0,TAU);c.stroke();c.restore();});
+   addSpr(u,v+1,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;Rc(c,x-3.4,y-14,6.8,8,INK);c.fillStyle=WHITE;c.fillRect(x-3.4,y-9.4,6.8,1.2);E(c,x,y-14,6,1.8,INK);c.save();c.translate(x+16,y+2);c.rotate(.3);E(c,0,0,9,3,'#8f8a7c');c.restore();},{top:true,ht:20,hw:16});
+   addChar(u+2,v+9,as(ZORBO,{pose:'arms_up',noShadow:true}));setT('zorbo',6,u+1,v+3,24);}
+  {const k=B(1,6);const u=k.u0+50,v=k.v0+190;addClothesline(u,v,'zorbo');addChar(u+20,v+14,as(ZORBO,{pose:'think'}));setT('zorbo',7,u,v+2,28);
    addChar(k.uc+44,k.v0+124,as(ZORBO2,{pose:'give',prop:'money'}));addChar(k.uc+58,k.v0+126,as(HUISS,{pose:'carry',prop:'money',flip:true}));setT('zorbo',15,k.uc+51,k.v0+125,24);}
   {const k=B(1,4);addChar(k.u0+54,k.v0+194,as(BARRIT,{pose:'point'}));addChar(k.u0+68,k.v0+196,as(LEONIE,{pose:'carry',prop:'notepad',flip:true}));setT('zorbo',9,k.u0+61,k.v0+195,24);}
   {const k=B(3,4);const u=k.u0+180,v=k.v0+176;addSpr(u,v,(c,x,y)=>{drawChar(c,x,y,SP('rabbit','shirt','white','none','run',null,false,{scale:.85}),true);},{ht:30});setT('zorbo',11,u,v,20);}
