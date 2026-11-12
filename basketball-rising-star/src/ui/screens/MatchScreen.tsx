@@ -100,7 +100,7 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
   const repBefore = useMemo(() => (c ? user(c).reputation : 0), [c]);
 
   const engine = useMemo(() => {
-    const control = app.settings.controlMode === 'play';
+    const control = false; // le joueur est toujours dirigé par l'IA selon les consignes : aucune commande sur l'image
     if (!quick && c && fixture) return createMatch(c, fixture, control && !watch, !!watch);
     const reg = new NameRegistry();
     const home = quickTeam(Date.now() & 0xffff, 'Riverside', 12, ['#3988F5', '#F6F4EF'], reg);
@@ -125,7 +125,7 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
   useEffect(() => {
     const canvas = canvasRef.current!;
     const r = new MatchRenderer(canvas, engine);
-    r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind, showNames: app.settings.showNames };
+    r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind, showNames: app.settings.courtNames };
     const resize = () => {
       const w = wrapRef.current;
       if (w) r.resize(w.clientWidth, w.clientHeight);
@@ -637,17 +637,6 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
               </div>
             </div>
             <div className="field">
-              <label>Mode de jeu</label>
-              <div className="seg">
-                <button aria-pressed={!engine.userControl} onClick={() => ((engine.userControl = false), app.setSettings({ ...app.settings, controlMode: 'watch' }))}>
-                  Regarder (l'IA joue selon vos consignes)
-                </button>
-                <button aria-pressed={engine.userControl} onClick={() => ((engine.userControl = true), app.setSettings({ ...app.settings, controlMode: 'play' }))}>
-                  Contrôler mon joueur
-                </button>
-              </div>
-            </div>
-            <div className="field">
               <label>Volume : {Math.round(app.settings.volume * 100)} %</label>
               <input type="range" min={0} max={1} step={0.05} value={app.settings.volume} onChange={(e) => app.setSettings({ ...app.settings, volume: Number(e.target.value) })} />
             </div>
@@ -828,7 +817,7 @@ function StyleBar({ engine, onChange }: { engine: MatchEngine; onChange: (s: Mat
 }
 
 type View2D = 'full' | 'half' | 'follow';
-const SPEEDS = [0.5, 1, 2, 4, 8, 16];
+const SPEEDS = [0.5, 0.75, 1, 2, 4, 8, 16];
 const VIEWS: { id: string; view: '3d' | '2d'; cam: string; label: string }[] = [
   { id: '3f', view: '3d', cam: 'full', label: '3D large' },
   { id: '3p', view: '3d', cam: 'player', label: '3D suivi' },

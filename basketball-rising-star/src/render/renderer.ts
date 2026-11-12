@@ -625,13 +625,13 @@ export class MatchRenderer {
       ctx.globalAlpha = 1;
     }
     // Chant affiché au-dessus de la tribune
-    if (this.chant && S > 10) {
+    if (this.opts.showNames && this.chant && S > 10) {
       const spr = textSprite(this.chant.text, Math.max(12, 0.42 * S), 900, "'Barlow Condensed', Inter, sans-serif", '#F6F4EF', 'rgba(16,24,39,0.9)', null, this.dpr);
       ctx.globalAlpha = Math.min(1, this.chant.t);
       ctx.drawImage(spr, this.W / 2 - spr.width / this.dpr / 2, Math.max(4, bottom - h - spr.height / this.dpr - 4), spr.width / this.dpr, spr.height / this.dpr);
       ctx.globalAlpha = 1;
     }
-    if (this.boo > 0 && S > 10) {
+    if (this.opts.showNames && this.boo > 0 && S > 10) {
       const spr = textSprite('HOUUU…', Math.max(11, 0.32 * S), 800, 'Inter, sans-serif', '#ff8d90', 'rgba(16,24,39,0.9)', null, this.dpr);
       ctx.drawImage(spr, x0 + w * 0.3, bottom - h * 0.6, spr.width / this.dpr, spr.height / this.dpr);
     }
@@ -1220,7 +1220,7 @@ export class MatchRenderer {
       ctx.drawImage(spr, fx - spr.width / this.dpr / 2, this.py(p.pos.y) + 0.12 * S, spr.width / this.dpr, spr.height / this.dpr);
     }
     // Repère du joueur incarné
-    if (p.isUser && !bench) {
+    if (p.isUser && !bench && this.opts.showNames) {
       ctx.fillStyle = '#DDB65A';
       ctx.font = `800 ${Math.max(11, 0.24 * S)}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
@@ -1352,7 +1352,8 @@ export class MatchRenderer {
 
   // ------------------------------------------------------------------ Effets
   pushPopup(text: string, x: number, y: number, z: number, color: string): void {
-    this.popups.push({ text, x, y, z, t: 0, color });
+    // Rien n'est écrit par-dessus l'image du match : les annonces passent dans le fil sous le terrain
+    void [text, x, y, z, color];
   }
 
   drawPopups(dt: number): void {
