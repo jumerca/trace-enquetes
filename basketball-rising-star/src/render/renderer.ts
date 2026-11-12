@@ -948,7 +948,15 @@ export class MatchRenderer {
           follow = true;
           hands = mv === 'dunk1' ? [onBall(), hand(-side * 0.34, 0.12)] : [onBall(), [bsx - side * 0.1 * S, bsy + 0.03 * S]];
         } else {
-          // Smash puis suspension au cercle
+          // Smash puis suspension au cercle : les mains restent accrochées à l'arceau
+          const hp = e.court.hoop(e.attackSide(p.team));
+          const rx = this.px(hp.x - e.attackSide(p.team) * 0.2);
+          const ry = this.py(hp.y, e.court.g.rimHeight);
+          if (air && Math.hypot(rx - shX, ry - shY) < 1.1 * S) {
+            follow = true;
+            hands = mv === 'dunk1' ? [[rx, ry], hand(-side * 0.32, 0.05)] : [[rx + 0.1 * S, ry], [rx - 0.1 * S, ry]];
+            break;
+          }
           const dn = Math.min(0.3, Math.max(0, t - 0.5) * 1.2);
           hands = mv === 'dunk1' ? [hand(side * 0.3, 0.6 - dn), hand(-side * 0.32, 0.05)] : [hand(side * 0.3, 0.6 - dn), hand(side * 0.2, 0.56 - dn)];
         }
@@ -957,7 +965,7 @@ export class MatchRenderer {
         hands = [hand(side * 0.2, 0.64), hand(-side * 0.16, 0.25)];
         break;
       case 'rebound':
-        hands = ballNear && e.ball.state !== 'held' ? [[bsx + 0.06 * S, bsy], [bsx - 0.06 * S, bsy]] : [hand(0.14, 0.62), hand(-0.1, 0.6)];
+        hands = ballNear && e.ball.state !== 'held' && bsy < shY - 0.25 * K && e.ball.flight?.kind !== 'shot' ? [[bsx + 0.06 * S, bsy], [bsx - 0.06 * S, bsy]] : air || t < 0.5 ? [hand(0.14, 0.62), hand(-0.1, 0.6)] : runHands();
         follow = false;
         break;
       case 'pass': {
@@ -1005,7 +1013,7 @@ export class MatchRenderer {
       default: {
         hands = runHands();
         if (boxOut) hands = [hand(0.5, -0.06), hand(-0.5, -0.06)]; // écran de retard : bras écartés
-        else if (!bench && p.intent === 'reçoit') hands = [hand(side * 0.3, 0.02), hand(side * 0.22, -0.06)]; // mains prêtes
+        else if (!bench && e.ball.flight?.kind === 'pass' && e.ball.flight.to === p.idx) hands = [hand(side * 0.3 + 0.08, -0.08), hand(side * 0.3 - 0.08, -0.12)]; // mains prêtes pour la réception
         else if (p.team === e.possession && e.phase === 'live' && sp < 1.5 && !hasBall && (Math.floor(e.time / 2.2) + p.idx * 5) % 7 === 0) hands[0] = hand(side * 0.18, 0.56); // appel de balle
       }
     }
