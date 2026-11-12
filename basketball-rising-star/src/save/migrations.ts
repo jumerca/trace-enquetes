@@ -16,6 +16,8 @@ const MIGRATIONS: Record<number, (c: Raw) => Raw> = {
   // v2 -> v3 : consignes personnelles, compétitions (coupes, Europe), Espoirs, sélection, vie hors terrain
   // v3 -> v4 : matchs à la durée officielle par défaut (accélération disponible)
   3: (c) => ({ ...c, settings: { ...(c.settings as object), quarterMin: 0, speed: 4 }, version: 4 }),
+  // v4 -> v5 : le match démarre en vitesse réelle (×1) ; l'accélération reste au choix
+  4: (c) => ({ ...c, settings: { ...(c.settings as object), speed: 1 }, version: 5 }),
   2: (c) => ({ ...c, style: c.style ?? { shooting: 0, defense: 0.5, hustle: 0.5 }, compStats: c.compStats ?? {}, version: 3 }),
 };
 

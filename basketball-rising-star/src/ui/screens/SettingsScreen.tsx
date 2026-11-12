@@ -97,12 +97,12 @@ export function SettingsScreen({ back }: { back: Screen }) {
             </div>
           </div>
           <div className="field">
-            <label>Noms des joueurs sous leurs pieds (caméra rapprochée)</label>
+            <label>Noms des joueurs affichés sur le terrain</label>
             <div className="seg">
-              <button aria-pressed={s.showNames} onClick={() => set({ showNames: true })}>
+              <button aria-pressed={s.courtNames} onClick={() => set({ courtNames: true })}>
                 Oui
               </button>
-              <button aria-pressed={!s.showNames} onClick={() => set({ showNames: false })}>
+              <button aria-pressed={!s.courtNames} onClick={() => set({ courtNames: false })}>
                 Non
               </button>
             </div>

@@ -14,11 +14,11 @@ export interface KeyMap {
 
 export interface Settings {
   volume: number; // 0..1
-  camera: 'full' | 'follow' | 'player';
+  camera: 'full' | 'follow' | 'player' | 'close';
   controlMode: 'watch' | 'play';
   quality: 'low' | 'high';
   showOpen: boolean;
-  showNames: boolean;
+  courtNames: boolean;
   showTactics: boolean;
   view: '3d' | '2d';
   colorblind: boolean;
@@ -49,7 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   controlMode: 'watch',
   quality: 'high',
   showOpen: true,
-  showNames: true,
+  courtNames: false,
   showTactics: false,
   view: '3d',
   colorblind: false,

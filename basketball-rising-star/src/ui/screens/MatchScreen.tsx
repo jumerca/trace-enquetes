@@ -86,6 +86,9 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
   const [statsOpen, setStatsOpen] = useState(false);
   const [camera, setCamera] = useState(app.settings.camera);
   const [view, setView] = useState<'3d' | '2d'>(app.settings.view ?? '3d');
+  const [view2d, setView2d] = useState<View2D>('full');
+  const view2dRef = useRef(view2d);
+  view2dRef.current = view2d;
   const [tactics, setTactics] = useState(app.settings.showTactics ?? true);
   const viewRef = useRef(view);
   const tacticsRef = useRef(tactics);
@@ -97,7 +100,7 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
   const repBefore = useMemo(() => (c ? user(c).reputation : 0), [c]);
 
   const engine = useMemo(() => {
-    const control = app.settings.controlMode === 'play';
+    const control = false; // le joueur est toujours dirigé par l'IA selon les consignes : aucune commande sur l'image
     if (!quick && c && fixture) return createMatch(c, fixture, control && !watch, !!watch);
     const reg = new NameRegistry();
     const home = quickTeam(Date.now() & 0xffff, 'Riverside', 12, ['#3988F5', '#F6F4EF'], reg);
@@ -122,7 +125,7 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
   useEffect(() => {
     const canvas = canvasRef.current!;
     const r = new MatchRenderer(canvas, engine);
-    r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind, showNames: app.settings.showNames };
+    r.opts = { camera, quality: app.settings.quality, showOpen: app.settings.showOpen, colorblind: app.settings.colorblind, showNames: app.settings.courtNames };
     const resize = () => {
       const w = wrapRef.current;
       if (w) r.resize(w.clientWidth, w.clientHeight);
@@ -141,6 +144,7 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
       last = now;
       r.opts.camera = cameraRef.current;
       r.opts.view = viewRef.current;
+      r.opts.view2d = view2dRef.current;
       r.opts.showTactics = tacticsRef.current;
       if (!pausedRef.current && !simRef.current && !engine.finished) {
         let sp = speedRef.current;
@@ -434,151 +438,148 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
   const labels = !h || !h.onCourt ? null : h.hasBall ? { shoot: 'TIRER', pass: 'PASSE', lob: 'LOB', action: 'DRIBBLE\nÉCRAN' } : h.offense ? { shoot: 'COUPER', pass: 'DEMANDER', lob: '', action: 'ÉCRAN' } : { shoot: 'CONTRE', pass: 'INTER-\nCEPTER', lob: '', action: 'AIDE' };
 
   return (
-    <div className="match" ref={wrapRef}>
-      <canvas ref={canvasRef} aria-label="Terrain de basket : simulation du match en direct" />
+    <div className={`match ${engine.userControl ? 'manual' : ''}`}>
+      {/* Bandeau au-dessus de l'image : score et temps uniquement */}
       {h && (
-        <>
-          <div className="mtop">
-            <div className="mtop-btns">
-              <button className="icon-btn" aria-label="Pause" onClick={() => setPaused(true)}>
-                ❚❚
-              </button>
-              <button className="icon-btn" aria-label="Vitesse" onClick={() => setSpeed((s) => (s >= 16 ? 1 : s * 2))}>
-                ×{speed}
-              </button>
-              <button className="icon-btn" aria-label="Aller à la fin du quart-temps" title="Fin du quart-temps" onClick={() => fastForward('quarter')}>
-                ⏭
-              </button>
-            </div>
-            <div className="scorebug" aria-live="off">
-              <div className="tm">
-                <div className="tm-line">
-                  <i style={{ background: t0.colors[0], outline: '1px solid rgba(255,255,255,.5)' }} />
-                  <span>{t0.short}</span>
-                  {h.bonus0 && <span className="bonus">BONUS</span>}
-                  {h.poss === 0 && <span className="possdot" aria-label="Possession" />}
-                  <span className="sc">{h.s0}</span>
-                </div>
-                <div className="tops">{h.top0}</div>
-              </div>
-              <div className="clk">
-                <span>{h.q <= 4 ? `QT${h.q}` : `PR${h.q - 4}`}</span>
-                <b>{fmtClock(h.clock)}</b>
-                <span className={`sc24 ${h.shot < 5 ? 'low' : ''}`}>{h.shotOn ? Math.ceil(Math.max(0, h.shot)) : '—'}</span>
-              </div>
-              <div className="tm">
-                <div className="tm-line">
-                  <span className="sc">{h.s1}</span>
-                  {h.poss === 1 && <span className="possdot" aria-label="Possession" />}
-                  {h.bonus1 && <span className="bonus">BONUS</span>}
-                  <span>{t1.short}</span>
-                  <i style={{ background: t1.colors[0] }} />
-                </div>
-                <div className="tops" style={{ textAlign: 'right' }}>{h.top1}</div>
+        <div className="mbar">
+          <div className="scorebug" aria-live="off">
+            <div className="tm">
+              <div className="tm-line">
+                <i style={{ background: t0.colors[0], outline: '1px solid rgba(255,255,255,.5)' }} />
+                <span>{t0.short}</span>
+                {h.bonus0 && <span className="bonus">BONUS</span>}
+                {h.poss === 0 && <span className="possdot" aria-label="Possession" />}
+                <span className="sc">{h.s0}</span>
               </div>
             </div>
-            <div className="mtop-btns">
-              <button className="icon-btn" aria-label="Caméra" title="Caméra" onClick={() => setCamera((v) => (v === 'player' ? 'follow' : v === 'follow' ? 'full' : 'player'))}>
-                {camera === 'full' ? '⤢' : camera === 'follow' ? '⤡' : '◎'}
-              </button>
-              <button className="icon-btn" aria-label="Vue 2D ou 2,5D" title="Vue 2D tactique / vue 2,5D" onClick={() => setView((v) => (v === '3d' ? '2d' : '3d'))} style={{ fontSize: '0.75rem', fontWeight: 800 }}>
-                {view === '3d' ? '2D' : '3D'}
-              </button>
-              <button className="icon-btn" aria-label="Afficher les flèches de jeu" title="Flèches de course et de passe" aria-pressed={tactics} onClick={() => setTactics((t) => !t)} style={{ opacity: tactics ? 1 : 0.5 }}>
-                ✎
-              </button>
-              <button className="icon-btn" aria-label="Statistiques" onClick={() => setStatsOpen(true)}>
-                ≡
-              </button>
+            <div className="clk">
+              <span>{h.q <= 4 ? `QT${h.q}` : `PR${h.q - 4}`}</span>
+              <b>{fmtClock(h.clock)}</b>
+              <span className={`sc24 ${h.shot < 5 ? 'low' : ''}`}>{h.shotOn ? Math.ceil(Math.max(0, h.shot)) : '—'}</span>
             </div>
-            <div className="ticker" ref={tickerRef} onPointerDown={() => (tickerHold.current = Date.now())} onWheel={() => (tickerHold.current = Date.now())} aria-label="Statistiques individuelles (faire défiler)">
-              {h.ticker.map((row, i) =>
-                row.sep ? (
-                  <span key={i} className="tk-sep" style={{ borderColor: row.color }}>
-                    {row.name}
-                  </span>
-                ) : (
-                  <span key={i} className={`tk ${row.on ? 'on' : ''} ${row.me ? 'me' : ''}`}>
-                    <b>{row.name}</b> {row.pts} pts · {row.reb} rb · {row.ast} pd · {row.min}' {(row.pf ?? 0) >= 3 ? `· ${row.pf} f` : ''}
-                  </span>
-                ),
+            <div className="tm">
+              <div className="tm-line">
+                <span className="sc">{h.s1}</span>
+                {h.poss === 1 && <span className="possdot" aria-label="Possession" />}
+                {h.bonus1 && <span className="bonus">BONUS</span>}
+                <span>{t1.short}</span>
+                <i style={{ background: t1.colors[0] }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* L'image du match : rien n'est affiché par-dessus (hors commandes tactiles en contrôle manuel) */}
+      <div className="court" ref={wrapRef}>
+        <canvas ref={canvasRef} aria-label="Terrain de basket : simulation du match en direct" />
+        <div className="timing" ref={timingRef} style={{ display: 'none' }}>
+          <i />
+          <b style={{ bottom: `${(1 / 1.6) * 100}%` }} />
+        </div>
+        {h && h.onCourt && !h.finished && labels && engine.userControl && (
+          <div className="controls touch-only">
+            <div className="joy" ref={joyRef} onPointerDown={(e) => ((joyActive.current = true), (e.target as HTMLElement).setPointerCapture(e.pointerId), joyMove(e))} onPointerMove={(e) => joyActive.current && joyMove(e)} onPointerUp={joyEnd} onPointerCancel={joyEnd} aria-label="Joystick de déplacement">
+              <i ref={knobRef} />
+            </div>
+            <div className="actions">
+              {labels.lob ? (
+                <ActBtn label={labels.lob} k={keyLabel(keys.lob)} on={(v) => btn('lob', v)} />
+              ) : (
+                <ActBtn label="SPRINT" k={keyLabel(keys.sprint)} on={(v) => ((touchSprint.current = v), syncRef.current())} />
               )}
+              <ActBtn label={labels.action} k={keyLabel(keys.action)} on={(v) => btn('action', v)} />
+              <ActBtn label={labels.pass} k={keyLabel(keys.pass)} on={(v) => btn('pass', v)} />
+              <ActBtn label={labels.shoot} k={keyLabel(keys.shoot)} main on={(v) => btn('shoot', v)} />
             </div>
-            {h.feed && (
-            <div className="feed">
-              <div>{h.feed}</div>
-              {h.feed2 && <div className="feed-old">{h.feed2}</div>}
-            </div>
-          )}
           </div>
-          {h.run && <div className="runbadge">Série {h.run}</div>}
-          {banner && (
-            <div className="banner" key={banner.id} style={{ borderColor: banner.color }}>
-              {banner.text}
-            </div>
-          )}
-          {u && h.onCourt && (
-            <div className="hud-me">
-              <div className="row spread">
-                <b>
-                  #{u.data.number} {u.data.lastName}
-                </b>
-                <span className="muted">{h.auto ? 'IA' : 'Vous'}</span>
-              </div>
-              <div className="muted">
-                {h.pts} pts · {h.reb} rbd · {h.ast} pd · {h.fg} · {h.fouls} f.
-              </div>
-              <div className="bar green" style={{ marginTop: 4 }}>
-                <i style={{ width: `${h.energy * 100}%` }} />
-              </div>
-              <div className="tiny muted">
-                Énergie · fautes équipe {h.f0}-{h.f1} · TM {h.to0}-{h.to1}
-              </div>
-            </div>
-          )}
-          <div className="rotate-hint">↻ Tournez l'appareil pour une vue plus large</div>
-        </>
-      )}
-      <div className="timing" ref={timingRef} style={{ display: 'none' }}>
-        <i />
-        <b style={{ bottom: `${(1 / 1.6) * 100}%` }} />
+        )}
+        {simMsg && <div className="bench-banner">{simMsg}</div>}
       </div>
-      {h && !h.finished && !simMsg && !engine.userControl && engine.userIdx >= 0 && <StyleBar engine={engine} onChange={(st) => c && (c.style = st)} />}
-      {h && h.onCourt && !h.finished && labels && engine.userControl && (
-        <div className="controls touch-only">
-          <div className="joy" ref={joyRef} onPointerDown={(e) => ((joyActive.current = true), (e.target as HTMLElement).setPointerCapture(e.pointerId), joyMove(e))} onPointerMove={(e) => joyActive.current && joyMove(e)} onPointerUp={joyEnd} onPointerCancel={joyEnd} aria-label="Joystick de déplacement">
-            <i ref={knobRef} />
+      {/* Tout le reste est sous l'image */}
+      {h && (
+        <div className="mpanel">
+          <div className="mrow">
+            <button className="icon-btn" aria-label="Pause" onClick={() => setPaused(true)}>
+              ❚❚
+            </button>
+            <div className="seg mspeed" role="group" aria-label="Vitesse du match">
+              {SPEEDS.map((sp) => (
+                <button key={sp} aria-pressed={speed === sp} onClick={() => setSpeed(sp)}>
+                  ×{sp}
+                </button>
+              ))}
+            </div>
+            <button className="btn small" aria-label="Aller à la fin du quart-temps" onClick={() => fastForward('quarter')}>
+              ⏭ Fin du quart-temps
+            </button>
+            <div className="seg mviews" role="group" aria-label="Vue et angle de caméra">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.id}
+                  aria-pressed={view === v.view && (v.view === '3d' ? camera === v.cam : view2d === v.cam)}
+                  onClick={() => {
+                    setView(v.view);
+                    if (v.view === '3d') setCamera(v.cam as typeof camera);
+                    else setView2d(v.cam as View2D);
+                  }}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <button className="btn small" aria-pressed={tactics} onClick={() => setTactics((t) => !t)} style={{ opacity: tactics ? 1 : 0.6 }}>
+              ✎ Flèches de jeu
+            </button>
           </div>
-          <div className="actions">
-            {labels.lob ? (
-              <ActBtn label={labels.lob} k={keyLabel(keys.lob)} on={(v) => btn('lob', v)} />
-            ) : (
-              <ActBtn label="SPRINT" k={keyLabel(keys.sprint)} on={(v) => ((touchSprint.current = v), syncRef.current())} />
+          <div className="mfeed" aria-live="off">
+            {banner && (
+              <b className="mflash" key={banner.id} style={{ color: banner.color }}>
+                {banner.text}
+              </b>
             )}
-            <ActBtn label={labels.action} k={keyLabel(keys.action)} on={(v) => btn('action', v)} />
-            <ActBtn label={labels.pass} k={keyLabel(keys.pass)} on={(v) => btn('pass', v)} />
-            <ActBtn label={labels.shoot} k={keyLabel(keys.shoot)} main on={(v) => btn('shoot', v)} />
+            {h.run && <span className="mrun">Série {h.run}</span>}
+            <span>{h.feed || 'Le match commence.'}</span>
+            {h.feed2 && <span className="feed-old">{h.feed2}</span>}
           </div>
+          {u && (
+            <div className="mme">
+              <div className="mme-card">
+                <div className="row spread">
+                  <b>
+                    #{u.data.number} {u.data.lastName}
+                  </b>
+                  <span className="muted">{!h.onCourt ? 'Sur le banc' : h.auto ? 'IA' : 'Vous'}</span>
+                </div>
+                <div className="muted">
+                  {h.pts} pts · {h.reb} rbd · {h.ast} pd · {h.fg} · {h.fouls} f.
+                </div>
+                <div className="bar green" style={{ marginTop: 4 }}>
+                  <i style={{ width: `${h.energy * 100}%` }} />
+                </div>
+                <div className="tiny muted">
+                  Énergie · fautes équipe {h.f0}-{h.f1} · temps morts {h.to0}-{h.to1}
+                </div>
+              </div>
+              {!h.onCourt && !h.finished && !simMsg && (
+                <div className="mme-card">
+                  <b>Vous êtes sur le banc</b>
+                  <span className="small muted">Le coach décide des rotations selon la fatigue, les fautes et votre niveau de confiance.</span>
+                  <div className="row wrap">
+                    <button className="btn primary small" onClick={() => fastForward(true)}>
+                      Accélérer jusqu'à mon entrée
+                    </button>
+                    <button className="btn small" onClick={() => fastForward(false)}>
+                      Simuler la fin
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!h.finished && !simMsg && !engine.userControl && <StyleBar engine={engine} onChange={(st) => c && (c.style = st)} />}
+            </div>
+          )}
+          <LiveBox engine={engine} />
         </div>
       )}
-      {h && !h.onCourt && !h.finished && !simMsg && engine.userIdx >= 0 && (
-        <div className="bench-banner fade-in">
-          <b>Vous êtes sur le banc</b>
-          <span className="small muted">Le coach décide des rotations selon la fatigue, les fautes et votre niveau de confiance.</span>
-          <div className="row wrap" style={{ justifyContent: 'center' }}>
-            <button className="btn primary small" onClick={() => fastForward(true)}>
-              Accélérer jusqu'à mon entrée
-            </button>
-            <button className="btn small" onClick={() => setSpeed(3)}>
-              Regarder (×3)
-            </button>
-            <button className="btn small" onClick={() => fastForward(false)}>
-              Simuler la fin
-            </button>
-          </div>
-        </div>
-      )}
-      {simMsg && <div className="bench-banner">{simMsg}</div>}
       {paused && (
         <Modal
           title="Pause"
@@ -614,7 +615,7 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
             <div className="field">
               <label>Vitesse de jeu</label>
               <div className="seg">
-                {[1, 2, 4, 8, 16].map((s) => (
+                {SPEEDS.map((s) => (
                   <button key={s} aria-pressed={speed === s} onClick={() => setSpeed(s)}>
                     ×{s}
                   </button>
@@ -632,17 +633,6 @@ export function MatchScreen({ quick, watch }: { quick: boolean; watch?: string }
                 </button>
                 <button aria-pressed={camera === 'follow'} onClick={() => setCamera('follow')}>
                   Rapprochée (suit le ballon)
-                </button>
-              </div>
-            </div>
-            <div className="field">
-              <label>Mode de jeu</label>
-              <div className="seg">
-                <button aria-pressed={!engine.userControl} onClick={() => ((engine.userControl = false), app.setSettings({ ...app.settings, controlMode: 'watch' }))}>
-                  Regarder (l'IA joue selon vos consignes)
-                </button>
-                <button aria-pressed={engine.userControl} onClick={() => ((engine.userControl = true), app.setSettings({ ...app.settings, controlMode: 'play' }))}>
-                  Contrôler mon joueur
                 </button>
               </div>
             </div>
@@ -822,6 +812,118 @@ function StyleBar({ engine, onChange }: { engine: MatchEngine; onChange: (s: Mat
       <button className="btn small" onClick={() => setOpen((o) => !o)}>
         {open ? 'Fermer' : 'Consignes à mon joueur'}
       </button>
+    </div>
+  );
+}
+
+type View2D = 'full' | 'half' | 'follow';
+const SPEEDS = [0.5, 0.75, 1, 2, 4, 8, 16];
+const VIEWS: { id: string; view: '3d' | '2d'; cam: string; label: string }[] = [
+  { id: '3f', view: '3d', cam: 'full', label: '3D large' },
+  { id: '3p', view: '3d', cam: 'player', label: '3D suivi' },
+  { id: '3c', view: '3d', cam: 'close', label: '3D rapprochée' },
+  { id: '2f', view: '2d', cam: 'full', label: '2D terrain' },
+  { id: '2h', view: '2d', cam: 'half', label: '2D demi-terrain' },
+  { id: '2c', view: '2d', cam: 'follow', label: '2D suivi' },
+];
+
+/** Feuille de statistiques en direct des deux équipes, affichée sous l'image du match. */
+function LiveBox({ engine }: { engine: MatchEngine }) {
+  const official = engine.rules.id === 'NBA' ? 12 : 10;
+  const scale = official / engine.rules.quarterMin;
+  return (
+    <div className="mbox">
+      {([0, 1] as const).map((t) => {
+        const team = engine.teams[t];
+        const ps = team.players.map((i) => engine.players[i]);
+        const sum = (f: (p: (typeof ps)[number]) => number) => ps.reduce((a, p) => a + f(p), 0);
+        const pct = (m: number, a: number) => (a ? `${Math.round((m / a) * 100)} %` : '—');
+        return (
+          <div key={t} className="mbox-team">
+            <h3>
+              <i style={{ background: team.colors[0] }} /> {team.name} <b className="num">{team.score}</b>
+              <span className="muted small">
+                {' '}
+                · tirs {pct(sum((p) => p.box.fgm), sum((p) => p.box.fga))} · 3 pts {pct(sum((p) => p.box.tpm), sum((p) => p.box.tpa))} · LF {pct(sum((p) => p.box.ftm), sum((p) => p.box.fta))}
+              </span>
+            </h3>
+            <div className="table-wrap">
+              <table className="t mbox-t">
+                <thead>
+                  <tr>
+                    <th>Joueur</th>
+                    <th className="r" title="Minutes jouées">Min</th>
+                    <th className="r" title="Points">Pts</th>
+                    <th className="r" title="Tirs réussis / tentés">Tirs</th>
+                    <th className="r" title="Tirs à 3 points">3 pts</th>
+                    <th className="r" title="Lancers francs">LF</th>
+                    <th className="r" title="Rebonds">Reb</th>
+                    <th className="r" title="Passes décisives">Pd</th>
+                    <th className="r" title="Interceptions">Int</th>
+                    <th className="r" title="Contres">Ctr</th>
+                    <th className="r" title="Balles perdues">Bp</th>
+                    <th className="r" title="Fautes">F</th>
+                    <th className="r" title="Écart au score quand le joueur est sur le terrain">+/−</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ps.map((p) => (
+                    <tr key={p.idx} className={p.isUser ? 'me' : ''} style={{ opacity: p.onCourt || p.box.sec > 0 ? 1 : 0.55 }}>
+                      <td>
+                        {p.onCourt ? '● ' : ''}
+                        {p.data.number} {p.data.lastName} <span className="muted">{p.data.pos}</span>
+                      </td>
+                      <td className="r">{Math.round((p.box.sec / 60) * scale)}</td>
+                      <td className="r">
+                        <b>{p.box.pts}</b>
+                      </td>
+                      <td className="r">
+                        {p.box.fgm}/{p.box.fga}
+                      </td>
+                      <td className="r">
+                        {p.box.tpm}/{p.box.tpa}
+                      </td>
+                      <td className="r">
+                        {p.box.ftm}/{p.box.fta}
+                      </td>
+                      <td className="r">{p.box.orb + p.box.drb}</td>
+                      <td className="r">{p.box.ast}</td>
+                      <td className="r">{p.box.stl}</td>
+                      <td className="r">{p.box.blk}</td>
+                      <td className="r">{p.box.tov}</td>
+                      <td className="r">{p.fouls}</td>
+                      <td className="r">{p.box.pm > 0 ? `+${p.box.pm}` : p.box.pm}</td>
+                    </tr>
+                  ))}
+                  <tr className="tot">
+                    <td>Équipe</td>
+                    <td className="r" />
+                    <td className="r">
+                      <b>{team.score}</b>
+                    </td>
+                    <td className="r">
+                      {sum((p) => p.box.fgm)}/{sum((p) => p.box.fga)}
+                    </td>
+                    <td className="r">
+                      {sum((p) => p.box.tpm)}/{sum((p) => p.box.tpa)}
+                    </td>
+                    <td className="r">
+                      {sum((p) => p.box.ftm)}/{sum((p) => p.box.fta)}
+                    </td>
+                    <td className="r">{sum((p) => p.box.orb + p.box.drb)}</td>
+                    <td className="r">{sum((p) => p.box.ast)}</td>
+                    <td className="r">{sum((p) => p.box.stl)}</td>
+                    <td className="r">{sum((p) => p.box.blk)}</td>
+                    <td className="r">{sum((p) => p.box.tov)}</td>
+                    <td className="r">{sum((p) => p.fouls)}</td>
+                    <td className="r" />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

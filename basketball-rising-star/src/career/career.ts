@@ -13,7 +13,7 @@ import { matchArticle, seasonRecap, weeklyPress } from './press';
 import { draftState, mockDraftNews, rightsOffer, runDraft } from './draft';
 import { clearNational, comps, createCompetitions, ensureYouthFixture, fixtureLevel, isComp, isSpecialTeam, natId, progressCompetitions, progressNational, specialEntries, specialTeamInput, startNationalTournament } from './competitions';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const START_SEASON = 2026;
 export const REGULAR_WEEKS = 22;
 
@@ -246,7 +246,7 @@ export function createCareer(input: CreationInput): Career {
     seasonStats: {},
     lastTraining: null,
     event: null,
-    settings: { quarterMin: 0, speed: 4, assist: true },
+    settings: { quarterMin: 0, speed: 1, assist: true },
     ovrHistory: [{ season: START_SEASON, week: 0, ovr: playerOvr(u) }],
     bestGames: [],
     retired: false,
