@@ -361,6 +361,7 @@ export class MatchEngine {
   }
 
   // ---------------------------------------------------------------- Boucle
+  inboundStuckT = 0;
   step(input?: UserInput): void {
     if (this.finished) return;
     const dt = TICK;
@@ -384,6 +385,14 @@ export class MatchEngine {
     this.movePlayers(dt);
     this.updateBall(dt);
     if (this.phase === 'live') this.checkViolations(dt);
+    // Garde-fou : une remise en jeu dont le ballon reste libre est rejouée
+    if (this.phase === 'inbound' && this.ball.state === 'loose' && !this.pending) {
+      this.inboundStuckT += dt;
+      if (this.inboundStuckT > 2.5) {
+        this.inboundStuckT = 0;
+        this.setupInbound(this.possession, 'sideline');
+      }
+    } else this.inboundStuckT = 0;
     this.updateMinutes(dt);
     for (let i = 0; i < 2; i++) this.netSwish[i] = Math.max(0, this.netSwish[i] - dt);
   }
@@ -623,6 +632,18 @@ export class MatchEngine {
             b.vel.x -= nx * rv * wb;
             b.vel.y -= ny * rv * wb;
           }
+          if (a.team !== b.team && (rv < -0.9 || this.ball.holder === a.idx || this.ball.holder === b.idx)) {
+            if (this.time - (a.bumpT ?? -9) > 0.35) {
+              a.bumpT = this.time;
+              a.bumpX = -nx;
+              a.bumpY = -ny;
+            }
+            if (this.time - (b.bumpT ?? -9) > 0.35) {
+              b.bumpT = this.time;
+              b.bumpX = nx;
+              b.bumpY = ny;
+            }
+          }
           this.onContact(a, b);
         }
       }
@@ -649,10 +670,14 @@ export class MatchEngine {
         p.facing += da * Math.min(1, dt * 9);
       }
       // Animation de base selon l'état
-      const busy = ['shoot', 'layup', 'dunk', 'pass', 'block', 'rebound', 'celebrate', 'jumpball', 'stumble', 'catch'];
-      if (!busy.includes(p.anim) || p.animT > 0.9) {
+      const busy = ['shoot', 'layup', 'dunk', 'pass', 'block', 'rebound', 'celebrate', 'jumpball', 'stumble', 'catch', 'fall'];
+      if (!busy.includes(p.anim) || p.animT > (p.anim === 'fall' ? 1.5 : 0.9)) {
         if (p.screenT > 0) p.anim = 'screen';
-        else if (this.ball.holder === p.idx && this.ball.state === 'held') p.anim = 'dribble';
+        else if (this.ball.holder === p.idx && this.ball.state === 'held') {
+          // Jeu dos au panier : l'intérieur près du cercle, défenseur au contact
+          const postUp = p.role === 'post' && this.phase === 'live' && sp < 2.5 && dist(p.pos, this.hoopFor(p.team)) < 5.5 && this.nearestDefender(p).d < 1.3;
+          p.anim = postUp ? 'post' : 'dribble';
+        }
         else if (p.team !== this.possession && this.phase === 'live' && sp < 3.5) p.anim = 'stance';
         else if (this.phase !== 'live' && p.energy < 0.55 && sp < 0.3) p.anim = 'tired';
         else p.anim = sp > 0.35 ? 'run' : 'idle';
@@ -713,6 +738,18 @@ export class MatchEngine {
     const gather = type === 'dunk' ? 0.42 : type === 'layup' ? 0.36 : type === 'floater' ? 0.32 : type === 'hook' ? 0.38 : 0.46;
     p.anim = type === 'dunk' ? 'dunk' : type === 'layup' || type === 'floater' ? 'layup' : 'shoot';
     p.animT = 0;
+    {
+      // Variante visuelle du geste (déterministe, sans tirage aléatoire de simulation)
+      const hsh = (p.idx * 7 + Math.floor(this.time * 13)) % 12;
+      const pressed = this.nearestDefender(p).d < 1.5;
+      if (type === 'dunk') p.move = a.dunk >= 15 && hsh % 3 === 0 ? 'tomahawk' : hsh % 2 === 0 ? 'dunk1' : 'dunk2';
+      else if (type === 'layup') p.move = pressed && hsh % 3 === 0 ? 'reverse' : pressed && a.finishing >= 13 && hsh % 3 === 1 ? 'euro' : hsh % 2 === 0 ? 'fingerroll' : 'layup';
+      else if (type === 'floater') p.move = 'floater';
+      else if (type === 'hook') p.move = 'hook';
+      else if (pressed && p.pickupT > 0.9 && a.midRange >= 12 && hsh % 2 === 0) p.move = 'fade';
+      else if (pressed && p.pickupT > 0.9 && hsh % 3 === 0) p.move = 'stepback';
+      else p.move = p.pickupT > 0.9 ? 'pullup' : 'set';
+    }
     p.actionLock = gather + 0.5;
     p.intent = 'tir';
     const ext = p as MPlayer & { shotPlan?: { type: ShotType; gather: number; userTimed: boolean; offDribble: boolean }; releaseAt?: number };
@@ -902,9 +939,14 @@ export class MatchEngine {
     const away = norm({ x: b.x - blocker.pos.x, y: b.y - blocker.pos.y });
     const own = this.ownHoop(blocker.team);
     const toward = norm({ x: own.x - b.x, y: own.y - b.y });
-    b.vx = -toward.x * 3 + away.x * 2.5 + this.rng.normal(0, 1.2);
-    b.vy = -toward.y * 3 + away.y * 2.5 + this.rng.normal(0, 1.2);
-    b.vz = -1 + this.rng.next() * 2;
+    // Contre « propre » : le ballon est le plus souvent gardé en jeu, dévié vers le terrain
+    const g = this.court.g;
+    const inX = b.x < g.length / 2 ? 1 : -1;
+    const inY = b.y < g.width / 2 ? 1 : -1;
+    const edge = Math.min(b.x, g.length - b.x) < 2.2 || Math.min(b.y, g.width - b.y) < 2.2 ? 0.45 : 1;
+    b.vx = (-toward.x * 1.4 + away.x * 1.2 + this.rng.normal(0, 0.7)) * edge + inX * 1.3;
+    b.vy = (-toward.y * 1.4 + away.y * 1.2 + this.rng.normal(0, 0.7)) * edge + inY * 0.9;
+    b.vz = -1.5 + this.rng.next() * 1.5;
     if (b.flight) {
       b.flight.blocked = true;
       b.flight.kind = 'block';
@@ -949,7 +991,7 @@ export class MatchEngine {
     const h = this.holder();
     if (h && h.team !== p.team && dist(h.pos, p.pos) < 1.15) {
       const a = p.data.attrs;
-      const success = 0.07 + (a.steal / 20) * 0.17 - (h.data.attrs.ballSecurity / 20) * 0.12 - (h.data.attrs.dribble / 20) * 0.04;
+      const success = 0.05 + (a.steal / 20) * 0.13 - (h.data.attrs.ballSecurity / 20) * 0.1 - (h.data.attrs.dribble / 20) * 0.04;
       const r = this.rng.next();
       p.anim = 'block';
       p.animT = 0;
@@ -959,8 +1001,8 @@ export class MatchEngine {
         const b = this.ball;
         b.state = 'loose';
         b.holder = -1;
-        b.vx = (p.pos.x - h.pos.x) * 2 + this.rng.normal(0, 1);
-        b.vy = (p.pos.y - h.pos.y) * 2 + this.rng.normal(0, 1);
+        b.vx = (p.pos.x - h.pos.x) * 1.4 + this.rng.normal(0, 0.6);
+        b.vy = (p.pos.y - h.pos.y) * 1.4 + this.rng.normal(0, 0.6);
         b.vz = 1.2;
         b.z = 0.8;
         b.lastTouch = p.idx;
@@ -1075,6 +1117,15 @@ export class MatchEngine {
     const err = (1 - acc) * 0.5 + (from.energy < 0.4 ? 0.2 : 0);
     lead.x += this.rng.normal(0, err * 0.5);
     lead.y += this.rng.normal(0, err * 0.5);
+    // Passe mal ajustée (rare) : sous pression, un passeur moyen envoie parfois le ballon hors de portée
+    if (kind === 'chest' || kind === 'lob') {
+      const pressed = this.nearestDefender(from).d < 1.3 ? 1.8 : 1;
+      if (this.rng.chance((1.15 - acc) * 0.012 * pressed)) {
+        const a = this.rng.next() * Math.PI * 2;
+        lead.x += Math.cos(a) * 2.2;
+        lead.y += Math.sin(a) * 2.2;
+      }
+    }
     const start = kind === 'tip' ? { x: b.x, y: b.y, z: b.z } : { x: from.pos.x, y: from.pos.y, z: 1.35 };
     const end = { x: lead.x, y: lead.y, z: lob ? 2.6 : 1.3 };
     const apex = lob ? Math.max(3.6, 2.5 + d0 * 0.18) : Math.max(start.z, end.z) + 0.15 + d0 * 0.02;
@@ -1118,15 +1169,39 @@ export class MatchEngine {
         }
         // Le ballon monte vers la position de tir
         const k = clamp(h.animT / gather, 0, 1);
-        b.x = h.pos.x + Math.cos(h.facing) * 0.2;
-        b.y = h.pos.y + Math.sin(h.facing) * 0.2;
-        b.z = 1.0 + k * (h.heightM * 0.25) + h.z;
+        // (position de tir au-dessus du front ; bras tendu vers le cercle sur double pas et dunk)
+        const mvs = h.move ?? '';
+        const reach = h.anim === 'shoot' ? (mvs === 'hook' ? 0.6 : mvs === 'floater' ? 0.5 : 0.4) : 0.58;
+        const fw = mvs === 'fingerroll' ? 0.36 : mvs === 'hook' ? 0.05 : mvs === 'tomahawk' && k < 0.8 ? -0.05 : h.anim === 'shoot' ? 0.16 : 0.26;
+        const ks = k * k * (3 - 2 * k);
+        b.x = h.pos.x + Math.cos(h.facing) * fw;
+        b.y = h.pos.y + Math.sin(h.facing) * fw;
+        b.z = 1.0 + ks * (h.heightM * 0.8 + reach - 1.0) + h.z;
         return;
       }
       // Dribble : le ballon rebondit au sol au rythme de la course
-      const side = h.data.hand === 'L' ? -1 : 1;
-      const perp = h.facing + (Math.PI / 2) * side;
+      const natural = h.data.hand === 'L' ? -1 : 1;
+      const perp = h.facing + Math.PI / 2;
       const sp = Math.hypot(h.vel.x, h.vel.y);
+      if (h.ballHand === undefined) h.ballHand = natural;
+      h.xoverT = (h.xoverT ?? 9) + dt;
+      if (this.phase === 'live' && h.xoverT > 0.85) {
+        // Protection du ballon : on dribble de la main opposée au défenseur
+        const nd = this.nearestDefender(h);
+        let want: 1 | -1 = h.ballHand;
+        if (nd.pl && nd.d < 2.4) {
+          const lat = (nd.pl.pos.x - h.pos.x) * Math.cos(perp) + (nd.pl.pos.y - h.pos.y) * Math.sin(perp);
+          if (Math.abs(lat) > 0.3) want = lat > 0 ? -1 : 1;
+          else if (sp < 0.9 && h.data.attrs.dribble >= 11 && h.xoverT > 1.3 + (h.idx % 3) * 0.35) want = (-h.ballHand) as 1 | -1; // dribbles d'attente
+        } else if (sp > 3 && h.xoverT > 2.5) want = natural;
+        if (want !== h.ballHand) {
+          h.ballHand = want;
+          h.xoverT = 0;
+          const skill = h.data.attrs.dribble;
+          const hsh = (h.idx * 5 + Math.floor(this.time * 9)) % 6;
+          h.xoverKind = skill < 10 ? 0 : hsh < 3 ? 0 : hsh < 5 || skill < 14 ? 1 : 2;
+        }
+      }
       const pick = h as MPlayer & { pickedUp?: boolean };
       if (pick.pickedUp) {
         // Dribble arrêté : ballon tenu à deux mains (pied de pivot)
@@ -1140,9 +1215,22 @@ export class MatchEngine {
       b.dribblePhase += dt * (5.5 + sp * 0.9);
       if (Math.floor(b.dribblePhase / Math.PI) !== Math.floor(prevPh / Math.PI) && this.phase === 'live') this.sounds.push('dribble');
       b.dribbling = true;
-      b.x = h.pos.x + Math.cos(perp) * 0.32 + Math.cos(h.facing) * (0.18 + sp * 0.04);
-      b.y = h.pos.y + Math.sin(perp) * 0.32 + Math.sin(h.facing) * (0.18 + sp * 0.04);
+      let lat = h.ballHand * 0.32;
+      let fwd = 0.18 + sp * 0.04;
       b.z = BALL_R + Math.abs(Math.sin(b.dribblePhase)) * 0.85;
+      const XD = 0.34;
+      if (h.xoverT < XD) {
+        // Changement de main : le ballon traverse devant, entre les jambes ou dans le dos
+        const k0 = h.xoverT / XD;
+        const k = k0 * k0 * (3 - 2 * k0);
+        lat = h.ballHand * 0.32 * (2 * k - 1);
+        if (h.xoverKind === 1) fwd = 0.02;
+        else if (h.xoverKind === 2) fwd = -0.26;
+        b.z = BALL_R + Math.abs(Math.cos(Math.PI * k)) * (h.xoverKind === 0 ? 0.6 : 0.5);
+        if (k0 + dt / XD >= 1) b.dribblePhase = Math.PI / 2;
+      }
+      b.x = h.pos.x + Math.cos(perp) * lat + Math.cos(h.facing) * fwd;
+      b.y = h.pos.y + Math.sin(perp) * lat + Math.sin(h.facing) * fwd;
       if (this.phase === 'inbound' || h.anim === 'pass') b.z = 1.2;
       return;
     }
@@ -1190,7 +1278,7 @@ export class MatchEngine {
           const lunge = (o as MPlayer & { lungeT?: number }).lungeT;
           const bonus = lunge !== undefined && this.time - lunge < 0.6 ? 0.18 : 0;
           const close = 1 - d / 0.8;
-          const p = (0.03 + (o.data.attrs.passReading / 20) * 0.1 + (o.data.attrs.steal / 20) * 0.05 + bonus) * (0.4 + close * 0.6) * (f.lob ? 0.5 : 1);
+          const p = (0.016 + (o.data.attrs.passReading / 20) * 0.065 + (o.data.attrs.steal / 20) * 0.035 + bonus * 0.6) * (0.4 + close * 0.6) * (f.lob ? 0.5 : 1);
           if (this.rng.chance(p)) {
             this.interception(o, f);
             return;
@@ -1200,10 +1288,10 @@ export class MatchEngine {
       const to = this.players[f.to];
       if (to && to.onCourt) {
         const d = Math.hypot(to.pos.x - b.x, to.pos.y - b.y);
-        if (d < 0.6 && b.z < to.heightM * 1.3 + to.z + 0.4) {
+        if (d < 0.85 && b.z < to.heightM * 1.3 + to.z + 0.5) {
           // Réception : les mauvaises mains peuvent échapper le ballon
           const hands = (to.data.attrs.ballControl * 0.6 + to.data.attrs.coordination * 0.4) / 20;
-          const drop = (1 - hands) * 0.03 + (f.lob ? 0.04 : 0);
+          const drop = (1 - hands) * 0.015 + (f.lob ? 0.02 : 0);
           if (this.rng.chance(drop)) {
             b.vx *= -0.3;
             b.vy *= -0.3;
@@ -1519,13 +1607,20 @@ export class MatchEngine {
     this.shotClockOn = false;
     const b = this.ball;
     if (kind === 'offensive') {
-      victim.box.tov++;
+      // Passage en force : le défenseur tombe à la renverse
+      victim.anim = 'fall';
+      victim.animT = 0;
+      fouler.box.tov++;
       this.emit({ type: 'turnover', team: fouler.team, player: fouler.idx, text: `Balle perdue (passage en force) par ${this.name(fouler.idx)}` });
     }
     if (b.state !== 'dead' && kind !== 'shooting') {
       b.state = 'dead';
       b.flight = null;
       b.holder = -1;
+    }
+    if (kind === 'blocking' || kind === 'reach' || kind === 'loose') {
+      victim.anim = 'stumble';
+      victim.animT = 0;
     }
     this.phase = 'deadball';
     const fouledOut = fouler.fouls >= this.rules.foulOut;
@@ -1693,7 +1788,7 @@ export class MatchEngine {
       // Marcher : erreur de pied de pivot sous pression (joueurs IA peu techniques)
       if (h.intent === 'drive' && h.pickupT > 0.4 && !h.isUser) {
         const fw = (h.data.attrs.footwork + h.data.attrs.ballControl) / 40;
-        if (this.rng.chance((1 - fw) * 0.00025)) {
+        if (this.rng.chance((1 - fw) * 0.0012)) {
           this.violation(off, 'Marcher', h);
           return;
         }

@@ -232,6 +232,7 @@ export class MatchRenderer {
 
   // ------------------------------------------------------------------ Image
   handMem = new Map<number, [number, number][]>();
+  poseMem = new Map<number, { crouch: number; lean: number; legs: number[]; z: number; land: number; init: boolean }>();
   frameDt = 1 / 60;
   render(dt: number): void {
     this.frameDt = dt;
@@ -730,14 +731,69 @@ export class MatchRenderer {
     const line = 'rgba(10,14,24,0.55)';
     const lw = Math.max(0.8, 0.014 * S);
     const bulk = Math.max(0.85, Math.min(1.25, p.data.weightKg / (H * H * 23.5)));
-    const crouch = anim === 'tired' ? 0.2 : anim === 'stance' ? 0.1 : anim === 'screen' ? 0.04 : anim === 'dribble' ? 0.06 : anim === 'rebound' && p.z === 0 ? 0.08 : bench ? 0.36 : 0;
-    const hipY = fy - H * (0.52 - crouch) * K;
-    const shY = fy - H * (0.8 - crouch * 0.85) * K;
-    const lean = (anim === 'run' ? run * 0.1 : 0) * side * S + (anim === 'dribble' ? side * 0.04 * S : 0);
-    const hipX = fx;
+    // ---- Posture : paramètres selon l'action (flexion, inclinaison du buste, appuis)
+    const mv = p.move ?? '';
+    const air = p.z > 0.05;
+    const hasBall = e.ball.state === 'held' && e.ball.holder === p.idx;
+    const shotAnim = anim === 'shoot' || anim === 'layup' || anim === 'dunk';
+    const GK = Math.min(1, t / 0.42); // avancement de l'armé du tir
+    const fcx = Math.cos(p.facing);
+    const fcy = Math.sin(p.facing);
+    const fwdSp = sp > 0.3 ? (p.vel.x * fcx + p.vel.y * fcy) / sp : 1; // 1 = avance, -1 = recule
+    const latSp = sp > 0.3 ? Math.abs(-p.vel.x * fcy + p.vel.y * fcx) / sp : 0;
+    const shuffle = anim === 'stance' || (anim === 'run' && latSp > 0.8 && sp < 4);
+    const boxOut = !bench && p.intent === 'box-out' && !shotAnim && !air;
+    const xover = anim === 'dribble' && (p.xoverT ?? 9) < 0.34;
+    let crouchT = 0;
+    let leanT = 0; // inclinaison du buste (mètres, positif = vers l'avant)
+    switch (anim) {
+      case 'tired': crouchT = 0.2; leanT = 0.14; break;
+      case 'stance': crouchT = 0.11; leanT = 0.05; break;
+      case 'screen': crouchT = 0.05; break;
+      case 'dribble': crouchT = 0.07 + (xover ? 0.06 : 0) + run * 0.02; leanT = 0.05 + run * 0.09; break;
+      case 'post': crouchT = 0.14; leanT = -0.07; break;
+      case 'rebound': crouchT = air ? 0 : 0.09; break;
+      case 'catch': crouchT = 0.04; leanT = 0.04; break;
+      case 'pass': crouchT = 0.04; leanT = 0.1; break;
+      case 'stumble': crouchT = 0.08; leanT = -0.15; break;
+      case 'fall': crouchT = 0.12; leanT = -0.1; break;
+      case 'run': crouchT = 0.015 + run * 0.03; leanT = run * 0.13 * (fwdSp >= -0.2 ? 1 : -0.35); break;
+      case 'shoot':
+        crouchT = !air && GK < 0.55 ? 0.11 * Math.sin((Math.PI * GK) / 0.55) : 0;
+        leanT = mv === 'fade' ? -0.17 * GK : mv === 'stepback' ? -0.08 : mv === 'floater' ? 0.07 : 0;
+        break;
+      case 'layup': crouchT = !air && GK < 0.45 ? 0.07 : 0; leanT = mv === 'euro' && !air ? Math.sin(t * 13) * 0.14 : 0.09; break;
+      case 'dunk': crouchT = !air && GK < 0.45 ? 0.09 : 0; leanT = mv === 'tomahawk' && hasBall ? -0.08 : 0.1; break;
+      case 'block': leanT = 0.05; break;
+      default: crouchT = bench ? 0.36 : 0;
+    }
+    if (boxOut) { crouchT = 0.13; leanT = -0.03; }
+    // Mémoire de pose : transitions douces + réception de saut (flexion à l'atterrissage)
+    let pm = this.poseMem.get(p.idx);
+    if (!pm || bench) {
+      pm = { crouch: crouchT, lean: leanT, legs: [0, 0, 0, 0], z: p.z, land: 0, init: false };
+      if (!bench) this.poseMem.set(p.idx, pm);
+    }
+    if (pm.z > 0.06 && p.z <= 0.001) pm.land = 0.22;
+    pm.z = p.z;
+    pm.land = Math.max(0, pm.land - this.frameDt);
+    const kS = Math.min(1, this.frameDt * 12);
+    pm.crouch += (crouchT - pm.crouch) * kS;
+    pm.lean += (leanT - pm.lean) * kS;
+    const crouch = pm.crouch + (pm.land / 0.22) * 0.09;
+    // Contact physique : le buste encaisse le choc
+    const bumpAge = p.bumpT !== undefined ? e.time - p.bumpT : 9;
+    const bump = !bench && bumpAge < 0.32 ? (1 - bumpAge / 0.32) * 0.09 * (p.bumpX ?? 0) * S : 0;
+    const bob = anim === 'run' || anim === 'dribble' ? Math.abs(Math.sin(phase)) * 0.035 * run * K : anim === 'idle' ? Math.sin(e.time * 1.7 + p.idx) * 0.006 * K : 0;
+    const hipY = fy - H * (0.52 - crouch) * K - bob;
+    const shY = fy - H * (0.8 - crouch * 0.85) * K - bob;
+    const lean = pm.lean * side * S + bump;
+    const hipX = fx + bump * 0.35;
     const shX = fx + lean;
-    const shW = (0.25 + (bulk - 1) * 0.09) * S; // demi-largeur d'épaules
-    const hipW = (0.16 + (bulk - 1) * 0.05) * S;
+    // De profil, les épaules et le bassin sont vus par la tranche
+    const prof = 0.66 + 0.34 * Math.abs(fcy);
+    const shW = (0.25 + (bulk - 1) * 0.09) * S * prof; // demi-largeur d'épaules
+    const hipW = (0.16 + (bulk - 1) * 0.05) * S * (0.75 + 0.25 * Math.abs(fcy));
     const thigh = H * 0.255 * K;
     const shin = H * 0.255 * K;
 
@@ -745,33 +801,70 @@ export class MatchRenderer {
     const legs: { hx: number; hy: number; fx: number; fy: number; back: boolean }[] = [];
     for (const k of [0, 1]) {
       const ph = phase + k * Math.PI;
-      let ox = sp > 0.25 ? Math.sin(ph) * (0.2 + run * 0.32) * S : 0;
-      let lift = sp > 0.25 ? Math.max(0, Math.cos(ph)) * run * 0.2 * K : 0;
-      if (anim === 'stance' || anim === 'screen' || anim === 'tired') {
-        // Pas chassés en défense : les pieds s'écartent et se rapprochent sans se croiser
-        const slide = anim === 'stance' && sp > 0.4 ? Math.sin(phase * 1.4 + k * Math.PI) * 0.07 : 0;
-        ox = (k ? -1 : 1) * (0.2 + slide) * S;
-        lift = anim === 'stance' && sp > 0.4 ? Math.max(0, Math.sin(phase * 1.4 + k * Math.PI)) * 0.06 * K : 0;
+      const sgn = k ? -1 : 1;
+      let ox = sp > 0.25 ? Math.sin(ph) * (0.2 + run * 0.34) * (fwdSp < -0.2 ? 0.7 : 1) : sgn * 0.05;
+      let lift = sp > 0.25 ? Math.max(0, Math.cos(ph)) * (0.06 + run * 0.2) : 0;
+      let smooth = sp <= 0.25;
+      if (shuffle || anim === 'screen' || anim === 'tired' || anim === 'post' || boxOut) {
+        // Pas chassés : les pieds s'écartent et se rapprochent sans se croiser
+        const moving = sp > 0.4;
+        const slide = moving ? Math.sin(phase * 1.4 + k * Math.PI) * 0.08 : 0;
+        const wide = anim === 'post' || boxOut ? 0.3 : 0.22;
+        ox = sgn * (wide + slide);
+        lift = moving ? Math.max(0, Math.sin(phase * 1.4 + k * Math.PI)) * 0.06 : 0;
+        smooth = !moving;
+      } else if (anim === 'stumble') {
+        ox = k ? -0.3 : 0.12;
+        lift = k ? 0.1 : 0;
+        smooth = true;
+      } else if (anim === 'fall') {
+        ox = k ? 0.22 : 0.36;
+        lift = k ? 0.02 : 0.12;
+        smooth = true;
+      } else if (anim === 'shoot' && !air && sp < 1) {
+        ox = sgn * 0.11 + (mv === 'stepback' ? 0.08 : 0);
+        lift = 0;
+        smooth = true;
       }
-      if (p.z > 0.05) {
+      if (air) {
+        smooth = true;
         if (anim === 'layup') {
           // Double pas : genou d'appel monté haut, jambe d'impulsion tendue vers le bas
-          ox = (k ? -0.12 : 0.2) * S;
-          lift = (k ? 0.05 : 0.42) * K;
+          ox = k ? -0.12 : 0.2;
+          lift = k ? 0.05 : 0.42;
         } else if (anim === 'dunk') {
-          ox = (k ? -0.04 : 0.1) * S;
-          lift = (k ? 0.3 : 0.36) * K;
+          ox = mv === 'dunk1' ? (k ? -0.16 : 0.2) : k ? -0.06 : 0.1;
+          lift = mv === 'dunk1' ? (k ? 0.08 : 0.4) : mv === 'tomahawk' ? (k ? 0.4 : 0.44) : k ? 0.3 : 0.36;
+        } else if (anim === 'shoot') {
+          if (mv === 'fade') { ox = k ? -0.04 : 0.3; lift = k ? 0.04 : 0.18; }
+          else if (mv === 'hook' || mv === 'floater') { ox = k ? -0.1 : 0.18; lift = k ? 0.04 : 0.32; }
+          else { ox = k ? -0.07 : 0.05; lift = k ? 0.07 : 0.03; }
+        } else if (anim === 'block') {
+          ox = k ? -0.1 : 0.08;
+          lift = k ? 0.1 : 0.04;
         } else {
-          ox = (k ? -0.06 : 0.14) * S;
-          lift = (k ? 0.22 : 0.1) * K;
+          ox = k ? -0.06 : 0.14;
+          lift = k ? 0.22 : 0.1;
         }
       }
-      if (bench) ox = (k ? 0.18 : 0.26) * S;
-      const spread = (k ? -1 : 1) * hipW * 0.45;
-      legs.push({ hx: hipX + spread * (front ? 1 : -1) * 0.6, hy: hipY, fx: fx + ox * fsx + spread * 0.5 - ox * 0.0, fy: fy - lift + ox * fsy * 0.5, back: k === 1 });
+      if (bench) ox = k ? 0.18 : 0.26;
+      if (smooth && pm.init) {
+        const kl = Math.min(1, this.frameDt * 14);
+        pm.legs[k * 2] += (ox - pm.legs[k * 2]) * kl;
+        pm.legs[k * 2 + 1] += (lift - pm.legs[k * 2 + 1]) * kl;
+        ox = pm.legs[k * 2];
+        lift = pm.legs[k * 2 + 1];
+      } else {
+        pm.legs[k * 2] = ox;
+        pm.legs[k * 2 + 1] = lift;
+      }
+      const oxp = ox * S;
+      const spread = sgn * hipW * 0.45;
+      legs.push({ hx: hipX + spread * (front ? 1 : -1) * 0.6, hy: hipY, fx: fx + oxp * fsx + spread * 0.5, fy: fy - lift * K + oxp * fsy * 0.5, back: k === 1 });
     }
+    pm.init = true;
     /** Articulation intermédiaire : des deux solutions, celle dont le coude/genou part dans la direction voulue (prefX). */
-    const knee = (hx: number, hy: number, tx: number, ty: number, l1: number, l2: number, prefX: number) => {
+    const knee = (hx: number, hy: number, tx: number, ty: number, l1: number, l2: number, prefX: number, lower = false) => {
       const dx = tx - hx;
       const dy = ty - hy;
       const d = Math.max(1e-3, Math.min(Math.hypot(dx, dy), l1 + l2 - 0.01));
@@ -780,13 +873,13 @@ export class MatchRenderer {
       const off = Math.acos(Math.max(-1, Math.min(1, cosA)));
       const c1 = { x: hx + Math.cos(a - off) * l1, y: hy + Math.sin(a - off) * l1 };
       const c2 = { x: hx + Math.cos(a + off) * l1, y: hy + Math.sin(a + off) * l1 };
+      if (lower) return c1.y >= c2.y ? c1 : c2;
       return (c1.x - hx) * prefX >= (c2.x - hx) * prefX ? c1 : c2;
     };
     const drawLeg = (L: (typeof legs)[number]) => {
       const kn = knee(L.hx, L.hy, L.fx, L.fy - 0.05 * K, thigh, shin, side);
       const dim = L.back ? -0.12 : 0;
-      limb(ctx, L.hx, L.hy, kn.x, kn.y, 0.1 * S * bulk, 0.068 * S * bulk, shade(skin, dim), line, lw, shade(skinL, dim));
-      limb(ctx, kn.x, kn.y, L.fx, L.fy - 0.07 * K, 0.07 * S * bulk, 0.045 * S, shade(skin, dim), line, lw, shade(skinL, dim));
+      limbPair(ctx, L.hx, L.hy, kn.x, kn.y, L.fx, L.fy - 0.07 * K, 0.105 * S * bulk, 0.07 * S * bulk, 0.046 * S, shade(skin, dim), shade(skin, dim), line, lw, shade(skinL, dim), skinD, side);
       // Chaussette
       limb(ctx, L.fx + (kn.x - L.fx) * 0.28, L.fy - 0.07 * K + (kn.y - L.fy) * 0.28, L.fx, L.fy - 0.06 * K, 0.044 * S, 0.042 * S, shade('#F6F4EF', dim), line, lw * 0.6);
       // Chaussure (semelle blanche, empeigne aux couleurs de l'équipe)
@@ -804,47 +897,104 @@ export class MatchRenderer {
 
     // ---- Bras (positions des mains selon l'action)
     const hand = (dx: number, dz: number): [number, number] => [shX + dx * S, shY - dz * K];
-    const swing = Math.sin(phase) * 0.24 * run;
+    const sw = Math.sin(phase) * run;
+    const bsx = this.px(e.ball.x);
+    const bsy = this.py(e.ball.y, e.ball.z);
+    const ballNear = Math.hypot(bsx - shX, bsy - shY) < 1.7 * S;
+    const onBall = (): [number, number] => [bsx, Math.min(bsy - 0.07 * S, shY + H * 0.32 * K)];
+    const hv = (p.idx * 13 + Math.floor((e.time - t) * 3)) % 6; // variante stable pendant le geste
+    let follow = false; // la main colle au ballon : pas de lissage
+    let ballArm = -1;
     let hands: [[number, number], [number, number]];
+    // Bras en course : coudes fléchis, balancier opposé aux jambes
+    const runHands = (): [[number, number], [number, number]] => [
+      hand((0.25 * prof + side * 0.03) * (1 - run) + side * (0.08 + 0.3 * sw) * run + 0.1 * run, -0.6 + (0.3 + 0.14 * sw) * run),
+      hand((-0.25 * prof + side * 0.03) * (1 - run) + side * (0.08 - 0.3 * sw) * run - 0.1 * run, -0.6 + (0.3 - 0.14 * sw) * run),
+    ];
     switch (anim) {
+      case 'post':
       case 'dribble': {
-        const bsx = this.px(e.ball.x);
-        const bsy = this.py(e.ball.y, e.ball.z);
-        const near = Math.hypot(bsx - shX, bsy - shY) < 1.6 * S;
-        hands = [near ? [bsx, Math.min(bsy - 0.08 * S, shY + H * 0.3 * K)] : hand(side * 0.3, -0.5), hand(-side * 0.28, -0.3)];
+        hands = runHands();
+        if (ballNear) {
+          follow = true;
+          ballArm = bsx >= shX ? 0 : 1;
+          hands[ballArm] = onBall();
+          // Bras libre : protège le ballon, coude sorti vers le défenseur
+          const o = ballArm === 0 ? -1 : 1;
+          hands[1 - ballArm] = anim === 'post' ? hand(o * 0.42, 0.02) : hand(o * (0.3 + 0.06 * sw), -0.22 + 0.08 * sw);
+        }
         break;
       }
       case 'shoot':
       case 'jumpball':
-        hands = [hand(side * 0.06, 0.62 + Math.min(1, t * 2) * 0.22), hand(side * 0.16, 0.5 + Math.min(1, t * 2) * 0.18)];
+        if (hasBall && ballNear && anim === 'shoot') {
+          follow = true;
+          if (mv === 'hook' || mv === 'floater') hands = [onBall(), hand(side * 0.34, mv === 'hook' ? 0.08 : -0.2)];
+          else hands = [onBall(), [bsx + side * 0.09 * S, bsy + 0.1 * S]];
+        } else if (anim === 'jumpball') hands = [hand(side * 0.06, 0.62), hand(-side * 0.2, 0.1)];
+        else if (mv === 'hook') hands = [hand(side * 0.05, 0.64), hand(side * 0.32, 0.05)];
+        else hands = [hand(side * 0.24, 0.56), hand(side * 0.2, mv === 'floater' ? -0.15 : 0.24)]; // fouetté du poignet, bras tendu
         break;
       case 'layup':
-        hands = [hand(side * 0.18, 0.6 + Math.min(1, t * 2) * 0.28), hand(-side * 0.18, 0.05)];
+        if (hasBall && ballNear) {
+          follow = true;
+          hands = GK < 0.5 ? [onBall(), [bsx - side * 0.08 * S, bsy + 0.06 * S]] : [onBall(), hand(-side * 0.2, 0.02)];
+        } else if (mv === 'reverse') hands = [hand(-side * 0.12, 0.62), hand(side * 0.24, 0)];
+        else if (mv === 'fingerroll') hands = [hand(side * 0.38, 0.5), hand(-side * 0.2, -0.05)];
+        else hands = [hand(side * 0.2, 0.62), hand(-side * 0.18, 0.02)];
         break;
       case 'dunk':
-        hands = [hand(side * 0.22, 0.78 - Math.max(0, t - 0.35) * 2), hand(side * 0.12, 0.72 - Math.max(0, t - 0.35) * 2)];
+        if (hasBall && ballNear) {
+          follow = true;
+          hands = mv === 'dunk1' ? [onBall(), hand(-side * 0.34, 0.12)] : [onBall(), [bsx - side * 0.1 * S, bsy + 0.03 * S]];
+        } else {
+          // Smash puis suspension au cercle
+          const dn = Math.min(0.3, Math.max(0, t - 0.5) * 1.2);
+          hands = mv === 'dunk1' ? [hand(side * 0.3, 0.6 - dn), hand(-side * 0.32, 0.05)] : [hand(side * 0.3, 0.6 - dn), hand(side * 0.2, 0.56 - dn)];
+        }
         break;
       case 'block':
+        hands = [hand(side * 0.2, 0.64), hand(-side * 0.16, 0.25)];
+        break;
       case 'rebound':
-        hands = [hand(side * 0.14, 0.76), hand(-side * 0.06, 0.74)];
+        hands = ballNear && e.ball.state !== 'held' ? [[bsx + 0.06 * S, bsy], [bsx - 0.06 * S, bsy]] : [hand(0.14, 0.62), hand(-0.1, 0.6)];
+        follow = false;
         break;
-      case 'pass':
-        hands = [hand(side * 0.44, 0.04), hand(side * 0.4, -0.02)];
+      case 'pass': {
+        const lob = e.ball.flight?.kind === 'pass' && e.ball.flight.from === p.idx && e.ball.flight.lob;
+        if (lob) hands = [hand(side * 0.22, 0.52), hand(side * 0.14, 0.48)]; // passe au-dessus de la tête
+        else if (hv % 3 === 1) hands = [hand(side * 0.52, -0.06), hand(-side * 0.2, -0.3)]; // une main, à terre
+        else if (hv % 3 === 2) hands = [hand(side * 0.5, 0.12), hand(-side * 0.26, -0.1)]; // une main, tendue
+        else hands = [hand(side * 0.46, 0.02), hand(side * 0.42, -0.06)]; // deux mains, poitrine
         break;
+      }
       case 'catch':
-        hands = [hand(side * 0.32, 0.04), hand(side * 0.26, -0.02)];
+        if (ballNear) hands = [[bsx + 0.05 * S, bsy], [bsx - 0.05 * S, bsy + 0.04 * S]];
+        else hands = [hand(side * 0.32, 0.04), hand(side * 0.26, -0.02)];
         break;
-      case 'stance':
-        hands = [hand(0.44, -0.12 + Math.sin(e.time * 6 + p.idx) * 0.04), hand(-0.44, -0.12)];
+      case 'stance': {
+        // Défense active : une main vers le ballon, l'autre dans la ligne de passe ; bras levé sur un tireur
+        const tgt = p.assign >= 0 ? e.players[p.assign] : null;
+        const shooting = tgt && (tgt.anim === 'shoot' || tgt.anim === 'layup') && Math.hypot(tgt.pos.x - p.pos.x, tgt.pos.y - p.pos.y) < 2.6;
+        const wob = Math.sin(e.time * 6 + p.idx) * 0.04;
+        if (shooting) hands = [hand(side * 0.14, 0.62), hand(-side * 0.3, -0.1)];
+        else if (tgt && e.ball.holder === tgt.idx) hands = [hand(side * 0.4, -0.28 + wob), hand(-side * 0.36, 0.16 - wob)];
+        else hands = [hand(0.44, -0.1 + wob), hand(-0.44, -0.12 - wob)];
         break;
+      }
       case 'screen':
-        hands = [hand(0.1, -0.2), hand(-0.1, -0.22)];
+        hands = [hand(0.08, -0.22), hand(-0.08, -0.24)]; // bras croisés devant le corps
         break;
       case 'celebrate':
-        hands = [hand(side * 0.16, 0.72 + Math.sin(t * 14) * 0.05), hand(-side * 0.32, -0.22)];
+        if (hv === 0 || hv === 3) hands = [hand(0.22, 0.6 + Math.sin(t * 14) * 0.05), hand(-0.22, 0.6 + Math.cos(t * 14) * 0.05)]; // bras au ciel
+        else if (hv === 1 || hv === 4) hands = [hand(side * 0.2, 0.1 + Math.abs(Math.sin(t * 10)) * 0.25), hand(-side * 0.3, -0.25)]; // poing serré
+        else hands = [hand(side * 0.42, 0.3), hand(-side * 0.3, -0.25)]; // doigt pointé vers le passeur
         break;
       case 'stumble':
-        hands = [hand(side * 0.36, 0.2), hand(-side * 0.42, 0.1)];
+        hands = [hand(side * 0.4, 0.26), hand(-side * 0.44, 0.12)];
+        break;
+      case 'fall':
+        hands = [hand(side * 0.3, 0.3), hand(-side * 0.42, -0.2)];
         break;
       case 'bench':
         hands = [hand(0.16, -0.36), hand(-0.12, -0.38)];
@@ -852,13 +1002,17 @@ export class MatchRenderer {
       case 'tired':
         hands = [hand(0.18, -0.62), hand(-0.18, -0.62)]; // mains sur les genoux
         break;
-      default:
-        hands = [hand(0.27 + side * swing, -0.5), hand(-0.27 + side * swing, -0.5)];
+      default: {
+        hands = runHands();
+        if (boxOut) hands = [hand(0.5, -0.06), hand(-0.5, -0.06)]; // écran de retard : bras écartés
+        else if (!bench && p.intent === 'reçoit') hands = [hand(side * 0.3, 0.02), hand(side * 0.22, -0.06)]; // mains prêtes
+        else if (p.team === e.possession && e.phase === 'live' && sp < 1.5 && !hasBall && (Math.floor(e.time / 2.2) + p.idx * 5) % 7 === 0) hands[0] = hand(side * 0.18, 0.56); // appel de balle
+      }
     }
     // Lissage des gestes : les mains rejoignent leur nouvelle position en douceur (fini les changements de pose instantanés)
     const mem = this.handMem.get(p.idx);
     const rel = hands.map(([hx0, hy0]) => [(hx0 - shX) / S, (hy0 - shY) / S]) as [number, number][];
-    if (mem && anim !== 'dribble') {
+    if (mem && !follow) {
       const k = Math.min(1, this.frameDt * 13);
       for (let i = 0; i < 2; i++) {
         mem[i][0] += (rel[i][0] - mem[i][0]) * k;
@@ -866,7 +1020,7 @@ export class MatchRenderer {
         hands[i] = [shX + mem[i][0] * S, shY + mem[i][1] * S];
       }
     } else this.handMem.set(p.idx, rel.map((v) => [...v]) as [number, number][]);
-    if (mem && anim === 'dribble') {
+    if (mem && follow) {
       mem[0] = rel[0];
       mem[1] = rel[1];
     }
@@ -875,18 +1029,44 @@ export class MatchRenderer {
     const drawArm = (i: number) => {
       const sx = shX + (i === 0 ? 1 : -1) * shW * 0.82;
       const sy = shY + 0.05 * S;
-      const [hx2, hy2] = hands[i];
-      const el = knee(sx, sy, hx2, hy2, upper, fore, (i === 0 ? 1 : -1) * (anim === 'dribble' && i === 0 ? side : 1));
+      let [hx2, hy2] = hands[i];
+      // La main ne peut pas être plus loin que la longueur du bras
+      const reach = Math.hypot(hx2 - sx, hy2 - sy);
+      const maxR = (upper + fore) * 0.985;
+      if (reach > maxR) {
+        hx2 = sx + ((hx2 - sx) / reach) * maxR;
+        hy2 = sy + ((hy2 - sy) / reach) * maxR;
+      }
+      const out = i === 0 ? 1 : -1;
+      const el =
+        i === ballArm
+          ? knee(sx, sy, hx2, hy2, upper, fore, out * (i === 0 ? side : -side))
+          : hy2 > sy + 0.3 * K
+            ? knee(sx, sy, hx2, hy2, upper, fore, -side)
+            : hy2 > sy - 0.08 * K
+              ? knee(sx, sy, hx2, hy2, upper, fore, out, true)
+              : knee(sx, sy, hx2, hy2, upper, fore, out);
       const dim = i === 1 ? -0.1 : 0;
       const armC = p.data.appearance.sleeve && i === 0 ? trim : shade(skin, dim);
-      limb(ctx, sx, sy, el.x, el.y, 0.068 * S * bulk, 0.05 * S * bulk, armC, line, lw, p.data.appearance.sleeve && i === 0 ? undefined : shade(skinL, dim));
-      limb(ctx, el.x, el.y, hx2, hy2, 0.05 * S * bulk, 0.038 * S, shade(skin, dim), line, lw, shade(skinL, dim));
-      ctx.fillStyle = shade(skin, dim - 0.04);
+      limbPair(ctx, sx, sy, el.x, el.y, hx2, hy2, 0.074 * S * bulk, 0.055 * S * bulk, 0.04 * S, armC, shade(skin, dim), line, lw, shade(skinL, dim), skinD, side);
+      // Main
+      ctx.fillStyle = shade(skin, dim - 0.03);
+      ctx.strokeStyle = line;
+      ctx.lineWidth = lw * 0.8;
       ctx.beginPath();
-      ctx.arc(hx2, hy2, 0.045 * S, 0, Math.PI * 2);
+      ctx.arc(hx2, hy2, 0.052 * S, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
     };
 
+    // Chute (passage en force) : le corps bascule en arrière puis se relève
+    const fallA = anim === 'fall' ? -side * 1.32 * (t < 0.28 ? t / 0.28 : t > 1.05 ? Math.max(0, 1 - (t - 1.05) / 0.4) : 1) : 0;
+    if (fallA) {
+      ctx.save();
+      ctx.translate(fx, fy);
+      ctx.rotate(fallA);
+      ctx.translate(-fx, -fy);
+    }
     // Ordre : membres arrière, tronc, membres avant
     const backLeg = legs.find((l) => l.back)!;
     const frontLeg = legs.find((l) => !l.back)!;
@@ -997,6 +1177,7 @@ export class MatchRenderer {
       ctx.fillStyle = trim;
       ctx.fillRect(hx - hr * 0.92, hy - hr * 0.45, hr * 1.84, hr * 0.28);
     }
+    if (fallA) ctx.restore();
     // Nom sous les pieds (lisibilité), en caméra rapprochée
     if (this.opts.showNames && !bench && S > 24) {
       const spr = textSprite(`${p.data.number} ${p.data.lastName}`, Math.max(9, 0.15 * S), 700, 'Inter, system-ui, sans-serif', p.isUser ? '#DDB65A' : '#F6F4EF', null, 'rgba(16,24,39,0.62)', this.dpr);
@@ -1240,6 +1421,60 @@ function limb(ctx: CanvasRenderingContext2D, ax: number, ay: number, bx: number,
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+}
+
+function capsule(ctx: CanvasRenderingContext2D, ax: number, ay: number, bx: number, by: number, wa: number, wb: number): void {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const l = Math.hypot(dx, dy) || 1;
+  const nx = -dy / l;
+  const ny = dx / l;
+  const an = Math.atan2(ny, nx);
+  ctx.moveTo(ax + nx * wa, ay + ny * wa);
+  ctx.lineTo(bx + nx * wb, by + ny * wb);
+  ctx.arc(bx, by, wb, an, an + Math.PI, true);
+  ctx.lineTo(ax - nx * wa, ay - ny * wa);
+  ctx.arc(ax, ay, wa, an + Math.PI, an + Math.PI * 2, true);
+  ctx.closePath();
+}
+
+/** Membre articulé (bras ou jambe) dessiné d'un seul tenant : contour, volume, reflet et ombre continus. */
+function limbPair(ctx: CanvasRenderingContext2D, ax: number, ay: number, jx: number, jy: number, bx: number, by: number, w0: number, w1: number, w2: number, color: string, color2: string, outline: string, lw: number, light: string, dark: string, lightSide: number): void {
+  ctx.fillStyle = outline;
+  ctx.beginPath();
+  capsule(ctx, ax, ay, jx, jy, w0 + lw, w1 + lw);
+  capsule(ctx, jx, jy, bx, by, w1 + lw, w2 + lw);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  capsule(ctx, ax, ay, jx, jy, w0, w1);
+  ctx.fill();
+  ctx.fillStyle = color2;
+  ctx.beginPath();
+  capsule(ctx, jx, jy, bx, by, w1, w2);
+  ctx.fill();
+  // Modelé : reflet côté lumière, ombre de l'autre côté, sur toute la longueur
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const off = (x1: number, y1: number, x2: number, y2: number, w: number, k: number): [number, number] => {
+    const l = Math.hypot(x2 - x1, y2 - y1) || 1;
+    return [(-(y2 - y1) / l) * w * k, ((x2 - x1) / l) * w * k];
+  };
+  for (const [col, k, a] of [[light, -0.42 * lightSide, 0.5], [dark, 0.5 * lightSide, 0.3]] as [string, number, number][]) {
+    const o1 = off(ax, ay, jx, jy, w0, k);
+    const o2 = off(jx, jy, bx, by, w2, k);
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = a;
+    ctx.lineWidth = Math.max(0.8, w1 * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(ax + o1[0], ay + o1[1]);
+    ctx.lineTo(jx + (o1[0] + o2[0]) * 0.5 * (w1 / w0), jy + (o1[1] + o2[1]) * 0.5 * (w1 / w0));
+    ctx.lineTo(bx + o2[0], by + o2[1]);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.lineCap = 'butt';
+  ctx.lineJoin = 'miter';
 }
 
 function drawHair(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, p: MPlayer, side: number): void {

@@ -18,6 +18,8 @@ export type Anim =
   | 'jumpball'
   | 'stumble'
   | 'tired'
+  | 'fall'
+  | 'post'
   | 'bench';
 
 export interface BoxLine {
@@ -94,6 +96,19 @@ export interface MPlayer {
   lastTouchT: number;
   pickupT: number; // temps depuis réception (le porteur ne décide pas instantanément)
   jumpCd: number;
+  // ---- Données purement visuelles (n'influencent pas la simulation)
+  /** Variante du geste en cours (tir en suspension, fadeaway, double pas renversé, dunk à une main…) */
+  move?: string;
+  /** Main qui dribble : 1 = côté droit du joueur, -1 = côté gauche */
+  ballHand?: 1 | -1;
+  /** Temps écoulé depuis le dernier changement de main */
+  xoverT?: number;
+  /** 0 = crossover devant, 1 = entre les jambes, 2 = dans le dos */
+  xoverKind?: number;
+  /** Dernier contact physique : instant et direction du choc */
+  bumpT?: number;
+  bumpX?: number;
+  bumpY?: number;
 }
 
 export type BallState = 'held' | 'air' | 'loose' | 'dead';
