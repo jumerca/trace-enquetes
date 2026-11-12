@@ -53,7 +53,7 @@ function buildOmbre(){
    for(const[du,dv]of[[-16,-12],[4,-18],[-26,0]])addChar(u+du,v+dv,as(randomSpec(),{pose:'wave',flip:false}));S(1,u,v,24,10);for(let k=0;k<8;k++)avoid(u+6+k*4,v+6+k*4,14);}
   {const[u,v]=[380,563];addChar(u,v,as(V,{pose:'give',flip:false}));addSpr(u+9,v+4,(c,x,y)=>{c.save();c.translate(x,y);c.rotate(.5);Rc(c,-2.6,-1.6,5.2,3.4,INK);D(c,0,0,.8,WHITE);c.restore();},{ht:8});S(2,u,v,22);}
   {const[u,v]=[690,664];addChar(u,v,as(V,{pose:'carry',prop:'suitcase'}));S(3,u,v,22);}
-  {const[u,v]=placeNear(234,1056);addChar(u,v,as(V,{pose:'crouch'}));addSpr(u+10,v+4,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-2,6,3,'#2b2926');},{ht:8});S(16,u,v,22);}
+  {const ch=bld.chap;const u=ch.u1+12,v=ch.v0-4;addChar(u,v,as(V,{pose:'arms_up',cape:true,hat:'melon'}));S(16,u,v,22);}
   addBoat(545,592,1,{len:16,col:'#3a3733',who:as(O,{}),oar:true});S(17,545,592,24);
   addChar(300,626,as(LEONIE,{pose:'arms_up'}));addChar(312,630,as(TOUTOU,{pose:'point',flip:true}));S(18,306,628,24);
   addChar(470,620,as(O,{pose:'stand',mask:false,prop:null}));addSpr(478,622,(c,x,y)=>{c.fillStyle=INK;c.fillRect(x-1,y-4,7,2.4);},{ht:6});addChar(484,626,as(LEONIE,{pose:'point',flip:true}));S(19,476,622,24);
@@ -62,7 +62,7 @@ function buildOmbre(){
   {const k=blk(0,1);const[u,v]=placeNear(k.u0+200,k.v0+24);addChar(u,v,as(LEONIE,{pose:'give',prop:'notepad'}));addChar(u+14,v+2,SP('hedgehog','dress','white','flower','think',null,true,{build:'old'}));addSpr(u+6,v-2,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;C(c,x+6,y-24,2.2,WHITE);},{top:true,ht:30});S(15,u+7,v+1,24);}
   // ---- Port
   CURD=1;
-  addChar(1900,50,as(O,{pose:'stand'}));S(4,1900,50,22);
+  addChar(2038,52,as(O,{pose:'stand'}));S(4,2038,52,22);
   {const k=blk(4,2);const[u,v]=placeNear(k.u0+200,k.v0+140);addCrate(u-12,v-6,12);addSpr(u-12,v-6,(c,x,y)=>txt(c,'13',x,y-13,6,WHITE),{top:true,ht:20});addChar(u,v,as(O,{pose:'carry',prop:'sack'}));S(5,u-4,v-2,24);}
   addBoat(1230,1040,1,{len:16,col:'#2b2926',who:as(O,{}),oar:true});S(6,1230,1040,24);
   // ---- Fête

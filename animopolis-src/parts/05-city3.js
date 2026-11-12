@@ -11,12 +11,19 @@ const ZU=32,ZL=14; // hauteurs du plateau du château
 function addPine(u,v,k){k=k||R(.85,1.25);addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;E(c,x,y,6*k,3*k,'#d4d6c0');c.lineWidth=1.1;Rc(c,x-1.6*k,y-8*k,3.2*k,8*k,WHITE);
   for(let t=0;t<3;t++){const yb=y-8*k-t*9*k,w=(13-t*3)*k;P(c,[[x-w,yb],[x+w,yb],[x,yb-16*k]],t%2?WHITE:'#eceee2');}},{hw:16*k,ht:48*k});avoid(u,v,8);}
 function addMushrooms(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;for(const[dx,dy,s]of[[-5,0,1],[3,2,.8],[8,-1,1.1]]){Rc(c,x+dx-1,y+dy-4*s,2,4*s,WHITE);c.beginPath();c.arc(x+dx,y+dy-4*s,3.4*s,PI,0);c.closePath();c.fillStyle=RED;c.fill();c.stroke();D(c,x+dx-1,y+dy-5.6*s,.5,WHITE);D(c,x+dx+1.2,y+dy-6*s,.5,WHITE);}},{ht:12,hw:14});}
-function addOak(u,v,hole,extra){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;E(c,x,y,12,6,'#d4d6c0');P(c,[[x-6,y],[x-3.6,y-26],[x+3.6,y-26],[x+6,y]],'#efe8d6');c.lineWidth=.5;for(const k of[-3,0,3])L(c,x+k,y-2,x+k*.6,y-22);c.lineWidth=1.1;
-  if(hole){E(c,x,y-13,2.8,4.4,'#2b2926');if(extra)extra(c,x,y-13);}
-  const bl=[[-14,-36,12],[12,-36,12],[0,-48,13],[-20,-26,9],[20,-26,9],[0,-32,11]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle='#f4f5ec';for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}
-  c.lineWidth=.6;for(const[dx,dy]of[[-10,-40],[8,-44],[0,-30],[14,-30]]){c.beginPath();c.arc(x+dx,y+dy,2.4,PI*.2,PI*.9);c.stroke();}},{hw:34,ht:66});avoid(u,v,14);}
-function addTreeSwing(u,v,who){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;P(c,[[x-18,y],[x-15,y-30],[x-11,y-30],[x-12,y]],'#efe8d6');c.lineWidth=1.6;L(c,x-14,y-30,x+18,y-38);c.lineWidth=.6;L(c,x+4,y-35,x+4,y-12);L(c,x+12,y-37,x+12,y-12);c.lineWidth=1;Rc(c,x+2,y-12,12,2,WHITE);if(who)drawChar(c,x+8,y-4,Object.assign({},who,{scale:1.15}));
-  const bl=[[-16,-44,11],[4,-50,12],[20,-44,10],[-4,-38,9]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle='#f4f5ec';for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}},{hw:34,ht:64});avoid(u,v,16);}
+function addOak(u,v,hole,extra){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;E(c,x,y,13,6.5,'#d4d6c0');
+  P(c,[[x-9,y],[x-5.4,y-28],[x+5.4,y-28],[x+9,y]],'#efe8d6');c.lineWidth=.5;for(const k of[-5,-1.5,2,5.5])L(c,x+k,y-2,x+k*.6,y-24);c.lineWidth=1.1;
+  if(hole){c.beginPath();c.ellipse(x,y-11,5.6,8.6,0,0,TAU);c.fillStyle='#2b2926';c.fill();c.lineWidth=1.4;c.stroke();     // le creux
+    c.save();c.beginPath();c.ellipse(x,y-11,5.2,8.2,0,0,TAU);c.clip();if(extra)extra(c,x,y-7);c.restore();
+    c.lineWidth=1.1;c.beginPath();c.ellipse(x,y-11,5.6,8.6,0,PI*1.05,PI*1.95);c.stroke();}
+  const bl=[[-14,-38,12],[12,-38,12],[0,-50,13],[-20,-28,9],[20,-28,9],[0,-34,11]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle='#f4f5ec';for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}
+  c.lineWidth=.6;for(const[dx,dy]of[[-10,-42],[8,-46],[0,-32],[14,-32]]){c.beginPath();c.arc(x+dx,y+dy,2.4,PI*.2,PI*.9);c.stroke();}},{hw:34,ht:68});avoid(u,v,14);}
+function addTreeSwing(u,v,who){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;E(c,x-12,y,11,5.5,'#d4d6c0');P(c,[[x-18,y],[x-15,y-34],[x-9,y-34],[x-7,y]],'#efe8d6');
+  const bl=[[-22,-46,11],[-4,-54,12],[14,-50,10],[-10,-42,9],[34,-48,9]];c.lineWidth=2.4;for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.stroke();}c.fillStyle='#f4f5ec';for(const b of bl){c.beginPath();c.arc(x+b[0],y+b[1],b[2],0,TAU);c.fill();}
+  c.lineWidth=3;c.strokeStyle=INK;L(c,x-10,y-33,x+32,y-40);c.lineWidth=1.6;c.strokeStyle='#efe8d6';L(c,x-10,y-33,x+32,y-40);c.strokeStyle=INK;   // branche, devant le feuillage
+  const sx=x+20,sy=y-14;c.lineWidth=1.3;L(c,sx-7,y-38,sx-7,sy);L(c,sx+7,y-39,sx+7,sy);                                                              // les deux cordes
+  if(who)drawChar(c,sx,sy+8,Object.assign({},who,{scale:1.05,noShadow:true,pose:'sit'}));
+  c.lineWidth=1.1;Rc(c,sx-9,sy,18,2.8,'#d8c8a4');},{hw:40,ht:72});avoid(u,v,18);}
 function addCampfire(u,v,pot){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;for(const a of[-.5,.5]){c.save();c.translate(x,y);c.rotate(a);Rc(c,-8,-1.5,16,3,'#a8946a');c.restore();}
   P(c,[[x-5,y-2],[x,y-12],[x+5,y-2]],'#e6c14a');P(c,[[x-2.6,y-2],[x,y-8],[x+2.6,y-2]],RED);
   if(pot){c.lineWidth=1.1;L(c,x-10,y,x-8,y-22);L(c,x+10,y,x+8,y-22);L(c,x-9,y-22,x+9,y-22);c.beginPath();c.moveTo(x-7,y-16);c.quadraticCurveTo(x,y-4,x+7,y-16);c.closePath();c.fillStyle='#3a3733';c.fill();c.stroke();c.lineWidth=.6;L(c,x,y-22,x,y-16);c.strokeStyle='#8f8a7c';for(const dx of[-3,2]){c.beginPath();c.moveTo(x+dx,y-18);c.quadraticCurveTo(x+dx+3,y-24,x+dx,y-30);c.stroke();}}},{ht:34,hw:14});avoid(u,v,12);}
@@ -109,7 +116,7 @@ function buildColline(){
   // Lili 1 : la clairière
   for(const[du,dv]of[[-14,8],[16,6],[8,20]])addMushrooms(300+du,2130+dv);addChar(300,2134,as(LILI,{pose:'crouch'}));setT('lili',1,300,2134,24);
   // Lili 2 : la balançoire
-  addTreeSwing(420,2060,as(LILI,{pose:'sit',prop:null}));avoid(420,2060,40);addSpr(400,2070,(c,x,y)=>drawProp(c,'basket',x,y-6,1),{ht:12});{const[x,y]=pr(420,2060,0);setTxy('lili',2,x+8,y-20,24);}
+  addTreeSwing(420,2060,as(LILI,{pose:'sit',prop:null}));avoid(420,2060,40);addSpr(412,2078,(c,x,y)=>drawProp(c,'basket',x,y-6,1),{ht:12});{const[x,y]=pr(420,2060,0);setTxy('lili',2,x+20,y-38,26);}
   // Lili 3
   addChar(560,2300,as(GROGNON,{pose:'run',prop:'basket'}));setT('lili',3,560,2300,22);
   // Lili 4
@@ -119,10 +126,10 @@ function buildColline(){
   addChar(488,2486,as(LILI,{pose:'sit',prop:null}));addChar(512,2488,as(GROGNON,{pose:'sit',flip:true}));setT('lili',5,500,2488,24);
   // farine 5, 6, 8
   addChar(700,2330,as(RAPE1,{pose:'run',prop:'sack'}));addChar(714,2338,as(RAPE2,{pose:'run'}));setT('farine',5,707,2334,24);
-  addOak(260,2240,true,(c,x,y)=>{c.save();c.translate(x,y);c.scale(.7,.7);drawProp(c,'sack',0,-2,1);c.restore();});addChar(276,2250,as(RAPE2,{pose:'give',flip:true}));setT('farine',6,266,2244,26,10);
+  addOak(260,2240,true,(c,x,y)=>{c.save();c.translate(x,y-4);c.scale(1.2,1.2);drawProp(c,'sack',0,-5,1);c.restore();});addChar(292,2250,as(RAPE2,{pose:'give',flip:true}));{const[x,y]=pr(260,2240,0);setTxy('farine',6,x,y-12,24);}
   addFootprints(610,2150,700,2165,9);addChar(720,2170,as(BASTIEN,{pose:'point',prop:'magnifier',flip:true}));setT('farine',8,690,2162,28);
   // couronne 9, 11, 12
-  addOak(800,2470,true,(c,x,y)=>{c.save();c.translate(x-1,y+3);c.scale(.8,.8);drawProp(c,'crownp',0,0,1);c.restore();});addChar(818,2480,as(GIGOT,{pose:'give',flip:true}));setT('couronne',9,808,2474,26,10);
+  addOak(800,2470,true,(c,x,y)=>{c.save();c.translate(x,y-4);c.scale(1.6,1.6);drawProp(c,'crownp',0,2,1);c.restore();});addChar(832,2480,as(GIGOT,{pose:'give',flip:true}));{const[x,y]=pr(800,2470,0);setTxy('couronne',9,x,y-12,24);}
   addFootprints(420,2400,500,2430,8);addChar(408,2394,as(BASTIEN,{pose:'lean',prop:'magnifier'}));setT('couronne',11,440,2410,28);
   addClothesline(cab2.cx+30,cab2.v1+26,false);addChar(cab2.cx,cab2.v1+16,as(GIGOT2,{pose:'stand',prop:'axe'}));setT('couronne',12,cab2.cx,cab2.v1+16,22);
   // arbres de la forêt (en évitant de cacher les scènes)

@@ -59,7 +59,11 @@ function sortItems(){
 }
 
 /* ---------- éléments animés, redessinés par-dessus les tuiles ---------- */
-const movers=[];function addMover(bb,d){movers.push({bb,d,dist:CURD});}
+const movers=[];function addMover(bb,d,fp){const m={bb,d,dist:CURD,fp:fp||null,over:[]};movers.push(m);return m;}
+/* Un élément animé est dessiné au-dessus des tuiles : on redessine ensuite ce qui est devant lui (bâtiments, personnages). */
+function finalizeMovers(){for(const m of movers){if(!m.fp)continue;const[u0,v0,u1,v1]=m.fp,key=(u0+u1+v0+v1)/2;
+  for(const it of items){const b=it.bb;if(b[2]<m.bb[0]||b[0]>m.bb[2]||b[3]<m.bb[1]||b[1]>m.bb[3])continue;
+    const front=it.box?(u1<=it.fp[0]||v1<=it.fp[1]):it.key>key+6;if(front&&it.dist===m.dist)m.over.push(it);}}}
 const animOn=()=>!(typeof opts!=='undefined'&&opts.anim===false);
 const animT=()=>animOn()?performance.now()/1000:0;
 /* ---------- objets du décor ---------- */
