@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#f3efe4">
+<meta name="application-name" content="Animopolis">
+<meta name="format-detection" content="telephone=no">
+<title>Animopolis</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" type="image/svg+xml" href="icon.svg" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Animopolis">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="Enquêtes à la loupe dans une immense ville dessinée peuplée d'animaux.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f3efe4;--ink:#1d1b18;--red:#d8352a;--card:#fffdf7;--muted:#6b665c;--line:#1d1b18;--shadow:0 6px 0 rgba(29,27,24,.18)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--card:#26231f;--ink:#f1ece0;--muted:#b5ad9d;--line:#f1ece0;--shadow:0 6px 0 rgba(0,0,0,.4)}}
+:root[data-theme="dark"]{--card:#26231f;--ink:#f1ece0;--muted:#b5ad9d;--line:#f1ece0;--shadow:0 6px 0 rgba(0,0,0,.4)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Patrick Hand","Comic Sans MS",cursive;font-size:18px;overscroll-behavior:none}
+canvas#map{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;touch-action:none;cursor:grab;display:block}
+canvas#map:active{cursor:grabbing}
+button{font:inherit;color:inherit;cursor:pointer}
+.top{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 16px 0;pointer-events:none}
+.logo{text-align:left;pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:4px 12px 2px;box-shadow:var(--shadow);line-height:1}
+.logo b{font-size:24px;letter-spacing:.5px}.logo small{display:block;font-size:13px;color:var(--muted)}
+.tright{display:flex;gap:8px;pointer-events:none}
+.pill{pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:999px;padding:8px 16px;box-shadow:var(--shadow);font-size:18px}
+.zoom{position:fixed;right:16px;top:50%;transform:translateY(-60%);display:flex;flex-direction:column;gap:8px}
+.zoom button{width:44px;height:44px;border-radius:12px;border:2px solid var(--line);background:var(--card);box-shadow:var(--shadow);font-size:24px;line-height:1;padding:0}
+.card{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 12px);width:min(560px,calc(100vw - 32px));background:var(--card);border:2px solid var(--line);border-radius:18px;padding:10px 14px 12px;box-shadow:var(--shadow)}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card-head button{background:none;border:0;padding:0;font-size:19px;text-align:left;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.badge:empty{display:none}
+.badge{border:2px solid var(--line);border-radius:999px;padding:0 10px;font-size:16px;white-space:nowrap}
+#question{margin:6px 0 10px;font-size:19px;line-height:1.25}
+.actions{display:flex;gap:8px}
+.actions button{flex:1;border:2px solid var(--line);background:transparent;border-radius:12px;padding:6px 4px;font-size:17px}
+.actions button.main{background:var(--ink);color:var(--card)}
+.card.min #question,.card.min .actions{display:none}
+#toast{z-index:50;position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 74px);transform:translateX(-50%) translateY(-10px);background:var(--ink);color:var(--card);padding:6px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;font-size:18px}
+#toast.on{opacity:1;transform:translateX(-50%)}
+.modal{position:fixed;inset:0;background:rgba(29,27,24,.45);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:40}
+.modal.hidden{display:none}
+.sheet{position:relative;background:var(--card);border:2px solid var(--line);border-radius:20px;box-shadow:var(--shadow);width:min(560px,100%);max-height:min(82vh,82dvh);overflow:auto;padding:18px 18px 16px}
+@media (min-height:700px) and (min-width:700px){.modal{align-items:center}}
+.sheet h2{margin:0 0 6px;font-size:28px;font-weight:400;line-height:1.1}
+.sheet h3{margin:14px 0 6px;font-size:21px;font-weight:400}
+.sheet p{margin:6px 0;line-height:1.3}
+.sheet .close{position:absolute;right:10px;top:8px;border:0;background:none;font-size:30px;line-height:1;padding:4px 8px}
+.btn{display:block;width:100%;margin-top:12px;border:2px solid var(--line);background:var(--ink);color:var(--card);border-radius:14px;padding:10px;font-size:20px}
+.btn.ghost{background:transparent;color:var(--ink)}
+.cases{display:grid;gap:10px;margin-top:10px}
+.case{display:flex;gap:12px;align-items:center;text-align:left;border:2px solid var(--line);border-radius:14px;background:transparent;padding:8px 12px}
+.case .t{font-size:21px;line-height:1.1}.case .m{font-size:15px;color:var(--muted)}
+.case .done{margin-left:auto;font-size:15px;white-space:nowrap}
+.case.active{outline:3px solid var(--red);outline-offset:2px}
+.cast{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:8px}
+.who{border:2px solid var(--line);border-radius:14px;padding:6px;text-align:center;background:#fffdf7;color:#1d1b18}
+.who canvas{display:block;margin:0 auto;width:90px;height:100px}
+.who b{display:block;font-weight:400;font-size:18px;line-height:1.1}.who span{font-size:14px;color:#6b665c}
+.steps{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
+.steps li{border:2px solid var(--line);border-radius:12px;padding:8px 10px;line-height:1.25}
+.steps li.lock{opacity:.5;border-style:dashed}
+.steps .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;font-size:15px;margin-right:6px}
+.steps .ok{display:block;color:var(--muted);font-size:16px;margin-top:4px}
+.steps button{margin-top:6px;border:2px solid var(--line);background:transparent;border-radius:10px;padding:2px 10px;font-size:15px}
+.stamp{display:inline-block;border:3px solid var(--red);color:var(--red);transform:rotate(-6deg);padding:2px 12px;border-radius:8px;font-size:24px;margin:6px 0}
+.legend{font-size:15px;color:var(--muted)}
+.home{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 16px) 20px calc(env(safe-area-inset-bottom) + 16px);background:rgba(243,239,228,.9);background:color-mix(in srgb,var(--paper) 88%,transparent);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);overflow:auto}
+.home.hidden{display:none}
+.home-in{width:min(380px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;margin:auto}
+.home-logo{width:112px;height:112px;border-radius:26px;border:2px solid var(--line);box-shadow:var(--shadow)}
+.home h1{margin:4px 0 0;font-size:46px;font-weight:400;line-height:1}
+.home-sub{margin:0 0 8px;color:var(--muted);font-size:19px}
+.hbtn{width:100%;border:2px solid var(--line);background:var(--card);border-radius:16px;padding:11px 12px;font-size:22px;box-shadow:var(--shadow);line-height:1.1}
+.hbtn:disabled{opacity:.45;box-shadow:none}
+.hbtn small{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.hbtn.inst{background:var(--ink);color:var(--card)}.hbtn.inst small{color:inherit;opacity:.78}
+.hbtn.main{background:var(--ink);color:var(--card)}.hbtn.main small{color:inherit;opacity:.78}
+.hbtn[hidden],.home-upd[hidden],#updBar[hidden]{display:none}
+.instbox{border:2px solid var(--line);border-radius:14px;padding:8px 12px;margin:8px 0;text-align:left}
+.instbox>b{display:block;font-weight:400;font-size:20px}
+.instbox li b{font-weight:400;text-decoration:underline;text-underline-offset:2px}
+.instbox ol{margin:4px 0 0;padding-left:22px;line-height:1.3}
+.instbox.me{background:var(--ink);color:var(--card)}
+@media (max-height:760px){.home{padding-top:calc(env(safe-area-inset-top) + 8px);padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}.home-in{gap:6px}.home-logo{width:72px;height:72px;border-radius:18px}.home h1{font-size:36px}.home-sub{font-size:16px;margin-bottom:2px}.hbtn{padding:7px 10px;font-size:19px;border-radius:14px}.hbtn small{font-size:12.5px;margin-top:1px}.home-ver{margin-top:6px}}
+@media (max-height:560px){.home-logo{display:none}}
+.home-ver{margin:12px 0 0;font-size:13px;color:var(--muted);line-height:1.35}
+.home-upd{width:100%;border:2px solid var(--red);border-radius:14px;padding:8px 10px;background:var(--card);font-size:17px}
+.home-upd button{margin-top:6px;border:2px solid var(--line);background:var(--ink);color:var(--card);border-radius:10px;padding:4px 14px;font-size:17px}
+#updBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 66px);z-index:15;display:flex;gap:10px;align-items:center;background:var(--ink);color:var(--card);padding:6px 8px 6px 14px;border-radius:999px;font-size:16px;white-space:nowrap}
+#updBar button{border:0;border-radius:999px;background:var(--card);color:var(--ink);padding:3px 12px;font-size:16px}
+.slot{display:flex;gap:10px;align-items:center;justify-content:space-between;text-align:left;border:2px solid var(--line);border-radius:14px;padding:8px 12px;margin-top:8px;background:transparent;width:100%}
+.slot.empty{border-style:dashed;color:var(--muted)}
+.slot .t{font-size:20px;line-height:1.1}.slot .m{font-size:15px;color:var(--muted)}
+.slot .sbtns{display:flex;gap:6px;flex-shrink:0}
+.slot .sbtns button{border:2px solid var(--line);background:transparent;border-radius:10px;padding:3px 10px;font-size:16px}
+.slot .sbtns button.go{background:var(--ink);color:var(--card)}
+.slot .sbtns button.del{color:var(--red);border-color:var(--red)}
+
+.stars{color:#d8a21a;letter-spacing:1px;white-space:nowrap}
+.bigstars{font-size:40px;text-align:center;color:#d8a21a;letter-spacing:6px;margin:6px 0 0}
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stat{border:2px solid var(--line);border-radius:14px;padding:8px;text-align:center;line-height:1.1}
+.stat b{display:block;font-size:26px;font-weight:400}
+.stat span{font-size:14px;color:var(--muted)}
+.rank{text-align:center;font-size:22px;margin:4px 0}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:8px}
+.mug{border:2px solid var(--line);border-radius:12px;padding:4px;text-align:center;background:#fffdf7;color:#1d1b18;font-size:13px;line-height:1.15}
+.mug canvas{display:block;width:100%;height:auto;border-radius:8px}
+.mug b{display:block;font-weight:400;font-size:15px}
+.mug.no{opacity:.45;border-style:dashed}
+.mug .q{display:grid;place-items:center;aspect-ratio:.9;font-size:40px;background:#e2ddd0;border-radius:8px}
+.case.lock{opacity:.5;border-style:dashed}
+.clue{background:#1d1b18;color:#fffdf7;border-radius:14px;padding:10px 12px;margin:10px 0}
+.clue b{display:block;font-weight:400;font-size:19px}
+.clue.no{background:transparent;color:var(--muted);border:2px dashed var(--line)}
+.ombrebtn{display:flex;align-items:center;gap:10px;width:100%;margin-top:8px;border:2px solid var(--line);border-radius:14px;background:#1d1b18;color:#fffdf7;padding:10px 12px;font-size:19px;text-align:left}
+.choices{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;clear:both}
+.choice{border:2px solid var(--line);border-radius:12px;background:#fffdf7;color:#1d1b18;padding:3px;font-size:13px;line-height:1.1}
+.choice canvas{display:block;width:100%;height:auto;border-radius:8px}
+.choice.shake{animation:sh .35s}
+@keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.qwho{float:left;width:46px;height:52px;margin:0 10px 2px 0;border:2px solid var(--line);border-radius:10px}
+#question{min-height:52px}
+</style>
+</head>
+<body>
+<canvas id="map" aria-label="Carte de la ville d'Animopolis"></canvas>
+<header class="top">
+  <button class="logo" id="logoBtn" aria-label="Menu principal"><b>Animopolis</b><small>enquêtes à la loupe</small></button>
+  <div class="tright"><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
+</header>
+<div class="zoom">
+  <button id="zin" aria-label="Zoomer">+</button>
+  <button id="zout" aria-label="Dézoomer">−</button>
+  <button id="zfit" aria-label="Voir toute la ville">⤢</button>
+</div>
+<section id="card" class="card">
+  <div class="card-head"><button id="caseTitle"></button><span id="stepNum" class="badge"></span></div>
+  <p id="question"></p>
+  <div class="actions">
+    <button id="btnHint">Indice</button>
+    <button id="btnCast">Personnages</button>
+    <button id="btnSteps">Étapes</button>
+  </div>
+</section>
+<div id="updBar" hidden><span>Nouvelle version disponible</span><button id="updGo">Mettre à jour</button></div>
+<div id="toast"></div>
+<div id="home" class="home hidden" role="dialog" aria-label="Accueil">
+  <div class="home-in">
+    <img class="home-logo" src="icon.svg" alt="" onerror="this.style.display='none'">
+    <h1>Animopolis</h1><p class="home-sub">enquêtes à la loupe</p>
+    <div id="homeUpd" class="home-upd" hidden></div>
+    <button class="hbtn main" id="hContinue" hidden>Continuer<small></small></button>
+    <button class="hbtn" id="hNew">Nouvelle partie</button>
+    <button class="hbtn" id="hLoad">Charger une partie<small></small></button>
+    <button class="hbtn" id="hSave">Sauvegarder la partie<small></small></button>
+    <button class="hbtn" id="hOpts">Options</button>
+    <button class="hbtn inst" id="hInstall" hidden>Installer l'application<small>Téléphone, tablette ou ordinateur</small></button>
+    <p class="home-ver" id="homeVer"></p>
+  </div>
+</div>
+<div id="modal" class="modal hidden"><div class="sheet"><button class="close" aria-label="Fermer">×</button><div id="modalBody"></div></div></div>
+
