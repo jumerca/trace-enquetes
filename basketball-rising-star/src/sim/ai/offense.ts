@@ -181,6 +181,28 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     p.target = { ...p.pos };
     return;
   }
+  // Échappée : plus aucun défenseur entre le porteur et le cercle -> il va marquer, sans s'arrêter ni ressortir le ballon
+  if (e.phase === 'live' && d > 1.2 && d < 22) {
+    const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
+    // Vraie échappée : elle démarre loin du cercle, tous les défenseurs nettement derrière ; une fois lancée, elle va au bout
+    const brk = p as MPlayer & { breakT?: number };
+    const running = brk.breakT !== undefined && e.time - brk.breakT < 3.5;
+    const beaten = defs.every((o) => dist(o.pos, hoop) > d + (running ? -0.3 : 0.6)) && (running || d > 8);
+    // Seule exception : un partenaire encore mieux placé, seul plus près du cercle (passe vers l'avant)
+    const mateAhead = e.teamOnCourt(p.team).some((m) => m !== p && dist(m.pos, hoop) < d - 3 && e.nearestDefender(m).d > 2.5);
+    if (beaten && !mateAhead) {
+      if (!running) brk.breakT = e.time;
+      p.intent = 'drive';
+      (p as MPlayer & { driveT?: number }).driveT = e.time;
+      p.urgency = 1;
+      if (d < 2.7) {
+        e.beginShot(p);
+        return;
+      }
+      p.target = { x: hoop.x - side * 0.9, y: hoop.y };
+      return;
+    }
+  }
   // Le porteur lève la tête : partenaire seul devant, coupeur libre sous le cercle, prise à deux
   if (readAdvantage(e, p, hoop)) return;
   // Intérieur enfermé ou pris à deux dans la raquette : ressortir vers un shooteur extérieur
@@ -651,6 +673,9 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
   if (dMe < 3) return false;
   const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
   const trapped = defs.filter((o) => dist(o.pos, p.pos) < 1.7).length >= 2;
+  const trans = e.offense[p.team].transition || !e.frontcourtReached;
+  // Le porteur prend le temps de regarder avant de redonner (sauf en transition ou pris à deux)
+  if (!trans && !trapped && p.pickupT < 0.7) return false;
   const see = 0.45 + a.vision / 40 + a.iq / 80; // ~0.9 à 1.2 pour un bon meneur, ~0.6 pour un intérieur peu créatif
   let best: MPlayer | null = null;
   let bs = 0;
@@ -662,8 +687,9 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     const risk = e.bestPass(p, m).risk;
     const ahead = dMe - md;
     let sc = 0;
-    if (ahead > 2 && md < 9 && open > 2.2) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
-    else if (md < 2.8 && open > 1.6) sc = 0.7 + open * 0.15; // coupeur / pivot seul sous le cercle
+    // En attaque placée, on ne donne vers l'avant que pour un vrai décalage : le ballon ne tourne pas sans raison
+    if (ahead > (trans ? 2 : 4.5) && md < (trans ? 9 : 5) && open > (trans ? 2.2 : 2.8)) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
+    else if (md < 2.6 && open > 2) sc = 0.7 + open * 0.15; // coupeur / pivot seul sous le cercle
     else if (trapped && open > 2.2) sc = 0.55 + open * 0.1;
     if (risk > 0.32) continue;
     sc -= risk * 3.5;
@@ -673,7 +699,7 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     }
   }
   if (!best || bs < 0.62) return false;
-  if (!e.rng.chance(Math.min(0.95, see * (trapped ? 0.95 : 0.75)))) return false;
+  if (!e.rng.chance(Math.min(0.95, see * (trapped ? 0.95 : trans ? 0.75 : 0.5)))) return false;
   const far = dist(best.pos, p.pos);
   e.launchPass(p, best, far > 12 ? 'lob' : e.bestPass(p, best).kind);
   e.offense[p.team].passes++;
@@ -699,7 +725,7 @@ function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     const along = rx * toHoop.x + ry * toHoop.y;
     return along > 0 && along < 1.6 && Math.abs(-rx * toHoop.y + ry * toHoop.x) < 0.9;
   });
-  const pressure = trapped || p.keyTime > 1.3 || p.pickupT > 2.2 || (sealed && p.pickupT > 0.9);
+  const pressure = trapped || p.keyTime > 1.7 || p.pickupT > 2.8 || (sealed && p.pickupT > 1.4);
   if (!pressure) return false;
   // Meilleure solution à l'extérieur (lecture plus ou moins rapide selon la vision)
   const side = e.attackSide(p.team);

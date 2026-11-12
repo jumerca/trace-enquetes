@@ -221,3 +221,73 @@ describe('Consignes avancées', () => {
     expect(u.assign).toBe(best.idx);
   });
 });
+
+describe('échappée en contre-attaque', () => {
+  it('un joueur parti seul va au cercle sans ressortir le ballon', () => {
+    let done = 0;
+    let shots = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const reg = new NameRegistry();
+      const e = new MatchEngine({ home: quickTeam(10 + seed, 'A', 12, undefined, reg), away: quickTeam(50 + seed, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 300 + seed });
+      for (let i = 0; i < 60 * 40 && !(e.phase === 'live' && e.holder() && e.frontcourtReached); i++) e.step();
+      const h = e.holder();
+      if (!h || e.phase !== 'live') continue;
+      const side = e.attackSide(h.team);
+      const hoop = e.court.hoop(side);
+      const mid = e.court.g.length / 2;
+      // Le porteur a pris tout le monde de vitesse : défenseurs et partenaires sont derrière lui
+      h.pos = { x: mid + side * 3, y: hoop.y };
+      h.vel = { x: side * 5, y: 0 };
+      (h as typeof h & { pickedUp?: boolean }).pickedUp = false; // il dribble encore
+      let k = 0;
+      for (const o of e.onCourt) {
+        if (o === h) continue;
+        o.pos = { x: mid - side * (2 + (k % 5)), y: 2 + (k % 5) * 2.6 };
+        o.vel = { x: 0, y: 0 };
+        k++;
+      }
+      const ev0 = e.events.length;
+      for (let i = 0; i < 60 * 5; i++) {
+        e.step();
+        if (e.events.slice(ev0).some((x) => x.type === 'shot' || x.type === 'turnover' || x.type === 'foul')) break;
+      }
+      const evs = e.events.slice(ev0);
+      expect(evs.some((x) => x.type === 'pass' && x.player === h.idx)).toBe(false);
+      if (evs.some((x) => x.type === 'shot' && x.player === h.idx)) shots++;
+      done++;
+    }
+    expect(done).toBeGreaterThan(2);
+    // Il va tirer au cercle (un marcher isolé reste possible, comme en vrai)
+    expect(shots).toBeGreaterThanOrEqual(done - 1);
+  });
+});
+
+describe('lisibilité : passes et tirs', () => {
+  it('aucune passe ne monte aussi haut qu’un tir, et le ballon ne circule pas sans raison', () => {
+    const reg = new NameRegistry();
+    const e = new MatchEngine({ home: quickTeam(21, 'A', 12, undefined, reg), away: quickTeam(61, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 77 });
+    let passTop = 0;
+    let shotLow = 99;
+    let passes = 0;
+    let cur: { kind: string; max: number } | null = null;
+    let last: unknown = null;
+    while (!e.finished) {
+      e.step();
+      const f = e.ball.flight;
+      if (f && f !== last && (f.kind === 'shot' || (f.kind === 'pass' && f.from >= 0))) {
+        cur = { kind: f.kind, max: e.ball.z };
+        if (f.kind === 'pass') passes++;
+      }
+      if (cur && f && f.kind === cur.kind) cur.max = Math.max(cur.max, e.ball.z);
+      else if (cur) {
+        if (cur.kind === 'pass') passTop = Math.max(passTop, cur.max);
+        else shotLow = Math.min(shotLow, cur.max);
+        cur = null;
+      }
+      last = f;
+    }
+    expect(passTop).toBeLessThan(3.1);
+    expect(shotLow).toBeGreaterThan(3.2);
+    expect(passes).toBeLessThan(850); // environ 4 passes par attaque (il y en avait plus de 6)
+  });
+});
