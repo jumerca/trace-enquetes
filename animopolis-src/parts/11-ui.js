@@ -9,15 +9,24 @@ const cam={x:0,y:400,s:.5};
 let minS=.1,maxS=7,cache=null,cacheKey='',cacheS=.5,needs=false;
 const fx={wrong:[],pulse:null};
 const NSLOTS=3,SLOTKEY=n=>'animopolis-s'+n;
-const freshState=()=>({solved:{},hints:{},wrong:{},best:{},current:null,seen:false,unlockSeen:{}});
-function readSlot(n){try{return JSON.parse(localStorage.getItem(SLOTKEY(n))||'null');}catch(e){return null;}}
+const freshState=()=>({solved:{},hints:{},wrong:{},part:{},best:{},current:null,seen:false,unlockSeen:{}});
+const LEGACY_LEN={chaton:5,gateau:5,lettre:9,collier:15,poisson:5,tresor:10,banque:15,ballon:5,fantome:10,zorbo:15,valise:5,colis:10,recette:15,lili:5,farine:10,couronne:15,ombre:20,vase:5,chapeau:5,phare:8,peche:5,tickets:8,chiot:5,controleur:7,oeufs:5,tartes:8,bouteille:5,volcan:9,epave:15};
+const caseLens=()=>Object.fromEntries(CASES.map(c=>[c.id,c.steps.length]));
+/* Quand une enquête gagne des étapes : une enquête déjà classée reste classée, une enquête commencée repart de zéro. */
+function migrate(d){if(!d||!d.solved)return d;const L=d.caseLen||LEGACY_LEN;
+  for(const c of CASES){const old=L[c.id];if(!old||old===c.steps.length)continue;const n=(d.solved[c.id]||[]).filter(Boolean).length;
+    if(n>=old)d.solved[c.id]=c.steps.map(()=>true);
+    else if(n>0){d.solved[c.id]=[];for(const k of Object.keys(d.hints||{}))if(k.startsWith(c.id+':'))delete d.hints[k];if(d.part)for(const k of Object.keys(d.part))if(k.startsWith(c.id+':'))delete d.part[k];}}
+  d.caseLen=caseLens();return d;}
+let built=false;
+function readSlot(n){try{const d=JSON.parse(localStorage.getItem(SLOTKEY(n))||'null');return built?migrate(d):d;}catch(e){return null;}}
 var opts={anim:true};try{Object.assign(opts,JSON.parse(localStorage.getItem('animopolis-opts')||'{}'));}catch(e){}
 function saveOpts(){try{localStorage.setItem('animopolis-opts',JSON.stringify(opts));}catch(e){}}
 let slot=1;try{slot=+localStorage.getItem('animopolis-active')||1;
   if(!localStorage.getItem(SLOTKEY(1))){const old=localStorage.getItem('animopolis-v3');if(old){localStorage.setItem(SLOTKEY(1),old);try{const o=JSON.parse(old);if(typeof o.anim==='boolean')opts.anim=o.anim;}catch(e){}}}}catch(e){}
 let state=Object.assign(freshState(),readSlot(slot)||{});
 function setState(d){for(const k of Object.keys(state))delete state[k];Object.assign(state,freshState(),d||{});}
-function save(){try{state.saved=Date.now();localStorage.setItem(SLOTKEY(slot),JSON.stringify(state));localStorage.setItem('animopolis-active',String(slot));}catch(e){}}
+function save(){try{state.saved=Date.now();state.caseLen=caseLens();localStorage.setItem(SLOTKEY(slot),JSON.stringify(state));localStorage.setItem('animopolis-active',String(slot));}catch(e){}}
 const caseDone=cs=>(state.solved[cs.id]||[]).filter(Boolean).length===cs.steps.length;
 const doneIn=d=>CASES.filter(cs=>cs.dist===d&&caseDone(cs)).length;
 const mediumOf=d=>CASES.find(c=>c.dist===d&&c.diff===2&&!c.final);
@@ -36,7 +45,7 @@ const KEYCHAR={chaton:[1,'Le fugueur'],gateau:[1,'Le voleur de gâteau'],lettre:
  poisson:[1,'Le voleur de poisson'],tresor:[1,'La chasseuse de trésor'],banque:[1,'Le braqueur'],chapeau:[0,'La propriétaire'],phare:[null,'Le contrebandier'],
  ballon:[2,'Le héros du jour'],fantome:[2,'Le faux fantôme'],zorbo:[0,'Le magicien endetté'],peche:[null,'Le tricheur'],tickets:[0,'Le resquilleur'],
  valise:[1,'Le distrait'],colis:[0,'Le propriétaire du colis'],recette:[4,'Le commanditaire'],chiot:[1,'Le fugueur'],controleur:[null,'Le faux contrôleur'],
- lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],bouteille:[0,'Le petit explorateur'],volcan:[null,'Le faux volcan'],epave:[1,'Le Baron'],tartes:[null,'Le gourmand au miel']};
+ lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],bouteille:[0,'Le petit explorateur'],volcan:[null,'Le faux volcan'],epave:[1,'Le Baron'],bobo:[1,'Le chat voleur'],tartes:[null,'Le gourmand au miel']};
 function keySpec(cs){const kc=KEYCHAR[cs.id]||[0,''];if(kc[0]===null){const st=cs.steps[cs.steps.length-1];return st.choice[st.ans].s;}return(cs.cast[kc[0]]||cs.cast[0]).s;}
 function showBook(){const n=CASES.filter(caseDone).length,st=totalStars(),max=CASES.length*3;
   const ordered=[...CASES].sort((a,b)=>a.dist-b.dist||(a.final?1:0)-(b.final?1:0)||a.diff-b.diff);
@@ -116,9 +125,10 @@ function render(){
 function drawOverlay(c,s){
   const now=performance.now(),cs=curCase();
   if(cs){const st=prog(cs);
-    cs.steps.forEach((step,k)=>{if(!st[k]||!step.t)return;const t=step.t;c.strokeStyle=RED;c.lineWidth=Math.max(2.2/s,1.2);c.beginPath();c.arc(t.x,t.y,t.r,0,TAU);c.stroke();
-      const br=Math.max(9/s,5),bx=t.x+t.r*.72,by=t.y-t.r*.72;c.fillStyle=RED;c.beginPath();c.arc(bx,by,br,0,TAU);c.fill();c.fillStyle='#fff';c.font=`${br*1.3}px "Patrick Hand", cursive`;c.textAlign='center';c.textBaseline='middle';c.fillText(String(k+1),bx,by+br*.08);});
-    const k=curStep(cs);if(k>=0&&state.hints[cs.id+':'+k]&&cs.steps[k].t){const h=hintCircle(cs,k,state.hints[cs.id+':'+k]);c.setLineDash([10/s,8/s]);c.strokeStyle=RED;c.lineWidth=Math.max(2.5/s,1.4);c.beginPath();c.arc(h.x,h.y,h.r,0,TAU);c.stroke();c.setLineDash([]);}}
+    cs.steps.forEach((step,k)=>{if(!st[k]||!step.t)return;(step.ts||[step.t]).forEach((t,i)=>{c.strokeStyle=RED;c.lineWidth=Math.max(2.2/s,1.2);c.beginPath();c.arc(t.x,t.y,t.r,0,TAU);c.stroke();
+      if(i===0){const br=Math.max(9/s,5),bx=t.x+t.r*.72,by=t.y-t.r*.72;c.fillStyle=RED;c.beginPath();c.arc(bx,by,br,0,TAU);c.fill();c.fillStyle='#fff';c.font=`${br*1.3}px "Patrick Hand", cursive`;c.textAlign='center';c.textBaseline='middle';c.fillText(String(k+1),bx,by+br*.08);}});});
+    {const k0=curStep(cs);if(k0>=0&&cs.steps[k0].ts){const part=partOf(cs,k0);cs.steps[k0].ts.forEach((q,i)=>{if(part[i]){c.strokeStyle=RED;c.lineWidth=Math.max(2.2/s,1.2);c.beginPath();c.arc(q.x,q.y,q.r,0,TAU);c.stroke();}});}}
+    const k=curStep(cs);if(k>=0&&state.hints[cs.id+':'+k]&&cs.steps[k].t&&!cs.steps[k].choice){const h=hintCircle(cs,k,state.hints[cs.id+':'+k]);c.setLineDash([10/s,8/s]);c.strokeStyle=RED;c.lineWidth=Math.max(2.5/s,1.4);c.beginPath();c.arc(h.x,h.y,h.r,0,TAU);c.stroke();c.setLineDash([]);}}
   fx.wrong=fx.wrong.filter(w=>now-w.t<700);
   for(const w of fx.wrong){c.globalAlpha=1-(now-w.t)/700;c.strokeStyle=RED;c.lineWidth=3/s;const z=10/s;L(c,w.x-z,w.y-z,w.x+z,w.y+z);L(c,w.x+z,w.y-z,w.x-z,w.y+z);c.globalAlpha=1;}
   if(fx.pulse){const p=(now-fx.pulse.t)/900;if(p>1)fx.pulse=null;else{c.globalAlpha=1-p;c.strokeStyle=RED;c.lineWidth=4/s;c.beginPath();c.arc(fx.pulse.x,fx.pulse.y,fx.pulse.r*(1+p*1.4),0,TAU);c.stroke();c.globalAlpha=1;}}
@@ -176,6 +186,7 @@ window.addEventListener('keydown',e=>{if(e.key==='+'||e.key==='=')zoomAt(vw/2,vh
    ========================================================= */
 const curCase=()=>CASES.find(c=>c.id===state.current)||null;
 const prog=cs=>chal&&chal.id===cs.id?chal.solved:(state.solved[cs.id]||[]);
+function partOf(cs,k){const key=cs.id+':'+k;const st=chal&&chal.id===cs.id?(chal.part=chal.part||{}):(state.part=state.part||{});return st[key]||(st[key]=[]);}
 function curStep(cs){const st=prog(cs);for(let k=0;k<cs.steps.length;k++)if(!st[k])return k;return -1;}
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(msg){if(toastNext){msg=msg+' ('+toastNext+')';toastNext='';}const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),1700);}
@@ -183,8 +194,11 @@ const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function updateCard(){const cs=curCase();
   if(!cs){$('caseTitle').textContent='Choisis une enquête ▸';$('stepNum').textContent='';$('question').textContent="Touche une carte d'enquête posée sur la ville, ou ouvre les Dossiers.";$('btnHint').disabled=true;return;}
   $('btnHint').disabled=false;const k=curStep(cs);$('caseTitle').textContent=cs.title+' ▸';
-  if(k<0){$('stepNum').textContent='Classée ✓';$('question').textContent=cs.outro;}else{$('stepNum').textContent=chal?`⏱ ${fmtT(chalTime())} · ${k+1}/${cs.steps.length}`:`Étape ${k+1}/${cs.steps.length}`;$('question').textContent=cs.steps[k].q;const w=cs.steps[k].w;if(w!=null&&cs.cast[w]){const pc=portrait(cs.cast[w].s);pc.className='qwho';pc.title=cs.cast[w].n;$('question').prepend(pc);}
-    const ch=cs.steps[k].choice;if(ch){const lvl=+state.hints[cs.id+':'+k]||0;const wrong=ch.map((o,i)=>i).filter(i=>i!==cs.steps[k].ans);const hide=new Set(wrong.slice(0,lvl));const box=document.createElement('div');box.className='choices';ch.forEach((o,i)=>{if(hide.has(i))return;const b=document.createElement('button');b.className='choice';b.appendChild(portrait(o.s));const sp=document.createElement('span');sp.textContent=o.n;b.appendChild(sp);b.onclick=()=>answerChoice(cs,k,i);box.appendChild(b);});$('question').appendChild(box);}}
+  if(k<0){$('stepNum').textContent='Classée ✓';$('question').textContent=cs.outro;}else{$('stepNum').textContent=chal?`⏱ ${fmtT(chalTime())} · ${k+1}/${cs.steps.length}`:`Étape ${k+1}/${cs.steps.length}`;$('question').innerHTML=cs.steps[k].q;const w=cs.steps[k].w;if(w!=null&&cs.cast[w]){const pc=portrait(cs.cast[w].s);pc.className='qwho';pc.title=cs.cast[w].n;$('question').prepend(pc);}
+    const st0=cs.steps[k];if(st0.ts){const n=partOf(cs,k).filter(Boolean).length;const bd=document.createElement('span');bd.className='prog';bd.textContent=` — ${n}/${st0.ts.length} trouvés`;$('question').appendChild(bd);}
+    const ch=cs.steps[k].choice;if(ch){const lvl=+state.hints[cs.id+':'+k]||0;const wrong=ch.map((o,i)=>i).filter(i=>i!==cs.steps[k].ans);const hide=new Set(wrong.slice(0,lvl));const box=document.createElement('div');box.className='choices';if(!ch[0].s)box.classList.add('txtgrid');ch.forEach((o,i)=>{if(hide.has(i))return;const b=document.createElement('button');b.className='choice';if(o.s){b.appendChild(portrait(o.s));const sp=document.createElement('span');sp.textContent=o.n;b.appendChild(sp);}else{b.classList.add('txt');b.textContent=o.n;}b.onclick=()=>answerChoice(cs,k,i);box.appendChild(b);});
+      if(st0.t){const lb=document.createElement('button');lb.className='lookbtn';lb.textContent='🔎 Voir la scène';lb.onclick=()=>{const t=st0.t;flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.6,vw/420)));};$('question').appendChild(lb);}
+      $('question').appendChild(box);}}
   $('btnHint').textContent=k>=0&&+state.hints[cs.id+':'+k]>=1?(+state.hints[cs.id+':'+k]>=2?'Indice ✓✓':'Indice +'):'Indice';}
 function portrait(spec){const c=document.createElement('canvas');const r=2;c.width=90*r;c.height=100*r;const g=c.getContext('2d');g.setTransform(r,0,0,r,0,0);g.fillStyle='#f3efe4';g.fillRect(0,0,90,100);g.strokeStyle='#d6d0c2';g.lineWidth=1;for(let y=10;y<100;y+=10){g.beginPath();g.moveTo(0,y);g.lineTo(90,y);g.stroke();}
   const sc=spec.scale?2.35/spec.scale*.75:2.35;g.translate(45,95);g.scale(sc,sc);drawChar(g,0,0,Object.assign({},spec,{pose:'stand'}));return c;}
@@ -205,7 +219,7 @@ function startCase(id){chal=null;state.current=id;save();updateCard();req();cons
   openModal(`<h2>${cs.title}</h2><p class="legend">${DISTRICTS[cs.dist].name} · ${stars(cs.diff)}</p><p>${cs.intro}</p><h3>Les personnages</h3>${castHTML(cs)}<button class="btn" id="go">${curStep(cs)<0?'Revoir la carte':'Commencer l\'enquête'}</button>${caseDone(cs)?`<button class="btn ghost" id="chrono">⏱ Défi chrono${(state.best||{})[cs.id]?' — record '+fmtT(state.best[cs.id])+' '+medal(cs,state.best[cs.id]):''}</button>`:''}${(state.solved[cs.id]||[]).some(Boolean)?'<button class="btn ghost" id="reset">Recommencer cette enquête</button>':''}`,root=>{
     const ch=root.querySelector('#chrono');if(ch)ch.onclick=()=>startChal(cs);
     mountCast(root,cs);root.querySelector('#go').onclick=()=>{closeModal();const t=focusPoint(cs);flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.2,vw/700)));};
-    const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];if(state.wrong)delete state.wrong[cs.id];Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
+    const r=root.querySelector('#reset');if(r)r.onclick=()=>{state.solved[cs.id]=[];if(state.wrong)delete state.wrong[cs.id];if(state.part)Object.keys(state.part).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.part[k];});Object.keys(state.hints).forEach(k=>{if(k.startsWith(cs.id+':'))delete state.hints[k];});save();updateCard();req();closeModal();toast('Enquête remise à zéro');};});}
 function showSteps(){const cs=curCase();if(!cs){showCases();return;}const st=prog(cs);const k=curStep(cs);
   openModal(`<h2>${cs.title}</h2><ul class="steps">${cs.steps.map((s,i)=>st[i]?`<li><span class="n">${i+1}</span>${s.q}<span class="ok">${s.ok}</span>${s.t?`<button data-v="${i}">Voir sur la carte</button>`:''}</li>`:i===k?`<li><span class="n" style="background:var(--ink);color:var(--card)">${i+1}</span>${s.q}</li>`:`<li class="lock">Étape ${i+1} — encore secrète</li>`).join('')}</ul>${k<0?`<p class="stamp">Enquête classée</p><p>${cs.outro}</p>`:''}`,root=>{
     root.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{const t=cs.steps[+b.dataset.v].t;closeModal();flyTo(t.x,t.y,Math.max(cam.s,Math.min(3.2,Math.min(vw,vh)/(t.r*6))));});});}
@@ -229,15 +243,21 @@ function onTapScreen(sx,sy){
   const rs=cardRects();for(let i=rs.length-1;i>=0;i--){const r=rs[i];if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h){pickCase(r.cs.id);return;}}
   const w=toWorld(sx,sy);onTap(w.x,w.y);}
 function answerChoice(cs,k,i){if(i===cs.steps[k].ans){const t={x:cam.x,y:cam.y,r:1};solveStep(cs,k,t);}else{addWrong(cs);toast('Non… relis bien tes indices.');const b=document.querySelectorAll('.choice');b.forEach(x=>x.classList.add('shake'));setTimeout(()=>b.forEach(x=>x.classList.remove('shake')),400);}}
+function wrongTap(cs,k,x,y){addWrong(cs);fx.wrong.push({x,y,t:performance.now()});req();const w=cs.steps[k].w,who=w!=null&&cs.cast[w]?cs.cast[w].s:null,dc=decoyAt(x,y);
+  if(dc&&who&&dc.head===who.head&&dc.dist===cs.dist)toast('Fausse piste ! Regarde bien '+DIFF[dc.diff]+'.');
+  else toast(pick(['Rien de suspect ici…','Hmm, pas ici.','Continue de chercher !','Ce n\'est pas ça…']));}
 function onTap(x,y){
   const cs=curCase();if(!cs){toast('Touche une carte d\'enquête');return;}
   const k=curStep(cs);if(k<0){toast('Enquête déjà classée !');return;}
-  if(cs.steps[k].choice){toast('Choisis ta réponse dans le cadre en bas');return;}
-  const t=cs.steps[k].t,slack=Math.min(12,Math.max(0,8/cam.s-6));
-  if(Math.hypot(x-t.x,y-t.y)<=t.r+slack){solveStep(cs,k,t);}
-  else{addWrong(cs);fx.wrong.push({x,y,t:performance.now()});req();const w=cs.steps[k].w,who=w!=null&&cs.cast[w]?cs.cast[w].s:null,dc=decoyAt(x,y);
-    if(dc&&who&&dc.head===who.head&&dc.dist===cs.dist)toast('Fausse piste ! Regarde bien '+DIFF[dc.diff]+'.');
-    else toast(pick(['Rien de suspect ici…','Hmm, pas ici.','Continue de chercher !','Ce n\'est pas ça…']));}
+  const st=cs.steps[k];
+  if(st.choice){toast('Choisis ta réponse dans le cadre en bas');return;}
+  const slack=Math.min(12,Math.max(0,8/cam.s-6));
+  if(st.ts){const part=partOf(cs,k);let hit=-1;st.ts.forEach((q,i)=>{if(hit<0&&!part[i]&&Math.hypot(x-q.x,y-q.y)<=q.r+slack)hit=i;});
+    if(hit<0){if(st.ts.some((q,i)=>part[i]&&Math.hypot(x-q.x,y-q.y)<=q.r+slack)){toast('Déjà trouvé : cherche les autres !');return;}wrongTap(cs,k,x,y);return;}
+    part[hit]=true;save();const q=st.ts[hit];fx.pulse={x:q.x,y:q.y,r:q.r,t:performance.now()};req();
+    const n=part.filter(Boolean).length;if(n===st.ts.length)solveStep(cs,k,st.t);else{toast(`${n}/${st.ts.length} trouvés !`);updateCard();}return;}
+  const t=st.t;
+  if(Math.hypot(x-t.x,y-t.y)<=t.r+slack)solveStep(cs,k,t);else wrongTap(cs,k,x,y);
 }
 let toastNext='';
 const fmtT=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -263,7 +283,7 @@ $('btnCast').onclick=()=>{const cs=curCase();if(!cs){showCases();return;}openMod
 $('btnHint').onclick=()=>{const cs=curCase();if(!cs)return;const k=curStep(cs);if(k<0)return;if(chal){toast('Pas d\'indice pendant un défi chrono !');return;}if(cs.steps[k].choice){const key=cs.id+':'+k;state.hints[key]=Math.min(2,(+state.hints[key]||0)+1);save();updateCard();toast('Indice : une mauvaise réponse a été retirée');return;}const key=cs.id+':'+k;const lvl=Math.min(2,(+state.hints[key]||0)+1);state.hints[key]=lvl;save();const h=hintCircle(cs,k,lvl);flyTo(h.x,h.y,Math.max(minS,Math.min(vw,vh)/(h.r*2.6)));toast(lvl>=2?'Indice 2/2 : c\'est tout près !':'Indice 1/2 : cherche dans le cercle');updateCard();};
 
 /* ---------- démarrage ---------- */
-buildCity();
+buildCity();built=true;migrate(state);
 window.addEventListener('resize',resize);resize();
 {const[x,y]=pr(590,590,0);cam.x=x;cam.y=y-40;cam.s=Math.max(minS,Math.min(.9,vw/1300));clampCam();}
 updateCard();render();

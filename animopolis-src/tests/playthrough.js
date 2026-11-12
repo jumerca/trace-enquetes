@@ -16,7 +16,7 @@ const URL=process.env.ANIMOPOLIS_URL?process.env.ANIMOPOLIS_URL.replace(/\/?$/,'
     for(;;){
       const cs=CASES.find(c=>caseOpen(c)&&!caseDone(c));if(!cs||++guard>60)break;
       a.state.current=cs.id;order.push(cs.id);
-      cs.steps.forEach((s,k)=>{if((a.state.solved[cs.id]||[])[k])return;if(s.choice)answerChoice(cs,k,s.ans);else a.onTap(s.t.x,s.t.y);});
+      cs.steps.forEach((s,k)=>{if((a.state.solved[cs.id]||[])[k])return;if(s.choice)answerChoice(cs,k,s.ans);else if(s.ts)s.ts.forEach(q=>a.onTap(q.x,q.y));else a.onTap(s.t.x,s.t.y);});
       hide();
     }
     return{order,districts:DISTRICTS.map((d,i)=>a.unlocked(i)),clues:cluesFound(),finalDone:caseDone(CASES.find(c=>c.final)),

@@ -32,11 +32,26 @@ Le script écrit trois fichiers dans `../animopolis/` :
 | `07-ombre.js` | fil rouge de l'Ombre : indices et enquête finale |
 | `08-more.js` | enquêtes supplémentaires (vase, chapeau, phare, pêche, tickets…) |
 | `09-island.js` | quartier L'Île aux Tortues |
+| `09b-variety.js` | étapes variées (plusieurs objets, compter, intrus, déduction) et l'enquête « Le jeu de piste de Bobo » |
 | `10-decoys.js` | questions énigmatiques des enquêtes difficiles et sosies des suspects |
 | `11-ui.js` | rendu par tuiles, caméra, gestes, cartes d'enquête, dossiers, étoiles, carnet, défi chrono |
 | `12-home.js` | accueil, parties sauvegardées, options, installation, version et mises à jour |
 
 Autres fichiers : `head.html` (balises, styles, structure de la page), `tail.html` (fermeture), `sw.tpl.js` (service worker), `VERSION`.
+
+## Types d'étapes
+
+| Type | Comment le déclarer | Exemple |
+|---|---|---|
+| **Trouver une scène** | `{q, ok, w}` puis `setT(cas, n, u, v, rayon)` | la plupart des étapes |
+| **Choisir un portrait** (« qui est le coupable ? », déduction) | `{q, ok, choice:[CH('nom', personnage), …], ans}` ; mets les témoignages dans `q` (HTML autorisé) | `vase`, `phare`, `tresor`, `bobo` |
+| **Compter / réponse en texte** | `choice:[CH('3'), CH('4'), …]` (sans personnage) ; avec `t`, un bouton « Voir la scène » apparaît | `gateau`, `ballon`, `lettre` |
+| **Trouver plusieurs objets** | `stepMulti(étape, [[u,v], …], rayon)` : chaque objet touché est compté (« 2/3 trouvés ») | `chaton`, `tickets`, `chiot`, `farine`, `bobo` |
+| **Trouver l'intrus** | `oddGroup(u, v, n, communs, intrus, têtesExclues, écart)` dessine un groupe presque identique ; puis `stepAt(étape, ...intrus)` | `poisson`, `fantome`, `bobo` |
+
+Les étapes ajoutées après coup se déclarent dans `parts/09b-variety.js` (`insertAfter(cas, étapeDeRéférence, étape)`), après la construction des scènes, pour ne pas décaler les numéros d'étapes déjà utilisés par `setT`.
+
+**Sauvegardes** : quand une enquête gagne ou perd des étapes, `migrate()` (dans `11-ui.js`) adapte les parties déjà enregistrées : une enquête classée le reste, une enquête commencée repart de zéro. Si tu changes le nombre d'étapes d'une enquête, rien d'autre à faire : le nombre est mémorisé dans chaque sauvegarde (`caseLen`).
 
 ## Ajouter une enquête
 
