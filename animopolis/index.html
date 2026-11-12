@@ -4,11 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#f3efe4">
+<meta name="application-name" content="Animopolis">
+<meta name="format-detection" content="telephone=no">
 <title>Animopolis</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" type="image/svg+xml" href="icon.svg" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Animopolis">
@@ -81,8 +88,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .hbtn{width:100%;border:2px solid var(--line);background:var(--card);border-radius:16px;padding:11px 12px;font-size:22px;box-shadow:var(--shadow);line-height:1.1}
 .hbtn:disabled{opacity:.45;box-shadow:none}
 .hbtn small{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.hbtn.inst{background:var(--ink);color:var(--card)}.hbtn.inst small{color:inherit;opacity:.78}
 .hbtn.main{background:var(--ink);color:var(--card)}.hbtn.main small{color:inherit;opacity:.78}
 .hbtn[hidden],.home-upd[hidden],#updBar[hidden]{display:none}
+.instbox{border:2px solid var(--line);border-radius:14px;padding:8px 12px;margin:8px 0;text-align:left}
+.instbox>b{display:block;font-weight:400;font-size:20px}
+.instbox li b{font-weight:400;text-decoration:underline;text-underline-offset:2px}
+.instbox ol{margin:4px 0 0;padding-left:22px;line-height:1.3}
+.instbox.me{background:var(--ink);color:var(--card)}
+@media (max-height:760px){.home{padding-top:calc(env(safe-area-inset-top) + 8px);padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}.home-in{gap:6px}.home-logo{width:72px;height:72px;border-radius:18px}.home h1{font-size:36px}.home-sub{font-size:16px;margin-bottom:2px}.hbtn{padding:7px 10px;font-size:19px;border-radius:14px}.hbtn small{font-size:12.5px;margin-top:1px}.home-ver{margin-top:6px}}
+@media (max-height:560px){.home-logo{display:none}}
 .home-ver{margin:12px 0 0;font-size:13px;color:var(--muted);line-height:1.35}
 .home-upd{width:100%;border:2px solid var(--red);border-radius:14px;padding:8px 10px;background:var(--card);font-size:17px}
 .home-upd button{margin-top:6px;border:2px solid var(--line);background:var(--ink);color:var(--card);border-radius:10px;padding:4px 14px;font-size:17px}
@@ -127,7 +142,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <canvas id="map" aria-label="Carte de la ville d'Animopolis"></canvas>
 <header class="top">
   <button class="logo" id="logoBtn" aria-label="Menu principal"><b>Animopolis</b><small>enquêtes à la loupe</small></button>
-  <div class="tright"><button class="pill" id="btnInstall" hidden>Installer</button><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
+  <div class="tright"><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
 </header>
 <div class="zoom">
   <button id="zin" aria-label="Zoomer">+</button>
@@ -155,6 +170,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <button class="hbtn" id="hLoad">Charger une partie<small></small></button>
     <button class="hbtn" id="hSave">Sauvegarder la partie<small></small></button>
     <button class="hbtn" id="hOpts">Options</button>
+    <button class="hbtn inst" id="hInstall" hidden>Installer l'application<small>Téléphone, tablette ou ordinateur</small></button>
     <p class="home-ver" id="homeVer"></p>
   </div>
 </div>
@@ -2514,12 +2530,7 @@ window.addEventListener('resize',resize);resize();
 updateCard();render();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{clearTiles();for(const k in cardImg)delete cardImg[k];req();});
 /* ---------- installation & mises à jour automatiques ---------- */
-let installEvt=null;const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;if(!standalone)$('btnInstall').hidden=false;});
-window.addEventListener('appinstalled',()=>{$('btnInstall').hidden=true;toast('Animopolis est installé !');});
-$('btnInstall').onclick=async()=>{if(installEvt){installEvt.prompt();try{await installEvt.userChoice;}catch(e){}installEvt=null;$('btnInstall').hidden=true;}else showInstallHelp();};
-function showInstallHelp(){openModal(`<h2>Installer Animopolis</h2><p><b>Sur Android (Chrome)</b> : menu ⋮ puis « Installer l'application » ou « Ajouter à l'écran d'accueil ».</p><p><b>Sur iPhone / iPad (Safari)</b> : bouton Partager puis « Sur l'écran d'accueil ».</p><p class="legend">Les mises à jour du jeu arrivent toutes seules : à chaque ouverture avec Internet, la dernière version est chargée. Sans Internet, la dernière version gardée en mémoire fonctionne.</p><button class="btn" id="okI">Compris</button>`,r=>r.querySelector('#okI').onclick=closeModal);}
-if(!standalone&&/iphone|ipad|ipod/i.test(navigator.userAgent))$('btnInstall').hidden=false;
+const standalone=['standalone','minimal-ui','window-controls-overlay','fullscreen'].some(m=>matchMedia(`(display-mode: ${m})`).matches)||navigator.standalone===true;
 try{if('serviceWorker'in navigator&&location.protocol==='https:'&&!/claude\.ai|claudeusercontent/.test(location.hostname)){
   const hadCtrl=!!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').then(reg=>{setInterval(()=>reg.update().catch(()=>{}),30*60*1000);}).catch(()=>{});
@@ -2531,7 +2542,7 @@ window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unloc
 /* =========================================================
    ACCUEIL · PARTIES · OPTIONS · VERSION & MISES À JOUR
    ========================================================= */
-const APP_VERSION='2.0',APP_BUILD='202611120830';
+const APP_VERSION='2.1',APP_BUILD='202611120921';
 const homeEl=$('home');
 const fmtBuild=b=>/^\d{12}$/.test(b)?`${b.slice(0,8)}-${b.slice(8)}`:b;
 const fmtDate=ts=>{if(!ts)return '';const d=new Date(ts);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
@@ -2588,7 +2599,7 @@ function openOptions(){
   <p class="legend" id="oVer" style="margin-top:12px"></p><button class="btn" id="oOk">Fermer</button>`,r=>{
     const ver=()=>{r.querySelector('#oVer').innerHTML=verText(true);};ver();
     r.querySelector('#oAnim').onclick=e=>{opts.anim=!opts.anim;saveOpts();req();e.target.textContent='Animations du décor : '+(opts.anim?'activées':'coupées');};
-    const ib=r.querySelector('#oInst');if(ib)ib.onclick=()=>{closeModal();$('btnInstall').click();};
+    const ib=r.querySelector('#oInst');if(ib)ib.onclick=()=>{closeModal();doInstall();};
     r.querySelector('#oUpd').onclick=async e=>{e.target.textContent='Vérification…';const a=await checkUpdate({});
       e.target.textContent=a===null?'Vérification impossible (hors ligne ?)':a?'Mise à jour disponible — touche pour l\'installer':'Tu as la dernière version ✓';ver();if(a)e.target.onclick=applyUpdate;};
     r.querySelector('#oHelp').onclick=showHelp;
@@ -2618,6 +2629,36 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now(
 window.addEventListener('pageshow',e=>{if(e.persisted)checkUpdate({auto:true});});
 setInterval(()=>{if(!document.hidden)checkUpdate({auto:true});},10*60*1000);
 
+/* ---------- installation (téléphone, tablette, ordinateur) ---------- */
+let installEvt=null;
+function platform(){const ua=navigator.userAgent||'',touch=(navigator.maxTouchPoints||0)>1;
+  const ios=/iphone|ipod/i.test(ua)||/ipad/i.test(ua)||(/Macintosh/i.test(ua)&&touch);
+  const android=/android/i.test(ua);const edge=/edg\//i.test(ua),firefox=/firefox|fxios/i.test(ua),samsung=/samsungbrowser/i.test(ua),opera=/opr\//i.test(ua);
+  const chrome=/chrome|crios/i.test(ua)&&!edge&&!samsung&&!opera;const safari=/safari/i.test(ua)&&!/chrome|crios|android|fxios|edg\//i.test(ua);
+  const mac=/Macintosh/i.test(ua)&&!touch,win=/windows/i.test(ua);
+  return{ios,android,edge,firefox,samsung,chrome,safari,mac,win,tablet:/ipad/i.test(ua)||(ios&&touch&&!/iphone/i.test(ua))||(android&&!/mobile/i.test(ua))};}
+function installGuides(){const P=platform();const g=[];
+  g.push({id:'ios',t:P.tablet&&P.ios?'iPad (Safari)':'iPhone / iPad (Safari)',me:P.ios,s:['Ouvre le jeu dans <b>Safari</b>.','Touche le bouton <b>Partager</b> (le carré avec une flèche vers le haut).','Choisis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.']});
+  g.push({id:'and',t:'Android (téléphone ou tablette)',me:P.android,s:P.firefox?['Touche le menu <b>⋮</b>.','Choisis <b>« Installer »</b>.']:P.samsung?['Touche le menu <b>☰</b>.','Choisis <b>« Ajouter la page à »</b> puis <b>« Écran d\'accueil »</b>.']:['Dans <b>Chrome</b>, touche le menu <b>⋮</b>.','Choisis <b>« Installer l\'application »</b> (ou « Ajouter à l\'écran d\'accueil »).']});
+  g.push({id:'pc',t:'Ordinateur (Chrome, Edge, Opera)',me:!P.ios&&!P.android&&(P.chrome||P.edge||P.opera),s:['Dans la barre d\'adresse, clique sur l\'icône <b>Installer</b> (un écran avec une flèche), à droite.','Sinon : menu <b>⋮</b> › <b>« Enregistrer et partager »</b> › <b>« Installer Animopolis »</b> (Chrome) ou <b>Applications › Installer ce site comme application</b> (Edge).']});
+  g.push({id:'mac',t:'Mac (Safari 17 ou plus)',me:P.mac&&P.safari,s:['Menu <b>Fichier</b> › <b>« Ajouter au Dock… »</b>.']});
+  g.push({id:'ff',t:'Firefox sur ordinateur',me:P.firefox&&!P.android&&!P.ios,s:['Firefox ne sait pas installer les applications web. Ajoute le jeu à tes <b>favoris</b>, ou utilise Chrome ou Edge.']});
+  g.sort((a,b)=>(b.me?1:0)-(a.me?1:0));return g;}
+function showInstallHelp(){const g=installGuides();
+  openModal(`<h2>Installer Animopolis</h2><p class="legend">Le jeu s'ouvre alors comme une vraie application, avec son icône, en plein écran, et se met à jour tout seul. Il fonctionne aussi sans Internet.</p>${g.map(x=>`<div class="instbox${x.me?' me':''}"><b>${x.me?'👉 ':''}${x.t}</b><ol>${x.s.map(l=>`<li>${l}</li>`).join('')}</ol></div>`).join('')}<button class="btn" id="okI">Compris</button>`,r=>r.querySelector('#okI').onclick=closeModal);}
+async function doInstall(){if(installEvt){const ev=installEvt;installEvt=null;try{ev.prompt();const c=await ev.userChoice;if(c&&c.outcome==='accepted')toast('Installation en cours…');}catch(e){showInstallHelp();}updateInstallUI();}else showInstallHelp();}
+function updateInstallUI(){$('hInstall').hidden=standalone;}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;updateInstallUI();});
+window.addEventListener('appinstalled',()=>{installEvt=null;$('hInstall').hidden=true;toast('Animopolis est installé !');});
+$('hInstall').onclick=doInstall;updateInstallUI();
+
+/* ---------- clavier (ordinateur) ---------- */
+window.addEventListener('keydown',e=>{if(e.target&&/input|textarea/i.test(e.target.tagName))return;
+  if(e.key==='Escape'){if(!$('modal').classList.contains('hidden'))closeModal();else if(homeEl.classList.contains('hidden')&&e.shiftKey)showHome();return;}
+  if(!homeEl.classList.contains('hidden')||!$('modal').classList.contains('hidden'))return;
+  const st=60/cam.s;if(e.key==='ArrowLeft'){cam.x-=st;clampCam();req();}else if(e.key==='ArrowRight'){cam.x+=st;clampCam();req();}else if(e.key==='ArrowUp'){cam.y-=st;clampCam();req();}else if(e.key==='ArrowDown'){cam.y+=st;clampCam();req();}
+  else if(e.key==='h'||e.key==='H'){$('btnHint').click();}else if(e.key==='c'||e.key==='C'){showCases();}else if(e.key==='n'||e.key==='N'){showBook();}});
+
 /* ---------- boutons ---------- */
 $('hContinue').onclick=()=>{hideHome();toStart();updateVerUI();};
 $('hNew').onclick=()=>{if(!anySave()){startNew(1);}else openNew();};
@@ -2625,10 +2666,12 @@ $('hLoad').onclick=openLoad;
 $('hSave').onclick=openSave;
 $('hOpts').onclick=openOptions;
 $('logoBtn').onclick=showHome;
-Object.assign(window.__animopolis,{showHome,startNew,loadSlot,slotInfo,APP_VERSION,APP_BUILD,checkUpdate,updState});
+Object.assign(window.__animopolis,{platform,showInstallHelp,doInstall,showHome,startNew,loadSlot,slotInfo,APP_VERSION,APP_BUILD,checkUpdate,updState});
 
 /* ---------- démarrage ---------- */
 if(/[?&]nohome/.test(location.search)){hideHome();if(!state.seen){state.seen=true;save();showHelp();}}
+else if(/[?&]continue/.test(location.search)&&anySave()){hideHome();toStart();}
+else if(/[?&]book/.test(location.search)&&anySave()){hideHome();toStart();setTimeout(showBook,300);}
 else showHome();
 checkUpdate({auto:true});
 </script>
