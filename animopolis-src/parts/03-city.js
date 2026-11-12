@@ -220,7 +220,7 @@ const CASES=[
    {w:1,q:"Comment l'affaire se termine-t-elle ?",ok:"Crocus rend l'argent à Monsieur Crinière devant la billetterie."}],
   outro:"Crocus voulait faire fuir les visiteurs vers son propre stand. Il nettoiera les manèges tout l'hiver. Enquête classée !"}
 ];
-function setT(cid,n,u,v,r,z){const[x,y]=pr(u,v,z||0);CASES.find(c=>c.id===cid).steps[n-1].t={x,y:y-14,r,u,v,z:z||0};avoid(u,v,r+14);}
+function setT(cid,n,u,v,r,z){const[x,y]=pr(u,v,z||0);CASES.find(c=>c.id===cid).steps[n-1].t={x,y:y-14,r,u,v,z:z||0};avoid(u,v,r+30);}
 function setTxy(cid,n,x,y,r){CASES.find(c=>c.id===cid).steps[n-1].t={x,y,r};}
 const fr=(b,a,o)=>b.front==='v'?[b.u0+(b.u1-b.u0)*a,b.v1+(o??14)]:[b.u1+(o??14),b.v0+(b.v1-b.v0)*a];
 
@@ -532,7 +532,7 @@ function buildCity(){
    const rr=mulberry32(99);for(let a=0;a<=n;a++){for(let b=0;b<n;b++){if(rr()<.62&&!(a===0&&b===0))addHedge(u0+a*cs-2,v0+b*cs,u0+a*cs+2,v0+(b+1)*cs);if(rr()<.62&&!(b===n-1&&a===n))addHedge(u0+b*cs,v0+a*cs-2,u0+(b+1)*cs,v0+a*cs+2);}}
    addChar(u0+3.5*cs,v0+2.5*cs,as(GHOST,{}));setT('fantome',7,u0+3.5*cs,v0+2.5*cs,22);}
 
-  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildBirds();buildDecoys();
+  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildBirds();buildDecoys();buildFurniture();
   /* ---- foule ---- */
   for(const a of areas){CURD=a.dist;let n=0,tries=0;while(n<a.n&&tries<a.n*60){tries++;const u=R(a.u0,a.u1),v=R(a.v0,a.v1);if(a.ok&&!a.ok(u,v))continue;if(!free(u,v,2))continue;addChar(u,v,randomSpec(a.beach));n++;}}
   sortItems();

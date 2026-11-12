@@ -22,8 +22,8 @@ CASES.push(
 
 /* ---------- outils ---------- */
 const vr=mulberry32(90210);const vpick=a=>a[Math.floor(vr()*a.length)];
-function stepAt(st,u,v,r,z){const[x,y]=pr(u,v,z||0);st.t={x,y:y-14,r:r||22,u,v};avoid(u,v,(r||22)*.8+8);return st;}
-function stepMulti(st,pts,r){r=r||16;st.ts=pts.map(([u,v,z])=>{const[x,y]=pr(u,v,z||0);avoid(u,v,r+8);return{x,y:y-12,r};});
+function stepAt(st,u,v,r,z){const[x,y]=pr(u,v,z||0);st.t={x,y:y-14,r:r||22,u,v};avoid(u,v,(r||22)+22);return st;}
+function stepMulti(st,pts,r){r=r||16;st.ts=pts.map(([u,v,z])=>{const[x,y]=pr(u,v,z||0);avoid(u,v,r+20);return{x,y:y-12,r};});
   const cx=st.ts.reduce((a,q)=>a+q.x,0)/st.ts.length,cy=st.ts.reduce((a,q)=>a+q.y,0)/st.ts.length;
   st.t={x:cx,y:cy,r:Math.max(...st.ts.map(q=>Math.hypot(q.x-cx,q.y-cy)+q.r))+12};return st;}
 function insertAfter(cid,ref,st){const cs=CASES.find(c=>c.id===cid);cs.steps.splice(cs.steps.indexOf(ref)+1,0,st);return st;}
