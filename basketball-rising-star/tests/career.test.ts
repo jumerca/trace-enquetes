@@ -191,3 +191,24 @@ describe('Carrière', () => {
     expect(p.attrs.three).toBe(Math.min(20, u.attrs.three + 1));
   });
 });
+
+describe('match regardé en spectateur', () => {
+  it('enregistre le score réellement joué et les statistiques, sans joueur incarné', async () => {
+    const { createMatch, finishWatched } = await import('../src/career/matchBridge');
+    const { createCareer, userTeams, advanceWeek, userFixture, simFixture } = await import('../src/career/career');
+    const c = createCareer({ ...INPUT, seed: 77 });
+    const mine = userTeams(c);
+    const f = c.world.fixtures.find((x) => x.week === c.week && !x.played && !mine.includes(x.home) && !mine.includes(x.away))!;
+    const e = createMatch(c, f, false, true);
+    expect(e.userIdx).toBe(-1);
+    e.runToEnd();
+    finishWatched(c, f, e);
+    expect(f.played).toBe(true);
+    expect(f.hs).toBe(e.teams[0].score);
+    expect(f.hs).not.toBe(f.as);
+    const uf = userFixture(c);
+    if (uf) simFixture(c, uf);
+    advanceWeek(c);
+    expect(f.hs).toBe(e.teams[0].score); // la semaine suivante ne rejoue pas le match
+  });
+});

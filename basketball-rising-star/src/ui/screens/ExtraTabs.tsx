@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useApp } from '../App';
 import { hashString, Rng } from '../../core/rng';
 import { type TransferLog, perGame, REGULAR_WEEKS, standings, user, userClub, userTeams, type Career } from '../../career/career';
 import { comps } from '../../career/competitions';
@@ -158,6 +159,10 @@ export function LeagueCenter({ c }: { c: Career }) {
   const played = c.world.fixtures.filter((f) => f.leagueId === lid && f.stage === 'regular' && f.played);
   const lastRound = played.reduce((m, f) => Math.max(m, f.round), 1);
   const [round, setRound] = useState(lastRound);
+  const app = useApp();
+  const mine = userTeams(c);
+  const live = c.world.fixtures.filter((f) => f.week === c.week && !f.played && f.leagueId !== 'NAT' && !mine.includes(f.home) && !mine.includes(f.away) && c.world.clubs[f.home] && c.world.clubs[f.away]);
+  const liveSorted = [...live].sort((a, b) => (a.leagueId === lid ? 0 : 1) - (b.leagueId === lid ? 0 : 1)).slice(0, 12);
   const fx = c.world.fixtures.filter((f) => f.leagueId === lid && f.round === round && f.stage === 'regular');
   const teams = c.world.leagues[lid].teams.map((id) => {
     const gms = played.filter((f) => f.home === id || f.away === id);
@@ -187,6 +192,25 @@ export function LeagueCenter({ c }: { c: Career }) {
   );
   return (
     <div className="grid" style={{ gap: 14 }}>
+      {liveSorted.length > 0 && (
+        <div className="card">
+          <div className="card-title">
+            <h3>À l'affiche cette semaine</h3>
+            <span className="muted small">Regardez n'importe quel match en direct, animé comme les vôtres</span>
+          </div>
+          <div className="results-grid">
+            {liveSorted.map((f) => (
+              <div key={f.id} className="result">
+                <span>{c.world.clubs[f.home].name}</span>
+                <button className="btn small" onClick={() => app.go({ name: 'match', watch: f.id })}>
+                  ▶ Regarder
+                </button>
+                <span style={{ textAlign: 'right' }}>{c.world.clubs[f.away].name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="card">
         <div className="card-title">
           <h3>Résultats — journée {round}</h3>

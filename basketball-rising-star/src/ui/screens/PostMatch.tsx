@@ -44,6 +44,11 @@ export function PostMatch() {
             : '« Pas ton jour. On en reparle à la vidéo. »';
 
   const proceed = async () => {
+    if (lm.watch && c) {
+      app.setLastMatch(null);
+      app.go({ name: 'hub', tab: 'calendar' });
+      return;
+    }
     if (lm.quick || !c) {
       app.setLastMatch(null);
       app.go({ name: 'home' });
@@ -132,7 +137,7 @@ export function PostMatch() {
       ))}
       <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
         <button className="btn primary" disabled={busy} onClick={proceed}>
-          {lm.quick ? 'Retour à l\u2019accueil' : c && userFixture(c) ? 'Continuer (autre match cette semaine) →' : 'Continuer (semaine suivante) →'}
+          {lm.watch ? 'Retour au club' : lm.quick ? 'Retour à l\u2019accueil' : c && userFixture(c) ? 'Continuer (autre match cette semaine) →' : 'Continuer (semaine suivante) →'}
         </button>
       </div>
     </div>

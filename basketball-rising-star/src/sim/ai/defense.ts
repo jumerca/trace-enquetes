@@ -371,7 +371,7 @@ function maybeSteal(e: MatchEngine, p: MPlayer, h: MPlayer): void {
   if (dist(p.pos, h.pos) > 1.1 || p.actionLock > 0) return;
   const tac = e.teams[p.team].tactics;
   const a = p.data.attrs;
-  let chance = 0.006 + tac.pressure * 0.014 + (a.steal / 20) * 0.01;
+  let chance = 0.004 + tac.pressure * 0.009 + (a.steal / 20) * 0.007;
   if (p.isUser) chance *= 0.4 + e.userStyle.defense * 1.4;
   if (p.fouls >= e.rules.foulOut - 1) chance *= 0.3;
   if (e.rng.chance(chance)) e.attemptSteal(p);
