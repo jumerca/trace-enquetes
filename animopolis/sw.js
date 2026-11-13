@@ -2,7 +2,7 @@
    La page du jeu est toujours demandée au réseau en premier : dès qu'une
    nouvelle version est publiée, elle est chargée à l'ouverture suivante.
    Sans réseau, la dernière version gardée en mémoire est utilisée. */
-const VERSION='animopolis-202611131138';
+const VERSION='animopolis-202611131148';
 const CORE=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png','./icon.svg','./favicon.ico'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(CORE.map(u=>new Request(u,{cache:'reload'})))).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('animopolis-')&&k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

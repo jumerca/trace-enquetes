@@ -25,13 +25,13 @@ CASES.push(
    {q:"La nuit tombe. Une silhouette rôde près des caravanes. Trouve-la.",ok:"Une ombre sombre, à l'écart, regarde les fusées."},
    {q:"Les mèches de trois fusées ont été coupées ! Retrouve les trois mèches.",ok:"Trois mèches tranchées net : c'est bien du sabotage."},
    {q:"Le saboteur a laissé des traces de bottes dans la poussière. Où mènent-elles ?",ok:"Elles filent vers le lac des cygnes."},
-   {q:"Trois témoins se souviennent du saboteur :<br>🎡 <i>Le forain</i> : « Ce n'était pas un hippopotame. »<br>🍭 <i>La vendeuse de barbe à papa</i> : « Il portait des lunettes. »<br>🎠 <i>Le manège</i> : « Il était en salopette. »<br><b>Qui est le saboteur ?</b>",choice:[CH('Le cochon en salopette, à lunettes',PETARD),CH('Le cochon en manteau, à lunettes',PETARD2),CH('Le cochon en salopette, à casquette',PETARD3),CH("L'hippopotame en salopette, à lunettes",PETARD4)],ans:0,ok:"Ni hippopotame, avec des lunettes, en salopette : c'est Monsieur Pétard, le rival de l'artificier !"},
+   {q:"Quatre suspects sont interrogés, un seul d'entre eux ment :<br>🐷 <i>Le cochon en salopette, à lunettes</i> : « C'est le cochon en manteau. »<br>🐷 <i>Le cochon en manteau</i> : « Ce n'est pas moi. »<br>🐷 <i>Le cochon en salopette, à casquette</i> : « C'est le cochon à lunettes en salopette. »<br>🦛 <i>L'hippopotame</i> : « Ce n'est pas le cochon à casquette. »<br><b>Qui est le saboteur ?</b>",choice:[CH('Le cochon en salopette, à casquette',PETARD3),CH('Le cochon en manteau, à lunettes',PETARD2),CH('Le cochon en salopette, à lunettes',PETARD),CH("L'hippopotame en salopette, à lunettes",PETARD4)],ans:2,ok:"Si le saboteur est le cochon à lunettes en salopette, seul le premier ment… et tout colle : c'est Monsieur Pétard, le rival de l'artificier !"},
    {w:2,q:"Pétard file sur le lac. Trouve-le, dans un pédalo en forme de cygne.",ok:"Il pédale de toutes ses forces… mais un pédalo-cygne, ça ne va pas vite !"},
    {q:"Pétard essaie de se fondre dans la troupe des artificiers : tous portent salopette et casquette… sauf lui. Trouve l'intrus !",ok:"Le voilà, en manteau, la casquette enfoncée jusqu'aux yeux."},
    {w:4,q:"L'artificier court prévenir la police. Trouve l'Inspectrice Léonie.",ok:"Léonie arrive au pas de course, sifflet aux lèvres."},
    {w:3,q:"Pour gagner du temps, Bobo le clown amuse la foule. Où ?",ok:"Devant le chapiteau, en tutu, il jongle avec des ballons."},
    {q:"Il faut remplacer les mèches. Où l'artificier trouve-t-il du fil neuf ?",ok:"Dans une caisse de mèches de rechange, derrière la caravane des forains."},
-   {w:4,q:"Léonie rattrape Pétard. Où l'arrête-t-elle ?",ok:"Devant l'entrée de la fête, menottes en main."},
+   {w:4,q:"Léonie rattrape Pétard. Où l'arrête-t-elle ?",ok:"Au beau milieu de l'allée, menottes en main, sous le regard des curieux."},
    {q:"Les mèches sont remplacées. Trouve la rampe, mèches allumées.",ok:"Les étincelles courent le long des mèches neuves."},
    {q:"Le ciel s'illumine ! Trouve le feu d'artifice.",ok:"Un immense bouquet d'étincelles au-dessus de la fête, et toute la foule qui applaudit !"}],
   outro:"Le feu d'artifice a eu lieu, plus beau que jamais. Pétard, lui, doit désormais ramasser tous les confettis de la fête. Enquête classée !"},
@@ -45,7 +45,7 @@ CASES.push(
    {q:"Une lueur bouge dans les cocotiers. Trouve la lanterne du rôdeur.",ok:"Une petite lanterne, cachée entre les palmiers."},
    {q:"Des traces de bottes mènent loin du nid. Retrouve les trois traces.",ok:"Trois traces dans le sable : elles filent vers l'est."},
    {q:"Les traces s'arrêtent à la crique. Que découvre-t-on ?",ok:"Une pirogue tirée sur le sable, avec des traînées de paille dans le fond."},
-   {q:"Trois habitants de l'île se souviennent du rôdeur :<br>🐊 <i>Le pêcheur de perles</i> : « Ce n'était pas un crocodile. »<br>🐷 <i>La marchande</i> : « Il portait un poncho. »<br>🐢 <i>La Grande Tortue</i> : « Et il avait une casquette. »<br><b>Qui a volé les œufs ?</b>",choice:[CH('Le hippopotame en poncho, à casquette',CAPTAUD),CH('Le hippopotame en poncho, sans casquette',CAPTAUD2),CH('Le hippopotame en robe, à casquette',CAPTAUD3),CH('Le crocodile en poncho, à casquette',CAPTAUD4)],ans:0,ok:"Hippopotame, poncho, casquette : c'est le Capitaine Pataud, collectionneur d'œufs rares !"},
+   {q:"Quatre étrangers sont arrivés sur l'île cette semaine. Qui n'a aucun alibi ?<br>🦛 <i>Hippopotame en poncho, sans casquette</i> : dînait au Café du Lagon, devant tout le monde.<br>🦛 <i>Hippopotame en robe, à casquette</i> : dormait chez Mamie Minette.<br>🐊 <i>Crocodile en poncho, à casquette</i> : aucun alibi… mais les traces de bottes sont trop grandes pour un crocodile.<br>🦛 <i>Hippopotame en poncho, à casquette</i> : « Je me promenais. Seul. »<br><b>Qui a volé les œufs ?</b>",choice:[CH('Le crocodile en poncho, à casquette',CAPTAUD4),CH('Le hippopotame en robe, à casquette',CAPTAUD3),CH('Le hippopotame en poncho, sans casquette',CAPTAUD2),CH('Le hippopotame en poncho, à casquette',CAPTAUD)],ans:3,ok:"Seul, sans alibi, avec les grandes empreintes : c'est le Capitaine Pataud, collectionneur d'œufs rares !"},
    {w:2,q:"Pataud s'enfuit en pirogue, un sac sur les genoux. Trouve-le.",ok:"Le Capitaine rame comme un fou, le sac d'œufs serré contre lui."},
    {q:"Pataud a caché le sac dans la grotte au pied du volcan. Trouve la grotte.",ok:"Une grotte d'où s'échappe une lueur dorée."},
    {q:"Un sbire s'est déguisé en tortue pour surveiller la grotte. Parmi ces tortues, trouve l'imposteur !",ok:"Celle-ci a des jambes en pantalon rayé qui dépassent de sa carapace !"},
@@ -109,7 +109,7 @@ function addPirogue(u,v,sp,withSack){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.li
 
 /* ---------- construction ---------- */
 function buildNewCases(){
-  const T=(cid,n,u,v,r,z)=>setT(cid,n,u,v,r,z);
+  const T=(cid,n,u,v,r,z)=>{setT(cid,n,u,v,r,z);avoidRect(u-r-22,v-r-16,u+r+22,v+r+16);};
   const spot=(u,v,hw,hh)=>findSpot(u,v,hw,hh);
   const spotI=(u,v,hw,hh,lim)=>{lim=lim||.85;const ok=(p)=>((p[0]-IU)/285)**2+((p[1]-IV)/445)**2<lim;let p=findSpot(u,v,hw,hh);if(ok(p))return p;for(let k=0;k<30;k++){const a=k*2.1,d=40+k*9,q=[u+(IU-u)*.35+Math.cos(a)*d,v+(IV-v)*.35+Math.sin(a)*d];if(!ok(q))continue;p=findSpot(q[0],q[1],hw,hh);if(ok(p))return p;}return p;};
   /* ===== Sabotage au feu d'artifice (Fête foraine) ===== */
@@ -121,11 +121,11 @@ function buildNewCases(){
    stepMulti(CASES.find(c=>c.id==='feu').steps[4],pts,16);}
   {const[u,v]=spot(900,1660,34,18);addBoots(u,v,3);addBoots(u+34,v+14,2);T('feu',6,u+12,v+6,28);}
   {const k=blk(2,6);const lu=k.uc,lv=k.v0+70;addSwanBoat(lu-20,lv,as(PETARD,{pose:'sit',noShadow:true}));addSwanBoat(lu+70,lv+34,as(MAMAN,{pose:'sit',noShadow:true,flip:true}));T('feu',8,lu-20,lv,26);}
-  {const[u,v]=spot(760,1850,50,40);const idx=oddGroup(u,v,6,{body:'overalls',hat:'cap'},{body:'coat',hat:'cap'},['pig','hippo'],14);const st=CASES.find(c=>c.id==='feu').steps[8];st.t={x:pr(idx[0],idx[1],0)[0],y:pr(idx[0],idx[1],0)[1]-14,r:24,u:idx[0],v:idx[1]};avoid(idx[0],idx[1],40);}
+  {const[u,v]=spot(760,1850,50,40);avoidRect(u-70,v-60,u+70,v+60);const idx=oddGroup(u,v,6,{body:'overalls',hat:'cap'},{body:'coat',hat:'cap'},['pig','hippo'],14);const st=CASES.find(c=>c.id==='feu').steps[8];st.t={x:pr(idx[0],idx[1],0)[0],y:pr(idx[0],idx[1],0)[1]-14,r:24,u:idx[0],v:idx[1]};avoid(idx[0],idx[1],40);}
   {const[u,v]=spot(960,1330,30,18);addChar(u,v,as(LEONIE,{pose:'run'}));addChar(u-22,v+8,as(PYRO,{pose:'point'}));T('feu',10,u,v,26);}
   {const k=blk(1,6);const u=k.u0+110,v=k.v0+190;addChar(u,v,as(CLOWN,{pose:'give',prop:'redballoon'}));addChar(u+16,v+8,as(NOIS,{pose:'arms_up',flip:true}));addChar(u-16,v+10,as(MAMAN,{}));T('feu',11,u,v,26);}
   {const[u,v]=spot(240,1790,24,16);addCrateFuses(u,v);addCaravan(u+40,v-30);T('feu',12,u,v,22);}
-  {const[u,v]=spot(100,1300,30,20);addArch(u,v);addChar(u+8,v+34,as(LEONIE,{pose:'point'}));addChar(u+26,v+38,as(PETARD,{pose:'arms_up'}));T('feu',13,u+16,v+36,28);}
+  {const[u,v]=spot(1040,1480,30,20);addChar(u,v,as(LEONIE,{pose:'point'}));addChar(u+18,v+4,as(PETARD,{pose:'arms_up'}));T('feu',13,u+9,v+2,28);}
   {const[u,v]=spot(450,1240,40,20);addRamp(u,v,6,true);addChar(u-38,v+10,as(PYRO,{pose:'give'}));T('feu',14,u,v,32);}
   {const[u,v]=spot(640,1700,50,30);const bs=[[u-14,v-8,70,28],[u+22,v-18,92,34],[u+60,v-6,64,24]];for(const[a,b,z,r]of bs)addBurst(a,b,z,r);
    for(let i=0;i<5;i++)addChar(u-30+i*16,v+26+(i%2)*6,as(randomSpec(),{pose:i%2?'arms_up':'stand'}));
@@ -141,7 +141,7 @@ function buildNewCases(){
   {const[u,v]=spot(2795,700,30,20);addPirogue(u,v,null,false);addBoots(u-34,v+10,3);T('tortue',6,u,v,30);}
   {const[u,v]=spot(2845,440,30,18);addPirogue(u,v,as(CAPTAUD,{pose:'row',noShadow:true}),true);T('tortue',8,u,v,30);}
   {const gu=2440,gv=250;const[u,v]=spotI(gu+60,gv+20,36,24);addCave(u,v);addChar(u-44,v+8,as(SBIRE,{pose:'stand'}));T('tortue',9,u,v,36);}
-  {const[u,v]=spotI(2420,760,50,40);const n=6,odd=2;const pts=[];for(let i=0;i<n;i++){const row=i%2,col=Math.floor(i/2);pts.push([u+col*22+row*8,v+row*22]);}
+  {const[u,v]=spotI(2420,760,50,40);avoidRect(u-50,v-40,u+80,v+60);const n=6,odd=2;const pts=[];for(let i=0;i<n;i++){const row=i%2,col=Math.floor(i/2);pts.push([u+col*22+row*8,v+row*22]);}
    pts.forEach(([pu,pv],i)=>{if(i===odd)addFakeTurtle(pu,pv);else addBigTurtle(pu,pv);});
    const[x,y]=pr(pts[odd][0],pts[odd][1],0);CASES.find(c=>c.id==='tortue').steps[9].t={x,y:y-12,r:20,u:pts[odd][0],v:pts[odd][1]};avoid(pts[odd][0],pts[odd][1],30);}
   {const pts=[[2380,880],[2650,940],[2590,360]].map(([a,b])=>{const p=spotI(a,b,12,10);addEgg(p[0],p[1]);return[p[0],p[1],0];});
