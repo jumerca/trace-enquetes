@@ -97,7 +97,7 @@ function variants(s,n){
 }
 const SUSPECTS=[[0,RENARD,3],[0,RENARD2,3],[0,HULOTTE,3],[0,MOUST,2],[0,LAPIN,2],
   [1,OURS1,3],[1,OURS2,3],[1,OURS3,3],[1,CANARD,2],[1,CANARD2,2],[1,MATOU,2],[1,MOUSSE,3],
-  [2,ZORBO,3],[2,ZORBO2,3],[2,HUISS,2],[2,FORAIN,2],
+  [2,ZORBO,3],[2,PETARD,3],[2,PETARD2,2],[5,CAPTAUD,3],[5,CAPTAUD2,2],[2,ZORBO2,3],[2,HUISS,2],[2,FORAIN,2],
   [3,LIVREUR,3],[3,LAPNOIR,3],[3,SOURIS,2],[3,CROQ,3],[3,EPINE,2],
   [0,VELOURS,2],[5,GUIDE,2],[5,BARON,2],[5,SBIRE,2],[1,CONTRE,2],[2,FORPECHE,2],[2,FILOU,2],[3,FAUX,2],[3,FAUX2,2],[4,OURSON,2],[1,OMBRE,2],[3,OMBRE,2],[4,GIGOT,3],[4,GIGOT2,3],[4,LARDON,2],[4,RAPE1,2],[4,RAPE2,2]];
 const DPOSES=['stand','walk','walk','run','carry','give','crouch','lean','point','think'];

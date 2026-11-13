@@ -33,7 +33,7 @@ const mediumOf=d=>CASES.find(c=>c.dist===d&&c.diff===2&&!c.final);
 const started=cs=>(state.solved[cs.id]||[]).some(Boolean);
 const unlocked=d=>d===0||(unlocked(d-1)&&(caseDone(mediumOf(d-1))||CASES.some(c=>c.dist===d&&!c.final&&started(c))));
 const cluesFound=()=>HARD.filter(id=>caseDone(CASES.find(c=>c.id===id))).length;
-function caseOpen(cs){if(started(cs))return true;if(!unlocked(cs.dist))return false;if(cs.final)return cluesFound()===HARD.length;if(cs.diff===1)return true;return CASES.some(c=>c.dist===cs.dist&&!c.final&&c.diff===cs.diff-1&&caseDone(c));}
+function caseOpen(cs){if(started(cs))return true;if(!unlocked(cs.dist))return false;if(cs.req)return cs.req.every(id=>caseDone(CASES.find(c=>c.id===id)));if(cs.final)return cluesFound()===HARD.length;if(cs.diff===1)return true;return CASES.some(c=>c.dist===cs.dist&&!c.final&&c.diff===cs.diff-1&&caseDone(c));}
 function hintsUsed(cs,d){d=d||state;let n=0;for(const k in(d.hints||{}))if(k.startsWith(cs.id+':'))n+=+d.hints[k]||0;return n;}
 function caseStars(cs,d){d=d||state;if((d.solved[cs.id]||[]).filter(Boolean).length!==cs.steps.length)return 0;const h=hintsUsed(cs,d),w=(d.wrong||{})[cs.id]||0;return h===0&&w<=2?3:h<=2&&w<=6?2:1;}
 const starStr=n=>'★'.repeat(n)+'☆'.repeat(3-n);
@@ -45,7 +45,7 @@ const KEYCHAR={chaton:[1,'Le fugueur'],gateau:[1,'Le voleur de gâteau'],lettre:
  poisson:[1,'Le voleur de poisson'],tresor:[1,'La chasseuse de trésor'],banque:[1,'Le braqueur'],chapeau:[0,'La propriétaire'],phare:[null,'Le contrebandier'],
  ballon:[2,'Le héros du jour'],fantome:[2,'Le faux fantôme'],zorbo:[0,'Le magicien endetté'],peche:[null,'Le tricheur'],tickets:[0,'Le resquilleur'],
  valise:[1,'Le distrait'],colis:[0,'Le propriétaire du colis'],recette:[4,'Le commanditaire'],chiot:[1,'Le fugueur'],controleur:[null,'Le faux contrôleur'],
- lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],bouteille:[0,'Le petit explorateur'],volcan:[null,'Le faux volcan'],epave:[1,'Le Baron'],bobo:[1,'Le chat voleur'],tartes:[null,'Le gourmand au miel']};
+ lili:[1,'Le gourmand'],farine:[1,'Les voleurs de farine'],couronne:[1,'Le bouffon voleur'],oeufs:[0,'La cacheuse d\'œufs'],bouteille:[0,'Le petit explorateur'],volcan:[null,'Le faux volcan'],epave:[1,'Le Baron'],bobo:[1,'Le chat voleur'],tartes:[null,'Le gourmand au miel'],feu:[2,'Le saboteur'],tortue:[2,'Le collectionneur d\'œufs']};
 function keySpec(cs){const kc=KEYCHAR[cs.id]||[0,''];if(kc[0]===null){const st=cs.steps[cs.steps.length-1];return st.choice[st.ans].s;}return(cs.cast[kc[0]]||cs.cast[0]).s;}
 function showBook(){const n=CASES.filter(caseDone).length,st=totalStars(),max=CASES.length*3;
   const ordered=[...CASES].sort((a,b)=>a.dist-b.dist||(a.final?1:0)-(b.final?1:0)||a.diff-b.diff);
@@ -54,7 +54,7 @@ function showBook(){const n=CASES.filter(caseDone).length,st=totalStars(),max=CA
   <p class="legend">3 étoiles : sans indice et avec 2 erreurs au plus. Rejoue une enquête depuis les Dossiers pour améliorer ta note.</p>
   <h3>Fiches des affaires</h3><div class="gallery">${ordered.map(cs=>caseDone(cs)?`<div class="mug"><div data-m="${cs.id}"></div><b>${(KEYCHAR[cs.id]||[0,''])[1]}</b>${cs.title}<br><span class="stars">${starStr(caseStars(cs))}</span>${(state.best||{})[cs.id]?`<br>⏱ ${fmtT(state.best[cs.id])} ${medal(cs,state.best[cs.id])}`:''}</div>`:`<div class="mug no"><div class="q">?</div><b>???</b>${caseOpen(cs)?cs.title:'Enquête fermée'}</div>`).join('')}</div>
   <button class="btn" id="okB">Fermer le carnet</button>`,r=>{r.querySelectorAll('[data-m]').forEach(el=>el.appendChild(portrait(keySpec(CASES.find(c=>c.id===el.dataset.m)))));r.querySelector('#okB').onclick=closeModal;});}
-function lockReason(cs){if(!unlocked(cs.dist))return 'Ce quartier n\'est pas encore ouvert.';if(cs.final)return `Réunis les 5 indices de l'Ombre (${cluesFound()}/5) en résolvant les enquêtes difficiles.`;if(cs.diff===2)return 'Résous d\'abord une enquête facile de ce quartier.';const m=mediumOf(cs.dist);return `Résous d'abord « ${m.title} ».`;}
+function lockReason(cs){if(!unlocked(cs.dist))return 'Ce quartier n\'est pas encore ouvert.';if(cs.req)return 'Classe d\'abord les trois autres enquêtes de l\'île.';if(cs.final)return `Réunis les 5 indices de l'Ombre (${cluesFound()}/5) en résolvant les enquêtes difficiles.`;if(cs.diff===2)return 'Résous d\'abord une enquête facile de ce quartier.';const m=mediumOf(cs.dist);return `Résous d'abord « ${m.title} ».`;}
 
 function resize(){dpr=Math.min(2,window.devicePixelRatio||1);vw=window.innerWidth;vh=window.innerHeight;cv.width=Math.round(vw*dpr);cv.height=Math.round(vh*dpr);minS=Math.min(vw/(WB.x1-WB.x0),vh/(WB.y1-WB.y0))*.95;clampCam();req();}
 function clampCam(){cam.s=Math.max(minS,Math.min(maxS,cam.s));const hw=vw/2/cam.s,hh=vh/2/cam.s;
