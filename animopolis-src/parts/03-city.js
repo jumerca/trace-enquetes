@@ -99,7 +99,7 @@ const MIAOU=SP('cat','dress','dots','bow'),RENARD=SP('fox','coat','black','cap',
 const ECAILLE=SP('croc','coat','white','cap',null,null,false,{build:'round'}),MATOU=SP('cat','shirt','stripes',null,null,null,false,{build:'slim'});
 const PLOUF=SP('penguin','coat','black','captain',null,null,false,{build:'old'}),MOUSSE=SP('mouse','shirt','white','bandana',null,null,false,{build:'small'});
 const OURS1=SP('bear','coat','grey','glasses',null,null,false,{build:'round'}),OURS2=SP('bear','coat','black','mask',null,null,false,{build:'round'}),OURS3=SP('bear','suit','stripes','top',null,null,false,{build:'round'}),CANARD=SP('duck','coat','black','cap',null,null,false,{build:'slim'}),CANARD2=SP('duck','shirt','dots','straw',null,null,false,{build:'slim'}),TOUTOU=SP('dog','suit','grey','police',null,null,false,{build:'tall'});
-const NOIS=SP('mouse','dress','dots','bow','stand','redballoon',false,{scale:.8,build:'small'}),MAMAN=SP('mouse','dress','white','straw'),CLOWN=SP('dog','suit','check','clown',null,null,false,{build:'round'}),DIRO=SP('lion','suit','black','top',null,null,false,{build:'tall'}),FORAIN=SP('croc','shirt','check','cap',null,null,false,{build:'slim'});
+const NOIS=SP('mouse','dress','dots','bow','stand','redballoon',false,{scale:.8,build:'small'}),MAMAN=SP('mouse','dress','white','straw'),CLOWN=SP('dog','tutu','check','clown',null,null,false,{build:'round'}),DIRO=SP('lion','suit','black','top',null,null,false,{build:'tall'}),FORAIN=SP('croc','overalls','check','cap',null,null,false,{build:'slim'});
 const GHOST={head:'ghost'};
 const as=(s,o)=>Object.assign({},s,o);
 
@@ -565,7 +565,7 @@ function buildCity(){
    const rr=mulberry32(99);for(let a=0;a<=n;a++){for(let b=0;b<n;b++){if(rr()<.62&&!(a===0&&b===0))addHedge(u0+a*cs-2,v0+b*cs,u0+a*cs+2,v0+(b+1)*cs);if(rr()<.62&&!(b===n-1&&a===n))addHedge(u0+b*cs,v0+a*cs-2,u0+(b+1)*cs,v0+a*cs+2);}}
    addChar(u0+3.5*cs,v0+2.5*cs,as(GHOST,{}));setT('fantome',7,u0+3.5*cs,v0+2.5*cs,22);}
 
-  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildBirds();buildDecoys();buildFurniture();
+  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildNewCases();buildBirds();buildDecoys();buildFurniture();
   /* ---- foule ---- */
   for(const a of areas){CURD=a.dist;let n=0,tries=0;while(n<a.n&&tries<a.n*60){tries++;const u=R(a.u0,a.u1),v=R(a.v0,a.v1);if(a.ok&&!a.ok(u,v))continue;if(!free(u,v,2))continue;addChar(u,v,randomSpec(a.beach));n++;}}
   buildActors();

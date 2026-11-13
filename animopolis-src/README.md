@@ -33,6 +33,7 @@ Le script écrit trois fichiers dans `../animopolis/` :
 | `08-more.js` | enquêtes supplémentaires (vase, chapeau, phare, pêche, tickets…) |
 | `09-island.js` | quartier L'Île aux Tortues |
 | `09b-variety.js` | étapes variées (plusieurs objets, compter, intrus, déduction) et l'enquête « Le jeu de piste de Bobo » |
+| `09d-newcases.js` | « Sabotage au feu d'artifice » (Fête foraine) et la finale « Les œufs d'or de la Grande Tortue » (île, champ `req` = enquêtes à classer d'abord) ; corps salopette/robe/poncho/tutu sur les personnages nommés |
 | `10b-actors.js` | voitures qui roulent et passants qui marchent, dessinés à chaque image par-dessus les tuiles |
 | `10-decoys.js` | questions énigmatiques des enquêtes difficiles et sosies des suspects |
 | `11-ui.js` | rendu par tuiles, caméra, gestes, cartes d'enquête, dossiers, étoiles, carnet, défi chrono |
