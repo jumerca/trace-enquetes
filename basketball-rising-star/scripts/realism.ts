@@ -10,6 +10,7 @@ const band: Record<string, [number, number]> = {};
 for (let g = 0; g < N; g++) {
   const reg = new NameRegistry();
   const e = new MatchEngine({ home: quickTeam(700 + g, 'A', 12, undefined, reg), away: quickTeam(900 + g, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 8000 + g });
+  if (process.env.MAN) for (const tm of e.teams) tm.tactics.defense = 'man';
   const orig = e.launchPass.bind(e);
   e.launchPass = (a, b, k) => { if (k !== 'tip' && k !== 'inbound') { passes++; const key = (new Error().stack!.split('\n')[2] || '').replace(/.*offense\.ts:/, 'off:').replace(/:\d+\)?$/, ''); site[key] = (site[key] ?? 0) + 1; } orig(a, b, k); };
   let lastPoss = -1; let lastHolder = -1; let evN = 0; let pend: string | null = null;

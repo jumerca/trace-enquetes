@@ -218,6 +218,23 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const urgency = clamp((6 - shotClockLeft) / 6, 0, 1);
   const needThree = e.quarter >= 4 && diff < 0 && diff >= -3 && e.clock < 12;
 
+  // Tir ouvert : aucun défenseur à portée, même en comptant celui qui revient en courant, et un bon tir
+  // pour ce joueur -> il le prend, sans hésiter ni redonner le ballon
+  if (inFront && !holdForLast && !milk && p.pickupT > 0.25) {
+    let free = 99;
+    let freeAtRelease = 99;
+    for (const o of e.teamOnCourt((1 - p.team) as 0 | 1)) {
+      free = Math.min(free, dist(o.pos, p.pos));
+      freeAtRelease = Math.min(freeAtRelease, Math.hypot(o.pos.x + o.vel.x * 0.4 - p.pos.x, o.pos.y + o.vel.y * 0.4 - p.pos.y));
+    }
+    const isThree = e.court.isThree(side, p.pos);
+    // (à mi-distance, seul un tir vraiment très favorable est automatique : sinon on cherche mieux)
+    if (free > 3 && freeAtRelease > 2.1 && shotEV(e, p, p.pos, p.pickupT > 0.9) >= (isThree || d < 3 ? 1.08 : 1.15) && !(needThree && !isThree)) {
+      e.beginShot(p);
+      return;
+    }
+  }
+
   // Remontée du ballon
   if (!inFront) {
     const defBack = e.teamOnCourt((1 - p.team) as 0 | 1).filter((o) => dist(o.pos, hoop) < dist(p.pos, hoop)).length;
@@ -263,7 +280,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   // Valeur de la possession si l'on continue à jouer (diminue avec le chrono)
   const elapsed = e.time - st.startT;
   const early = clamp((e.shotClock - 5) / 13, 0, 1);
-  let possValue = 1.02 + (advantage ? -0.05 : early * 1.32) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
+  let possValue = 1.13 + (advantage ? -0.05 : early * 1.32) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
   if (milk) possValue += 0.3;
   // « 2 pour 1 » : en fin de quart-temps, tirer assez tôt pour récupérer une dernière possession
   if (e.quarter < 4 && e.clock < e.rules.shotClock + 16 && e.clock > e.rules.shotClock + 2) possValue -= 0.3;
@@ -272,7 +289,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const usage = 1 + (a.shotCreation + a.three + a.finishing - 30) / 140;
   let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0) + (st.play === 'Isolation' && st.star === p.idx ? 0.08 : 0);
   if (needThree && type !== 'three') shootV -= 0.5;
-  if (type === 'three' && !needThree) shootV *= 0.71 + e.teams[p.team].tactics.threeRate * 0.14;
+  if (type === 'three' && !needThree) shootV *= 0.65 + e.teams[p.team].tactics.threeRate * 0.14;
   // Le tir à mi-distance est le moins rentable : on ne le prend que démarqué ou quand le chrono presse
   if (type === 'jumper' && !needThree) {
     shootV *= 0.8 + urgency * 0.22 + (e.nearestDefender(p).d > 2.6 ? 0.08 : 0);

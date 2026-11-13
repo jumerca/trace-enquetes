@@ -837,7 +837,7 @@ export class MatchEngine {
         if (od < contactR) {
           const disc = o.data.attrs.discipline / 20;
           const foulTrouble = o.fouls >= this.rules.foulOut - 1 ? 0.5 : 1;
-          let pf = (type === 'layup' || type === 'dunk' ? 0.62 : 0.16) * (1.35 - disc * 0.6) * foulTrouble;
+          let pf = (type === 'layup' || type === 'dunk' ? 0.5 : 0.14) * (1.35 - disc * 0.6) * foulTrouble;
           pf *= 0.8 + (p.data.attrs.strength / 20) * 0.4;
           if (!fouler && this.rng.chance(pf)) fouler = o;
         }

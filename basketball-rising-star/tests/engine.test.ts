@@ -291,3 +291,46 @@ describe('lisibilité : passes et tirs', () => {
     expect(passes).toBeLessThan(850); // environ 4 passes par attaque (il y en avait plus de 6)
   });
 });
+
+describe('tirs ouverts', () => {
+  it('un joueur seul avec un bon tir le prend au lieu de le refuser', async () => {
+    const { shotEV } = await import('../src/sim/ai/offense');
+    let refused = 0;
+    for (let g = 0; g < 2; g++) {
+      const reg = new NameRegistry();
+      const e = new MatchEngine({ home: quickTeam(31 + g, 'A', 12, undefined, reg), away: quickTeam(71 + g, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 500 + g });
+      let cur = -1;
+      let openT = 0;
+      let flagged = false;
+      const close = (shot: boolean) => {
+        if (flagged && !shot) refused++;
+        flagged = false;
+        openT = 0;
+      };
+      while (!e.finished) {
+        e.step();
+        const h = e.holder();
+        if (!h || e.phase !== 'live') {
+          if (cur >= 0) {
+            close(e.ball.flight?.kind === 'shot' && e.ball.flight.from === cur);
+            cur = -1;
+          }
+          continue;
+        }
+        if (h.idx !== cur) {
+          if (cur >= 0) close(false);
+          cur = h.idx;
+        }
+        if (h.anim === 'shoot' || h.anim === 'layup' || h.anim === 'dunk') continue;
+        const side = e.attackSide(h.team);
+        const hp = e.hoopFor(h.team);
+        const dh = Math.hypot(h.pos.x - hp.x, h.pos.y - hp.y);
+        const ok = e.frontcourtReached && e.nearestDefender(h).d > 3 && shotEV(e, h, h.pos, h.pickupT > 0.9) >= (e.court.isThree(side, h.pos) || dh < 3 ? 1.08 : 1.15) && e.clock > 26;
+        openT = ok ? openT + 1 / 60 : 0;
+        if (openT > 0.5) flagged = true;
+      }
+    }
+    // Il y en avait environ 25 par match
+    expect(refused / 2).toBeLessThan(6);
+  });
+});
