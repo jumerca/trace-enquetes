@@ -193,3 +193,22 @@ describe('Messagerie, intérêt des clubs, rapports', () => {
     expect(c.relations.media).toBeGreaterThan(media0);
   });
 });
+
+describe('Nouvelles coupes, récompenses et bilan de carrière', () => {
+  it('crée une coupe nationale dans chaque pays et les mène à leur terme', async () => {
+    const { careerVerdict } = await import('../src/career/life');
+    const c = createCareer({ ...BASE, seed: 5 });
+    const all = comps(c.world);
+    for (const id of ['CUP_ITA', 'CUP_GER', 'CUP_GRE', 'CUP_TUR', 'CUP_APL']) expect(all[id].teams.length).toBe(8);
+    for (let i = 0; i < 22; i++) {
+      for (let f = userFixture(c); f; f = userFixture(c)) simFixture(c, f);
+      advanceWeek(c);
+    }
+    for (const id of ['CUP_ITA', 'CUP_GER', 'CUP_GRE', 'CUP_TUR', 'CUP_APL']) expect(comps(c.world)[id].winner).toBeDefined();
+    // Un joueur du mois est désigné chaque mois
+    expect(c.news.filter((n) => n.title.includes('joueur du mois')).length + 0).toBeGreaterThanOrEqual(1);
+    const v = careerVerdict(c);
+    expect(v.tier.length).toBeGreaterThan(3);
+    expect(v.score).toBeGreaterThanOrEqual(0);
+  });
+});

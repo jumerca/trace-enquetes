@@ -11,7 +11,7 @@ import type { Career } from './career';
 /**
  * Compétitions annexes (toutes fictives) :
  * - Coupe de France des clubs (16 équipes, élimination directe),
- * - Copa Peninsular (8 équipes),
+ * - Copa Peninsular, Coppa Adriatica, Korbpokal, Kypello Elladas, Anadolu Kupası, APL Midseason Cup (8 équipes),
  * - EuroCoupe des clubs (8 meilleurs clubs français et espagnols),
  * - matchs Espoirs (U21) pour les jeunes peu utilisés en équipe première,
  * - tournoi des sélections nationales pendant l'été.
@@ -58,6 +58,20 @@ export function createCompetitions(c: Career): void {
   if (esp.length >= 8) {
     const teams = byRep(w, esp).slice(0, 8);
     all.CUP_ESP = { id: 'CUP_ESP', name: 'Copa Peninsular', kind: 'cup', teams, rounds: CUP_WEEKS.slice(1).map((wk, i) => ({ week: wk, label: LABELS_8[i] })), round: 0, alive: teams };
+  }
+  // Coupes nationales des autres pays : les huit meilleurs clubs, élimination directe
+  const CUPS: [string, string, string][] = [
+    ['CUP_ITA', 'ITA1', 'Coppa Adriatica'],
+    ['CUP_GER', 'GER1', 'Korbpokal'],
+    ['CUP_GRE', 'GRE1', 'Kypello Elladas'],
+    ['CUP_TUR', 'TUR1', 'Anadolu Kupası'],
+    ['CUP_APL', 'APL', 'APL Midseason Cup'],
+  ];
+  for (const [id, lg, name] of CUPS) {
+    const list = w.leagues[lg]?.teams ?? [];
+    if (list.length < 8) continue;
+    const teams = byRep(w, list).slice(0, 8);
+    all[id] = { id, name, kind: 'cup', teams, rounds: CUP_WEEKS.slice(1).map((wk, i) => ({ week: wk, label: LABELS_8[i] })), round: 0, alive: teams };
   }
   if (fra1.length && esp.length) {
     // 16 clubs si tous les championnats européens existent, sinon 8 (anciennes sauvegardes)
