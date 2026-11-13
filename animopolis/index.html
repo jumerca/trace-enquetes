@@ -2415,58 +2415,64 @@ const PETARD_SIL=PETARD;
 
 CASES.push(
  {id:'feu',dist:2,title:"Sabotage au feu d'artifice",diff:3,
-  intro:"Ce soir, la Fête foraine tire son plus grand feu d'artifice. Mais quelqu'un a saboté les fusées ! Retrouve le coupable avant que la nuit ne tombe.",
-  cast:[{n:'Monsieur Crinière',r:'directeur, chapeau haut-de-forme',s:DIRO2},{n:"L'artificier",r:'hippopotame en salopette',s:PYRO},{n:'Monsieur Pétard',r:'cochon en salopette, à lunettes',s:PETARD},{n:'Bobo',r:'clown en tutu',s:CLOWN},{n:'Inspectrice Léonie',r:'police',s:LEONIE}],
+  intro:"C'est le grand soir : le plus beau feu d'artifice de l'histoire de la fête ! Mais à quelques heures du spectacle, Gédéon l'artificier découvre que quelqu'un a tripatouillé ses fusées. Qui voudrait gâcher la fête ? Pas de panique : il reste assez de jour pour enquêter.",
+  cast:[{n:'Monsieur Crinière',r:'directeur, haut-de-forme et discours interminables',s:DIRO2},{n:'Gédéon',r:"l'artificier, hippopotame en salopette",s:PYRO},{n:'Monsieur Pétard',r:'cochon en salopette, à lunettes',s:PETARD},{n:'Bobo',r:'clown en tutu, roi de la diversion',s:CLOWN},{n:'Inspectrice Léonie',r:'police, pas de temps à perdre',s:LEONIE}],
   steps:[
-   {w:0,q:"Le directeur annonce le grand feu d'artifice du soir. Trouve-le.",ok:"Monsieur Crinière, en chapeau haut-de-forme, annonce l'événement depuis une petite estrade."},
-   {w:1,q:"Trouve l'artificier devant son pas de tir.",ok:"L'hippopotame en salopette règle sa rampe de lancement."},
-   {q:"Combien de fusées l'artificier a-t-il alignées sur la rampe ?",choice:[CH('4'),CH('5'),CH('6'),CH('7')],ans:2,ok:"Six fusées, prêtes pour le grand final."},
-   {q:"La nuit tombe. Une silhouette rôde près des caravanes. Trouve-la.",ok:"Une ombre sombre, à l'écart, regarde les fusées."},
-   {q:"Les mèches de trois fusées ont été coupées ! Retrouve les trois mèches.",ok:"Trois mèches tranchées net : c'est bien du sabotage."},
-   {q:"Le saboteur a laissé des traces de bottes dans la poussière. Où mènent-elles ?",ok:"Elles filent vers le lac des cygnes."},
-   {q:"Quatre suspects sont interrogés, un seul d'entre eux ment :<br>🐷 <i>Le cochon en salopette, à lunettes</i> : « C'est le cochon en manteau. »<br>🐷 <i>Le cochon en manteau</i> : « Ce n'est pas moi. »<br>🐷 <i>Le cochon en salopette, à casquette</i> : « C'est le cochon à lunettes en salopette. »<br>🦛 <i>L'hippopotame</i> : « Ce n'est pas le cochon à casquette. »<br><b>Qui est le saboteur ?</b>",choice:[CH('Le cochon en salopette, à casquette',PETARD3),CH('Le cochon en manteau, à lunettes',PETARD2),CH('Le cochon en salopette, à lunettes',PETARD),CH("L'hippopotame en salopette, à lunettes",PETARD4)],ans:2,ok:"Si le saboteur est le cochon à lunettes en salopette, seul le premier ment… et tout colle : c'est Monsieur Pétard, le rival de l'artificier !"},
-   {w:2,q:"Pétard file sur le lac. Trouve-le, dans un pédalo en forme de cygne.",ok:"Il pédale de toutes ses forces… mais un pédalo-cygne, ça ne va pas vite !"},
-   {q:"Pétard essaie de se fondre dans la troupe des artificiers : tous portent salopette et casquette… sauf lui. Trouve l'intrus !",ok:"Le voilà, en manteau, la casquette enfoncée jusqu'aux yeux."},
-   {w:4,q:"L'artificier court prévenir la police. Trouve l'Inspectrice Léonie.",ok:"Léonie arrive au pas de course, sifflet aux lèvres."},
-   {w:3,q:"Pour gagner du temps, Bobo le clown amuse la foule. Où ?",ok:"Devant le chapiteau, en tutu, il jongle avec des ballons."},
-   {q:"Il faut remplacer les mèches. Où l'artificier trouve-t-il du fil neuf ?",ok:"Dans une caisse de mèches de rechange, derrière la caravane des forains."},
-   {w:4,q:"Léonie rattrape Pétard. Où l'arrête-t-elle ?",ok:"Au beau milieu de l'allée, menottes en main, sous le regard des curieux."},
-   {q:"Les mèches sont remplacées. Trouve la rampe, mèches allumées.",ok:"Les étincelles courent le long des mèches neuves."},
-   {q:"Le ciel s'illumine ! Trouve le feu d'artifice.",ok:"Un immense bouquet d'étincelles au-dessus de la fête, et toute la foule qui applaudit !"}],
-  outro:"Le feu d'artifice a eu lieu, plus beau que jamais. Pétard, lui, doit désormais ramasser tous les confettis de la fête. Enquête classée !"},
+   {w:0,q:"« Mesdames et messieurs, ce soir, le feu d'artifice du siècle ! » Quelqu'un répète son discours sur une estrade. Où ?",ok:"Monsieur Crinière, haut-de-forme en avant, postillonne de bonheur devant trois spectateurs qui font semblant d'applaudir."},
+   {w:1,q:"Derrière la scène, Gédéon astique sa rampe de lancement comme un trésor. Trouve-le.",ok:"« Pas touche, c'est réglé à la seconde ! » Gédéon, salopette taillée sur mesure, surveille sa rampe d'un œil jaloux."},
+   {q:"Gédéon se vante : « Mes fusées, alignées comme à la parade ! » Combien en a-t-il posé sur la rampe ?",choice:[CH('4'),CH('5'),CH('6'),CH('7')],ans:2,ok:"Six fusées exactement. Gédéon les compte et les recompte chaque heure."},
+   {q:"La nuit tombe. Entre deux caravanes, une silhouette sombre guette les fusées. Ce n'est pas un forain. Trouve-la.",ok:"Une ombre immobile, grande et sans visage dans la nuit : elle observe la rampe, puis disparaît."},
+   {q:"Au matin, Gédéon hurle : trois mèches ont été coupées net ! Retrouve-les avant que la foule ne les piétine.",ok:"Trois mèches tranchées, trois fusées muettes. C'est un sabotage, pas un accident."},
+   {q:"Dans la poussière de l'allée, des bottes presque neuves ont laissé des traces. Vers où filent-elles ?",ok:"Elles quittent la rampe et descendent vers le lac des cygnes, sans se retourner."},
+   {q:"Quatre suspects sont interrogés, un seul d'entre eux ment :<br>🐷 <i>Le cochon en salopette, à lunettes</i> : « C'est le cochon en manteau. »<br>🐷 <i>Le cochon en manteau</i> : « Ce n'est pas moi. »<br>🐷 <i>Le cochon en salopette, à casquette</i> : « C'est le cochon à lunettes en salopette. »<br>🦛 <i>L'hippopotame</i> : « Ce n'est pas le cochon à casquette. »<br><b>Qui est le saboteur ?</b>",choice:[CH('Le cochon en salopette, à casquette',PETARD3),CH('Le cochon en manteau, à lunettes',PETARD2),CH('Le cochon en salopette, à lunettes',PETARD),CH("L'hippopotame en salopette, à lunettes",PETARD4)],ans:2,ok:"Si le coupable est le cochon à lunettes en salopette, seul le premier ment… et tout s'emboîte. C'est Monsieur Pétard, l'éternel rival de Gédéon !"},
+   {w:2,q:"Pétard a pris la fuite par le lac… dans un pédalo en forme de cygne ! Trouve ce pirate d'eau douce.",ok:"Il pédale comme un forcené, mais un pédalo-cygne, ça ne dépasse pas la vitesse d'un canard pressé."},
+   {q:"Sur la rive, Pétard essaie de se perdre dans la troupe des artificiers : tous portent salopette et casquette… sauf lui. Trouve l'intrus !",ok:"Le voilà ! Même casquette, mais un manteau : il a oublié de se changer. Un détail qui l'a trahi."},
+   {w:4,q:"Gédéon court chercher la police. Trouve l'Inspectrice Léonie, qui arrive au pas de course.",ok:"« Où est-il ? » Léonie arrive, sifflet aux lèvres, suivie d'un Gédéon essoufflé."},
+   {w:3,q:"Pour retenir le public pendant la réparation, Bobo le clown improvise un numéro. Où ?",ok:"Devant le chapiteau, en tutu, Bobo jongle avec des ballons… dont un qu'il vient de perdre !"},
+   {q:"Il faut remplacer les mèches. Gédéon sait où trouver du fil neuf : dans une caisse, près d'une caravane.",ok:"Une caisse de mèches de rechange, bien rangée : le saboteur ne l'avait pas trouvée."},
+   {w:4,q:"Léonie a repéré Pétard. Où le cueille-t-elle ?",ok:"En plein milieu de l'allée, sous les yeux des curieux : « Monsieur Pétard, vous êtes en état d'arrestation ! »"},
+   {q:"Les nouvelles mèches sont en place. Gédéon approche son briquet, retiens ton souffle : trouve la rampe en action !",ok:"Les étincelles courent le long des mèches neuves, une à une, jusqu'aux fusées."},
+   {q:"Le ciel s'illumine ! Où la foule admire-t-elle le plus beau feu d'artifice de l'histoire ?",ok:"Un immense bouquet d'étincelles au-dessus de la fête, tandis que Monsieur Crinière pleure d'émotion."}],
+  outro:"Le spectacle a été encore plus beau que prévu. Pétard, lui, ramasse tous les confettis de la fête… jusqu'à la prochaine. Enquête classée !"},
  {id:'tortue',dist:5,title:"Les œufs d'or de la Grande Tortue",diff:3,req:['bouteille','volcan','epave'],
-  intro:"Une fois tous les cent ans, la Grande Tortue pond des œufs d'or sur la plage. Cette année, le nid est gardé… mais quelqu'un rôde dans les cocotiers. La grande finale de l'île !",
-  cast:[{n:'La Grande Tortue',r:'doyenne en robe à fleur',s:DOYENNE},{n:'Titou',r:'chaton à casquette',s:TITOU},{n:'Capitaine Pataud',r:'hippopotame en poncho, à casquette',s:CAPTAUD},{n:'Professeure Plume',r:'cane archéologue',s:PLUME},{n:'Inspectrice Léonie',r:'police',s:LEONIE}],
+  intro:"Une fois tous les cent ans, la Grande Tortue pond des œufs d'or sur la plage de l'île. Toute l'île veille sur le nid, de Titou le petit guetteur à la Professeure Plume. Mais cette nuit, quelqu'un rôde dans les cocotiers… La grande finale de l'île !",
+  cast:[{n:'La Grande Tortue',r:'la doyenne, en robe à fleur',s:DOYENNE},{n:'Titou',r:'chaton à casquette, guetteur officiel',s:TITOU},{n:'Capitaine Pataud',r:'hippopotame en poncho, à casquette',s:CAPTAUD},{n:'Professeure Plume',r:'cane archéologue',s:PLUME},{n:'Inspectrice Léonie',r:'police',s:LEONIE}],
   steps:[
-   {w:0,q:"Trouve la Grande Tortue, gardienne du nid doré.",ok:"Elle veille sur la plage, drapée dans sa robe à fleur."},
-   {q:"Combien d'œufs d'or le nid contient-il ?",choice:[CH('3'),CH('4'),CH('5'),CH('6')],ans:2,ok:"Cinq œufs d'or, bien au chaud dans la paille."},
-   {w:1,q:"Titou propose de monter la garde. Trouve-le, lanterne en main.",ok:"Il guette la plage, les yeux écarquillés."},
-   {q:"Une lueur bouge dans les cocotiers. Trouve la lanterne du rôdeur.",ok:"Une petite lanterne, cachée entre les palmiers."},
-   {q:"Des traces de bottes mènent loin du nid. Retrouve les trois traces.",ok:"Trois traces dans le sable : elles filent vers l'est."},
-   {q:"Les traces s'arrêtent à la crique. Que découvre-t-on ?",ok:"Une pirogue tirée sur le sable, avec des traînées de paille dans le fond."},
+   {w:0,q:"Le jour se lève sur la plage. Trouve la Grande Tortue, gardienne du nid doré depuis cent ans.",ok:"Elle veille, immobile, drapée dans sa robe à fleur : « Cent ans que j'attends cette nuit-là. »"},
+   {q:"Le nid scintille au soleil. Combien d'œufs d'or la Grande Tortue a-t-elle pondus ?",choice:[CH('3'),CH('4'),CH('5'),CH('6')],ans:2,ok:"Cinq œufs, bien au chaud dans la paille. Chacun vaut une fortune… et peut-être une convoitise."},
+   {w:1,q:"Titou a demandé la garde de nuit. Où monte-t-il la garde, lanterne en main ?",ok:"Au bord de la plage, il écarquille les yeux : « Rien ne bouge ! » Et il bâille."},
+   {q:"Vers minuit, une lueur danse entre les cocotiers. Ce n'est pas une luciole. Trouve la lanterne du rôdeur.",ok:"Une petite lanterne posée entre deux palmiers, et une ombre qui s'éloigne dans le noir."},
+   {q:"Au matin, le nid est pillé ! Des traces de bottes s'éloignent du nid. Retrouve les trois traces.",ok:"Trois empreintes profondes dans le sable : quelqu'un de lourd, qui portait un fardeau."},
+   {q:"Les traces s'arrêtent net, près d'une crique. Qu'est-ce qui attend sur le sable ?",ok:"Une pirogue tirée à sec, avec des brins de paille dans le fond : le voleur est reparti par la mer."},
    {q:"Quatre étrangers sont arrivés sur l'île cette semaine. Qui n'a aucun alibi ?<br>🦛 <i>Hippopotame en poncho, sans casquette</i> : dînait au Café du Lagon, devant tout le monde.<br>🦛 <i>Hippopotame en robe, à casquette</i> : dormait chez Mamie Minette.<br>🐊 <i>Crocodile en poncho, à casquette</i> : aucun alibi… mais les traces de bottes sont trop grandes pour un crocodile.<br>🦛 <i>Hippopotame en poncho, à casquette</i> : « Je me promenais. Seul. »<br><b>Qui a volé les œufs ?</b>",choice:[CH('Le crocodile en poncho, à casquette',CAPTAUD4),CH('Le hippopotame en robe, à casquette',CAPTAUD3),CH('Le hippopotame en poncho, sans casquette',CAPTAUD2),CH('Le hippopotame en poncho, à casquette',CAPTAUD)],ans:3,ok:"Seul, sans alibi, avec les grandes empreintes : c'est le Capitaine Pataud, collectionneur d'œufs rares !"},
-   {w:2,q:"Pataud s'enfuit en pirogue, un sac sur les genoux. Trouve-le.",ok:"Le Capitaine rame comme un fou, le sac d'œufs serré contre lui."},
-   {q:"Pataud a caché le sac dans la grotte au pied du volcan. Trouve la grotte.",ok:"Une grotte d'où s'échappe une lueur dorée."},
-   {q:"Un sbire s'est déguisé en tortue pour surveiller la grotte. Parmi ces tortues, trouve l'imposteur !",ok:"Celle-ci a des jambes en pantalon rayé qui dépassent de sa carapace !"},
-   {q:"Trois œufs d'or ont roulé de la grotte jusqu'au sable. Retrouve les trois œufs.",ok:"Trois œufs dorés, intacts, dans les herbes de la plage."},
-   {w:3,q:"La Professeure Plume vérifie que ce sont de vrais œufs. Où ?",ok:"Devant sa tente, la loupe à la main : « Authentiques ! »"},
-   {w:4,q:"Léonie arrive pour arrêter Pataud. Où ?",ok:"Au bord de l'eau, juste avant qu'il ne reparte en barque."},
-   {w:1,q:"Titou et la Grande Tortue ramènent les œufs au nid. Trouve-les.",ok:"Les œufs retrouvent leur paille, à l'abri sous les palmiers."},
-   {q:"Les œufs éclosent ! Trouve les petites tortues qui courent vers la mer.",ok:"Quatre minuscules tortues trottinent vers les vagues, sous l'œil attendri de la Grande Tortue."}],
+   {w:2,q:"Pataud a filé en pirogue avec son sac sur les genoux. Trouve-le, en pleine fuite.",ok:"Il rame comme un fou, le sac d'œufs serré contre lui. Le sac bouge. Hmm."},
+   {q:"Pataud a caché son butin dans une grotte au pied du volcan. Trouve la grotte.",ok:"Une grotte éclairée de deux torches, avec une lueur dorée au fond : on a trouvé la cachette."},
+   {q:"À l'entrée, un sbire s'est déguisé en tortue pour surveiller. Parmi ces tortues, trouve l'imposteur !",ok:"Celle-ci a des jambes en pantalon rayé qui dépassent de la carapace ! Les vraies tortues n'ont pas de chaussures."},
+   {q:"Dans la bagarre, trois œufs ont roulé jusqu'au sable. Retrouve-les avant la marée.",ok:"Trois œufs dorés, intacts, dans les herbes de la plage. Pas une fêlure !"},
+   {w:3,q:"La Professeure Plume veut s'assurer qu'ils sont authentiques. Où les examine-t-elle ?",ok:"Devant sa tente, la loupe à l'œil : « Authentiques ! Les plus beaux que j'aie jamais vus ! »"},
+   {w:4,q:"Léonie arrive pour arrêter Pataud avant qu'il ne reparte. Où ?",ok:"Au bord de l'eau, juste avant qu'il ne reparte en barque : « Capitaine Pataud, vous êtes en état d'arrestation ! »"},
+   {w:1,q:"Titou et la Grande Tortue ramènent les œufs au nid. Trouve-les.",ok:"Les œufs retrouvent leur paille, à l'abri sous les palmiers. Titou ne lâche pas le nid des yeux."},
+   {q:"Un craquement ! Les œufs éclosent ! Trouve les petites tortues qui trottinent vers la mer.",ok:"Quatre minuscules tortues courent vers les vagues, sous l'œil attendri de la Grande Tortue. Cent ans d'attente, une minute de bonheur."}],
   outro:"Les bébés tortues ont rejoint l'océan, et le Capitaine Pataud garde désormais la plage… à plein temps. La grande finale de l'île est classée !"}
 );
 
 /* ---------- petits décors ---------- */
-function addRamp(u,v,n,lit){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;const w=n*9+8;
+/* agrandit les éléments créés par un appel (sprites seulement) autour de leur pied */
+function big(k,fn){const n0=items.length,t0=topItems.length;fn();
+  for(const[arr,n]of[[items,n0],[topItems,t0]])for(let i=n;i<arr.length;i++){const it=arr[i],[x,y]=pr(it.fp[0],it.fp[1],0),od=it.d,b=it.bb;
+    it.d=c=>{c.save();c.translate(x,y);c.scale(k,k);c.translate(-x,-y);od(c);c.restore();};
+    it.bb=[x+(b[0]-x)*k,y+(b[1]-y)*k,x+(b[2]-x)*k,y+(b[3]-y)*k];}}
+
+function _addRamp(u,v,n,lit){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;const w=n*9+8;
   c.fillStyle='#a8946a';c.beginPath();c.moveTo(x-w/2,y);c.lineTo(x+w/2,y);c.lineTo(x+w/2-3,y+6);c.lineTo(x-w/2-3,y+6);c.closePath();c.fill();c.stroke();
   for(let i=0;i<n;i++){const rx=x-w/2+8+i*9;Rc(c,rx-2,y-20,4,20,WHITE);P(c,[[rx-2,y-20],[rx+2,y-20],[rx,y-26]],RED);P(c,[[rx-2,y],[rx-4.4,y+2],[rx-2,y-4]],GREY);P(c,[[rx+2,y],[rx+4.4,y+2],[rx+2,y-4]],GREY);
    if(lit){c.strokeStyle=INK;c.lineWidth=.7;c.beginPath();c.moveTo(rx,y);c.quadraticCurveTo(rx+3,y+4,rx+1,y+8);c.stroke();for(const[a,b]of[[-3,-2],[3,-4],[0,-6]])D(c,rx+a,y+8+b,.9,'#e6c14a');}}},{ht:34,hw:n*5+14});}
-function addFuse(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;c.beginPath();c.moveTo(x-8,y-2);c.quadraticCurveTo(x-4,y-6,x-1,y-3);c.stroke();c.beginPath();c.moveTo(x+3,y-3);c.quadraticCurveTo(x+6,y,x+9,y-4);c.stroke();D(c,x-1,y-3,1,'#3a3733');D(c,x+3,y-3,1,'#3a3733');c.lineWidth=.6;L(c,x+5,y-8,x+7,y-6);L(c,x+8,y-8,x+6,y-6);},{ht:12,hw:12});}
-function addBoots(u,v,n){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.9;for(let i=0;i<n;i++){const bx=x-(n-1)*6+i*12,by=y-2-(i%2)*3;E(c,bx,by,3.6,2.2,'#c9c3b0');E(c,bx+5,by+1,2.8,1.8,'#c9c3b0');}},{ht:12,hw:n*7+4});}
-function addLantern(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-3,y-9,6,9,'#efe6c8');c.beginPath();c.arc(x,y-9,3,PI,0);c.stroke();E(c,x,y-5,6,7,'rgba(230,193,74,.35)');L(c,x-4,y-12,x+4,y-12);},{ht:16,hw:10});}
-function addEgg(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-4,3.6,4.8,'#e6c14a');E(c,x-1,y-5.6,1,1.4,'#f6e9a8');},{ht:10,hw:8});}
-function addNest(u,v,n){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-3,19,8,'#c9b58a');c.lineWidth=.5;for(let i=-16;i<=16;i+=4)L(c,x+i,y-3,x+i*.8,y+3);for(let i=0;i<n;i++){const ex=x-10+i*(20/Math.max(1,n-1)),ey=y-6-(i%2)*2;c.lineWidth=1;E(c,ex,ey,3.8,5,'#e6c14a');E(c,ex-1,ey-1.6,1,1.4,'#f6e9a8');}},{ht:18,hw:22});avoid(u,v,16);}
-function addBabyTurtle(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;for(const[dx,dy]of[[-3,0],[3,0]])E(c,x+dx,y+dy,1.4,.8,'#d4d6c0');C(c,x+5,y-2,1.6,'#d4d6c0');D(c,x+5.6,y-2.4,.35);c.beginPath();c.ellipse(x,y-2,4,2.8,0,PI,0);c.closePath();c.fillStyle='#c3c7ad';c.fill();c.stroke();},{ht:8,hw:8});}
+function _addFuse(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.1;c.beginPath();c.moveTo(x-8,y-2);c.quadraticCurveTo(x-4,y-6,x-1,y-3);c.stroke();c.beginPath();c.moveTo(x+3,y-3);c.quadraticCurveTo(x+6,y,x+9,y-4);c.stroke();D(c,x-1,y-3,1,'#3a3733');D(c,x+3,y-3,1,'#3a3733');c.lineWidth=.6;L(c,x+5,y-8,x+7,y-6);L(c,x+8,y-8,x+6,y-6);},{ht:12,hw:12});}
+function _addBoots(u,v,n){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.9;for(let i=0;i<n;i++){const bx=x-(n-1)*6+i*12,by=y-2-(i%2)*3;E(c,bx,by,3.6,2.2,'#c9c3b0');E(c,bx+5,by+1,2.8,1.8,'#c9c3b0');}},{ht:12,hw:n*7+4});}
+function _addLantern(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;Rc(c,x-3,y-9,6,9,'#efe6c8');c.beginPath();c.arc(x,y-9,3,PI,0);c.stroke();E(c,x,y-5,6,7,'rgba(230,193,74,.35)');L(c,x-4,y-12,x+4,y-12);},{ht:16,hw:10});}
+function _addEgg(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-4,3.6,4.8,'#e6c14a');E(c,x-1,y-5.6,1,1.4,'#f6e9a8');},{ht:10,hw:8});}
+function _addNest(u,v,n){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;E(c,x,y-3,19,8,'#c9b58a');c.lineWidth=.5;for(let i=-16;i<=16;i+=4)L(c,x+i,y-3,x+i*.8,y+3);for(let i=0;i<n;i++){const ex=x-10+i*(20/Math.max(1,n-1)),ey=y-6-(i%2)*2;c.lineWidth=1;E(c,ex,ey,3.8,5,'#e6c14a');E(c,ex-1,ey-1.6,1,1.4,'#f6e9a8');}},{ht:18,hw:22});avoid(u,v,16);}
+function _addBabyTurtle(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.8;for(const[dx,dy]of[[-3,0],[3,0]])E(c,x+dx,y+dy,1.4,.8,'#d4d6c0');C(c,x+5,y-2,1.6,'#d4d6c0');D(c,x+5.6,y-2.4,.35);c.beginPath();c.ellipse(x,y-2,4,2.8,0,PI,0);c.closePath();c.fillStyle='#c3c7ad';c.fill();c.stroke();},{ht:8,hw:8});}
 function addFakeTurtle(u,v){addSpr(u,v,(c,x,y)=>{c.save();c.translate(x,y);c.scale(1.5,1.5);c.strokeStyle=INK;c.lineWidth=.9;
   /* jambes en pantalon rayé qui dépassent de la carapace, grosses chaussures */
   for(const dx of[-5,3]){Rc(c,x*0+dx,-7,3.4,7,'#f1ede0');c.lineWidth=.5;for(const k of[1.5,3.2,4.9])L(c,dx,-k,dx+3.4,-k);c.lineWidth=.9;E(c,dx+1.7,.2,4,1.8,'#3a3733');}
@@ -2488,7 +2494,7 @@ function addCave(u,v){addSpr(u,v,(c,x,y)=>{c.save();c.translate(x,y);c.scale(1.5
   c.restore();},{ht:76,hw:62,lo:10});avoid(u,v,34);}
 function addBurst(u,v,z,r){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=.9;for(let i=0;i<14;i++){const a=i/14*TAU,r0=r*.25,r1=r*(i%2?.7:1);c.beginPath();c.moveTo(x+Math.cos(a)*r0,y+Math.sin(a)*r0);c.lineTo(x+Math.cos(a)*r1,y+Math.sin(a)*r1);c.stroke();D(c,x+Math.cos(a)*(r1+3),y+Math.sin(a)*(r1+3),1.1,i%2?'#e6c14a':RED);}D(c,x,y,2,'#e6c14a');},{z,top:true,ht:r*2+10,hw:r+10,lo:r+10});}
 function addCrateFuses(u,v){addCrate(u,v,12);addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;for(let k=0;k<3;k++){c.beginPath();c.ellipse(x-5+k*5,y-17,3,1.8,0,0,TAU);c.fillStyle=k%2?RED:'#3a3733';c.fill();c.stroke();}},{top:true,ht:24,hw:16});}
-function addPodium(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;P(c,[[x-18,y],[x+18,y],[x+18,y-8],[x-18,y-8]],'#c9b58a');P(c,[[x-18,y-8],[x+18,y-8],[x+12,y-14],[x-12,y-14]],'#d8c8a4');c.lineWidth=.5;for(let k=-14;k<18;k+=8)L(c,x+k,y,x+k,y-8);Rc(c,x-3,y-14,6,3,RED);},{ht:18,hw:22});avoid(u,v,18);}
+function _addPodium(u,v){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1;P(c,[[x-18,y],[x+18,y],[x+18,y-8],[x-18,y-8]],'#c9b58a');P(c,[[x-18,y-8],[x+18,y-8],[x+12,y-14],[x-12,y-14]],'#d8c8a4');c.lineWidth=.5;for(let k=-14;k<18;k+=8)L(c,x+k,y,x+k,y-8);Rc(c,x-3,y-14,6,3,RED);},{ht:18,hw:22});avoid(u,v,18);}
 function addSwanBoat(u,v,sp){addSpr(u,v,(c,x,y)=>{c.save();c.translate(x,y);c.scale(1.5,1.5);c.strokeStyle=INK;
   /* sillage */
   c.lineWidth=.6;for(const[k,w]of[[0,22],[1,30],[2,38]]){c.beginPath();c.moveTo(-14-k*6,2+k*2);c.quadraticCurveTo(-22-k*6-w/4,5+k*2,-30-k*8,3+k*2);c.stroke();}
@@ -2506,6 +2512,14 @@ function addSwanBoat(u,v,sp){addSpr(u,v,(c,x,y)=>{c.save();c.translate(x,y);c.sc
   c.restore();},{ht:74,hw:42});avoid(u,v,24);}
 function addPirogue(u,v,sp,withSack){addSpr(u,v,(c,x,y)=>{c.strokeStyle=INK;c.lineWidth=1.2;c.beginPath();c.moveTo(x-26,y-5);c.quadraticCurveTo(x,y+8,x+26,y-5);c.lineTo(x+22,y-8);c.lineTo(x-22,y-8);c.closePath();c.fillStyle='#a8946a';c.fill();c.stroke();if(sp)drawChar(c,x,y-3,sp);if(withSack){c.lineWidth=1;E(c,x+10,y-12,6,6,'#cfc4a0');L(c,x+7,y-17,x+13,y-17);}},{ht:56,hw:32});avoid(u,v,18);}
 
+function addRamp(u,v,n,lit){big(1.45,()=>_addRamp(u,v,n,lit));}
+function addFuse(u,v){big(1.9,()=>_addFuse(u,v));}
+function addBoots(u,v,n){big(1.7,()=>_addBoots(u,v,n));}
+function addLantern(u,v){big(1.8,()=>_addLantern(u,v));}
+function addEgg(u,v){big(1.9,()=>_addEgg(u,v));}
+function addNest(u,v,n){big(1.5,()=>_addNest(u,v,n));}
+function addBabyTurtle(u,v){big(1.9,()=>_addBabyTurtle(u,v));}
+function addPodium(u,v){big(1.4,()=>_addPodium(u,v));}
 /* ---------- construction ---------- */
 function buildNewCases(){
   const T=(cid,n,u,v,r,z)=>{setT(cid,n,u,v,r,z);avoidRect(u-r-22,v-r-16,u+r+22,v+r+16);};
@@ -2514,9 +2528,9 @@ function buildNewCases(){
   /* ===== Sabotage au feu d'artifice (Fête foraine) ===== */
   CURD=2;
   {const[u,v]=spot(560,1290,30,22);addPodium(u,v);addChar(u,v-2,as(DIRO2,{pose:'point'}));addChar(u+22,v+10,as(NOIS,{pose:'arms_up'}));addChar(u-22,v+12,as(MAMAN,{}));T('feu',1,u,v-2,26);}
-  {const[u,v]=spot(300,1380,40,24);addRamp(u,v,6,false);addChar(u-34,v+10,as(PYRO,{pose:'give'}));T('feu',2,u-14,v+4,36);T('feu',3,u,v,32);}
+  let RP;{const[u,v]=spot(300,1380,40,24);RP=[u,v];addRamp(u,v,6,false);addChar(u-34,v+10,as(PYRO,{pose:'give'}));T('feu',2,u-14,v+4,36);T('feu',3,u,v,32);}
   {const[u,v]=spot(120,1580,26,18);addChar(u,v,as(OMBRE_SIL,{pose:'hide'}));addChar(u+30,v+4,as(FORAIN,{pose:'think'}));T('feu',4,u,v,24);}
-  {const pts=[[140,1460],[470,1560],[700,1420]].map(([a,b])=>{const p=spot(a,b,12,10);addFuse(p[0],p[1]);return[p[0],p[1],0];});
+  {const pts=[[-80,46],[6,78],[90,40]].map(([a,b])=>{const p=spot(RP[0]+a,RP[1]+b,10,8);addFuse(p[0],p[1]);return[p[0],p[1],0];});
    stepMulti(CASES.find(c=>c.id==='feu').steps[4],pts,16);}
   {const[u,v]=spot(900,1660,34,18);addBoots(u,v,3);addBoots(u+34,v+14,2);T('feu',6,u+12,v+6,28);}
   {const k=blk(2,6);const lu=k.uc,lv=k.v0+70;addSwanBoat(lu-20,lv,as(PETARD,{pose:'sit',noShadow:true}));addSwanBoat(lu+70,lv+34,as(MAMAN,{pose:'sit',noShadow:true,flip:true}));T('feu',8,lu-20,lv,26);}
@@ -2526,7 +2540,7 @@ function buildNewCases(){
   {const[u,v]=spot(240,1790,24,16);addCrateFuses(u,v);addCaravan(u+40,v-30);T('feu',12,u,v,22);}
   {const[u,v]=spot(1040,1480,30,20);addChar(u,v,as(LEONIE,{pose:'point'}));addChar(u+18,v+4,as(PETARD,{pose:'arms_up'}));T('feu',13,u+9,v+2,28);}
   {const[u,v]=spot(450,1240,40,20);addRamp(u,v,6,true);addChar(u-38,v+10,as(PYRO,{pose:'give'}));T('feu',14,u,v,32);}
-  {const[u,v]=spot(640,1700,50,30);const bs=[[u-14,v-8,70,28],[u+22,v-18,92,34],[u+60,v-6,64,24]];for(const[a,b,z,r]of bs)addBurst(a,b,z,r);
+  {const[u,v]=spot(640,1700,50,30);const bs=[[u-14,v-8,70,28],[u+22,v-18,92,34],[u+60,v-6,64,24]];for(const[a,b,z,r]of bs)addBurst(a,b,z,r*1.35);
    for(let i=0;i<5;i++)addChar(u-30+i*16,v+26+(i%2)*6,as(randomSpec(),{pose:i%2?'arms_up':'stand'}));
    const st=CASES.find(c=>c.id==='feu').steps[14];const[x,y]=pr(u+22,v-18,92);st.t={x,y,r:58,u:u+22,v:v-18};avoid(u+22,v-18,50);}
 
@@ -2539,11 +2553,11 @@ function buildNewCases(){
    stepMulti(CASES.find(c=>c.id==='tortue').steps[4],pts,18);}
   {const[u,v]=spot(2795,700,30,20);addPirogue(u,v,null,false);addBoots(u-34,v+10,3);T('tortue',6,u,v,30);}
   {const[u,v]=spot(2845,440,30,18);addPirogue(u,v,as(CAPTAUD,{pose:'row',noShadow:true}),true);T('tortue',8,u,v,30);}
-  {const gu=2440,gv=250;const[u,v]=spotI(gu+60,gv+20,36,24);addCave(u,v);addChar(u-44,v+8,as(SBIRE,{pose:'stand'}));T('tortue',9,u,v,36);}
+  let CV;{const gu=2440,gv=250;const[u,v]=spotI(gu+60,gv+20,36,24);CV=[u,v];addCave(u,v);addChar(u-44,v+8,as(SBIRE,{pose:'stand'}));T('tortue',9,u,v,36);}
   {const[u,v]=spotI(2420,760,50,40);avoidRect(u-50,v-40,u+80,v+60);const n=6,odd=2;const pts=[];for(let i=0;i<n;i++){const row=i%2,col=Math.floor(i/2);pts.push([u+col*22+row*8,v+row*22]);}
    pts.forEach(([pu,pv],i)=>{if(i===odd)addFakeTurtle(pu,pv);else addBigTurtle(pu,pv);});
    const[x,y]=pr(pts[odd][0],pts[odd][1],0);CASES.find(c=>c.id==='tortue').steps[9].t={x,y:y-12,r:20,u:pts[odd][0],v:pts[odd][1]};avoid(pts[odd][0],pts[odd][1],30);}
-  {const pts=[[2380,880],[2650,940],[2590,360]].map(([a,b])=>{const p=spotI(a,b,12,10);addEgg(p[0],p[1]);return[p[0],p[1],0];});
+  {const pts=[[-80,120],[4,150],[90,118]].map(([a,b])=>{const p=[CV[0]+a*.8,CV[1]+b*.7];addEgg(p[0],p[1]);return[p[0],p[1],0];});
    stepMulti(CASES.find(c=>c.id==='tortue').steps[10],pts,16);}
   {const[u,v]=spotI(2540,950,30,20);addChar(u,v,as(PLUME,{pose:'give',prop:'magnifier'}));addEgg(u+16,v+6);addEgg(u+24,v+12);T('tortue',12,u,v,24);}
   {const[u,v]=spotI(2560,1100,40,16);addBoat(u+36,v+14,1,{len:18});addChar(u,v,as(LEONIE,{pose:'point'}));addChar(u+16,v+6,as(CAPTAUD,{pose:'arms_up'}));T('tortue',13,u+8,v+4,28);}
@@ -3040,7 +3054,7 @@ window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unloc
 /* =========================================================
    ACCUEIL · PARTIES · OPTIONS · VERSION & MISES À JOUR
    ========================================================= */
-const APP_VERSION='2.7',APP_BUILD='202611131148';
+const APP_VERSION='2.8',APP_BUILD='202611132005';
 const homeEl=$('home');
 const fmtBuild=b=>/^\d{12}$/.test(b)?`${b.slice(0,8)}-${b.slice(8)}`:b;
 const fmtDate=ts=>{if(!ts)return '';const d=new Date(ts);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
