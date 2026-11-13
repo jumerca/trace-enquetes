@@ -272,7 +272,13 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const usage = 1 + (a.shotCreation + a.three + a.finishing - 30) / 140;
   let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0) + (st.play === 'Isolation' && st.star === p.idx ? 0.08 : 0);
   if (needThree && type !== 'three') shootV -= 0.5;
-  if (type === 'three' && !needThree) shootV *= 0.8 + e.teams[p.team].tactics.threeRate * 0.14;
+  if (type === 'three' && !needThree) shootV *= 0.71 + e.teams[p.team].tactics.threeRate * 0.14;
+  // Le tir à mi-distance est le moins rentable : on ne le prend que démarqué ou quand le chrono presse
+  if (type === 'jumper' && !needThree) {
+    shootV *= 0.8 + urgency * 0.22 + (e.nearestDefender(p).d > 2.6 ? 0.08 : 0);
+    // Long tir à 2 points, un pied devant la ligne : le plus mauvais tir du basket, à éviter
+    if (d > e.court.g.threeRadius - 1.7) shootV *= 0.62 + urgency * 0.3;
+  }
   if (p.isUser && e.userStyle.role === 'shooter' && type === 'three') shootV += 0.1;
   if (p.isUser && e.userStyle.role === 'post' && dist(p.pos, hoop) < 3.5) shootV += 0.08;
   opts.push({ kind: 'shoot', v: shootV });
@@ -297,7 +303,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const finish = (a.layup + a.finishing + a.dunk * 0.5) / 50;
   const dribbleSkill = (a.dribble + a.ballControl) / 40;
   if (d > 2.2 && d < 11) {
-    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3 + 0.08 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
+    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3 + 0.2 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
     opts.push({ kind: 'drive', v });
   }
   const extD = p as MPlayer & { driveT?: number };
@@ -309,7 +315,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     }
     if (laneBlock > 0.85) {
       let kick: MPlayer | null = null;
-      let kv = 0.9;
+      let kv = 1.02;
       for (const m of e.teamOnCourt(p.team)) {
         if (m === p || m.keyTime > 2.2) continue;
         const open = e.nearestDefender(m).d + e.rng.normal(0, visionNoise);
@@ -319,7 +325,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
           kick = m;
         }
       }
-      if (kick && e.rng.chance(0.35 + a.vision / 40)) {
+      if (kick && e.rng.chance(0.18 + a.vision / 50)) {
         e.launchPass(p, kick, 'chest');
         st.passes++;
         p.intent = 'ressort';
@@ -329,7 +335,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
         e.beginShot(p);
         return;
       }
-      if (d < 6.5 && sEV > 0.75) {
+      // Arrêt en suspension seulement près du cercle et avec un vrai bon tir (plus de long tir à 2 points forcé)
+      if (d < 4.6 && sEV > 0.84) {
         e.beginShot(p);
         return;
       }
@@ -361,7 +368,8 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     const cutting = m.intent === 'coupe' || m.intent === 'roll';
     let v = (mEV * (0.85 + Math.min(open, 4) * 0.04) * 0.62 + possValue * 0.36) * (1 - risk) - risk * 1.2;
     if (cutting && open > 1.2) v += 0.25;
-    if (m.role === 'post' && open > 0.6) v += (m.data.attrs.postPlay - 10) / 30;
+    // Servir l'intérieur qui a pris position près du cercle : le jeu passe aussi par le poste
+    if (m.role === 'post' && open > 0.6) v += (m.data.attrs.postPlay - 10) / 30 + (dist(m.pos, hoop) < 4.5 ? 0.14 : 0);
     // Le système annoncé oriente les lectures
     if (st.play === 'Isolation' && st.star === m.idx && st.passes < 2) v += 0.3;
     if (st.play === 'Poste bas' && st.star === m.idx && dist(m.pos, hoop) < 4.2) v += 0.28;
@@ -673,7 +681,8 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
   if (dMe < 3) return false;
   const defs = e.teamOnCourt((1 - p.team) as 0 | 1);
   const trapped = defs.filter((o) => dist(o.pos, p.pos) < 1.7).length >= 2;
-  const trans = e.offense[p.team].transition || !e.frontcourtReached;
+  const stA = e.offense[p.team];
+  const trans = stA.transition || !e.frontcourtReached;
   // Le porteur prend le temps de regarder avant de redonner (sauf en transition ou pris à deux)
   if (!trans && !trapped && p.pickupT < 0.7) return false;
   const see = 0.45 + a.vision / 40 + a.iq / 80; // ~0.9 à 1.2 pour un bon meneur, ~0.6 pour un intérieur peu créatif
@@ -688,7 +697,7 @@ function readAdvantage(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     const ahead = dMe - md;
     let sc = 0;
     // En attaque placée, on ne donne vers l'avant que pour un vrai décalage : le ballon ne tourne pas sans raison
-    if (ahead > (trans ? 2 : 4.5) && md < (trans ? 9 : 5) && open > (trans ? 2.2 : 2.8)) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
+    if (trans && ahead > 2.5 && md < 7 && open > 2.6) sc = 0.5 + ahead * 0.06 + Math.min(open, 6) * 0.12 + (md < 3 ? 0.5 : 0);
     else if (md < 2.6 && open > 2) sc = 0.7 + open * 0.15; // coupeur / pivot seul sous le cercle
     else if (trapped && open > 2.2) sc = 0.55 + open * 0.1;
     if (risk > 0.32) continue;
@@ -725,7 +734,7 @@ function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     const along = rx * toHoop.x + ry * toHoop.y;
     return along > 0 && along < 1.6 && Math.abs(-rx * toHoop.y + ry * toHoop.x) < 0.9;
   });
-  const pressure = trapped || p.keyTime > 1.7 || p.pickupT > 2.8 || (sealed && p.pickupT > 1.4);
+  const pressure = trapped || p.keyTime > 1.9 || p.pickupT > 3.4 || (sealed && p.pickupT > 1.8);
   if (!pressure) return false;
   // Meilleure solution à l'extérieur (lecture plus ou moins rapide selon la vision)
   const side = e.attackSide(p.team);
@@ -745,7 +754,7 @@ function postRead(e: MatchEngine, p: MPlayer, hoop: V2): boolean {
     }
   }
   const sEV = shotEV(e, p, p.pos, true);
-  if (best && (bv > sEV - 0.05 || trapped || p.keyTime > 2)) {
+  if (best && (bv > sEV + 0.06 || trapped || p.keyTime > 2)) {
     e.launchPass(p, best, e.bestPass(p, best).kind);
     e.offense[p.team].passes++;
     p.intent = 'ressort';
