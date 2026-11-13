@@ -1,4 +1,5 @@
 /* ---------- les têtes d'animaux ---------- */
+const NEWHEADS=['giraffe','turtle','sheep','hippo'];
 const HEADS=['cat','fox','rabbit','bear','mouse','pig','owl','dog','elephant','frog','duck','croc','hedgehog','penguin','lion'];
 function drawHead(c,s,d){
   const h=s.head, r=5.2;
@@ -6,6 +7,10 @@ function drawHead(c,s,d){
   let hf=WHITE;
   // oreilles et éléments derrière la tête
   switch(h){
+    case 'giraffe':hf='#efe6c8';E(c,-5.6,-1.4,2.5,1.1,hf,-.5);E(c,5.6,-1.4,2.5,1.1,hf,.5);for(const sx of[-1.9,1.9]){c.lineWidth=1.1;L(c,sx,-4.8,sx*1.15,-9);C(c,sx*1.15,-9.6,1.1,INK);}break;
+    case 'turtle':hf='#d6dac6';break;
+    case 'sheep':hf='#bdb6a5';E(c,-5.8,.4,2.7,1.2,hf,.35);E(c,5.8,.4,2.7,1.2,hf,-.35);break;
+    case 'hippo':hf='#d9d4c8';C(c,-3.8,-4.6,1.6,hf);C(c,3.8,-4.6,1.6,hf);break;
     case 'cat':P(c,[[-4.6,-2],[-4.4,-8.6],[-.8,-4.6]],WHITE);P(c,[[4.6,-2],[4.4,-8.6],[.8,-4.6]],WHITE);break;
     case 'fox':P(c,[[-4.8,-1.5],[-5.3,-10.2],[-.6,-4.4]],WHITE);P(c,[[4.8,-1.5],[5.3,-10.2],[.6,-4.4]],WHITE);D(c,-4.4,-7.4,.9);D(c,4.4,-7.4,.9);break;
     case 'rabbit':E(c,-2.3,-9.2,1.8,5.4,WHITE,-.15);E(c,2.3,-9.2,1.8,5.4,WHITE,.15);break;
@@ -42,6 +47,11 @@ function drawHead(c,s,d){
     case 'hedgehog':D(c,0,1.7,.95);break;
     case 'penguin':c.lineWidth=.6;P(c,[[-1.2,1.2],[1.2,1.2],[0,3.2]],'#e6c14a');break;
     case 'lion':c.lineWidth=.8;E(c,0,2,2.2,1.5,WHITE);D(c,0,1.4,.7);break;
+    case 'giraffe':c.lineWidth=.8;E(c,0,2.3,2.7,2,'#e0d2a8');D(c,-1,2.2,.45);D(c,1,2.2,.45);D(c,-3,-2.6,.8);D(c,3.2,-3.2,.7);D(c,2.4,-1,.55);break;
+    case 'turtle':c.lineWidth=.8;c.beginPath();c.arc(0,.6,2.9,.3,PI-.3);c.stroke();D(c,-.7,.3,.35);D(c,.7,.3,.35);break;
+    case 'sheep':c.lineWidth=.8;c.beginPath();c.arc(0,2.1,1.5,.4,PI-.4);c.stroke();D(c,0,1.4,.5);
+      c.lineWidth=1.05;for(const[bx,by,br]of[[-3.4,-4.6,2.5],[-1,-6,2.8],[1.7,-5.8,2.8],[3.7,-4.2,2.3],[0,-3.8,2.3]]){C(c,bx,by,br,WHITE);}break;
+    case 'hippo':c.lineWidth=.9;E(c,0,2.5,4.3,2.7,'#e8e1d1');D(c,-1.9,1.6,.65);D(c,1.9,1.6,.65);c.lineWidth=.7;c.beginPath();c.arc(0,3.2,2.3,.25,PI-.25);c.stroke();break;
   }
   c.lineWidth=1.05;
   // couvre-chefs
@@ -82,6 +92,8 @@ function POSE(p,d,tt,hip){
     case 'dig':return{F:[d*6.5,tt+5],B:[d*2.5,tt+9.5],legs:[[[-2,hip],[-3.6,0]],[[2,hip],[3.6,0]]]};
     case 'carry':return{F:[d*3,tt+7],B:[-d*3,tt+7],legs:std};
     case 'row':return{F:[d*7,tt+7],B:[d*3.5,tt+9],legs:[]};
+    case 'step':return{F:[d*2.6,hip-1],B:[-d*2.6,hip-1],legs:[[[-1.5,hip],[-2.6,0]],[[1.5,hip],[2.6,0]]]};
+    case 'walk2':return{F:[d*5,hip+.5],B:[-d*5.6,hip-4],legs:[[[-1.5,hip],[-4.2,0]],[[1.5,hip],[4,0]]]};
     case 'crouch':return{F:[d*7.4,hip-.4],B:[-d*7.4,hip-.4],legs:[[[-2,hip],[-8,hip-.6],[-4.4,0]],[[2,hip],[8,hip-.6],[4.4,0]]]};
     case 'hide':return{F:[d*1.8,tt-3],B:[-d*1.8,tt-3],legs:[[[-2,hip],[-8,hip-.6],[-4.4,0]],[[2,hip],[8,hip-.6],[4.4,0]]]};
     case 'ground':return{F:[d*7,hip+1.6],B:[-d*7,hip+1.6],legs:[[[-2,hip],[-6,hip+1.4],[-10,hip+2]],[[2,hip],[6,hip+1.6],[10,hip+2.4]]]};
@@ -94,7 +106,12 @@ function POSE(p,d,tt,hip){
 
 function bodyPath(c,s,tt,hip){
   c.beginPath();
-  if(s.body==='dress'){c.moveTo(-3.3,tt+.5);c.quadraticCurveTo(-3.3,tt,-2.5,tt);c.lineTo(2.5,tt);c.quadraticCurveTo(3.3,tt,3.3,tt+.5);c.lineTo(7.2,hip+4.2);c.lineTo(-7.2,hip+4.2);}
+  if(s.body==='robe'){c.moveTo(-4.2,tt+1.2);c.quadraticCurveTo(-4.2,tt,-3,tt);c.lineTo(3,tt);c.quadraticCurveTo(4.2,tt,4.2,tt+1.2);c.lineTo(6.8,-.6);c.lineTo(-6.8,-.6);}
+  else if(s.body==='poncho'){c.moveTo(-2.6,tt);c.lineTo(2.6,tt);c.lineTo(5.2,tt+3);c.lineTo(8.8,hip+6);c.lineTo(-8.8,hip+6);c.lineTo(-5.2,tt+3);}
+  else if(s.body==='tutu'){c.moveTo(-3,tt+.4);c.quadraticCurveTo(-3.2,tt,-2.4,tt);c.lineTo(2.4,tt);c.quadraticCurveTo(3.2,tt,3,tt+.4);c.lineTo(2.9,hip-1);c.lineTo(-2.9,hip-1);}
+  else if(s.body==='puffer'){c.moveTo(-3.4,tt);c.lineTo(3.4,tt);c.quadraticCurveTo(7,tt+2,6.4,hip-2);c.quadraticCurveTo(6.2,hip+3,3,hip+2.4);c.lineTo(-3,hip+2.4);c.quadraticCurveTo(-6.2,hip+3,-6.4,hip-2);c.quadraticCurveTo(-7,tt+2,-3.4,tt);}
+  else if(s.body==='overalls'){c.moveTo(-4.3,tt+1.2);c.quadraticCurveTo(-4.3,tt,-3,tt);c.lineTo(3,tt);c.quadraticCurveTo(4.3,tt,4.3,tt+1.2);c.lineTo(4.3,hip+1);c.lineTo(-4.3,hip+1);}
+  else if(s.body==='dress'){c.moveTo(-3.3,tt+.5);c.quadraticCurveTo(-3.3,tt,-2.5,tt);c.lineTo(2.5,tt);c.quadraticCurveTo(3.3,tt,3.3,tt+.5);c.lineTo(7.2,hip+4.2);c.lineTo(-7.2,hip+4.2);}
   else if(s.body==='suit'||s.body==='shirt'){c.moveTo(-4.3,tt+1.2);c.quadraticCurveTo(-4.3,tt,-3,tt);c.lineTo(3,tt);c.quadraticCurveTo(4.3,tt,4.3,tt+1.2);c.lineTo(4.1,hip);c.lineTo(-4.1,hip);}
   else{c.moveTo(-4.1,tt+1.2);c.quadraticCurveTo(-4.1,tt,-3,tt);c.lineTo(3,tt);c.quadraticCurveTo(4.1,tt,4.1,tt+1.2);c.lineTo(5.7,hip+2.2);c.lineTo(-5.7,hip+2.2);}
   c.closePath();
@@ -180,15 +197,18 @@ function drawCharIn(c,x,y,s){
   c.lineJoin='round';c.lineCap='round';c.strokeStyle=INK;
   const low=pose==='sit'||pose==='row'||pose==='crouch'||pose==='hide'||pose==='ground';
   const tt0=pose==='crouch'||pose==='hide'?-19:pose==='ground'?-16:low?-19:-24, hip0=pose==='crouch'||pose==='hide'?-6:pose==='ground'?-3:low?-8:-11;
-  const lkE=low?1:BD.lk,bw=BD.bw,tk=BD.tk,hip=hip0*lkE,tt=hip+(tt0-hip0)*tk;
+  const lkE=low?1:BD.lk,bw=BD.bw*(SPBW[s.head]||1),tk=BD.tk,hip=hip0*lkE,tt=hip+(tt0-hip0)*tk;
   const pd=POSE(pose,d,tt0,hip0);
   const M=pt=>[pt[0]+Math.sign(pt[0])*(bw-1)*3.8,hip+(pt[1]-hip0)*tk];
   if(pd.lean){c.transform(1,0,d*-.12,1,0,0);}
   if(pose!=='row'&&!s.noTail)drawTail(c,s.head,d,hip,s);
-  c.lineWidth=1.5*(BD.lk<.8?.9:1);
-  for(const lg of pd.legs){
+  c.lineWidth=1.5*(BD.lk<.8?.9:1);const legsHidden=s.body==='robe'||s.body==='poncho'&&false;
+  if(s.head==='turtle')drawShell(c,d,tt,hip,bw);
+  if(s.head==='sheep')drawWool(c,tt,hip,bw);
+  for(const lg of legsHidden?[]:pd.legs){
     const pts=lg.map(q=>[q[0]*(bw>1.2?1.15:1),q[1]*lkE]);const st=s.body==='dress'?[pts[0][0],pts[0][1]+2]:pts[0];
-    c.beginPath();c.moveTo(st[0],st[1]);for(let i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]);c.stroke();
+    c.beginPath();c.moveTo(st[0],st[1]);for(let i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]);
+    if(s.body==='overalls'){const lw0=c.lineWidth;c.lineWidth=3.4;c.strokeStyle=INK;c.stroke();c.lineWidth=1.8;c.strokeStyle='#c9c2b2';c.stroke();c.strokeStyle=INK;c.lineWidth=lw0;}else c.stroke();
     const f=pts[pts.length-1];const lw=c.lineWidth;c.lineWidth=.6;E(c,f[0]+d*.7,f[1]-.5,2,1.15,INK);c.lineWidth=lw;
   }
   const leanK=(pose==='lean'?.5:0)+(BD.hunch||0);
@@ -203,12 +223,18 @@ function drawCharIn(c,x,y,s){
   if(s.body==='suit'){P(c,[[0,tt0+.4],[.95,tt0+2],[0,tt0+7.5],[-.95,tt0+2]],dark?WHITE:INK);}
   else if(s.body==='coat'){D(c,0,tt0+5,.5,dark?WHITE:INK);D(c,0,tt0+8.5,.5,dark?WHITE:INK);}
   else if(s.body==='chef'){Rc(c,-3.4,tt0+5,6.8,hip0-tt0-3,WHITE);}
+  else if(s.body==='robe'){c.lineWidth=.7;L(c,-4.6,tt0+6.4,4.6,tt0+6.4);L(c,0,tt0+1,0,tt0+6.4);c.lineWidth=.9;L(c,-6.6,-2.2,6.6,-2.2);for(let k=-5;k<=5;k+=2.5)L(c,k,-2.2,k,-.4);}
+  else if(s.body==='overalls'){c.lineWidth=.9;P(c,[[-2.7,tt0+4.4],[2.7,tt0+4.4],[3.5,hip0+.6],[-3.5,hip0+.6]],'#c9c2b2');c.lineWidth=.8;L(c,-2.4,tt0+4.4,-3.4,tt0+.2);L(c,2.4,tt0+4.4,3.4,tt0+.2);D(c,-2.2,tt0+4.8,.6);D(c,2.2,tt0+4.8,.6);Rc(c,-1.4,tt0+7,2.8,2,'#e2ddd0');}
+  else if(s.body==='poncho'){c.lineWidth=.7;for(const k of[.4,.62]){const y=tt0+(hip0+6-tt0)*k,w=2.6+(8.6-2.6)*k;L(c,-w,y,w,y);}c.lineWidth=.6;for(let k=-8;k<=8;k+=2)L(c,k,hip0+6,k*.98,hip0+7.6);E(c,0,tt0+.4,2.6,.9,INK);}
+  else if(s.body==='tutu'){c.lineWidth=.9;c.beginPath();c.moveTo(-3.3,hip0-2.2);for(let k=0;k<=6;k++){c.quadraticCurveTo(-6.4+k*2.13+1.06,hip0+4.4+(k%2?1.2:0),-6.4+(k+1)*2.13,hip0+1.4);}c.lineTo(3.3,hip0-2.2);c.closePath();c.fillStyle=WHITE;c.fill();c.stroke();c.lineWidth=.5;for(const k of[-3.4,0,3.4])L(c,k,hip0-1.8,k*1.5,hip0+3);}
+  else if(s.body==='puffer'){c.lineWidth=.8;for(const k of[.3,.55,.8]){const y=tt0+(hip0+2-tt0)*k;L(c,-5.2,y,5.2,y);}L(c,0,tt0+1.4,0,hip0+2);P(c,[[-3.4,tt0-.5],[3.4,tt0-.5],[3,tt0+1.8],[-3,tt0+1.8]],WHITE);}
   c.restore();
   const F=M(pd.F),B=M(pd.B),shY=tt+1.6*tk,shX=3.8*bw;
   const slv=s.fill==='black'?INK:s.fill==='grey'?'#a8a296':s.fill==='check'?'#d6d1c5':WHITE;
   for(const[sx,h]of[[-d*shX,B],[d*shX,F]]){c.lineCap='round';c.lineWidth=2.9;c.strokeStyle=INK;L(c,sx,shY,h[0],h[1]);c.lineWidth=1.3;c.strokeStyle=slv;L(c,sx,shY,h[0]-(h[0]-sx)*.15,h[1]-(h[1]-shY)*.15);c.strokeStyle=INK;}
   c.lineWidth=.8;const hr=s.gloves?1.7:.95;C(c,B[0],B[1],hr,WHITE);C(c,F[0],F[1],hr,WHITE);
-  c.save();c.translate(BD.hunch?d*2:0,tt-5.1*BD.hs);c.scale(BD.hs,BD.hs);drawHead(c,s,d);c.restore();
+  const nk=(NECK[s.head]||0);if(nk){c.lineWidth=1;P(c,[[-2,tt+.8],[2,tt+.8],[1.7,tt-nk+1.5],[-1.7,tt-nk+1.5]],'#efe6c8');for(const[sx,sy]of[[-.6,.28],[.7,.5],[-.3,.74]])D(c,sx,tt-nk+(nk+.8)*(1-sy)-.8,.7);}
+  c.save();c.translate(BD.hunch?d*2:0,tt-5.1*BD.hs-nk);c.scale(BD.hs,BD.hs);drawHead(c,s,d);c.restore();
   if(s.scarf){c.lineWidth=.8;P(c,[[-3.6*bw,tt-.6],[3.6*bw,tt-.6],[3.2*bw,tt+1.8],[-3.2*bw,tt+1.8]],s.scarf);P(c,[[-d*1.5,tt+1],[-d*.2,tt+1],[-d*.6,tt+7],[-d*2.2,tt+6.6]],s.scarf);}
   if(s.bell){c.lineWidth=.6;L(c,-2.6,tt+.6,2.6,tt+.6);D(c,0,tt+1.8,1.5,RED);}
   if(s.prop){if(BIGP.has(s.prop)){c.save();c.translate(F[0],F[1]);c.scale(1.45,1.45);drawProp(c,s.prop,0,0,d);c.restore();}else drawProp(c,s.prop,F[0],F[1],d);}
@@ -226,7 +252,8 @@ function drawGhost(c){
   c.lineWidth=.8;L(c,-8,-15,-12,-19);L(c,8,-15,12,-19);
 }
 
-const SIZE={elephant:1.15,bear:1.12,lion:1.08,croc:1.05,mouse:.88,hedgehog:.9,frog:.92,duck:.95,penguin:.95,rabbit:.97};
+const SPBW={hippo:1.32,giraffe:.86,sheep:1.18,turtle:1.06};const NECK={giraffe:11};
+const SIZE={hippo:1.14,giraffe:1.02,sheep:.98,turtle:.9,elephant:1.15,bear:1.12,lion:1.08,croc:1.05,mouse:.88,hedgehog:.9,frog:.92,duck:.95,penguin:.95,rabbit:.97};
 function drawTail(c,h,d,hip,s){
   const x=-d*3.4,y=hip+.5;c.strokeStyle=INK;c.lineWidth=1;
   const dark=s.fill==='black'?INK:WHITE;
@@ -244,3 +271,8 @@ function drawTail(c,h,d,hip,s){
     case 'hedgehog':break;
   }
 }
+
+/* carapace de tortue, dans le dos */
+function drawShell(c,d,tt,hip,bw){const cx=-d*(5.4*bw+.4),cy=(tt+hip)/2-.4;c.save();c.lineWidth=1.1;E(c,cx,cy,5.6,7.4,'#bfc4a8');c.lineWidth=.6;E(c,cx,cy,3.1,4.2,null);L(c,cx-5,cy-1,cx+5,cy-1);L(c,cx-4,cy+3.4,cx+4,cy+3.4);L(c,cx,cy-7,cx,cy+7);c.restore();}
+/* laine de mouton, autour du torse */
+function drawWool(c,tt,hip,bw){c.save();c.lineWidth=1.1;for(const[sx,k,r]of[[-1,.12,3.3],[1,.12,3.3],[-1,.5,3.6],[1,.5,3.6],[-1,.88,3.3],[1,.88,3.3]]){C(c,sx*4.6*bw,tt+(hip-tt)*k,r,WHITE);}C(c,0,hip+1,3.4,WHITE);c.restore();}

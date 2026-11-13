@@ -33,9 +33,12 @@ Le script écrit trois fichiers dans `../animopolis/` :
 | `08-more.js` | enquêtes supplémentaires (vase, chapeau, phare, pêche, tickets…) |
 | `09-island.js` | quartier L'Île aux Tortues |
 | `09b-variety.js` | étapes variées (plusieurs objets, compter, intrus, déduction) et l'enquête « Le jeu de piste de Bobo » |
+| `10b-actors.js` | voitures qui roulent et passants qui marchent, dessinés à chaque image par-dessus les tuiles |
 | `10-decoys.js` | questions énigmatiques des enquêtes difficiles et sosies des suspects |
 | `11-ui.js` | rendu par tuiles, caméra, gestes, cartes d'enquête, dossiers, étoiles, carnet, défi chrono |
 | `12-home.js` | accueil, parties sauvegardées, options, installation, version et mises à jour |
+| `13-audio.js` | sons, musique et ambiance synthétisés avec WebAudio (aucun fichier), branchés sur le jeu |
+| `14-fx.js` | confettis de fin d'enquête |
 
 Autres fichiers : `head.html` (balises, styles, structure de la page), `tail.html` (fermeture), `sw.tpl.js` (service worker), `VERSION`.
 
@@ -53,6 +56,12 @@ Les étapes ajoutées après coup se déclarent dans `parts/09b-variety.js` (`in
 
 **Sauvegardes** : quand une enquête gagne ou perd des étapes, `migrate()` (dans `11-ui.js`) adapte les parties déjà enregistrées : une enquête classée le reste, une enquête commencée repart de zéro. Si tu changes le nombre d'étapes d'une enquête, rien d'autre à faire : le nombre est mémorisé dans chaque sauvegarde (`caseLen`).
 
+## Personnages et animations
+
+- **Silhouettes** : `build` (`normal`, `round`, `slim`, `tall`, `small`, `old`), **tenues** (`body` : `coat`, `suit`, `shirt`, `dress`, `chef`, `robe`, `overalls`, `poncho`, `tutu`, `puffer`) et **espèces** (`HEADS` + `NEWHEADS` : girafe, tortue, mouton, hippopotame). La foule en tire au hasard avec un générateur à part, pour ne pas bouger le reste de la ville.
+- **Éléments animés** : `addMover(zone, dessin, empreinteAuSol)` pour une partie qui bouge sur place (fumée, roue, gouttes d'eau) ; `10b-actors.js` pour ce qui se déplace (voitures, passants). Ils sont redessinés à chaque image, puis les éléments qui sont devant eux sont redessinés par-dessus.
+- **Sons** : tout est synthétisé dans `13-audio.js`. `SFX` (effets), `THEMES` (un thème de musique par quartier), ambiance selon le quartier au centre de l'écran. Réglages dans Options et bouton 🔊 en haut.
+
 ## Ajouter une enquête
 
 1. Ajoute l'objet dans `CASES.push({...})` (`id`, `dist` = numéro de quartier, `diff` 1 à 3, `intro`, `cast`, `steps`, `outro`).
@@ -65,6 +74,7 @@ Les étapes ajoutées après coup se déclarent dans `parts/09b-variety.js` (`in
 ```bash
 npm i playwright                # une fois, hors dépôt
 node tests/playthrough.js       # rejoue toutes les enquêtes de zéro à la fin
+node tests/audio.js             # rend les effets et les thèmes de musique hors ligne : ni muets, ni saturés
 ```
 
 Le test résout toutes les étapes dans l'ordre d'ouverture et vérifie que les 6 quartiers s'ouvrent, que les 5 indices de l'Ombre sont réunis et que l'enquête finale se termine, sans erreur. On peut aussi le lancer sur le site publié : `ANIMOPOLIS_URL=https://jumerca.github.io/trace-enquetes/animopolis/ node tests/playthrough.js`.

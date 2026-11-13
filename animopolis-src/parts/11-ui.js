@@ -20,7 +20,7 @@ function migrate(d){if(!d||!d.solved)return d;const L=d.caseLen||LEGACY_LEN;
   d.caseLen=caseLens();return d;}
 let built=false;
 function readSlot(n){try{const d=JSON.parse(localStorage.getItem(SLOTKEY(n))||'null');return built?migrate(d):d;}catch(e){return null;}}
-var opts={anim:true};try{Object.assign(opts,JSON.parse(localStorage.getItem('animopolis-opts')||'{}'));}catch(e){}
+var opts={anim:true,sfx:true,music:true,vol:.8};try{Object.assign(opts,JSON.parse(localStorage.getItem('animopolis-opts')||'{}'));}catch(e){}
 function saveOpts(){try{localStorage.setItem('animopolis-opts',JSON.stringify(opts));}catch(e){}}
 let slot=1;try{slot=+localStorage.getItem('animopolis-active')||1;
   if(!localStorage.getItem(SLOTKEY(1))){const old=localStorage.getItem('animopolis-v3');if(old){localStorage.setItem(SLOTKEY(1),old);try{const o=JSON.parse(old);if(typeof o.anim==='boolean')opts.anim=o.anim;}catch(e){}}}}catch(e){}
@@ -100,9 +100,10 @@ function render(){
   if(p<=cacheS*1.05){ctx.drawImage(cache,WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);}
   else if(p>3.3){LOD=p;drawWorld(ctx,view);}
   else{
-    ctx.drawImage(cache,WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);
     const Lv=LEVELS.find(l=>l>=p*.92)||3,k=p/Lv;
     const tx0=Math.floor(view[0]*Lv/TILE),tx1=Math.floor(view[2]*Lv/TILE),ty0=Math.floor(view[1]*Lv/TILE),ty1=Math.floor(view[3]*Lv/TILE);
+    {let ready=true;for(let ty=ty0;ty<=ty1&&ready;ty++)for(let tx=tx0;tx<=tx1;tx++)if(!tiles.has(Lv+':'+tx+':'+ty)){ready=false;break;}
+     if(!ready)ctx.drawImage(cache,WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);}   // l'image de fond ne sert que tant qu'il manque des tuiles
     ctx.setTransform(1,0,0,1,0,0);
     const budget=performance.now()+(ptrs.size||anim?7:24);let missing=0;
     const cx=(tx0+tx1)/2,cy=(ty0+ty1)/2,list=[];for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++)list.push([tx,ty]);list.sort((a,b)=>Math.hypot(a[0]-cx,a[1]-cy)-Math.hypot(b[0]-cx,b[1]-cy));
@@ -115,7 +116,8 @@ function render(){
     ctx.setTransform(dpr*s,0,0,dpr*s,dpr*ox,dpr*oy);
   }
   {let anyM=false;const tA=animT();for(const m of movers){if(!unlocked(m.dist))continue;const bb=m.bb;if(bb[2]<view[0]||bb[0]>view[2]||bb[3]<view[1]||bb[1]>view[3])continue;anyM=true;ctx.save();m.d(ctx,tA);ctx.restore();for(const it of m.over){ctx.save();it.d(ctx);ctx.restore();}}
-   if(anyM&&animOn()&&!animTimer&&!document.hidden)animTimer=setTimeout(()=>{animTimer=0;req();},70);}
+   const nAct=drawActors(ctx,view,tA,s*dpr);
+   if((anyM||nAct)&&animOn()&&!animTimer&&!document.hidden)animTimer=setTimeout(()=>{animTimer=0;req();},70);}
   if(reveal){const p=(performance.now()-reveal.t0)/2600;if(p>=1)reveal=null;else{const D=DISTRICTS[reveal.d];const[cx,cy]=pr((D.u0+D.u1)/2,(D.v0+D.v1)/2,0);const e=p*p*(3-2*p),Rr=e*Math.hypot(D.u1-D.u0,D.v1-D.v0)*.9;
     ctx.save();ctx.beginPath();ctx.rect(WB.x0,WB.y0,WB.x1-WB.x0,WB.y1-WB.y0);ctx.ellipse(cx,cy,Rr*1.4,Rr*.8,0,0,TAU);ctx.clip('evenodd');ctx.globalAlpha=1-Math.max(0,p-.75)*4;drawLocked(ctx,D);ctx.restore();req();}}
   drawOverlay(ctx,s);

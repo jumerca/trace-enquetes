@@ -37,6 +37,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .logo{text-align:left;pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:4px 12px 2px;box-shadow:var(--shadow);line-height:1}
 .logo b{font-size:24px;letter-spacing:.5px}.logo small{display:block;font-size:13px;color:var(--muted)}
 .tright{display:flex;gap:8px;pointer-events:none}
+.pill.snd{padding:8px 11px;min-width:44px}
+.volrow{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:19px}
+.volrow input{flex:1;accent-color:var(--ink);height:28px}
+@keyframes starpop{0%{transform:scale(.2) rotate(-20deg);opacity:0}60%{transform:scale(1.25) rotate(6deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+@keyframes stampin{0%{transform:scale(2.4) rotate(-14deg);opacity:0}55%{transform:scale(.92) rotate(-6deg);opacity:1}100%{transform:scale(1) rotate(-6deg)}}
+@keyframes shine{0%,100%{filter:none}50%{filter:drop-shadow(0 0 6px #f0c64a)}}
+.bigstars{animation:starpop .7s cubic-bezier(.2,1.4,.4,1) .15s both,shine 1.6s ease-in-out 1s 2}
+.stamp{animation:stampin .5s ease-out both}
+.sheet{animation:sheetin .22s ease-out}@keyframes sheetin{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.bigstars,.stamp,.sheet{animation:none}}
 .pill{pointer-events:auto;background:var(--card);border:2px solid var(--line);border-radius:999px;padding:8px 16px;box-shadow:var(--shadow);font-size:18px}
 .zoom{position:fixed;right:16px;top:50%;transform:translateY(-60%);display:flex;flex-direction:column;gap:8px}
 .zoom button{width:44px;height:44px;border-radius:12px;border:2px solid var(--line);background:var(--card);box-shadow:var(--shadow);font-size:24px;line-height:1;padding:0}
@@ -142,13 +152,15 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card .actions{position:sticky;bottom:-12px;background:var(--card);padding-top:6px;margin-top:4px}
 .qwho{float:left;width:46px;height:52px;margin:0 10px 2px 0;border:2px solid var(--line);border-radius:10px}
 #question{min-height:52px}
+@media (max-width:350px){.top{padding-left:6px;padding-right:6px}.tright{gap:4px}.pill{padding:5px 7px;font-size:14.5px}.pill.snd{padding:5px 6px;min-width:30px}.logo b{font-size:18px}.logo{padding:3px 6px 1px}}
+@media (max-width:400px){.top{padding-left:10px;padding-right:10px}.tright{gap:5px}.pill{padding:6px 9px;font-size:15.5px}.pill.snd{padding:6px 8px;min-width:34px}.logo{padding:3px 8px 1px}.logo b{font-size:20px}.logo small{display:none}}
 </style>
 </head>
 <body>
 <canvas id="map" aria-label="Carte de la ville d'Animopolis"></canvas>
 <header class="top">
   <button class="logo" id="logoBtn" aria-label="Menu principal"><b>Animopolis</b><small>enquêtes à la loupe</small></button>
-  <div class="tright"><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
+  <div class="tright"><button class="pill snd" id="btnSound" aria-label="Son">🔊</button><button class="pill" id="btnBook">Carnet</button><button class="pill" id="btnCases">Dossiers</button></div>
 </header>
 <div class="zoom">
   <button id="zin" aria-label="Zoomer">+</button>

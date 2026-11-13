@@ -52,6 +52,9 @@ function openSave(){openModal(`<h2>Sauvegarder la partie</h2><p>Ta partie (<b>Pa
 function openOptions(){
   openModal(`<h2>Options</h2>
   <button class="btn ghost" id="oAnim">Animations du décor : ${opts.anim?'activées':'coupées'}</button>
+  <button class="btn ghost" id="oSfx">Sons et ambiance : ${opts.sfx!==false?'activés':'coupés'}</button>
+  <button class="btn ghost" id="oMus">Musique : ${opts.music!==false?'activée':'coupée'}</button>
+  <label class="volrow">Volume <input type="range" id="oVol" min="0" max="100" value="${Math.round((opts.vol==null?.8:opts.vol)*100)}" aria-label="Volume"></label>
   ${(!standalone)?'<button class="btn ghost" id="oInst">Installer l\'application</button>':''}
   <button class="btn ghost" id="oUpd">Vérifier les mises à jour</button>
   <button class="btn ghost" id="oHelp">Comment jouer ?</button>
@@ -59,6 +62,9 @@ function openOptions(){
   <p class="legend" id="oVer" style="margin-top:12px"></p><button class="btn" id="oOk">Fermer</button>`,r=>{
     const ver=()=>{r.querySelector('#oVer').innerHTML=verText(true);};ver();
     r.querySelector('#oAnim').onclick=e=>{opts.anim=!opts.anim;saveOpts();req();e.target.textContent='Animations du décor : '+(opts.anim?'activées':'coupées');};
+    r.querySelector('#oSfx').onclick=e=>{opts.sfx=!(opts.sfx!==false);saveOpts();audioInit();audioApply();e.target.textContent='Sons et ambiance : '+(opts.sfx?'activés':'coupés');};
+    r.querySelector('#oMus').onclick=e=>{opts.music=!(opts.music!==false);saveOpts();audioInit();audioApply();e.target.textContent='Musique : '+(opts.music?'activée':'coupée');};
+    {const vs=r.querySelector('#oVol');vs.oninput=()=>{opts.vol=vs.value/100;audioInit();audioApply();};vs.onchange=()=>{saveOpts();play('ping');};}
     const ib=r.querySelector('#oInst');if(ib)ib.onclick=()=>{closeModal();doInstall();};
     r.querySelector('#oUpd').onclick=async e=>{e.target.textContent='Vérification…';const a=await checkUpdate({});
       e.target.textContent=a===null?'Vérification impossible (hors ligne ?)':a?'Mise à jour disponible — touche pour l\'installer':'Tu as la dernière version ✓';ver();if(a)e.target.onclick=applyUpdate;};

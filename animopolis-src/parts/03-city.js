@@ -258,7 +258,8 @@ function blockGround(i,j,fill,noGrid){const k=blk(i,j);G(k.u0,k.v0,k.u1,k.v1,c=>
   if(!noGrid){c.strokeStyle='#d6cfbf';c.lineWidth=.5;for(let u=k.u0+20;u<k.u1;u+=20){const p=pr(u,k.v0,0),q=pr(u,k.v1,0);L(c,p[0],p[1],q[0],q[1]);}for(let v=k.v0+20;v<k.v1;v+=20){const p=pr(k.u0,v,0),q=pr(k.u1,v,0);L(c,p[0],p[1],q[0],q[1]);}}});}
 function crosswalks(u,v){G(u-34,v-34,u+34,v+34,c=>{for(let k=-16;k<=14;k+=7){gp(c,[[u+k,v-30],[u+k+3.5,v-30],[u+k+3.5,v-24],[u+k,v-24]],INK);gp(c,[[u-30,v+k],[u-24,v+k],[u-24,v+k+3.5],[u-30,v+k+3.5]],INK);}});}
 function labelG(u,v,t,s){G(u,v-10,u+160,v+10,c=>groundText(c,u,v,t,s||15));}
-function cars(list){for(const[u,v,ax]of list)addCar(u,v,ax,rnd()<.6?{driver:randomSpec()}:{});}
+/* la circulation est animée (voir 10b-actors.js) : on garde les mêmes tirages au hasard, mais la voiture fixe n'est pas posée */
+function cars(list){for(const[u,v,ax]of list){addCar(u,v,ax,rnd()<.6?{driver:randomSpec()}:{});items.pop();}}
 
 function buildCity(){
   const SL=[22,306,590,874,1158];
@@ -567,5 +568,6 @@ function buildCity(){
   buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildBirds();buildDecoys();buildFurniture();
   /* ---- foule ---- */
   for(const a of areas){CURD=a.dist;let n=0,tries=0;while(n<a.n&&tries<a.n*60){tries++;const u=R(a.u0,a.u1),v=R(a.v0,a.v1);if(a.ok&&!a.ok(u,v))continue;if(!free(u,v,2))continue;addChar(u,v,randomSpec(a.beach));n++;}}
+  buildActors();
   sortItems();finalizeMovers();
 }
