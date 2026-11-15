@@ -146,6 +146,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 @keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 .choices.txtgrid{grid-template-columns:repeat(4,1fr)}
 .choice.txt{display:grid;place-items:center;min-height:54px;font-size:26px;padding:4px}
+.choices.txtlong{grid-template-columns:1fr 1fr}.choices.txtlong .choice.txt{font-size:16px;min-height:58px;line-height:1.15;padding:6px 8px}
+.achgrid{display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px}.ach{display:flex;gap:10px;align-items:center;border:2px solid var(--line);border-radius:12px;padding:5px 10px;line-height:1.15}.ach.no{opacity:.45;border-style:dashed}.ach b{font-weight:400;font-size:18px;display:block}.ach span{font-size:14px;color:var(--muted)}.ach i{font-style:normal;font-size:26px}
+.figgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;margin-top:6px}.fig{border:2px solid var(--line);border-radius:10px;padding:3px;text-align:center;background:#fffdf7;color:#1d1b18;font-size:12px;line-height:1.1}.fig canvas{display:block;width:100%;height:auto;border-radius:6px}.fig.no canvas{filter:brightness(0) opacity(.35)}.fig b{display:block;font-weight:400;font-size:13px}
 .prog{color:var(--red);white-space:nowrap}
 .lookbtn{display:block;margin-top:8px;border:2px solid var(--line);background:transparent;border-radius:12px;padding:4px 12px;font-size:17px}
 .card{max-height:min(66vh,540px);overflow:auto}
@@ -1385,7 +1388,7 @@ function buildCity(){
    const rr=mulberry32(99);for(let a=0;a<=n;a++){for(let b=0;b<n;b++){if(rr()<.62&&!(a===0&&b===0))addHedge(u0+a*cs-2,v0+b*cs,u0+a*cs+2,v0+(b+1)*cs);if(rr()<.62&&!(b===n-1&&a===n))addHedge(u0+b*cs,v0+a*cs-2,u0+(b+1)*cs,v0+a*cs+2);}}
    addChar(u0+3.5*cs,v0+2.5*cs,as(GHOST,{}));setT('fantome',7,u0+3.5*cs,v0+2.5*cs,22);}
 
-  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildNewCases();buildBirds();buildDecoys();buildFurniture();
+  buildZorbo();buildGare();buildColline();buildUrban();buildOmbre();buildMore();buildIle();buildVariety();buildNewCases();buildEasyQs();linkIleOmbre();buildBirds();buildDecoys();buildFurniture();buildFigurines();
   /* ---- foule ---- */
   for(const a of areas){CURD=a.dist;let n=0,tries=0;while(n<a.n&&tries<a.n*60){tries++;const u=R(a.u0,a.u1),v=R(a.v0,a.v1);if(a.ok&&!a.ok(u,v))continue;if(!free(u,v,2))continue;addChar(u,v,randomSpec(a.beach));n++;}}
   buildActors();
@@ -2565,6 +2568,73 @@ function buildNewCases(){
   {const[u,v]=spotI(2350,560,34,24);const pts=[[0,0],[16,10],[34,2],[48,14]];pts.forEach(([a,b])=>addBabyTurtle(u+a,v+b));addChar(u-24,v+6,as(DOYENNE,{pose:'stand'}));
    const st=CASES.find(c=>c.id==='tortue').steps[14];const[x,y]=pr(u+24,v+8,0);st.t={x,y:y-10,r:36,u:u+24,v:v+8};avoid(u+24,v+8,40);}
 }
+/* =========================================================
+   CONTENU APRÈS LES ENQUÊTES
+   - une question d'observation / de logique dans chaque enquête facile
+   - les ramifications de l'Ombre sur l'île
+   - 24 figurines dorées cachées dans la ville (à collectionner)
+   ========================================================= */
+
+/* ---------- 1. variété des enquêtes faciles ---------- */
+const eqr=mulberry32(60606);
+function Q(cid,q,good,bad,ok){const opts=[good,...bad];for(let i=opts.length-1;i>0;i--){const j=Math.floor(eqr()*(i+1));[opts[i],opts[j]]=[opts[j],opts[i]];}
+  const cs=CASES.find(c=>c.id===cid);cs.steps.splice(cs.steps.length-1,0,{q,choice:opts.map(t=>CH(t)),ans:opts.indexOf(good),ok});}
+function buildEasyQs(){
+  Q('chaton',"Un détective se souvient de tout. Dans quel ordre Pompon a-t-il fait ses bêtises ?","Poisson, poursuite, arbre",["Arbre, poisson, poursuite","Poursuite, arbre, poisson","Poisson, arbre, poursuite"],"Poisson volé, chien à ses trousses, puis refuge dans l'arbre : le récit est clair.");
+  Q('gateau',"Retrace le trajet du gâteau. Dans quel ordre l'a-t-on vu ?","Pâtisserie, théâtre, lac, banc",["Théâtre, pâtisserie, banc, lac","Lac, théâtre, banc, pâtisserie","Banc, lac, pâtisserie, théâtre"],"De la pâtisserie au banc, en passant par le théâtre et le lac : le gâteau a fait le tour du quartier.");
+  Q('poisson',"Combien de chatons Matou nourrit-il sous la barque ?","3",["2","4","5"],"Trois chatons, trois petites bouches affamées : voilà pourquoi Matou a volé.");
+  Q('ballon',"Sur quel manège Noisette était-elle quand elle a tenu son ballon ?","Le carrousel",["Les autos-tamponneuses","La grande roue","Le train fantôme"],"Sur le carrousel, comme prévu. Le ballon s'est envolé juste après.");
+  Q('valise',"Qu'y avait-il dans la valise de Madame Coâ ?","Des maillots de bain et une bouée",["Un costume et des dossiers","Des livres de comptes","Des bottes de pluie"],"Direction la mer, forcément : maillots de bain et bouée.");
+  Q('lili',"Que préparent Lili et Grognon à la fin de l'histoire ?","Une omelette aux champignons",["Une soupe de légumes","Un gâteau au miel","Du pain grillé"],"Une omelette aux champignons, à partager entre amis.");
+  Q('vase',"Où a-t-on retrouvé le ballon de foot ?","Dans un buisson",["Sur le toit du musée","Dans la fontaine","Dans un arbre"],"Le ballon dans le buisson, le vase cassé : l'histoire se recoupe.");
+  Q('chapeau',"Où le chapeau s'est-il posé avant de tomber à l'eau ?","En haut du mât d'un voilier",["Sur le toit d'un phare","Sur une bouée","Sur la tête d'un goéland"],"Tout en haut d'un mât, avant que la vague ne l'emporte.");
+  Q('peche',"Pourquoi personne ne gagnait-il à la pêche aux canards ?","Les canards étaient lestés de plomb",["Le stand était trop loin","Les cannes étaient cassées","Les lots étaient vides"],"Des canards lestés : impossible de les attraper, et le forain revendait les lots.");
+  Q('chiot',"Dans quel ordre Biscuit a-t-il fait ses bêtises ?","Pigeons, saucisses, biscuits",["Saucisses, pigeons, biscuits","Biscuits, pigeons, saucisses","Pigeons, biscuits, saucisses"],"Pigeons, saucisses puis biscuits : il a enchaîné les bêtises avant la sieste.");
+  Q('oeufs',"Combien d'œufs dorés Mamie Lapin avait-elle cachés ?","5",["3","4","6"],"Cinq œufs, un pour chaque enfant du village.");
+  Q('bouteille',"Que contenait la bouteille trouvée par Titou ?","Un vieux message avec un dessin de bateau",["Une pièce d'or","Une clé rouillée","Une plume de perroquet"],"Un vieux message et un dessin de bateau : c'est ce qui les a menés à l'épave.");
+}
+
+/* ---------- 2. l'Ombre sur l'île ---------- */
+const RAMIF={
+ epave:{t:"Une carte noire sur le Baron",x:"Dans la poche du Baron Goupil : une carte de visite noire à l'œil blanc, avec la lettre « O ». Lui aussi travaillait pour l'Ombre."},
+ tortue:{t:"« Ombre & Cie, livraison à l'Île »",x:"Dans le poncho du Capitaine Pataud : un bon de livraison « Ombre & Cie — œufs d'or, livraison à l'Île », frappé d'un œil blanc. L'Ombre a des alliés jusque sur les îles."}
+};
+function linkIleOmbre(){
+  const ep=CASES.find(c=>c.id==='epave'),to=CASES.find(c=>c.id==='tortue');
+  ep.outro+=" Dans la poche du Baron, pourtant : une carte noire à l'œil blanc…";
+  to.outro+=" Dans son poncho : un bon de livraison « Ombre & Cie ». L'Ombre a des alliés jusque sur l'île !";
+  to.intro+=" Sur la plage, quelqu'un a laissé tomber un petit carré de papier noir.";
+}
+
+/* ---------- 3. les figurines dorées ---------- */
+const FIGS=[
+ {d:0,n:'Le Maire',s:SP('bear','suit','white','top')},{d:0,n:'La Libraire',s:SP('owl','dress','white','glasses')},{d:0,n:'Le Facteur',s:SP('dog','coat','grey','cap',null,'letter')},{d:0,n:'Le Boulanger',s:SP('pig','chef','white','chef',null,'baguette')},
+ {d:1,n:'Le Capitaine',s:SP('croc','coat','white','captain')},{d:1,n:'La Pêcheuse',s:SP('duck','poncho','white','straw',null,'fish')},{d:1,n:'Le Matelot',s:SP('penguin','shirt','stripes','bandana')},{d:1,n:'Le Gardien du phare',s:SP('owl','coat','grey','helmet')},
+ {d:2,n:'Le Clown',s:SP('frog','tutu','check','clown')},{d:2,n:'Le Dompteur',s:SP('lion','suit','black','top')},{d:2,n:'La Funambule',s:SP('mouse','tutu','white','flower')},{d:2,n:'Le Cracheur de feu',s:SP('dog','overalls','white','helmet')},
+ {d:3,n:'Le Chef de gare',s:SP('elephant','suit','white','police')},{d:3,n:'Le Contrôleur',s:SP('rabbit','coat','grey','glasses')},{d:3,n:'Le Mécano',s:SP('hedgehog','overalls','white','cap')},{d:3,n:'La Voyageuse',s:SP('giraffe','dress','dots','none',null,'suitcase')},
+ {d:4,n:'Le Chevalier',s:SP('bear','coat','grey','knight',null,'sword')},{d:4,n:'La Reine',s:SP('cat','robe','white','crown')},{d:4,n:'Le Bûcheron',s:SP('hippo','poncho','check','cap',null,'axe')},{d:4,n:'Le Bouffon',s:SP('fox','shirt','stripes','jester')},
+ {d:5,n:'Le Pirate',s:SP('croc','shirt','stripes','bandana')},{d:5,n:'Tiki la guide',s:SP('frog','shirt','white','flower')},{d:5,n:'La Tortue sage',s:SP('turtle','robe','white','flower')},{d:5,n:'Le Plongeur',s:SP('duck','puffer','white','helmet')}
+];
+FIGS.forEach((f,i)=>{f.id='fig'+i;});
+function drawFig(c,x,y,f,t){
+  c.save();c.strokeStyle=INK;c.lineWidth=1;
+  /* socle doré */
+  P(c,[[x-7,y],[x+7,y],[x+6,y-4],[x-6,y-4]],'#e6c14a');Rc(c,x-6,y-4,12,0,null);
+  /* petit personnage */
+  drawChar(c,x,y-4,Object.assign({},f.s,{scale:.52,pose:'stand',noShadow:true}),true);
+  /* éclat doré qui scintille */
+  const k=.5+.5*Math.sin(t*3+f.d*1.7+f.n.length),r=2.2+2.6*k;c.lineWidth=.8;
+  c.beginPath();for(let i=0;i<8;i++){const a=i*PI/4,rr=i%2?r*.45:r;c.lineTo(x+9+Math.cos(a)*rr,y-24+Math.sin(a)*rr);}c.closePath();c.fillStyle='#fff3b0';c.fill();c.stroke();
+  c.restore();}
+const FIGPOS={};
+function buildFigurines(){
+  const rr=mulberry32(5150);
+  for(const f of FIGS){const zone=areas.filter(a=>a.dist===f.d);if(!zone.length)continue;CURD=f.d;
+    for(let tr=0;tr<200;tr++){const a=zone[Math.floor(rr()*zone.length)],u=a.u0+rr()*(a.u1-a.u0),v=a.v0+rr()*(a.v1-a.v0);
+      if(a.ok&&!a.ok(u,v))continue;if(!free(u,v,10))continue;
+      const[x,y]=pr(u,v,0);FIGPOS[f.id]={x,y:y-10,u,v};avoid(u,v,16);
+      addMover([x-16,y-46,x+20,y+6],(c,t)=>{if(state.figs&&state.figs[f.id])return;drawFig(c,x,y,f,t);},[u,v,u,v]);break;}}
+}
 
 /* =========================================================
    QUESTIONS ÉNIGMATIQUES + FAUX SUSPECTS (SOSIES)
@@ -2949,7 +3019,7 @@ function updateCard(){const cs=curCase();
   $('btnHint').disabled=false;const k=curStep(cs);$('caseTitle').textContent=cs.title+' ▸';
   if(k<0){$('stepNum').textContent='Classée ✓';$('question').textContent=cs.outro;}else{$('stepNum').textContent=chal?`⏱ ${fmtT(chalTime())} · ${k+1}/${cs.steps.length}`:`Étape ${k+1}/${cs.steps.length}`;$('question').innerHTML=cs.steps[k].q;const w=cs.steps[k].w;if(w!=null&&cs.cast[w]){const pc=portrait(cs.cast[w].s);pc.className='qwho';pc.title=cs.cast[w].n;$('question').prepend(pc);}
     const st0=cs.steps[k];if(st0.ts){const n=partOf(cs,k).filter(Boolean).length;const bd=document.createElement('span');bd.className='prog';bd.textContent=` — ${n}/${st0.ts.length} trouvés`;$('question').appendChild(bd);}
-    const ch=cs.steps[k].choice;if(ch){const lvl=+state.hints[cs.id+':'+k]||0;const wrong=ch.map((o,i)=>i).filter(i=>i!==cs.steps[k].ans);const hide=new Set(wrong.slice(0,lvl));const box=document.createElement('div');box.className='choices';if(!ch[0].s)box.classList.add('txtgrid');ch.forEach((o,i)=>{if(hide.has(i))return;const b=document.createElement('button');b.className='choice';if(o.s){b.appendChild(portrait(o.s));const sp=document.createElement('span');sp.textContent=o.n;b.appendChild(sp);}else{b.classList.add('txt');b.textContent=o.n;}b.onclick=()=>answerChoice(cs,k,i);box.appendChild(b);});
+    const ch=cs.steps[k].choice;if(ch){const lvl=+state.hints[cs.id+':'+k]||0;const wrong=ch.map((o,i)=>i).filter(i=>i!==cs.steps[k].ans);const hide=new Set(wrong.slice(0,lvl));const box=document.createElement('div');box.className='choices';if(!ch[0].s){box.classList.add('txtgrid');if(ch.some(o=>o.n.length>5))box.classList.add('txtlong');}ch.forEach((o,i)=>{if(hide.has(i))return;const b=document.createElement('button');b.className='choice';if(o.s){b.appendChild(portrait(o.s));const sp=document.createElement('span');sp.textContent=o.n;b.appendChild(sp);}else{b.classList.add('txt');b.textContent=o.n;}b.onclick=()=>answerChoice(cs,k,i);box.appendChild(b);});
       if(st0.t){const lb=document.createElement('button');lb.className='lookbtn';lb.textContent='🔎 Voir la scène';lb.onclick=()=>{const t=st0.t;flyTo(t.x,t.y,Math.max(cam.s,Math.min(1.6,vw/420)));};$('question').appendChild(lb);}
       $('question').appendChild(box);}}
   $('btnHint').textContent=k>=0&&+state.hints[cs.id+':'+k]>=1?(+state.hints[cs.id+':'+k]>=2?'Indice ✓✓':'Indice +'):'Indice';}
@@ -3027,7 +3097,8 @@ function solveStep(cs,k,t){if(chal&&chal.id===cs.id){chalSolve(cs,k,t);return;}{
     (state.solved[cs.id]=state.solved[cs.id]||[])[k]=true;save();fx.pulse={x:t.x,y:t.y,r:t.r,t:performance.now()};req();updateCard();
     const done=curStep(cs)<0;const newD=DISTRICTS.findIndex((d,i)=>unlocked(i)&&!before[i]);const newC=CASES.filter((c,i)=>caseOpen(c)&&!openBefore[i]&&c.dist!==newD);
     const clue=done&&CLUES[cs.id]?`<div class="clue"><b>🕵️ Indice sur l'Ombre ${cluesFound()}/5 : ${CLUES[cs.id].t}</b>${CLUES[cs.id].x}</div>${cluesFound()===5?'<h3>🔓 Le dossier de l\'Ombre est ouvert !</h3><p>L\'enquête finale t\'attend devant la Mairie.</p>':''}`:'';
-    setTimeout(()=>openModal(`<h2>Bien vu !</h2><p>${cs.steps[k].ok}</p>${done?`<p class="stamp">Enquête classée</p><p class="bigstars">${starStr(caseStars(cs))}</p><p class="legend" style="text-align:center">${hintsUsed(cs)} indice${hintsUsed(cs)>1?'s':''} · ${(state.wrong||{})[cs.id]||0} erreur${((state.wrong||{})[cs.id]||0)>1?'s':''}${caseStars(cs)<3?' — rejoue-la plus tard pour viser 3 étoiles':' — parfait !'}</p><p>${cs.outro}</p>`:''}${clue}${newC.filter(c=>!c.final).map(c=>`<h3>🔓 Nouvelle enquête : ${c.title}</h3>`).join('')}${newD>=0?`<h3>🔓 Nouveau quartier : ${DISTRICTS[newD].name} !</h3><p>${INTROS[newD]||''}</p>`:''}<button class="btn" id="next">${newD>=0?'Découvrir '+DISTRICTS[newD].name:done?'Retour aux dossiers':'Étape suivante'}</button>`,root=>root.querySelector('#next').onclick=()=>{
+    const ram=done&&RAMIF[cs.id]?`<div class="clue"><b>🕵️ Ramification de l'Ombre : ${RAMIF[cs.id].t}</b>${RAMIF[cs.id].x}</div>`:'';
+    setTimeout(()=>openModal(`<h2>Bien vu !</h2><p>${cs.steps[k].ok}</p>${done?`<p class="stamp">Enquête classée</p><p class="bigstars">${starStr(caseStars(cs))}</p><p class="legend" style="text-align:center">${hintsUsed(cs)} indice${hintsUsed(cs)>1?'s':''} · ${(state.wrong||{})[cs.id]||0} erreur${((state.wrong||{})[cs.id]||0)>1?'s':''}${caseStars(cs)<3?' — rejoue-la plus tard pour viser 3 étoiles':' — parfait !'}</p><p>${cs.outro}</p>`:''}${clue}${ram}${newC.filter(c=>!c.final).map(c=>`<h3>🔓 Nouvelle enquête : ${c.title}</h3>`).join('')}${newD>=0?`<h3>🔓 Nouveau quartier : ${DISTRICTS[newD].name} !</h3><p>${INTROS[newD]||''}</p>`:''}<button class="btn" id="next">${newD>=0?'Découvrir '+DISTRICTS[newD].name:done?'Retour aux dossiers':'Étape suivante'}</button>`,root=>root.querySelector('#next').onclick=()=>{
       if(newD>=0){closeModal();state.current=null;save();updateCard();const D=DISTRICTS[newD];const[x2,y2]=pr((D.u0+D.u1)/2,(D.v0+D.v1)/2,0);flyTo(x2,y2,Math.max(minS,vw/1500),1100);setTimeout(()=>{reveal={d:newD,t0:performance.now()};req();},1150);}else if(done){showCases();}else closeModal();}),450);
   }
 }
@@ -3050,11 +3121,76 @@ try{if('serviceWorker'in navigator&&location.protocol==='https:'&&!/claude\.ai|c
 }}catch(e){}
 window.__animopolis={CASES,cam,onTap,flyTo,render,state,items,DISTRICTS,pr,unlocked};
 
+/* =========================================================
+   INTERFACE : figurines à ramasser, succès, pages du Carnet
+   (chargé après l'interface principale, il en complète les fonctions)
+   ========================================================= */
+const figsOf=()=>{if(!state.figs)state.figs={};return state.figs;};
+const figCount=()=>FIGS.filter(f=>figsOf()[f.id]).length;
+const figDistCount=d=>FIGS.filter(f=>f.d===d&&figsOf()[f.id]).length;
+
+/* ---- ramasser une figurine en la touchant (même pendant une enquête, sans pénalité) ---- */
+function tryFig(x,y){
+  const slack=Math.min(12,Math.max(0,8/cam.s-6));
+  for(const f of FIGS){const p=FIGPOS[f.id];if(!p||figsOf()[f.id]||!unlocked(f.d))continue;
+    if(Math.hypot(x-(p.x+4),y-(p.y-14))<=16+slack){
+      figsOf()[f.id]=true;save();fx.pulse={x:p.x+4,y:p.y-14,r:16,t:performance.now()};req();
+      if(typeof confettiBurst==='function')confettiBurst(18,innerHeight*.45);
+      if(typeof play==='function')play('found');
+      toast(`🏺 Figurine « ${f.n} » trouvée ! ${figCount()}/${FIGS.length}`);return true;}}
+  return false;}
+{const _onTap=onTap;onTap=function(x,y){if(tryFig(x,y))return;_onTap(x,y);};}
+
+/* ---- succès ---- */
+const ACH=[
+ {id:'premier',i:'🔍',t:'Premier dossier',d:'Classe ta première enquête.',ok:()=>CASES.filter(caseDone).length>=1},
+ {id:'cinq',i:'📁',t:'Apprenti détective',d:'Classe 5 enquêtes.',ok:()=>CASES.filter(caseDone).length>=5},
+ {id:'quinze',i:'🗂️',t:'Enquêteur confirmé',d:'Classe 15 enquêtes.',ok:()=>CASES.filter(caseDone).length>=15},
+ {id:'tous',i:'🏆',t:'Détective légendaire',d:'Classe toutes les enquêtes.',ok:()=>CASES.every(caseDone)},
+ {id:'quartier',i:'🏙️',t:'Quartier complet',d:'Classe toutes les enquêtes d\'un quartier.',ok:()=>DISTRICTS.some((D,i)=>{const l=CASES.filter(c=>c.dist===i);return l.length&&l.every(caseDone);})},
+ {id:'monde',i:'🗺️',t:'Globe-trotter',d:'Ouvre les six quartiers.',ok:()=>DISTRICTS.every((D,i)=>unlocked(i))},
+ {id:'etoiles15',i:'⭐',t:'Étoile montante',d:'Réunis 15 étoiles.',ok:()=>totalStars()>=15},
+ {id:'etoiles60',i:'🌟',t:'Constellation',d:'Réunis 60 étoiles.',ok:()=>totalStars()>=60},
+ {id:'parfait',i:'💎',t:'Sans faute',d:'3 étoiles sur une enquête difficile.',ok:()=>CASES.some(c=>c.diff===3&&caseStars(c)===3)},
+ {id:'dix3',i:'🎖️',t:'Perfectionniste',d:'3 étoiles sur 10 enquêtes.',ok:()=>CASES.filter(c=>caseStars(c)===3).length>=10},
+ {id:'chrono',i:'⏱️',t:'Contre la montre',d:'Termine une enquête en mode chrono.',ok:()=>Object.keys(state.best||{}).length>=1},
+ {id:'feu',i:'🎆',t:'Sauveur de la fête',d:'Résous « Sabotage au feu d\'artifice ».',ok:()=>caseDone(CASES.find(c=>c.id==='feu'))},
+ {id:'ile',i:'🐢',t:'Gardien de l\'île',d:'Résous la finale de l\'île.',ok:()=>caseDone(CASES.find(c=>c.id==='tortue'))},
+ {id:'ombre',i:'🕵️',t:'L\'Ombre démasquée',d:'Résous le dossier de l\'Ombre.',ok:()=>caseDone(CASES.find(c=>c.final))},
+ {id:'fig6',i:'🏺',t:'Chineur',d:'Trouve 6 figurines dorées.',ok:()=>figCount()>=6},
+ {id:'fig24',i:'🏛️',t:'Conservateur du musée',d:'Trouve les 24 figurines dorées.',ok:()=>figCount()>=FIGS.length}
+];
+function achOf(){if(!state.ach)state.ach={};return state.ach;}
+let achBusy=false;
+function checkAch(){if(achBusy||!built)return;achBusy=true;
+  try{const got=achOf(),fresh=[];for(const a of ACH){if(!got[a.id]&&a.ok()){got[a.id]=Date.now();fresh.push(a);}}
+    if(fresh.length){try{localStorage.setItem(SLOTKEY(slot),JSON.stringify(Object.assign({},state,{saved:Date.now(),caseLen:caseLens()})));}catch(e){}
+      fresh.forEach((a,i)=>setTimeout(()=>{toast(`${a.i} Succès : ${a.t}`);if(typeof play==='function')play('unlock');},1800+i*2300));}}
+  catch(e){}finally{achBusy=false;}}
+{const _save=save;save=function(){_save();checkAch();};}
+
+/* ---- Carnet : succès et figurines ---- */
+{const _book=showBook;
+ showBook=function(){_book();const ok=document.getElementById('okB');if(!ok)return;const got=achOf();
+  const nA=ACH.filter(a=>got[a.id]).length;
+  const html=`<h3>🏅 Succès (${nA}/${ACH.length})</h3><div class="achgrid">${ACH.map(a=>got[a.id]?`<div class="ach"><i>${a.i}</i><div><b>${a.t}</b><span>${a.d}</span></div></div>`:`<div class="ach no"><i>🔒</i><div><b>${a.t}</b><span>${a.d}</span></div></div>`).join('')}</div>
+   <h3>🏺 Figurines dorées (${figCount()}/${FIGS.length})</h3><p class="legend">24 petites statues dorées sont cachées dans la ville, quatre par quartier. Touche-les pour les ramasser, même pendant une enquête. ${DISTRICTS.map((D,i)=>unlocked(i)?`${D.name} : ${figDistCount(i)}/${FIGS.filter(f=>f.d===i).length}`:'').filter(Boolean).join(' · ')}</p><div class="figgrid" id="figGrid"></div>`;
+  ok.insertAdjacentHTML('beforebegin',html);
+  const g=document.getElementById('figGrid');
+  FIGS.forEach(f=>{const found=figsOf()[f.id];const d=document.createElement('div');d.className='fig'+(found?'':' no');d.appendChild(portrait(f.s));d.insertAdjacentHTML('beforeend',`<b>${found?f.n:'???'}</b>`);g.appendChild(d);});};
+ $('btnBook').onclick=showBook;}
+
+/* ---- Dossier de l'Ombre : ramifications ---- */
+{const _cl=showClues;
+ showClues=function(){_cl();const fin=document.getElementById('fin')||document.querySelector('#modalBody .legend:last-child');
+  const rows=Object.keys(RAMIF).map(id=>{const cs=CASES.find(c=>c.id===id);return caseDone(cs)?`<div class="clue"><b>🏝️ Ramification : ${RAMIF[id].t}</b>${RAMIF[id].x}</div>`:`<div class="clue no"><b>🏝️ Ramification : ???</b>Résous « ${cs.title} ».</div>`;}).join('');
+  const body=document.getElementById('modalBody');body.insertAdjacentHTML('beforeend',`<h3>Sur l'île</h3>${rows}`);};
+ const ob=document.getElementById('ombreBtn');if(ob)ob.onclick=showClues;}
 
 /* =========================================================
    ACCUEIL · PARTIES · OPTIONS · VERSION & MISES À JOUR
    ========================================================= */
-const APP_VERSION='2.8',APP_BUILD='202611132005';
+const APP_VERSION='2.9',APP_BUILD='202611151252';
 const homeEl=$('home');
 const fmtBuild=b=>/^\d{12}$/.test(b)?`${b.slice(0,8)}-${b.slice(8)}`:b;
 const fmtDate=ts=>{if(!ts)return '';const d=new Date(ts);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
