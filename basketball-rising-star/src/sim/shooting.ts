@@ -78,7 +78,7 @@ export function shotProbability(p: PlayerData, c: ShotContext): number {
       contestImpact = 0.3;
       break;
     case 'layup':
-      base = 0.5 + s(a.layup * 0.6 + a.finishing * 0.4) * 0.3 - Math.max(0, c.dist - 1.2) * 0.04;
+      base = 0.48 + s(a.layup * 0.6 + a.finishing * 0.4) * 0.3 - Math.max(0, c.dist - 1.2) * 0.04;
       contestImpact = 0.42;
       break;
     case 'tip':

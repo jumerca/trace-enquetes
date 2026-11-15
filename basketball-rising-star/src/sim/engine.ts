@@ -1417,6 +1417,8 @@ export class MatchEngine {
     const prevTeam = this.possession;
     const strip = b as Ball & { stripBy?: number; stripOf?: number };
     if (how === 'rebound' && this.lastShot) {
+      // Le rebondeur assure le ballon avant de relancer (il ne repart pas dans la même seconde)
+      p.actionLock = Math.max(p.actionLock, 0.7);
       const off = p.team === this.lastShot.team;
       if (off) p.box.orb++;
       else p.box.drb++;
@@ -1577,7 +1579,7 @@ export class MatchEngine {
     const stopClock = this.rules.stopClockAfterMadeLast2 && this.quarter >= 4 && this.clock < 120;
     if (stopClock) this.clockRunning = false;
     coachTimeoutCheck(this, other, true);
-    this.schedule(0.9, () => this.setupInbound(other, 'baseline', !stopClock));
+    this.schedule(1.9, () => this.setupInbound(other, 'baseline', !stopClock));
   }
 
   shotMissed(f: Flight): void {
@@ -1970,7 +1972,8 @@ export class MatchEngine {
       p.urgency = 0.7;
     }
     for (const p of this.onCourt) p.keyTime = 0;
-    const delay = 0.9 + this.rng.next() * 0.8;
+    // Après un panier, le temps d'aller chercher le ballon et de se placer
+    const delay = (where === 'baseline' ? 1.6 : 1.3) + this.rng.next() * 0.8;
     this.schedule(delay, () => {
       if (this.ball.holder !== inb.idx) return;
       const r = this.players[recv.idx];

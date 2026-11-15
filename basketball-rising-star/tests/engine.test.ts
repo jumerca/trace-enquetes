@@ -274,20 +274,21 @@ describe('lisibilité : passes et tirs', () => {
     while (!e.finished) {
       e.step();
       const f = e.ball.flight;
-      if (f && f !== last && (f.kind === 'shot' || (f.kind === 'pass' && f.from >= 0))) {
+      // (tirs en suspension uniquement : un dunk ou un tir contré ne décrit pas de cloche)
+      if (f && f !== last && ((f.kind === 'shot' && (f.shotType === 'jumper' || f.shotType === 'three')) || (f.kind === 'pass' && f.from >= 0))) {
         cur = { kind: f.kind, max: e.ball.z };
         if (f.kind === 'pass') passes++;
       }
       if (cur && f && f.kind === cur.kind) cur.max = Math.max(cur.max, e.ball.z);
       else if (cur) {
         if (cur.kind === 'pass') passTop = Math.max(passTop, cur.max);
-        else shotLow = Math.min(shotLow, cur.max);
+        else if (f?.kind !== 'block') shotLow = Math.min(shotLow, cur.max);
         cur = null;
       }
       last = f;
     }
-    expect(passTop).toBeLessThan(3.1);
-    expect(shotLow).toBeGreaterThan(3.2);
+    expect(passTop).toBeLessThan(3.05);
+    expect(shotLow).toBeGreaterThan(3.3);
     expect(passes).toBeLessThan(850); // environ 4 passes par attaque (il y en avait plus de 6)
   });
 });
