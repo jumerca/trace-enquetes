@@ -115,13 +115,13 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
     // brins et fleurettes : positions tirées par case globale (pas de raccord visible entre morceaux)
     const cols = ['#f6f1e0', '#f6d77a', '#e58aa0', '#a9b8f0'];
     const dark = rgba(shade(G[0], -0.1), 0.55), light = rgba(G[2], 0.55);
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.6;
     for (let gy = Math.floor(cy / 64); gy * 64 < cy + h; gy++) for (let gx = Math.floor(cx / 64); gx * 64 < cx + w; gx++) {
       const rc = new Rng(z.seed * 7 + gx * 73856093 + gy * 19349663);
       for (let i = 0; i < 8; i++) {
         const x = gx * 64 + rc.next() * 64, y = gy * 64 + rc.next() * 64;
         ctx.strokeStyle = rc.next() < 0.5 ? dark : light;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 2, y - 5); ctx.moveTo(x + 2, y); ctx.lineTo(x + 3, y - 6); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - 3, y); ctx.lineTo(x - 4, y - 5); ctx.moveTo(x, y); ctx.lineTo(x, y - 7); ctx.moveTo(x + 3, y); ctx.lineTo(x + 4.5, y - 5); ctx.stroke();
       }
       if (rc.next() < 0.68) { ctx.fillStyle = cols[Math.floor(rc.next() * cols.length)]; ctx.beginPath(); ctx.arc(gx * 64 + rc.next() * 64, gy * 64 + rc.next() * 64, 1.6, 0, TAU); ctx.fill(); }
     }

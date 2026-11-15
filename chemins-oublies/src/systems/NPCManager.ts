@@ -109,7 +109,7 @@ export class NPCManager {
   pick(wx: number, wy: number, pad: number): Npc | null {
     let best: Npc | null = null;
     for (const n of this.npcs.values()) {
-      if (Math.abs(wx - n.x) < 18 + pad && wy < n.y + 8 + pad && wy > n.y - 66 - pad && (!best || n.y > best.y)) best = n;
+      if (Math.abs(wx - n.x) < 22 + pad && wy < n.y + 8 + pad && wy > n.y - 80 - pad && (!best || n.y > best.y)) best = n;
     }
     return best;
   }

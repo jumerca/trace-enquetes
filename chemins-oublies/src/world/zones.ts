@@ -3,16 +3,17 @@
 import type { ZoneDef, PropDef, PathDef, Pt, Rect } from './types';
 import type { ZoneId } from '../core/state';
 import { HOUSES } from './textures';
+import { houseChimney } from '../art/props';
 import { Rng } from '../core/rng';
 import { distToPolyline, pointInPoly, ellipsePoly } from './geom';
 import { OBJECTS } from '../data/objects';
 
-const GRASS_VILLAGE = ['#6f9f48', '#7cab50', '#8fbb5c', '#5f9040', '#a2c56a'];
-const GRASS_FOREST = ['#3f6b3a', '#4a7a40', '#5a8a48', '#355e33', '#6b9450'];
+const GRASS_VILLAGE = ['#5aa23c', '#68b246', '#7cc152', '#4b8f33', '#93cf62'];
+const GRASS_FOREST = ['#3b7a3a', '#468a42', '#56994c', '#2f6a33', '#68a656'];
 
 function H(name: string, x: number, y: number, extra: Partial<PropDef> = {}): PropDef {
   const o = HOUSES[name];
-  const ch = o.chimney !== undefined ? ([o.chimney, -o.h - (o.d * 0.95 + 20) * 0.7 - 26] as Pt) : undefined;
+  const ch = houseChimney(o) as Pt | undefined;
   return { tex: 'house:' + name, x, y, foot: { w: o.w + 8, h: 70 }, occlude: true, smoke: ch, ...extra };
 }
 const T = (kind: string, seed: number, x: number, y: number, extra: Partial<PropDef> = {}): PropDef => ({ tex: `tree:${kind}:${seed}`, x, y, foot: { r: 13 }, occlude: true, sway: true, ...extra });
@@ -246,7 +247,7 @@ const moulinTrees = scatter({
 });
 
 const moulin: ZoneDef = {
-  id: 'moulin', name: 'Moulin des Trois-Eaux', w: 2400, h: 1800, grass: ['#6f9a48', '#77a24c', '#86b058', '#5d8a40', '#98bc62'], music: 'moulin', seed: 303,
+  id: 'moulin', name: 'Moulin des Trois-Eaux', w: 2400, h: 1800, grass: ['#5ea03e', '#6bae48', '#7dbd54', '#4e8f36', '#94cc64'], music: 'moulin', seed: 303,
   paths: mPaths,
   areas: [],
   water: [
@@ -258,7 +259,7 @@ const moulin: ZoneDef = {
   bridges: [{ x: 1610, y: 1100, w: 260, h: 60 }],
   props: [
     { tex: 'mill', x: 1250, y: 920, foot: { w: 236, h: 76 }, occlude: true, id: 'moulin_bat', cond: '!mill_running', smoke: undefined },
-    { tex: 'mill:ok', x: 1250, y: 920, foot: { w: 236, h: 76 }, occlude: true, cond: 'mill_running', smoke: [-60, -300] },
+    { tex: 'mill:ok', x: 1250, y: 920, foot: { w: 236, h: 76 }, occlude: true, cond: 'mill_running', smoke: [-60, -262] },
     { tex: 'sluice:closed', x: 1745, y: 418, id: 'vanne1_s', depth: 10 },
     { tex: 'sluice:open', x: 1470, y: 606, id: 'vanne2_s', depth: 10 },
     { tex: 'sluice:closed', x: 1450, y: 800, id: 'vanne3_s', depth: -40 },
