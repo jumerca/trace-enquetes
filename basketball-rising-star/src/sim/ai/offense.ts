@@ -215,8 +215,26 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const lastPoss = gameClockLimited && e.clock < 24;
   const holdForLast = lastPoss && e.clock > 6 && (diff >= 0 || e.quarter < 4 || e.clock > 10) && diff <= 3;
   const milk = e.quarter >= 4 && e.clock < 150 && diff > 0 && e.shotClock > 7;
-  const urgency = clamp((6 - shotClockLeft) / 6, 0, 1);
+  const urgency = clamp((7.5 - shotClockLeft) / 7, 0, 1);
   const needThree = e.quarter >= 4 && diff < 0 && diff >= -3 && e.clock < 12;
+
+  // Tir ouvert : aucun défenseur à portée, même en comptant celui qui revient en courant, et un bon tir
+  // pour ce joueur -> il le prend, sans hésiter ni redonner le ballon
+  if (inFront && !holdForLast && !milk && p.pickupT > 0.25) {
+    let free = 99;
+    let freeAtRelease = 99;
+    for (const o of e.teamOnCourt((1 - p.team) as 0 | 1)) {
+      free = Math.min(free, dist(o.pos, p.pos));
+      freeAtRelease = Math.min(freeAtRelease, Math.hypot(o.pos.x + o.vel.x * 0.4 - p.pos.x, o.pos.y + o.vel.y * 0.4 - p.pos.y));
+    }
+    const isThree = e.court.isThree(side, p.pos);
+    // (à mi-distance, seul un tir vraiment très favorable est automatique : sinon on cherche mieux)
+    // (un défenseur annoncé « en retour » mais toujours pas là une demi-seconde après la réception ne compte plus)
+    if (free > 3 && (freeAtRelease > 2.1 || p.pickupT > 0.45) && shotEV(e, p, p.pos, p.pickupT > 0.9) >= (isThree || d < 3 ? 1.08 : 1.15) && !(needThree && !isThree)) {
+      e.beginShot(p);
+      return;
+    }
+  }
 
   // Remontée du ballon
   if (!inFront) {
@@ -236,7 +254,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
     }
     const top = e.court.fromHoop(side, e.court.g.threeRadius + 0.8, clamp(p.pos.y - e.court.cy, -3, 3));
     p.target = fast ? { x: hoop.x - side * 1.2, y: hoop.y } : top;
-    p.urgency = fast ? 1 : 0.3 + e.teams[p.team].tactics.pace * 0.22 + (e.backcourtT > 5.5 ? 0.35 : 0);
+    p.urgency = fast ? 1 : 0.18 + e.teams[p.team].tactics.pace * 0.2 + (e.backcourtT > 5.5 ? 0.4 : 0);
     p.intent = fast ? 'contre-attaque' : 'remonte le ballon';
     if (fast) {
       p.intent = 'drive';
@@ -263,7 +281,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   // Valeur de la possession si l'on continue à jouer (diminue avec le chrono)
   const elapsed = e.time - st.startT;
   const early = clamp((e.shotClock - 5) / 13, 0, 1);
-  let possValue = 1.02 + (advantage ? -0.05 : early * 1.32) - urgency * 0.9 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
+  let possValue = 1.2 + (advantage ? -0.05 : early * 1.5) - urgency * 1.15 + (elapsed < 3 && !st.transition ? 0.08 : 0) - e.teams[p.team].tactics.pace * 0.08;
   if (milk) possValue += 0.3;
   // « 2 pour 1 » : en fin de quart-temps, tirer assez tôt pour récupérer une dernière possession
   if (e.quarter < 4 && e.clock < e.rules.shotClock + 16 && e.clock > e.rules.shotClock + 2) possValue -= 0.3;
@@ -272,7 +290,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const usage = 1 + (a.shotCreation + a.three + a.finishing - 30) / 140;
   let shootV = sEV * usage + selfish * 0.1 + p.hotness * 0.06 + (p.isUser ? e.userStyle.shooting * 0.14 : 0) + (st.play === 'Isolation' && st.star === p.idx ? 0.08 : 0);
   if (needThree && type !== 'three') shootV -= 0.5;
-  if (type === 'three' && !needThree) shootV *= 0.71 + e.teams[p.team].tactics.threeRate * 0.14;
+  if (type === 'three' && !needThree) shootV *= 0.65 + e.teams[p.team].tactics.threeRate * 0.14;
   // Le tir à mi-distance est le moins rentable : on ne le prend que démarqué ou quand le chrono presse
   if (type === 'jumper' && !needThree) {
     shootV *= 0.8 + urgency * 0.22 + (e.nearestDefender(p).d > 2.6 ? 0.08 : 0);
@@ -303,7 +321,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   const finish = (a.layup + a.finishing + a.dunk * 0.5) / 50;
   const dribbleSkill = (a.dribble + a.ballControl) / 40;
   if (d > 2.2 && d < 11) {
-    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + (possValue - 1) * 0.3 + 0.2 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
+    const v = (0.86 + finish * 0.62 + dribbleSkill * 0.3) * (1 - clamp(laneBlock, 0, 1.4) * 0.4) - helpers * 0.08 + (st.transition ? 0.25 : 0) + 0.22 - early * 0.1 + (p.isUser && e.userStyle.role === 'slasher' ? 0.18 : 0);
     opts.push({ kind: 'drive', v });
   }
   const extD = p as MPlayer & { driveT?: number };
@@ -396,7 +414,7 @@ function handlerThink(e: MatchEngine, p: MPlayer): void {
   }
   // Garder le ballon ne vaut que quelques secondes : ensuite il doit circuler (passe, pénétration, écran)
   const holdingTooLong = p.pickupT > 4 && !holdForLast && !milk;
-  const hold = possValue - p.pickupT * 0.07 - Math.max(0, p.pickupT - 1.5) * 0.2 - (holdingTooLong ? 1 : 0);
+  const hold = possValue - p.pickupT * 0.07 - Math.max(0, p.pickupT - 1.5) * 0.42 - (holdingTooLong ? 1 : 0);
   opts.push({ kind: 'hold', v: hold });
 
   // Cadence de décision : le porteur s'engage dans une lecture pendant un court instant,

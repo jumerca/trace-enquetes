@@ -10,6 +10,7 @@ const band: Record<string, [number, number]> = {};
 for (let g = 0; g < N; g++) {
   const reg = new NameRegistry();
   const e = new MatchEngine({ home: quickTeam(700 + g, 'A', 12, undefined, reg), away: quickTeam(900 + g, 'B', 12, ['#F36B32', '#101827'], reg), rules: FIBA, seed: 8000 + g });
+  if (process.env.MAN) for (const tm of e.teams) tm.tactics.defense = 'man';
   const orig = e.launchPass.bind(e);
   e.launchPass = (a, b, k) => { if (k !== 'tip' && k !== 'inbound') { passes++; const key = (new Error().stack!.split('\n')[2] || '').replace(/.*offense\.ts:/, 'off:').replace(/:\d+\)?$/, ''); site[key] = (site[key] ?? 0) + 1; } orig(a, b, k); };
   let lastPoss = -1; let lastHolder = -1; let evN = 0; let pend: string | null = null;
@@ -34,6 +35,7 @@ for (let g = 0; g < N; g++) {
 }
 const t = (v: number) => (v / N / 2).toFixed(1);
 console.log('par équipe : pts', t(pts), 'tirs', t(fga), (fgm / fga * 100).toFixed(1) + '%', '3pts tentés', t(tpa), '(' + (tpa / fga * 100).toFixed(0) + '% des tirs)', 'LF', t(fta), 'pd', t(ast), 'bp', t(tov), 'reb off', t(orb));
+console.log('possessions (formule officielle)', ((fga + 0.44 * fta - orb + tov) / N / 2).toFixed(1), '· durée moyenne', (2400 / ((fga + 0.44 * fta - orb + tov) / N / 2) / 2).toFixed(1), 's');
 console.log('passes/équipe', t(passes), 'possessions/équipe', t(poss), 'passes par possession', (passes / poss).toFixed(2));
 console.log('intérieurs (PF+C) : part des tirs', (bigFga / fga * 100).toFixed(0) + '%', 'part des points', (bigPts / pts * 100).toFixed(0) + '%', 'ballons reçus au poste/équipe', t(postTouch));
 console.log('types de tir (réussis/tentés par équipe)', Object.fromEntries(Object.entries(sh).map(([k, [m, a]]) => [k, `${t(m)}/${t(a)} ${(m / a * 100).toFixed(0)}%`])));

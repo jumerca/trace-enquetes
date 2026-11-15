@@ -126,8 +126,9 @@ export function defenseThink(e: MatchEngine, p: MPlayer, userControlled: boolean
       (p as MPlayer & { lungeT?: number }).lungeT = e.time;
       return;
     }
-    // Receveur : fermeture (closeout) anticipée
-    if (p.assign === f.to) {
+    // Receveur : fermeture (closeout) anticipée ; en zone, c'est le défenseur le plus proche de la réception qui sort
+    const zoneClose = tac.defense === 'zone23' && e.teamOnCourt(p.team).every((d) => d === p || Math.hypot(d.pos.x - end.x, d.pos.y - end.y) >= dEnd);
+    if (p.assign === f.to || zoneClose) {
       const dir = norm({ x: own.x - end.x, y: own.y - end.y });
       p.target = { x: end.x + dir.x * 1.1, y: end.y + dir.y * 1.1 };
       p.urgency = 1;
@@ -320,8 +321,10 @@ export function defenseThink(e: MatchEngine, p: MPlayer, userControlled: boolean
     const ball = h.pos;
     const manBall = dist(man.pos, ball);
     const posSkill = (a.positioning + a.teamD) / 40;
-    const kBasket = 0.18 + (manBall > 7 ? 0.22 : 0.06);
-    let k2 = manBall > 7 ? 0.32 : 0.12;
+    // On ne lâche pas un bon tireur : l'aide côté faible se fait moins loin de lui
+    const threat = dist(man.pos, own) > 5 ? clamp((man.data.attrs.three - 7) / 10, 0, 1) : 0;
+    const kBasket = (0.18 + (manBall > 7 ? 0.22 : 0.06)) * (1 - threat * 0.5);
+    let k2 = (manBall > 7 ? 0.32 : 0.12) * (1 - threat * 0.6);
     // Les défenseurs peu disciplinés regardent trop le ballon
     k2 += (1 - posSkill) * 0.18;
     const base = lerpV(man.pos, own, kBasket);
@@ -334,6 +337,12 @@ export function defenseThink(e: MatchEngine, p: MPlayer, userControlled: boolean
     // Le ballon dans la raquette : on resserre
     if (hOwnD < 4) tgt = lerpV(tgt, own, 0.2);
     tgt.x += Math.sin(e.time * 0.9 + p.idx) * (1 - posSkill) * 0.4;
+    // Un tireur n'est jamais laissé à plus de deux mètres : le défenseur doit pouvoir revenir le temps d'une passe
+    if (threat > 0.3) {
+      const maxSag = 2.6 - threat * 1.0;
+      const sag = dist(tgt, man.pos);
+      if (sag > maxSag) tgt = lerpV(man.pos, tgt, maxSag / sag);
+    }
     p.target = e.court.clampInside(tgt);
     const far = dist(p.pos, p.target);
     p.urgency = clamp(0.45 + far * 0.2, 0.45, 1);
