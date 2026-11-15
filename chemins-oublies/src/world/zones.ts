@@ -16,6 +16,23 @@ function H(name: string, x: number, y: number, extra: Partial<PropDef> = {}): Pr
   const ch = houseChimney(o) as Pt | undefined;
   return { tex: 'house:' + name, x, y, foot: { w: o.w + 8, h: 70 }, occlude: true, smoke: ch, ...extra };
 }
+/** Abords d'une maison : massifs fleuris contre la façade, buissons aux angles, pas japonais jusqu'au chemin. */
+function houseDecor(name: string, x: number, y: number, seed: number): PropDef[] {
+  const o = HOUSES[name];
+  const out: PropDef[] = [];
+  const hw = o.w / 2, dx = x + (o.door ?? 0);
+  const r = new Rng(seed);
+  // massifs de part et d'autre de la porte
+  const segs: [number, number][] = o.door === undefined ? [[x - hw + 10, x + hw - 10]] : [[x - hw + 12, dx - 26], [dx + 26, x + hw - 12]];
+  for (const [a, b] of segs) if (b - a > 30) out.push({ tex: `fbed:${Math.round(b - a)}:${seed + Math.round(a)}`, x: (a + b) / 2, y: y + 12, depth: 2 });
+  // buissons aux angles
+  for (const sd of [-1, 1]) if (r.next() < 0.75) out.push({ tex: `bush:${(seed + (sd > 0 ? 3 : 7)) % 9 + 1}:oak${r.next() < 0.4 ? ':#f2a0b8' : ''}`, x: x + sd * (hw + 18), y: y + 6, foot: { r: 16 }, occlude: true });
+  // pas japonais devant la porte
+  if (o.door !== undefined) out.push({ tex: `steps:46:${seed}`, x: dx, y: y + 26, ground: true });
+  // un tonneau ou un pot près de la porte
+  if (o.door !== undefined && r.next() < 0.6) out.push({ tex: r.next() < 0.5 ? 'barrel' : 'pot', x: dx + (r.next() < 0.5 ? -28 : 28), y: y + 4, foot: { r: 10 } });
+  return out;
+}
 const T = (kind: string, seed: number, x: number, y: number, extra: Partial<PropDef> = {}): PropDef => ({ tex: `tree:${kind}:${seed}`, x, y, foot: { r: 13 }, occlude: true, sway: true, ...extra });
 
 interface ScatterOpts {
@@ -43,14 +60,23 @@ function scatter(o: ScatterOpts): PropDef[] {
   return out;
 }
 
+/** Décor naturel : par bosquets (prairie fleurie, hautes herbes) plutôt qu'éparpillé au hasard. */
 function decor(seed: number, rect: Rect, n: number, avoid: (x: number, y: number) => boolean, keys: string[]): PropDef[] {
   const r = new Rng(seed);
   const out: PropDef[] = [];
-  for (let i = 0; i < n * 3 && out.length < n; i++) {
-    const x = Math.round(rect.x + r.next() * rect.w), y = Math.round(rect.y + r.next() * rect.h);
-    if (avoid(x, y)) continue;
-    const k = r.pick(keys).replace('#', String(Math.floor(r.next() * 6) + 1));
-    out.push({ tex: k, x, y });
+  const clusters = Math.ceil(n / 4);
+  for (let c = 0; c < clusters * 4 && out.length < n * 1.6; c++) {
+    const cx = rect.x + r.next() * rect.w, cy = rect.y + r.next() * rect.h;
+    if (avoid(cx, cy)) continue;
+    const key = r.pick(keys);
+    const count = 3 + Math.floor(r.next() * 5);
+    for (let i = 0; i < count; i++) {
+      const a = r.next() * Math.PI * 2, d = 10 + r.next() * 46;
+      const x = Math.round(cx + Math.cos(a) * d), y = Math.round(cy + Math.sin(a) * d * 0.6);
+      if (avoid(x, y)) continue;
+      const k = (r.next() < 0.3 ? r.pick(keys) : key).replace('#', String(Math.floor(r.next() * 6) + 1));
+      out.push({ tex: k, x, y, sway: k.startsWith('tall') });
+    }
   }
   return out;
 }
@@ -82,6 +108,7 @@ const vHouses: PropDef[] = [
   H('maisonE', 1000, 1760), H('maisonF', 1720, 1860), H('maisonG', 2090, 1480), H('mara', 2800, 1470), H('grange', 400, 1880),
 ];
 
+const vDecor: PropDef[] = vHouses.flatMap((h, i) => houseDecor(h.tex.split(':')[1], h.x, h.y, 300 + i * 17));
 const vReserved: Rect[] = vHouses.map((h) => ({ x: h.x - 130, y: h.y - 260, w: 260, h: 300 }));
 const villageEdgeTrees = scatter({
   rect: { x: 40, y: 20, w: 2940, h: 2220 }, step: 92, seed: 31, kinds: ['oak', 'oak', 'birch', 'pine', 'oak'],
@@ -111,6 +138,7 @@ const village: ZoneDef = {
   bridges: [{ x: 2240, y: 1118, w: 220, h: 64 }],
   props: [
     ...vHouses,
+    ...vDecor,
     { tex: 'bridge:220:70', x: 2350, y: 1150, ground: true, depth: -100 },
     { tex: 'fountain', x: 1300, y: 1230, foot: { w: 176, h: 52 } },
     { tex: 'stall:c0523a:veg', x: 1080, y: 1365, foot: { w: 104, h: 26 } },
@@ -144,7 +172,7 @@ const village: ZoneDef = {
     { tex: 'bramble:150:2', x: 2950, y: 430, foot: { w: 150, h: 40 }, cond: '!route_revealed' },
     { tex: 'bramble:120:3', x: 2700, y: 720, cond: '!route_revealed' },
     // fleurs et herbes
-    ...decor(5, { x: 100, y: 300, w: 2800, h: 1850 }, 120, (x, y) => vPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 14) || pointInPoly(x, y, placePoly) || distToPolyline(x, y, vRiver.pts) < 80 || vReserved.some((q) => x > q.x && x < q.x + q.w && y > q.y + 200 && y < q.y + q.h), ['flowers:#', 'flowers:#:b', 'flowers:#:y', 'tuft:#', 'tuft:#']),
+    ...decor(5, { x: 100, y: 300, w: 2800, h: 1850 }, 120, (x, y) => vPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 14) || pointInPoly(x, y, placePoly) || distToPolyline(x, y, vRiver.pts) < 80 || vReserved.some((q) => x > q.x && x < q.x + q.w && y > q.y + 200 && y < q.y + q.h), ['flowers:#', 'flowers:#:b', 'flowers:#:y', 'tall:#', 'tall:#', 'tuft:#']),
     { tex: 'bush:41:oak:#e58aa0', x: 1150, y: 990, foot: { r: 16 } }, { tex: 'bush:42:oak:#f6d77a', x: 1440, y: 990, foot: { r: 16 } },
     { tex: 'tree:oak:777:1.25', x: 1640, y: 1300, foot: { r: 14 }, occlude: true, sway: true },
     { tex: 'tree:willow:31', x: 2240, y: 1760, foot: { r: 15 }, occlude: true, sway: true },
@@ -164,6 +192,16 @@ const village: ZoneDef = {
     { rect: { x: 1280, y: 890, w: 40, h: 26 }, to: 'auberge', at: [360, 455], facing: 'up', door: true },
     { rect: { x: 800, y: 1080, w: 40, h: 26 }, to: 'atelier', at: [360, 455], facing: 'up', door: true },
     { rect: { x: 1760, y: 890, w: 40, h: 26 }, to: 'archives', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 1720, y: 1460, w: 40, h: 26 }, to: 'poste', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 610, y: 770, w: 40, h: 26 }, to: 'maisonA', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 880, y: 690, w: 40, h: 26 }, to: 'maisonB', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 2030, y: 710, w: 40, h: 26 }, to: 'maisonC', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 615, y: 1510, w: 40, h: 26 }, to: 'maisonD', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 935, y: 1750, w: 40, h: 26 }, to: 'maison_ninon', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 1740, y: 1850, w: 40, h: 26 }, to: 'maisonF', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 2050, y: 1470, w: 40, h: 26 }, to: 'maisonG', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 2745, y: 1460, w: 40, h: 26 }, to: 'maison_mara', at: [360, 455], facing: 'up', door: true },
+    { rect: { x: 380, y: 1870, w: 40, h: 26 }, to: 'grange', at: [360, 455], facing: 'up', door: true },
   ],
 };
 
@@ -216,7 +254,7 @@ const bois: ZoneDef = {
     { tex: 'chest', x: 250, y: 920, foot: { w: 30, h: 14 }, id: 'coffre_cache', cond: '!coffre_cache_ouvert' },
     { tex: 'chestOpen', x: 250, y: 920, foot: { w: 30, h: 14 }, cond: 'coffre_cache_ouvert' },
     { tex: 'signpost', x: 1240, y: 2200, foot: { r: 8 } },
-    ...decor(9, { x: 100, y: 100, w: 3000, h: 2400 }, 160, (x, y) => fPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 10) || distToPolyline(x, y, fStream.pts) < 70, ['tuft:#:3f7a3a', 'tuft:#:4f8a3a', 'flowers:#:b', 'flowers:#:y']),
+    ...decor(9, { x: 100, y: 100, w: 3000, h: 2400 }, 160, (x, y) => fPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 10) || distToPolyline(x, y, fStream.pts) < 70, ['tuft:#:3f7a3a', 'tall:#:2f6a33', 'tall:#:3f7a3a', 'flowers:#:b', 'fern:#']),
     ...forestTrees,
   ],
   blockers: [
@@ -271,7 +309,7 @@ const moulin: ZoneDef = {
     { tex: 'barrel', x: 1380, y: 950, foot: { r: 12 } },
     { tex: 'bramble:120:9', x: 820, y: 1170, cond: '!route_revealed' },
     { tex: 'bramble:140:10', x: 300, y: 1440, cond: '!route_revealed' },
-    ...decor(13, { x: 100, y: 100, w: 2200, h: 1600 }, 90, (x, y) => mPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 12) || distToPolyline(x, y, mRiver.pts) < 100 || (x > 1100 && x < 1800 && y > 300 && y < 1000), ['flowers:#', 'flowers:#:y', 'tuft:#', 'tuft:#']),
+    ...decor(13, { x: 100, y: 100, w: 2200, h: 1600 }, 90, (x, y) => mPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 12) || distToPolyline(x, y, mRiver.pts) < 100 || (x > 1100 && x < 1800 && y > 300 && y < 1000), ['flowers:#', 'flowers:#:y', 'tall:#', 'tuft:#']),
     ...moulinTrees,
   ],
   blockers: [
@@ -336,8 +374,44 @@ const moulinInt = room('moulin_int', 'Intérieur du moulin', 'stone', [560], 'ge
   { tex: 'stairs', x: 640, y: 230, foot: { w: 76, h: 40 } },
 ], { to: 'moulin', at: [1190, 960] });
 
-export const ZONES: Record<ZoneId, ZoneDef> = { clairval: village, bois, moulin, auberge, atelier, archives, moulin_int: moulinInt };
+
+// ---- maisons visitables
+const back = (x: number, y: number) => ({ to: 'clairval' as ZoneId, at: [x, y + 40] as Pt });
+function home(id: ZoneId, name: string, wall: 'plaster' | 'stone' | 'wood', quilt: string, flip: boolean, doorX: number, houseY: number, extra: PropDef[] = []): ZoneDef {
+  const L = (x: number) => (flip ? 720 - x : x);
+  return room(id, name, wall, [flip ? 200 : 520], 'home', 'wood', [
+    { tex: 'bed:' + quilt, x: L(110), y: 300, foot: { w: 80, h: 70 } },
+    { tex: 'fireplace', x: L(600), y: 230, foot: { w: 120, h: 40 } },
+    { tex: 'table:' + (flip ? 4 : 5), x: L(470), y: 400, foot: { w: 90, h: 26 } },
+    { tex: 'chair', x: L(415), y: 405, foot: { r: 9 } }, { tex: 'chair', x: L(525), y: 408, foot: { r: 9 } },
+    { tex: 'shelf:jars:' + (flip ? 5 : 6), x: L(250), y: 240, foot: { w: 96, h: 30 } },
+    { tex: 'pot', x: L(660), y: 470, foot: { r: 10 } }, { tex: 'crate:2', x: L(90), y: 470, foot: { w: 30, h: 16 } },
+    ...extra,
+  ], back(doorX, houseY));
+}
+const poste = room('poste', 'La Poste de Clairval', 'plaster', [520], 'home', 'wood', [
+  { tex: 'counter:240', x: 360, y: 300, foot: { w: 240, h: 40 } },
+  { tex: 'shelf:books:9', x: 120, y: 250, foot: { w: 96, h: 30 } }, { tex: 'shelf:books:10', x: 600, y: 250, foot: { w: 96, h: 30 } },
+  { tex: 'sacks', x: 110, y: 460, foot: { w: 60, h: 18 } }, { tex: 'sacks', x: 610, y: 460, foot: { w: 60, h: 18 } },
+  { tex: 'desk', x: 560, y: 410, foot: { w: 110, h: 26 } }, { tex: 'chair', x: 560, y: 450, foot: { r: 9 } },
+], back(1740, 1470));
+const maisonMara = home('maison_mara', 'La maison de Mara', 'wood', '5f7d3c', true, 2765, 1470, [{ tex: 'herbs', x: 360, y: 120, depth: -300 }, { tex: 'pot', x: 300, y: 470, foot: { r: 10 } }]);
+const maisonNinon = home('maison_ninon', 'La maison de Ninon', 'plaster', 'e9c33e', false, 955, 1760, [{ tex: 'bed:d4473d', x: 210, y: 300, foot: { w: 80, h: 70 } }]);
+const maisonA = home('maisonA', 'Une maison de Clairval', 'plaster', 'a6463a', false, 630, 780);
+const maisonB = home('maisonB', 'Une maison de Clairval', 'wood', '3d5d8f', true, 900, 700);
+const maisonC = home('maisonC', 'Une maison de Clairval', 'plaster', '7a3a6a', false, 2050, 720);
+const maisonD = home('maisonD', 'Une maison de Clairval', 'stone', '5f7d3c', true, 635, 1520);
+const maisonF = home('maisonF', 'Une maison de Clairval', 'plaster', 'c56b3a', false, 1760, 1860);
+const maisonG = home('maisonG', 'Une maison de Clairval', 'wood', 'a6463a', true, 2070, 1480);
+const grange = room('grange', 'La grange', 'wood', [], '', 'wood', [
+  { tex: 'haystack', x: 140, y: 280, foot: { r: 32 } }, { tex: 'haystack', x: 230, y: 250, foot: { r: 32 } },
+  { tex: 'cart', x: 520, y: 300, foot: { w: 90, h: 22 } }, { tex: 'barrel', x: 640, y: 420, foot: { r: 12 } }, { tex: 'barrel', x: 610, y: 450, foot: { r: 12 } },
+  { tex: 'woodpile', x: 130, y: 460, foot: { w: 60, h: 16 } }, { tex: 'sacks', x: 420, y: 460, foot: { w: 60, h: 18 } },
+], back(400, 1880));
+
+export const ZONES: Record<ZoneId, ZoneDef> = { clairval: village, bois, moulin, auberge, atelier, archives, moulin_int: moulinInt, poste, maison_mara: maisonMara, maison_ninon: maisonNinon, maisonA, maisonB, maisonC, maisonD, maisonF, maisonG, grange };
 
 export const ZONE_LABEL: Record<ZoneId, string> = {
   clairval: 'Clairval', bois: 'Bois des Murmures', moulin: 'Moulin des Trois-Eaux', auberge: "Auberge du Pot d'Étain", atelier: "Atelier de Coline", archives: 'Archives de Clairval', moulin_int: 'Intérieur du moulin',
+  poste: 'La Poste', maison_mara: 'Maison de Mara', maison_ninon: 'Maison de Ninon', maisonA: 'Maison du Puits', maisonB: 'Maison aux volets rouges', maisonC: 'Maison du Tisserand', maisonD: 'Maison du Potager', maisonF: 'Maison du Verger', maisonG: 'Maison au lavoir', grange: 'La grange',
 };

@@ -7,15 +7,15 @@ import { LW } from '../art/draw';
 export const HOUSES: Record<string, P.HouseOpts> = {
   auberge: { w: 280, h: 160, d: 120, wall: '#efe0bf', roof: '#b0533c', timber: true, floors: 2, door: 0, windows: [-100, -50, 50, 100], sign: { text: 'Auberge', col: '#7a3a2a' }, chimney: -90, shutters: '#2f6a6f', flowers: true, dormer: true, lantern: true, seed: 11 },
   atelier: { w: 200, h: 115, d: 90, wall: '#d8c3a0', roof: '#7a6458', stone: true, door: -40, windows: [30, 70], sign: { text: 'Atelier', col: '#5a4030' }, chimney: 60, shutters: '#8a5a35', roofStyle: 'slate', seed: 12 },
-  archives: { w: 210, h: 145, d: 100, wall: '#c9bfae', roof: '#4f5a6a', stone: true, door: 0, windows: [-70, 70], floors: 2, sign: { text: 'Archives', col: '#3a4a6a' }, shutters: '#3a4a6a', roofStyle: 'slate', dormer: true, seed: 13 },
+  archives: { w: 210, h: 145, d: 100, wall: '#c9bfae', roof: '#4f5a6a', stone: true, door: 0, windows: [-70, 70], floors: 2, sign: { text: 'Archives', col: '#3a4a6a' }, shutters: '#3a4a6a', roofStyle: 'slate', dormer: true, ivy: true, seed: 13 },
   poste: { w: 175, h: 112, d: 88, wall: '#f1d98a', roof: '#a8503a', door: -40, windows: [40], sign: { text: 'Poste', col: '#3d5d8f' }, shutters: '#3d5d8f', awning: '#3d5d8f', seed: 14 },
   maisonA: { w: 180, h: 112, d: 92, wall: '#f2e6cc', roof: '#b0533c', timber: true, door: 30, windows: [-50], chimney: -40, shutters: '#4f7a5a', flowers: true, seed: 21 },
-  maisonB: { w: 160, h: 104, d: 84, wall: '#e8d0b0', roof: '#8a4a35', door: -30, windows: [40], chimney: 40, shutters: '#a0503a', seed: 22 },
+  maisonB: { w: 160, h: 104, d: 84, wall: '#e8d0b0', roof: '#8a4a35', door: -30, windows: [40], chimney: 40, shutters: '#a0503a', gable: true, timber: true, seed: 22 },
   maisonC: { w: 190, h: 130, d: 96, wall: '#efe0bf', roof: '#9a5040', timber: true, floors: 2, door: 0, windows: [-60, 60], chimney: 55, shutters: '#5a7aa8', flowers: true, seed: 23 },
-  maisonD: { w: 170, h: 108, d: 90, wall: '#d9c7a8', roof: '#7a6458', stone: true, door: 35, windows: [-40], chimney: -50, shutters: '#6a8a4a', roofStyle: 'slate', seed: 24 },
+  maisonD: { w: 170, h: 108, d: 90, wall: '#d9c7a8', roof: '#7a6458', stone: true, door: 35, windows: [-40], chimney: -50, shutters: '#6a8a4a', roofStyle: 'slate', ivy: true, seed: 24 },
   maisonE: { w: 195, h: 112, d: 92, wall: '#f4e2c4', roof: '#b0533c', door: -45, windows: [20, 70], chimney: 60, shutters: '#c08a3a', flowers: true, seed: 25 },
-  maisonF: { w: 170, h: 104, d: 88, wall: '#e4d4b8', roof: '#a85a42', timber: true, door: 40, windows: [-40], chimney: -30, shutters: '#4f7a5a', seed: 26 },
-  maisonG: { w: 150, h: 100, d: 80, wall: '#efe3c8', roof: '#8a4a35', door: -20, windows: [35], shutters: '#7a3a6a', flowers: true, seed: 27 },
+  maisonF: { w: 170, h: 104, d: 88, wall: '#e4d4b8', roof: '#a85a42', timber: true, door: 40, windows: [-40], chimney: -30, shutters: '#4f7a5a', gable: true, seed: 26 },
+  maisonG: { w: 150, h: 100, d: 80, wall: '#efe3c8', roof: '#8a4a35', door: -20, windows: [35], shutters: '#7a3a6a', flowers: true, gable: true, ivy: true, seed: 27 },
   mara: { w: 175, h: 100, d: 92, wall: '#e2d2ae', roof: '#b9a05a', door: -35, windows: [40], chimney: 50, shutters: '#5f7d3c', roofStyle: 'thatch', flowers: true, seed: 28 },
   grange: { w: 210, h: 120, d: 100, wall: '#9a6a45', roof: '#7a6458', door: 0, windows: [], roofStyle: 'slate', shutters: '#5a3a26', seed: 29 },
 };
@@ -63,6 +63,11 @@ function make(key: string, S: number): PropTex {
     case 'mill': return P.mill(S, a === 'ok');
     case 'wheel': return P.waterWheel(S);
     case 'mist': return P.mistWall(S, +a);
+    case 'mat': return P.doormat(S);
+    case 'tall': return P.tallGrass(+a, S, b ? '#' + b : undefined);
+    case 'fern': return P.fern(+a, S);
+    case 'fbed': return P.flowerbed(S, +a, +b);
+    case 'steps': return P.steppingStones(S, +a, +b);
     // intérieurs
     case 'wall': return I.backWall(S, +a, b as any, c ? c.split(',').filter(Boolean).map(Number) : [], key.split(':')[4] ?? '');
     case 'counter': return I.counter(S, a ? +a : 220);
@@ -81,13 +86,15 @@ function make(key: string, S: number): PropTex {
     case 'barrelrack': return I.barrelRack(S);
     case 'rug': return I.rugTex(S, +a, +b);
     case 'pot': return I.plantPot(S);
+    case 'bed': return I.bed(S, '#' + (a ?? 'a6463a'));
+    case 'herbs': return I.hangingHerbs(S);
     default: throw new Error('Texture inconnue : ' + key);
   }
 }
 
 const cache = new Map<string, PropTex>();
 // maisons, arbres et buissons ont déjà leurs épaisseurs ; le reste du décor est épaissi
-const THICK_SKIP = new Set(['house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug']);
+const THICK_SKIP = new Set(['house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug', 'tall', 'fern', 'fbed', 'steps', 'mat']);
 export function propTex(key: string, S: number): PropTex {
   const id = key + '@' + S;
   let t = cache.get(id);

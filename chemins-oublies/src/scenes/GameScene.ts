@@ -233,6 +233,12 @@ export class GameScene extends Phaser.Scene implements Api {
       this.staticObjs.push(a); this.arrows.push(a);
       this.drawArrow(i);
     });
+    // paillassons devant les portes : on voit où l'on peut entrer
+    if (!z.interior) for (const e of z.exits) {
+      if (!e.door) continue;
+      const m = this.propImage({ tex: 'mat', x: e.rect.x + e.rect.w / 2, y: e.rect.y + 22, ground: true });
+      this.staticObjs.push(m);
+    }
     if (z.id === 'bois') this.updateStones();
     if (z.id === 'moulin') this.buildMill();
   }
@@ -524,6 +530,16 @@ export class GameScene extends Phaser.Scene implements Api {
     if (e) { this.setTarget({ kind: 'enemy', e }); this.showLabel(e.kind === 'murmure' ? 'Murmure' : e.kind === 'ancien' ? 'Ronceux ancien' : 'Ronceux', e.x, e.y - 70); return; }
     const n = this.npcs.pick(wx, wy, pad);
     if (n) { this.setTarget({ kind: 'npc', npc: n }); this.showLabel(DIALOGS[n.id]?.name ?? n.id, n.x, n.y - 88); return; }
+    // une porte : Éloi entre
+    if (!this.zone.interior) for (const e of this.zone.exits) {
+      if (!e.door) continue;
+      const dx = e.rect.x + e.rect.w / 2;
+      if (Math.abs(wx - dx) < 28 + pad && wy > e.rect.y - 60 - pad && wy < e.rect.y + e.rect.h + 26 + pad) {
+        this.showLabel(evalCond(e.cond, flag) || (e.to === 'moulin_int' && has('cle_moulin')) ? 'Entrer : ' + ZONE_LABEL[e.to] : ZONE_LABEL[e.to] + ' (fermé)', dx, e.rect.y - 50);
+        this.goToPoint(dx, e.rect.y + e.rect.h / 2, false);
+        return;
+      }
+    }
     const o = this.pickObj(wx, wy, pad);
     if (o) { this.setTarget({ kind: 'obj', obj: o }); if (!o.hidden) this.showLabel(o.name, o.x, o.y - (o.h ?? 50) - 8); return; }
     this.goToPoint(wx, wy, false);

@@ -219,3 +219,25 @@ export function plantPot(S: number): PropTex {
     ctx.beginPath(); ctx.moveTo(-10, -18); ctx.lineTo(10, -18); ctx.lineTo(7, 0); ctx.lineTo(-7, 0); ctx.closePath(); ink(ctx, '#c56b3a', 1.2);
   });
 }
+
+export function bed(S: number, quilt: string): PropTex {
+  return makeTex(90, 120, 112, S, (ctx) => {
+    softShadow(ctx, 4, 0, 40, 9);
+    // tête de lit
+    ctx.beginPath(); rrect(ctx, -38, -100, 76, 30, 8); ink(ctx, '#8a5a35', 2, { light: () => ctx.rect(-38, -100, 76, 6), lightCol: '#a8784a' });
+    // matelas et couette
+    ctx.beginPath(); rrect(ctx, -36, -78, 72, 74, 6); ink(ctx, '#f4ecd8', 2);
+    ctx.beginPath(); rrect(ctx, -36, -56, 72, 52, 6); ink(ctx, quilt, 2, { shadeFn: () => ctx.rect(-36, -14, 72, 12), light: () => ctx.rect(-36, -56, 72, 5), lightCol: shade(quilt, 0.25) });
+    ctx.strokeStyle = shade(quilt, -0.3); ctx.lineWidth = 1; for (let x = -24; x < 36; x += 12) { ctx.beginPath(); ctx.moveTo(x, -54); ctx.lineTo(x, -6); ctx.stroke(); } for (let y = -44; y < 0; y += 12) { ctx.beginPath(); ctx.moveTo(-34, y); ctx.lineTo(34, y); ctx.stroke(); }
+    ctx.beginPath(); rrect(ctx, -26, -76, 52, 16, 6); ink(ctx, '#fffaf0', 1.6, { shadeFn: () => ctx.rect(-26, -64, 52, 6), shadeCol: '#e2d8c4' });
+    for (const x of [-34, 34]) { ctx.beginPath(); rrect(ctx, x - 3, -6, 6, 8, 1); ink(ctx, '#6b4428', 1.2); }
+  });
+}
+
+export function hangingHerbs(S: number): PropTex {
+  return makeTex(130, 60, 50, S, (ctx) => {
+    line(ctx, -60, -40, 60, -40, '#6b4a30', 2.5);
+    const cols = ['#7fa060', '#a0b870', '#c9a24a', '#8a9a5a', '#b07a8a'];
+    for (let i = 0; i < 7; i++) { const x = -50 + i * 17; line(ctx, x, -40, x, -30, '#6b4a30', 1); ctx.beginPath(); ctx.moveTo(x - 6, -30); ctx.lineTo(x + 6, -30); ctx.lineTo(x + 2, -6); ctx.lineTo(x - 2, -6); ctx.closePath(); ink(ctx, cols[i % cols.length], 1.4); }
+  });
+}

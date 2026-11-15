@@ -60,6 +60,14 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
     }
   }
 
+  // 1b. grandes nuances (prairies plus claires, creux plus sombres) : douces, sans contour
+  if (!z.interior) for (const d of decals(z).moods) {
+    if (d.x + d.r < cx || d.x - d.r > cx + w || d.y + d.r < cy || d.y - d.r > cy + h) continue;
+    const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
+    g.addColorStop(0, d.c); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill();
+  }
+
   // 2. zones
   z.areas.forEach((a, ai) => {
     if (a.kind === 'cobble') return;
@@ -90,6 +98,19 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
       const sp = samplePolyline(wd.pts, 26);
       ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
       for (const [x, y] of sp) { if (rnd() < 0.5) continue; const o = (rnd() - 0.5) * wd.w * 0.6; ctx.beginPath(); ctx.moveTo(x + o - 6, y + o * 0.2); ctx.lineTo(x + o + 6, y + o * 0.2); ctx.stroke(); }
+      // nénuphars et galets
+      for (const [x, y] of samplePolyline(wd.pts, 55)) {
+        const rr = rnd();
+        const o = (rnd() - 0.5) * wd.w * 0.7;
+        if (rr < 0.22) {
+          for (let k = 0; k < 3; k++) { const lx = x + o + (rnd() - 0.5) * 18, ly = y + (rnd() - 0.5) * 10; ctx.fillStyle = '#4f9a3e'; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.arc(lx, ly, 6, 0.4, Math.PI * 2 - 0.1); ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#2f5a2a'; ctx.lineWidth = 1; ctx.stroke(); }
+          if (rnd() < 0.5) { ctx.fillStyle = '#f2a0c8'; ctx.beginPath(); ctx.arc(x + o, y, 2.6, 0, TAU); ctx.fill(); }
+        } else if (rr < 0.4) {
+          const side = rnd() < 0.5 ? -1 : 1, sx = x + side * (wd.w / 2 - 6), sy = y + (rnd() - 0.5) * 8;
+          ctx.fillStyle = '#8f8a82'; ctx.beginPath(); ellipse(ctx, sx, sy, 7, 4.5); ctx.fill(); ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = 1.2; ctx.stroke();
+          ctx.fillStyle = '#b8b2a8'; ctx.beginPath(); ellipse(ctx, sx - 2, sy - 1.5, 3, 1.5); ctx.fill();
+        }
+      }
       // roseaux
       for (const [x, y] of samplePolyline(wd.pts, 40)) {
         if (rnd() < 0.55) continue;
@@ -132,18 +153,23 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
   return c;
 }
 
-const decalCache = new Map<string, { blots: { x: number; y: number; r: number; a: number; c: string }[] }>();
+const decalCache = new Map<string, { blots: { x: number; y: number; r: number; a: number; c: string }[]; moods: { x: number; y: number; r: number; c: string }[] }>();
 function decals(z: ZoneDef) {
   let d = decalCache.get(z.id);
   if (d) return d;
   const r = new Rng(z.seed * 7919);
   const blots = [];
-  const n = (z.w * z.h) / 900;
+  const n = (z.w * z.h) / 1600;
   for (let i = 0; i < n; i++) {
     const rr = 20 + r.next() * 70;
     blots.push({ x: r.next() * z.w, y: r.next() * z.h, r: rr, a: r.next(), c: rgba(z.grass[Math.floor(r.next() * z.grass.length)], 0.18 + r.next() * 0.2) });
   }
-  d = { blots };
+  const moods = [];
+  for (let i = 0; i < (z.w * z.h) / 90000; i++) {
+    const light = r.next() < 0.55;
+    moods.push({ x: r.next() * z.w, y: r.next() * z.h, r: 160 + r.next() * 320, c: light ? 'rgba(220,240,140,0.22)' : 'rgba(20,60,30,0.2)' });
+  }
+  d = { blots, moods };
   decalCache.set(z.id, d);
   return d;
 }
@@ -227,6 +253,15 @@ function paintArea(ctx: C, kind: string, poly: Pt[], rnd: () => number, b: { x0:
   polyPath(ctx, poly); ctx.closePath();
   const fills: Record<string, string> = { cobble: '#b5ab98', field: '#c9a85a', garden: '#7a5a3a', sand: '#d8c49a', wood: '#a8784a', stone: '#9e978b', moss: '#4f7a3a', dark: '#2f4a32', mud: '#6b5a44', rug: '#8a3a32' };
   ctx.fillStyle = fills[kind] ?? '#888';
+  if (kind === 'moss') {
+    // clairière : bords fondus
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, rr = Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2;
+    const g = ctx.createRadialGradient(cx, cy, rr * 0.2, cx, cy, rr);
+    g.addColorStop(0, 'rgba(120,170,80,0.32)'); g.addColorStop(0.7, 'rgba(110,160,70,0.16)'); g.addColorStop(1, 'rgba(110,160,70,0)');
+    ctx.restore(); ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ellipse(ctx, cx, cy, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2); ctx.fill();
+    for (let i = 0; i < (b.x1 - b.x0) * (b.y1 - b.y0) / 900; i++) { const x = b.x0 + rnd() * (b.x1 - b.x0), y = b.y0 + rnd() * (b.y1 - b.y0); if (Math.hypot((x - cx) / (b.x1 - b.x0), (y - cy) / (b.y1 - b.y0)) > 0.4) continue; ctx.fillStyle = rnd() < 0.5 ? '#f6f1e0' : '#f6d77a'; ctx.beginPath(); ctx.arc(x, y, 1.7, 0, TAU); ctx.fill(); }
+    ctx.restore(); return;
+  }
   if (kind === 'cobble') { ctx.strokeStyle = '#8f8574'; ctx.lineWidth = 8; ctx.stroke(); } else if (kind === 'garden' || kind === 'field') { ctx.strokeStyle = 'rgba(60,45,30,0.55)'; ctx.lineWidth = 10; ctx.stroke(); }
   ctx.fill();
   ctx.clip();
