@@ -69,6 +69,9 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
     paintArea(ctx, a.kind, a.poly, () => r2.next(), b);
   });
 
+  // 2b. intérieurs : murs épais autour de la pièce (vue de dessus) et grand tapis
+  if (z.interior) paintRoomFrame(ctx, z.id);
+
   // 3. eau (berges puis eau)
   for (const [wi, wd] of z.water.entries()) {
     const b = bboxOf(wd.pts, wd.w);
@@ -194,6 +197,29 @@ export function paintPaths(ctx: C, list: PathPaint[], grass: string) {
     }
     void edge;
   }
+}
+
+function paintRoomFrame(ctx: C, id: string) {
+  const stone = id === 'atelier' || id === 'moulin_int';
+  const wall = stone ? '#8e8478' : '#7a5236', top = stone ? '#b5ab9c' : '#a8784a';
+  const band = (x: number, y: number, w: number, h: number) => {
+    ctx.fillStyle = wall; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = top; ctx.fillRect(x, y, w, Math.min(h, 7));
+    if (stone) { ctx.strokeStyle = shade(wall, -0.3); ctx.lineWidth = 1; for (let yy = y + 8; yy < y + h; yy += 10) for (let xx = x + ((yy / 10) % 2) * 8; xx < x + w; xx += 16) ctx.strokeRect(xx, yy, 16, 10); }
+    else { ctx.strokeStyle = shade(wall, -0.3); ctx.lineWidth = 1.2; for (let xx = x + 6; xx < x + w; xx += 14) { ctx.beginPath(); ctx.moveTo(xx, y + 8); ctx.lineTo(xx, y + h); ctx.stroke(); } }
+    ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+  };
+  // ombre portée des murs sur le plancher
+  ctx.fillStyle = 'rgba(30,18,10,0.28)'; ctx.fillRect(30, 175, 18, 330); ctx.fillRect(30, 175, 660, 22);
+  band(8, 150, 24, 380); band(688, 150, 24, 380);
+  band(8, 505, 310, 30); band(402, 505, 310, 30);
+  // grand tapis au centre
+  const rx = 190, ry = 330, rw = 340, rh = 130;
+  ctx.fillStyle = stone ? '#5a6a7a' : '#8a3a32'; ctx.beginPath(); ctx.roundRect(rx, ry, rw, rh, 10); ctx.fill();
+  ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = 2.4; ctx.stroke();
+  ctx.strokeStyle = '#e0b85c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(rx + 10, ry + 10, rw - 20, rh - 20, 6); ctx.stroke();
+  ctx.fillStyle = 'rgba(224,184,92,0.55)';
+  for (let x = rx + 30; x < rx + rw - 20; x += 26) for (let y = ry + 28; y < ry + rh - 18; y += 26) { ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.fill(); }
 }
 
 function paintArea(ctx: C, kind: string, poly: Pt[], rnd: () => number, b: { x0: number; y0: number; x1: number; y1: number }) {

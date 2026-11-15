@@ -293,7 +293,7 @@ function room(id: ZoneId, name: string, wallStyle: 'plaster' | 'stone' | 'wood',
   return {
     id, name, w: 720, h: 540, interior: true, grass: ['#2a1e18'], music: 'interieur', seed: id.length * 31,
     paths: [], water: [], bridges: [],
-    areas: [{ kind: floor, poly: [[30, 175], [690, 175], [690, 505], [30, 505]] }, { kind: 'rug', poly: [[300, 470], [420, 470], [420, 540], [300, 540]] }],
+    areas: [{ kind: floor, poly: [[30, 175], [690, 175], [690, 505], [30, 505]] }, { kind: 'rug', poly: [[300, 500], [420, 500], [420, 540], [300, 540]] }],
     walkPoly: [[46, 196], [674, 196], [674, 492], [400, 492], [400, 530], [320, 530], [320, 492], [46, 492]],
     props: [{ tex: `wall:660:${wallStyle}:${windows.join(',')}:${deco}`, x: 360, y: 178, depth: -400 }, ...props],
     blockers: [],

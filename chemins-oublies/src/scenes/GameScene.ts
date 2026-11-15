@@ -218,7 +218,7 @@ export class GameScene extends Phaser.Scene implements Api {
       if (def.sway && !lowQ) this.tweens.add({ targets: img, angle: { from: -0.6, to: 0.6 }, duration: 2200 + ((def.x * 7) % 1500), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       if (def.smoke && !lowQ) this.smoke(def.x + def.smoke[0], def.y + def.smoke[1]);
       if (def.id?.startsWith('pierre_')) this.stoneImgs.set(def.id.slice(7), img);
-      if (def.tex === 'lamp') this.glow(def.x + 8, def.y - 66, 0.9);
+      if (def.tex === 'lamp') this.glow(def.x, def.y - 79, 0.9);
       if (def.tex === 'fire' || def.tex === 'fireplace') this.glow(def.x, def.y - 20, 1.4, true);
       if (def.tex.startsWith('house:')) this.glow(def.x, def.y - 40, 1.6);
       if (def.tex === 'laundry' && !lowQ) this.tweens.add({ targets: img, scaleX: { from: img.scaleX, to: img.scaleX * 0.98 }, duration: 900, yoyo: true, repeat: -1 });

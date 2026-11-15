@@ -16,13 +16,23 @@ export function backWall(S: number, w: number, style: 'plaster' | 'stone' | 'woo
   const r = new Rng(w + style.length); const rnd = () => r.next();
   return makeTex(w, H + 10, H, S, (ctx) => {
     const col = style === 'stone' ? '#9e978b' : style === 'wood' ? '#8a6040' : '#e4d6b8';
-    ctx.beginPath(); ctx.rect(-w / 2, -H, w, H); ink(ctx, col, 2, { shadeFn: () => ctx.rect(-w / 2, -H, w, 18), shadeCol: shade(col, -0.25) });
+    ctx.beginPath(); ctx.rect(-w / 2, -H, w, H); ink(ctx, col, 3, { shadeFn: () => ctx.rect(-w / 2, -H, w, 18), shadeCol: shade(col, -0.25) });
     ctx.save(); ctx.beginPath(); ctx.rect(-w / 2, -H, w, H); ctx.clip();
     if (style === 'stone') { ctx.strokeStyle = shade(col, -0.25); ctx.lineWidth = 1; for (let y = -H + 18; y < 0; y += 16) for (let x = -w / 2 + ((y / 16) % 2 ? 0 : 14); x < w / 2; x += 28) { ctx.beginPath(); rrect(ctx, x, y, 26, 14, 3); ctx.stroke(); } }
     if (style === 'wood') { ctx.strokeStyle = shade(col, -0.25); ctx.lineWidth = 1; for (let x = -w / 2; x < w / 2; x += 22) { ctx.beginPath(); ctx.moveTo(x, -H); ctx.lineTo(x, 0); ctx.stroke(); } }
     if (style === 'plaster') { ctx.fillStyle = shade(col, -0.06); for (let i = 0; i < 40; i++) { ctx.beginPath(); ellipse(ctx, -w / 2 + rnd() * w, -H + rnd() * H, 4 + rnd() * 8, 2 + rnd() * 3); ctx.fill(); } ctx.fillStyle = '#5a3a26'; for (let x = -w / 2 + 40; x < w / 2; x += 160) ctx.fillRect(x, -H, 10, H); ctx.fillRect(-w / 2, -H + 18, w, 9); }
     ctx.restore();
-    ctx.fillStyle = '#5a3a26'; ctx.fillRect(-w / 2, -12, w, 12); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.strokeRect(-w / 2, -12, w, 12);
+    // lambris bas
+    ctx.fillStyle = '#6b4428'; ctx.fillRect(-w / 2, -42, w, 42);
+    ctx.fillStyle = '#8a5a35'; ctx.fillRect(-w / 2, -42, w, 5);
+    ctx.strokeStyle = '#4a2c18'; ctx.lineWidth = 1.4; for (let x = -w / 2 + 6; x < w / 2 - 20; x += 44) { ctx.beginPath(); ctx.roundRect(x, -32, 36, 26, 3); ctx.stroke(); }
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(-w / 2, -42, w, 42);
+    // appliques murales
+    for (const lx of [-w / 2 + 70, w / 2 - 70]) {
+      ctx.beginPath(); rrect(ctx, lx - 3, -H + 70, 6, 14, 2); ink(ctx, '#3d3a3a', 1.6);
+      ctx.beginPath(); ctx.moveTo(lx - 6, -H + 70); ctx.lineTo(lx + 6, -H + 70); ctx.lineTo(lx + 4, -H + 56); ctx.lineTo(lx - 4, -H + 56); ctx.closePath(); ink(ctx, '#ffd773', 1.6, { light: () => ctx.rect(lx - 4, -H + 56, 3, 14), lightCol: '#fff4c4' });
+      const gl = ctx.createRadialGradient(lx, -H + 62, 2, lx, -H + 62, 34); gl.addColorStop(0, 'rgba(255,220,140,0.45)'); gl.addColorStop(1, 'rgba(255,220,140,0)'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(lx, -H + 62, 34, 0, TAU); ctx.fill();
+    }
     for (const wx of windows) {
       ctx.beginPath(); ctx.rect(wx - 22, -H + 40, 44, 52); ink(ctx, '#bfe0f0', 1.6, { light: () => { ctx.moveTo(wx - 22, -H + 92); ctx.lineTo(wx + 6, -H + 40); ctx.lineTo(wx + 22, -H + 40); ctx.lineTo(wx - 6, -H + 92); ctx.closePath(); }, lightCol: '#e6f4fa' });
       line(ctx, wx, -H + 40, wx, -H + 92, '#6b4a30', 2); line(ctx, wx - 22, -H + 66, wx + 22, -H + 66, '#6b4a30', 2);
