@@ -423,7 +423,7 @@ class UIManager {
     this.home = h0;
     const H = $('#home');
     const canInstall = !!this.installEvt || isIos();
-    H.innerHTML = `<div class="title-wrap"><div class="ornament"></div><h1><span class="t1">Les</span><span class="t2">Chemins Oubliés</span></h1><div class="subtitle">Prologue — La Route effacée</div></div>
+    H.innerHTML = `<div class="title-wrap"><img class="logo" src="./icons/icon-192.png" alt=""><h1><span class="t1">Les</span><span class="t2">Chemins Oubliés</span></h1><div class="subtitle">Prologue — La Route effacée</div></div>
       <div class="home-menu">
         ${h0.canContinue() ? '<button class="btn big primary" data-h="continue">Continuer</button>' : ''}
         <button class="btn big ${h0.canContinue() ? '' : 'primary'}" data-h="new">Nouvelle partie</button>

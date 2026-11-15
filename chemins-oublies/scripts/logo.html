@@ -1,0 +1,56 @@
+<!doctype html><html><body style="margin:0;background:#888"><div id="o"></div><script type="module">
+import { tree, mill, waterWheel } from '/src/art/props.ts';
+import { ink, ellipse, rrect, INK, shade } from '/src/art/draw.ts';
+import { portrait } from '/src/art/characters.ts';
+import { ELOI } from '/src/data/cast.ts';
+const TAU = Math.PI * 2;
+function draw(size, maskable) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d');
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  const k = size / 512; x.scale(k, k);
+  // fond (ciel du soir)
+  x.save();
+  if (!maskable) { x.beginPath(); x.roundRect(8, 8, 496, 496, 112); x.clip(); }
+  const g = x.createLinearGradient(0, 0, 0, 512); g.addColorStop(0, '#2e4f6e'); g.addColorStop(0.42, '#e9a25e'); g.addColorStop(0.62, '#f6d58e');
+  x.fillStyle = g; x.fillRect(0, 0, 512, 512);
+  // soleil
+  const sg = x.createRadialGradient(256, 250, 10, 256, 250, 140); sg.addColorStop(0, 'rgba(255,240,190,1)'); sg.addColorStop(0.3, 'rgba(255,220,140,.7)'); sg.addColorStop(1, 'rgba(255,200,120,0)');
+  x.fillStyle = sg; x.fillRect(0, 0, 512, 512);
+  // collines lointaines
+  x.fillStyle = '#7a8f6a'; x.beginPath(); x.moveTo(0, 290); x.quadraticCurveTo(120, 240, 240, 282); x.quadraticCurveTo(360, 230, 512, 270); x.lineTo(512, 512); x.lineTo(0, 512); x.fill();
+  // moulin au loin (silhouette)
+  x.save(); x.translate(372, 300); x.scale(0.34, 0.34);
+  const m = mill(1, true); x.drawImage(m.canvas, -m.w * m.ax, -m.h * m.ay);
+  const w = waterWheel(1); x.drawImage(w.canvas, 200 - w.w / 2, -60 - w.h / 2);
+  x.restore();
+  // collines proches
+  x.fillStyle = '#5f8f43'; x.beginPath(); x.moveTo(0, 330); x.quadraticCurveTo(170, 290, 300, 330); x.quadraticCurveTo(420, 360, 512, 320); x.lineTo(512, 512); x.lineTo(0, 512); x.fill();
+  x.fillStyle = '#4c7a38'; x.beginPath(); x.moveTo(0, 400); x.quadraticCurveTo(200, 360, 512, 410); x.lineTo(512, 512); x.lineTo(0, 512); x.fill();
+  // arbres de bord
+  for (const [tx, ty, s, sd, kind] of [[70, 360, 0.95, 3, 'oak'], [482, 392, 0.8, 5, 'pine'], [30, 420, 0.8, 7, 'pine']]) { const t = tree(kind, sd, 1, s); x.drawImage(t.canvas, tx - t.w * t.ax, ty - t.h * t.ay); }
+  // la route effacée : pointillés dorés qui montent vers le moulin
+  x.strokeStyle = 'rgba(60,40,20,.35)'; x.lineWidth = 34; x.beginPath(); x.moveTo(170, 520); x.bezierCurveTo(230, 430, 400, 400, 352, 304); x.stroke();
+  x.strokeStyle = '#e7cf9a'; x.lineWidth = 26; x.stroke();
+  x.setLineDash([3, 22]); x.strokeStyle = '#fff2b8'; x.lineWidth = 9; x.stroke(); x.setLineDash([]);
+  x.restore();
+  // médaillon : boussole de Maëlys
+  const cx = 196, cy = 150;
+  x.save(); x.translate(cx, cy); x.scale(0.9, 0.9);
+  x.beginPath(); x.arc(0, 0, 92, 0, TAU); x.fillStyle = 'rgba(30,20,10,.25)'; x.fill();
+  x.beginPath(); x.arc(0, -4, 86, 0, TAU); ink(x, '#c9973a', 7, { light: () => ellipse(x, -24, -40, 50, 26), lightCol: '#f0cf72' });
+  x.beginPath(); x.arc(0, -4, 64, 0, TAU); ink(x, '#f7ecd0', 5);
+  // rose des vents
+  for (let i = 0; i < 8; i++) { const a = i * TAU / 8 - Math.PI / 2, r = i % 2 ? 34 : 56; x.beginPath(); x.moveTo(0, -4); x.lineTo(Math.cos(a - 0.22) * 14, -4 + Math.sin(a - 0.22) * 14); x.lineTo(Math.cos(a) * r, -4 + Math.sin(a) * r); x.lineTo(Math.cos(a + 0.22) * 14, -4 + Math.sin(a + 0.22) * 14); x.closePath(); ink(x, i % 2 ? '#d9b25b' : '#2f7f86', 3); }
+  x.beginPath(); x.moveTo(-8, -4); x.lineTo(0, -58); x.lineTo(8, -4); x.closePath(); ink(x, '#c0523a', 3);
+  x.beginPath(); x.arc(0, -4, 9, 0, TAU); ink(x, '#f0cf72', 3);
+  x.restore();
+  // contour
+  if (!maskable) { x.strokeStyle = INK; x.lineWidth = 14; x.beginPath(); x.roundRect(8, 8, 496, 496, 112); x.stroke(); }
+  return c;
+}
+window.__icons = { draw };
+const o = document.getElementById('o');
+for (const s of [512, 192, 64]) { const c = draw(s, false); c.style.margin = '10px'; o.appendChild(c); }
+const m = draw(512, true); m.style.cssText = 'margin:10px;border-radius:50%'; o.appendChild(m);
+document.title = 'ready';
+</script></body></html>

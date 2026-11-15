@@ -221,3 +221,7 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 32px; }
 }
 @media (max-width: 640px) and (orientation: landscape) { .inv { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01s !important; transition-duration: .01s !important; } }
+
+.title-wrap .logo { width: clamp(64px, 9vw, 120px); height: auto; border-radius: 24%; filter: drop-shadow(0 4px 0 rgba(43,30,22,.8)); margin-bottom: 4px; }
+.boot-logo { width: 110px; margin: 0 auto; border-radius: 24%; }
+@media (max-height: 500px) { .title-wrap .logo { width: 56px; } }
