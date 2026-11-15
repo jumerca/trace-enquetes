@@ -1,7 +1,7 @@
 // Peinture des sols d'une zone (herbe, chemins, pavés, champs, eau) en morceaux de 1024 px.
 import type { ZoneDef, Pt } from '../world/types';
 import { Rng } from '../core/rng';
-import { shade, rgba, ellipse } from './draw';
+import { shade, rgba, ellipse, mix } from './draw';
 
 export const CHUNK = 1024;
 
@@ -62,6 +62,7 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
 
   // 2. zones
   z.areas.forEach((a, ai) => {
+    if (a.kind === 'cobble') return;
     const b = bboxOf(a.poly, 40);
     if (!vis(b)) return;
     const r2 = new Rng(z.seed * 31 + ai * 977);
@@ -97,14 +98,17 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
     }
   }
 
-  // 4. chemins
-  for (const [pi, p] of z.paths.entries()) {
-    if (p.kind === 'route' && !flags('route_revealed')) continue;
-    const b = bboxOf(p.pts, p.w);
-    if (!vis(b)) continue;
-    const rp = new Rng(z.seed * 13 + pi * 389);
-    paintPath(ctx, p.pts, p.w, p.kind, () => rp.next());
-  }
+  // 4. chemins : peints ensemble, couche par couche, pour que les croisements se fondent
+  const list = z.paths.map((p, pi) => ({ p, pi })).filter(({ p }) => (p.kind !== 'route' || flags('route_revealed')) && vis(bboxOf(p.pts, p.w + 30)));
+  paintPaths(ctx, list.map(({ p, pi }) => ({ pts: p.pts, w: p.w, kind: p.kind, seed: z.seed * 13 + pi * 389 })), G[1]);
+  // la place pavée recouvre l'extrémité des chemins
+  z.areas.forEach((a, ai) => {
+    if (a.kind !== 'cobble') return;
+    const b = bboxOf(a.poly, 40);
+    if (!vis(b)) return;
+    const r2 = new Rng(z.seed * 31 + ai * 977);
+    paintArea(ctx, a.kind, a.poly, () => r2.next(), b);
+  });
 
   // 5. détails d'herbe
   if (!z.interior && detail) {
@@ -141,28 +145,54 @@ function decals(z: ZoneDef) {
   return d;
 }
 
-function paintPath(ctx: C, pts: Pt[], w: number, kind: string, rnd: () => number) {
-  if (kind === 'cobble') {
-    smoothLine(ctx, pts); ctx.strokeStyle = '#6f6658'; ctx.lineWidth = w + 6; ctx.stroke();
-    ctx.strokeStyle = '#b5ab98'; ctx.lineWidth = w; ctx.stroke();
-    for (const [x, y] of samplePolyline(pts, 9)) for (let k = 0; k < 3; k++) {
-      ctx.fillStyle = rnd() < 0.5 ? '#c7bda9' : '#a69c88';
-      ctx.beginPath(); ellipse(ctx, x + (rnd() - 0.5) * w * 0.85, y + (rnd() - 0.5) * w * 0.85, 4 + rnd() * 2, 3); ctx.fill();
+interface PathPaint { pts: Pt[]; w: number; kind: string; seed: number }
+const PATH_COL: Record<string, { base: string; edge: string }> = {
+  dirt: { base: '#c9ab78', edge: '#8f7550' }, forest: { base: '#8f7752', edge: '#5c4a32' }, route: { base: '#d2b47e', edge: '#9a7a4e' }, cobble: { base: '#b5ab98', edge: '#6f6658' },
+};
+
+/** Chemins en passes opaques communes (bord, terre, usure, détails) : aucun liseré ne passe sur un autre chemin. */
+export function paintPaths(ctx: C, list: PathPaint[], grass: string) {
+  const edgeCol = (k: string) => mix(grass, PATH_COL[k].edge, 0.55);
+  const wobble = (pp: PathPaint, extra: number, col: string) => {
+    const r = new Rng(pp.seed + extra * 7);
+    ctx.fillStyle = col;
+    for (const [x, y] of samplePolyline(pp.pts, 10)) {
+      const a = r.next() * Math.PI * 2, d = pp.w / 2 + extra * 0.5 - 3 + r.next() * 4;
+      ctx.beginPath(); ellipse(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.9, 4 + r.next() * 5, 3 + r.next() * 3); ctx.fill();
     }
-    return;
-  }
-  const base = kind === 'forest' ? '#8a7350' : kind === 'route' ? '#c9ad78' : '#c2a473';
-  const edge = kind === 'forest' ? '#5c4a32' : '#8f7550';
-  smoothLine(ctx, pts);
-  ctx.strokeStyle = rgba(edge, 0.55); ctx.lineWidth = w + 12; ctx.stroke();
-  ctx.strokeStyle = base; ctx.lineWidth = w; ctx.stroke();
-  ctx.strokeStyle = rgba(shade(base, 0.18), 0.8); ctx.lineWidth = w * 0.45; ctx.stroke();
-  if (kind === 'route') { ctx.setLineDash([2, 14]); ctx.strokeStyle = 'rgba(255,220,140,0.6)'; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]); }
-  for (const [x, y] of samplePolyline(pts, 14)) {
-    if (rnd() < 0.4) continue;
-    ctx.fillStyle = rnd() < 0.5 ? '#9b8e7c' : '#d8c8a2';
-    ctx.beginPath(); ellipse(ctx, x + (rnd() - 0.5) * w * 0.8, y + (rnd() - 0.5) * w * 0.8, 1.5 + rnd() * 2.2, 1.2 + rnd()); ctx.fill();
-    if (rnd() < 0.15) { ctx.strokeStyle = rgba(edge, 0.4); ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(x - 8, y + (rnd() - 0.5) * w * 0.6); ctx.lineTo(x + 8, y + (rnd() - 0.5) * w * 0.6); ctx.stroke(); }
+  };
+  // 1. bord (ombre de terre tassée)
+  for (const pp of list) { smoothLine(ctx, pp.pts); ctx.strokeStyle = edgeCol(pp.kind); ctx.lineWidth = pp.w + 10; ctx.stroke(); wobble(pp, 10, edgeCol(pp.kind)); }
+  // 2. terre
+  for (const pp of list) { smoothLine(ctx, pp.pts); ctx.strokeStyle = PATH_COL[pp.kind].base; ctx.lineWidth = pp.w; ctx.stroke(); wobble(pp, 0, PATH_COL[pp.kind].base); }
+  // 3. bande usée plus claire au centre
+  for (const pp of list) { if (pp.kind === 'cobble') continue; smoothLine(ctx, pp.pts); ctx.strokeStyle = mix(PATH_COL[pp.kind].base, '#f2e2b8', 0.28); ctx.lineWidth = pp.w * 0.5; ctx.stroke(); }
+  // 4. détails : ornières, cailloux, herbe qui déborde
+  for (const pp of list) {
+    const r = new Rng(pp.seed); const rnd = () => r.next();
+    const { base, edge } = PATH_COL[pp.kind];
+    if (pp.kind === 'route') { smoothLine(ctx, pp.pts); ctx.setLineDash([2, 14]); ctx.strokeStyle = 'rgba(255,220,140,0.6)'; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]); }
+    const sp = samplePolyline(pp.pts, 12);
+    for (let i = 1; i < sp.length; i++) {
+      const [x, y] = sp[i], [px, py] = sp[i - 1];
+      const a = Math.atan2(y - py, x - px), nx = -Math.sin(a), ny = Math.cos(a);
+      if (pp.kind === 'cobble') { for (let k = 0; k < 3; k++) { ctx.fillStyle = rnd() < 0.5 ? '#c7bda9' : '#a69c88'; ctx.beginPath(); ellipse(ctx, x + (rnd() - 0.5) * pp.w * 0.85, y + (rnd() - 0.5) * pp.w * 0.85, 4 + rnd() * 2, 3); ctx.fill(); } continue; }
+      // ornières
+      if (pp.kind !== 'forest' && pp.w > 40) for (const side of [-1, 1]) { ctx.strokeStyle = rgba(shade(base, -0.12), 0.45); ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(px + nx * side * pp.w * 0.2, py + ny * side * pp.w * 0.2); ctx.lineTo(x + nx * side * pp.w * 0.2, y + ny * side * pp.w * 0.2); ctx.stroke(); }
+      // cailloux
+      if (rnd() < 0.55) { const o = (rnd() - 0.5) * pp.w * 0.8; ctx.fillStyle = rnd() < 0.5 ? shade(base, -0.22) : shade(base, 0.25); ctx.beginPath(); ellipse(ctx, x + nx * o, y + ny * o, 1.5 + rnd() * 2.2, 1.1 + rnd()); ctx.fill(); }
+      // herbe débordante sur les deux bords
+      for (const side of [-1, 1]) {
+        if (rnd() < 0.35) continue;
+        const d = pp.w / 2 + 3 - rnd() * 7;
+        const gx = x + nx * side * d, gy = y + ny * side * d;
+        ctx.strokeStyle = rnd() < 0.5 ? shade(grass, -0.12) : shade(grass, 0.08); ctx.lineWidth = 1.5;
+        ctx.beginPath(); for (let k = 0; k < 3; k++) { const bx = gx + (k - 1) * 2.5; ctx.moveTo(bx, gy + 2); ctx.lineTo(bx + (rnd() - 0.5) * 4, gy - 4 - rnd() * 4); } ctx.stroke();
+      }
+      // touffe au milieu des chemins peu fréquentés
+      if (pp.w < 45 && rnd() < 0.08) { ctx.fillStyle = rgba(grass, 0.7); ctx.beginPath(); ellipse(ctx, x, y, 4 + rnd() * 3, 2.5); ctx.fill(); }
+    }
+    void edge;
   }
 }
 
@@ -171,7 +201,7 @@ function paintArea(ctx: C, kind: string, poly: Pt[], rnd: () => number, b: { x0:
   polyPath(ctx, poly); ctx.closePath();
   const fills: Record<string, string> = { cobble: '#b5ab98', field: '#c9a85a', garden: '#7a5a3a', sand: '#d8c49a', wood: '#a8784a', stone: '#9e978b', moss: '#4f7a3a', dark: '#2f4a32', mud: '#6b5a44', rug: '#8a3a32' };
   ctx.fillStyle = fills[kind] ?? '#888';
-  if (kind === 'cobble' || kind === 'garden' || kind === 'field') { ctx.strokeStyle = 'rgba(60,45,30,0.55)'; ctx.lineWidth = 10; ctx.stroke(); }
+  if (kind === 'cobble') { ctx.strokeStyle = '#8f8574'; ctx.lineWidth = 8; ctx.stroke(); } else if (kind === 'garden' || kind === 'field') { ctx.strokeStyle = 'rgba(60,45,30,0.55)'; ctx.lineWidth = 10; ctx.stroke(); }
   ctx.fill();
   ctx.clip();
   if (kind === 'cobble') {
@@ -226,7 +256,6 @@ export function paintRouteLayer(z: ZoneDef, scale: number): { canvas: HTMLCanvas
   const ctx = c.getContext('2d')!;
   ctx.scale(scale, scale); ctx.translate(-b.x0, -b.y0);
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  const rng = new Rng(z.seed + 3);
-  for (const r of routes) paintPath(ctx, r.pts, r.w, 'route', () => rng.next());
+  paintPaths(ctx, routes.map((r, i) => ({ pts: r.pts, w: r.w, kind: 'route', seed: z.seed + 3 + i })), z.grass[1]);
   return { canvas: c, x: b.x0, y: b.y0 };
 }

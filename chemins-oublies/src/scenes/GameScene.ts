@@ -72,8 +72,10 @@ export class GameScene extends Phaser.Scene implements Api {
   private labelT = 0;
   private bubbles = new Map<string, Phaser.GameObjects.Image>();
   private pointers = new Map<number, { x: number; y: number }>();
-  private pinch: { d: number; z: number } | null = null;
-  private pending: { x: number; y: number; t: number; fired: boolean; id: number } | null = null;
+  private pinch: { d: number; z: number; mx: number; my: number } | null = null;
+  private gesture: { id: number; sx: number; sy: number; lx: number; ly: number; wx: number; wy: number; t: number; mode: 'pending' | 'pan' | 'walk' } | null = null;
+  private walkHold = false;
+  camFree = false;
   private dragT = 0;
   private transitioning = false;
   private fogT = 0;
@@ -104,7 +106,7 @@ export class GameScene extends Phaser.Scene implements Api {
       heroHit: (d, x, y) => this.heroHit(d, x, y),
       settings: () => this.settings,
       onEncounterDone: (id) => this.encounterDone(id),
-      onEngage: (a) => { this.engaged = a; ui.setDanger(a); audio.play(a ? 'danger' : ZONES[S.zone].music); },
+      onEngage: (a) => { this.engaged = a; if (a) this.recenter(); ui.setDanger(a); audio.play(a ? 'danger' : ZONES[S.zone].music); },
     }, this.S_);
     Object.defineProperty((this.combat as any).host, 'nav', { get: () => this.nav });
     this.hero = new Actor(this, 'eloi', S.x, S.y, this.S_);
@@ -180,7 +182,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.hero.setPos(px, py);
     this.hero.face(facing ?? S.facing);
     this.hero.play('idle', true);
-    this.path = []; this.target = null;
+    this.path = []; this.target = null; this.camFree = false; if (!this.attract) ui.setFreeCam(false);
     this.camX = px; this.camY = py; cam.centerOn(px, py);
     S.x = px; S.y = py;
     S.checkpoint = { zone: id, x: px, y: py };
@@ -411,44 +413,58 @@ export class GameScene extends Phaser.Scene implements Api {
   // ============================================================== entrée
   private setupInput() {
     this.input.addPointer(2);
+    const rs = () => this.registry.get('renderScale') ?? 1;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       audio.unlock();
       if (ui.isModal() || this.transitioning) return;
       this.pointers.set(p.id, { x: p.x, y: p.y });
       if (this.pointers.size >= 2) {
-        // pincement : on annule le déplacement du premier doigt
-        if (this.pending) { this.pending = null; }
-        if (this.target?.kind === 'point' && this.path.length) this.stopHero();
+        // deux doigts : pincer pour zoomer, glisser pour parcourir la carte — Éloi ne bouge pas
+        this.gesture = null;
+        if (this.walkHold) { this.walkHold = false; this.stopHero(); }
         const [a, b] = [...this.pointers.values()];
-        this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.userZoom };
+        this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.userZoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
         return;
       }
-      this.pending = { x: p.worldX, y: p.worldY, t: this.time.now, fired: false, id: p.id };
+      this.gesture = { id: p.id, sx: p.x, sy: p.y, lx: p.x, ly: p.y, wx: p.worldX, wy: p.worldY, t: this.time.now, mode: 'pending' };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!this.pointers.has(p.id)) return;
+      const prev = this.pointers.get(p.id)!;
       this.pointers.set(p.id, { x: p.x, y: p.y });
+      const z = this.cameras.main.zoom;
       if (this.pinch && this.pointers.size >= 2) {
         const [a, b] = [...this.pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        this.userZoom = Phaser.Math.Clamp(this.pinch.z * (d / this.pinch.d), 0.7, 1.9);
-        this.applyZoom();
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        this.panBy((mx - this.pinch.mx) / z, (my - this.pinch.my) / z);
+        this.pinch.mx = mx; this.pinch.my = my;
+        this.setZoom(this.pinch.z * (d / this.pinch.d));
         return;
       }
-      if (this.pending?.fired && p.isDown && this.time.now - this.dragT > 140 && !ui.isModal()) {
-        this.dragT = this.time.now;
-        this.goToPoint(p.worldX, p.worldY, true);
-      }
+      const g = this.gesture;
+      if (!g || g.id !== p.id || !p.isDown) return;
+      if (g.mode === 'pending' && Math.hypot(p.x - g.sx, p.y - g.sy) > 12 * rs()) g.mode = 'pan';
+      if (g.mode === 'pan') this.panBy((p.x - prev.x) / z, (p.y - prev.y) / z);
+      if (g.mode === 'walk' && this.time.now - this.dragT > 140 && !ui.isModal()) { this.dragT = this.time.now; this.goToPoint(p.worldX, p.worldY, true); }
     });
     const up = (p: Phaser.Input.Pointer) => {
       this.pointers.delete(p.id);
-      if (this.pointers.size < 2 && this.pinch) { this.pinch = null; this.pending = null; return; }
-      if (this.pending && !this.pending.fired && this.pending.id === p.id) this.fireTap(this.pending.x, this.pending.y);
-      this.pending = null;
+      if (this.pinch) { if (this.pointers.size < 2) { this.pinch = null; this.gesture = null; } return; }
+      const g = this.gesture;
+      if (g && g.id === p.id && g.mode === 'pending') this.fireTap(g.wx, g.wy);
+      this.walkHold = false;
+      this.gesture = null;
     };
     this.input.on('pointerup', up);
     this.input.on('pointerupoutside', up);
-    this.input.on('wheel', (_p: any, _o: any, _dx: number, dy: number) => { this.userZoom = Phaser.Math.Clamp(this.userZoom * (dy > 0 ? 0.9 : 1.1), 0.7, 1.9); this.applyZoom(); });
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: any, _dx: number, dy: number) => {
+      // zoom vers le curseur
+      const before = this.cameras.main.getWorldPoint(p.x, p.y);
+      this.setZoom(this.userZoom * (dy > 0 ? 0.88 : 1.14));
+      const after = this.cameras.main.getWorldPoint(p.x, p.y);
+      if (this.camFree) this.panBy(after.x - before.x, after.y - before.y);
+    });
     this.input.keyboard?.on('keydown', (e: KeyboardEvent) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
@@ -457,10 +473,33 @@ export class GameScene extends Phaser.Scene implements Api {
       if (k === 'm') ui.openPanel('atlas');
       if (k === 'i') ui.openPanel('inventaire');
       if (k === 'j') ui.openPanel('journal');
-      if (k === '+' || k === '=') { this.userZoom = Math.min(1.9, this.userZoom * 1.1); this.applyZoom(); }
-      if (k === '-') { this.userZoom = Math.max(0.7, this.userZoom / 1.1); this.applyZoom(); }
+      if (k === '+' || k === '=') this.zoomStep(1);
+      if (k === '-') this.zoomStep(-1);
+      if (k === 'c' || k === ' ') this.recenter();
     });
   }
+
+  /** Geste en attente : resté appuyé sans bouger → marche continue vers le doigt. */
+  private updateGesture() {
+    const g = this.gesture;
+    if (!g || g.mode !== 'pending' || this.time.now - g.t < 320 || ui.isModal()) return;
+    g.mode = 'walk';
+    this.walkHold = true;
+    this.camFree = false;
+    const p = this.input.manager.pointers.find((q) => q.id === g.id);
+    this.goToPoint(p ? p.worldX : g.wx, p ? p.worldY : g.wy, false);
+  }
+
+  panBy(dx: number, dy: number) {
+    const cam = this.cameras.main;
+    if (!this.camFree) { this.camFree = true; this.camX = cam.midPoint.x; this.camY = cam.midPoint.y; ui.setFreeCam(true); }
+    const vw = cam.width / cam.zoom / 2, vh = cam.height / cam.zoom / 2, Z = this.zone;
+    this.camX = Phaser.Math.Clamp(this.camX - dx, Math.min(vw, Z.w / 2), Math.max(Z.w - vw, Z.w / 2));
+    this.camY = Phaser.Math.Clamp(this.camY - dy, Math.min(vh, Z.h / 2), Math.max(Z.h - vh, Z.h / 2));
+  }
+  setZoom(z: number) { this.userZoom = Phaser.Math.Clamp(z, 0.45, 2.2); this.applyZoom(); ui.setZoomLevel(this.userZoom); }
+  zoomStep(dir: number) { this.setZoom(this.userZoom * (dir > 0 ? 1.2 : 1 / 1.2)); }
+  recenter() { this.camFree = false; ui.setFreeCam(false); }
 
   applyZoom() {
     const rs = this.registry.get('renderScale') ?? 1;
@@ -478,7 +517,6 @@ export class GameScene extends Phaser.Scene implements Api {
   }
 
   private fireTap(wx: number, wy: number) {
-    if (this.pending) this.pending.fired = true;
     if (this.busy || this.time.now < this.busyUntil) return;
     const pad = 16 / this.cameras.main.zoom * (this.registry.get('renderScale') ?? 1);
     // ordre de priorité : ennemi, habitant, objet, sol
@@ -516,10 +554,12 @@ export class GameScene extends Phaser.Scene implements Api {
     if (!path) { if (!drag) { this.marker(wx, wy, false); audio.sfx('nope'); } return; }
     this.target = { kind: 'point' };
     this.path = path;
+    if (this.camFree && !drag) this.recenter();
     if (!drag) { this.marker(dest[0], dest[1], true); audio.sfx('tap'); }
   }
 
   private setTarget(t: Target) {
+    if (this.camFree) this.recenter();
     this.target = t; this.repathT = 0; this.attackT = 0;
     audio.sfx('tap', { pitch: 1.2 });
     this.repath();
@@ -590,6 +630,7 @@ export class GameScene extends Phaser.Scene implements Api {
     if (!modal && !this.transitioning) { S.clock += dt * CLOCK_RATE; S.playTime += dt; }
     if (this.hurtT > 0) this.hurtT -= dt;
     if (this.inv > 0) this.inv -= dt;
+    this.updateGesture();
     if (!modal && !this.busy && !this.transitioning) this.updateHero(dt);
     this.npcs.update(dt, this.nav, this.zone.id, [this.hero.x, this.hero.y]);
     if (!modal && !this.transitioning) this.combat.update(dt);
@@ -771,6 +812,7 @@ export class GameScene extends Phaser.Scene implements Api {
     const cam = this.cameras.main;
     const look = this.path.length ? 70 : 0;
     const tx = this.hero.x + this.vx * look, ty = this.hero.y - 20 + this.vy * look * 0.7;
+    if (this.camFree) { if (!(this as any)._panning) cam.centerOn(this.camX, this.camY); return; }
     const k = Math.min(1, dt * 4.5);
     this.camX += (tx - this.camX) * k; this.camY += (ty - this.camY) * k;
     if (!(this as any)._panning) cam.centerOn(this.camX, this.camY);

@@ -8,7 +8,8 @@ import { MAIN, SIDE, CLUES, NOTES, currentMainStep, SECRETS_TOTAL, SECRET_LABEL 
 import { ROUTINES, MAIN_NPCS, NpcId } from '../data/npcs';
 import { DIALOGS } from '../data/dialogues';
 import { renderMap } from '../systems/Atlas';
-import { ZONE_LABEL } from '../world/zones';
+import { ZONE_LABEL, ZONES } from '../world/zones';
+const __zoneSize = (z: ZoneId): [number, number] => [ZONES[z].w, ZONES[z].h];
 import { listSlots, writeSlot, deleteSlot, saveSettings, loadSettings } from '../systems/SaveManager';
 import { audio } from '../systems/Audio';
 import { ICONS } from './icons';
@@ -61,6 +62,7 @@ class UIManager {
         <div id="itemsel" class="itemsel hidden"></div>
         <div id="hint" class="hint"></div>
         <div id="saved" class="saved">Sauvegardé</div>
+        <div class="camctl"><button class="cb recenter hidden" data-c="c" aria-label="Recentrer sur Éloi (C)">${ICONS.target}<span>Éloi</span></button><button class="cb" data-c="+" aria-label="Zoomer (+)">＋</button><button class="cb" data-c="-" aria-label="Dézoomer (−)">−</button></div>
       </div>
       <div id="toasts"></div>
       <div id="dialog" class="dialog hidden"><div class="pf"><img alt=""></div><div class="db"><div class="dn"></div><div class="dt"></div><div class="dc"></div><div class="dmore">▼</div></div></div>
@@ -69,6 +71,13 @@ class UIManager {
       <div id="portrait-warn" class="portrait-warn"><div class="pw-box"><div class="pw-phone"></div><h2>Tournez votre téléphone</h2><p>L'aventure se joue à l'horizontale, pour mieux voir le monde.</p><div class="pw-btns"></div></div></div>
       <div id="fade" class="fade hidden"></div>`;
     this.root.querySelectorAll<HTMLButtonElement>('.ib').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); audio.unlock(); this.openPanel(b.dataset.p as PanelName); }));
+    this.root.querySelectorAll<HTMLButtonElement>('.camctl .cb').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation(); audio.unlock(); audio.sfx('tap');
+      const c = b.dataset.c;
+      if (c === '+') this.game?.zoomStep(1);
+      if (c === '-') this.game?.zoomStep(-1);
+      if (c === 'c') this.game?.recenter();
+    }));
     const dlg = $('#dialog');
     dlg.addEventListener('pointerdown', (e) => { e.stopPropagation(); if ((e.target as HTMLElement).closest('.dc button')) return; this.advance(); });
     $('#itemsel').addEventListener('click', () => this.selectItem(null));
@@ -174,6 +183,8 @@ class UIManager {
     c.classList.toggle('hidden', compass === null);
     if (compass !== null) $('.needle', c).style.transform = `rotate(${compass + Math.PI / 2}rad)`;
   }
+  setFreeCam(on: boolean) { this.root.querySelector('.camctl .recenter')?.classList.toggle('hidden', !on); }
+  setZoomLevel(_z: number) { /* réservé : indicateur de zoom */ }
   badge(p: PanelName) { const b = this.root.querySelector(`.ib[data-p="${p}"] .badge`); b?.classList.add('on'); }
   refresh() { if (this.panel) this.renderPanel(); }
   selectItem(id: string | null) {
@@ -187,7 +198,8 @@ class UIManager {
   tutorial() {
     const touch = matchMedia('(pointer: coarse)').matches;
     this.toast(touch ? 'Touchez le sol pour marcher, une personne pour lui parler, un objet pour l\'examiner.' : 'Cliquez sur le sol pour marcher, sur une personne pour lui parler, sur un objet pour l\'examiner.', 'info');
-    setTimeout(() => this.toast(touch ? 'Gardez le doigt appuyé et glissez pour marcher en continu. Pincez pour zoomer.' : 'Maintenez le clic et déplacez la souris pour marcher en continu. Molette : zoom.', 'info'), 4200);
+    setTimeout(() => this.toast(touch ? 'Glissez le doigt pour parcourir la carte, pincez pour zoomer : Éloi ne bouge pas.' : 'Glissez avec la souris pour parcourir la carte, molette pour zoomer : Éloi ne bouge pas.', 'info'), 4200);
+    setTimeout(() => this.toast(touch ? 'Pour marcher en continu : restez appuyé un instant, puis glissez.' : 'Pour marcher en continu : maintenez le clic un instant, puis déplacez la souris.', 'info'), 8400);
   }
   combatTutorial() {
     this.toast('Danger ! Touchez une créature pour la frapper avec votre bâton.', 'info');
@@ -237,15 +249,50 @@ class UIManager {
     const P = $('#panel');
     if (this.atlasTab === 'carte') {
       const wrap = $('.mapwrap', P);
-      const w = Math.min(wrap.clientWidth || 900, 1100);
-      const here = S.zone === this.atlasZone || (S.zone === 'moulin_int' && this.atlasZone === 'moulin');
-      const cv = renderMap(this.atlasZone, w * (window.devicePixelRatio > 1 ? 1.5 : 1), { hero: here && S.zone === this.atlasZone ? [S.x, S.y] : undefined });
+      const here = S.zone === this.atlasZone;
+      const cv = renderMap(this.atlasZone, 1600, { hero: here ? [S.x, S.y] : undefined });
       cv.className = 'map';
       wrap.appendChild(cv);
+      wrap.insertAdjacentHTML('beforeend', '<div class="mapctl"><button class="cb" data-mz="+">＋</button><button class="cb" data-mz="-">−</button><button class="cb" data-mz="0" aria-label="Vue d\'ensemble">⤢</button></div>');
+      requestAnimationFrame(() => this.mapPanZoom(wrap, cv));
       P.querySelectorAll<HTMLButtonElement>('.chip').forEach((b) => b.addEventListener('click', () => { this.atlasZone = b.dataset.z as ZoneId; this.renderAtlas(); }));
       $('#consult', P).addEventListener('click', () => { this.closePanel(); void this.game?.consultAtlas(); });
       if (!this.game) $('#consult', P).remove();
     }
+  }
+
+  /** Carte de l'atlas : glisser pour la parcourir, pincer / molette / boutons pour zoomer. */
+  private mapPanZoom(wrap: HTMLElement, cv: HTMLCanvasElement) {
+    const W = () => wrap.clientWidth, H = () => wrap.clientHeight;
+    const fit = () => Math.min(W() / cv.width, H() / cv.height);
+    let k = fit(), x = 0, y = 0;
+    const clamp = () => {
+      const cw = cv.width * k, ch = cv.height * k;
+      x = cw <= W() ? (W() - cw) / 2 : Math.min(0, Math.max(W() - cw, x));
+      y = ch <= H() ? (H() - ch) / 2 : Math.min(0, Math.max(H() - ch, y));
+      cv.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
+    };
+    const zoomAt = (f: number, cx: number, cy: number) => {
+      const nk = Math.max(fit(), Math.min(fit() * 5, k * f));
+      x = cx - (cx - x) * (nk / k); y = cy - (cy - y) * (nk / k); k = nk; clamp();
+    };
+    // centrer sur le héros s'il est dans cette zone
+    const heroMark = S.zone === this.atlasZone;
+    if (heroMark) { const z = __zoneSize(this.atlasZone); k = fit() * 2.2; x = W() / 2 - (S.x / z[0]) * cv.width * k; y = H() / 2 - (S.y / z[1]) * cv.height * k; }
+    clamp();
+    const pts = new Map<number, { x: number; y: number }>();
+    let pinch0 = 0, k0 = 1;
+    wrap.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('.mapctl')) return; wrap.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); k0 = k; } });
+    wrap.addEventListener('pointermove', (e) => {
+      const p = pts.get(e.pointerId); if (!p) return;
+      const r = wrap.getBoundingClientRect();
+      if (pts.size === 2) { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); zoomAt((k0 * d / pinch0) / k, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top); return; }
+      x += e.clientX - p.x; y += e.clientY - p.y; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); clamp();
+    });
+    const end = (e: PointerEvent) => pts.delete(e.pointerId);
+    wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
+    wrap.addEventListener('wheel', (e) => { e.preventDefault(); const r = wrap.getBoundingClientRect(); zoomAt(e.deltaY > 0 ? 0.85 : 1.18, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    wrap.querySelectorAll<HTMLButtonElement>('[data-mz]').forEach((b) => b.addEventListener('click', () => { const v = b.dataset.mz; if (v === '0') { k = fit(); clamp(); } else zoomAt(v === '+' ? 1.4 : 1 / 1.4, W() / 2, H() / 2); }));
   }
 
   private renderInventory() {

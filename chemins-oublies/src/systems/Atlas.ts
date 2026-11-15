@@ -45,7 +45,7 @@ const baseCache = new Map<string, HTMLCanvasElement>();
 /** Carte d'une zone pour l'atlas : sol peint en petit, bâtiments et arbres en symboles, brouillard parchemin. */
 export function renderMap(z: ZoneId, maxW: number, opts: { hero?: [number, number]; marks?: { x: number; y: number; label: string; col?: string }[] } = {}): HTMLCanvasElement {
   const Z = ZONES[z];
-  const sc = Math.min(maxW / Z.w, 0.25);
+  const sc = Math.min(maxW / Z.w, 0.5);
   const W = Math.round(Z.w * sc), H = Math.round(Z.h * sc);
   const flag = (f: string) => !!S.flags[f];
   const key = `${z}:${W}:${flag('route_revealed')}:${flag('stones_solved')}:${flag('passage_open')}`;
