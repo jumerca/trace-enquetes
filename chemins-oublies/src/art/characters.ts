@@ -34,6 +34,9 @@ export interface CharSpec {
   blush?: boolean;
   belt?: string;
   eyeCol?: string;
+  pattern?: 'dots' | 'flowers' | 'stripes' | 'leaves';
+  patternCol?: string;
+  cuff?: string;
 }
 
 export type Dir3 = 'down' | 'up' | 'right';
@@ -281,10 +284,27 @@ function torsoFront(ctx: Ctx, spec: CharSpec, g: G, p: Pose, back: boolean) {
   ctx.lineTo(g.cx - sw, g.shY + 4);
   ctx.quadraticCurveTo(g.cx - sw - 1, g.shY + 1, g.cx - sw + 1.5, g.shY);
   ctx.closePath();
+  const torsoPath: Path2D | undefined = (ctx as any).__p;
   ink(ctx, col, g.lw, {
     shadeFn: () => { ctx.rect(g.cx + 2.5 * g.w, g.shY - 4, 20, 40); ctx.rect(g.cx - 30, hem - 3, 60, 6); },
     light: () => ctx.rect(g.cx - sw - 2, g.shY - 3, 3.5, 30),
   });
+  // motif du tissu, ourlet surpiqué, plis
+  if (torsoPath) {
+    ctx.save(); ctx.clip(torsoPath);
+    const pc = spec.patternCol ?? shade(col, 0.35);
+    if (spec.pattern === 'dots') { ctx.fillStyle = pc; for (let y = g.shY + 3; y < hem; y += 4.5) for (let x = g.cx - 12 + ((y / 4.5) % 2) * 2.2; x < g.cx + 12; x += 4.4) { ctx.beginPath(); ctx.arc(x, y, 0.85, 0, TAU); ctx.fill(); } }
+    if (spec.pattern === 'flowers') { for (let y = g.shY + 4; y < hem; y += 6) for (let x = g.cx - 12 + ((y / 6) % 2) * 3; x < g.cx + 12; x += 6) { ctx.fillStyle = pc; for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 0.9, y + Math.sin(a) * 0.9, 0.8, 0, TAU); ctx.fill(); } ctx.fillStyle = '#fff3a0'; ctx.beginPath(); ctx.arc(x, y, 0.5, 0, TAU); ctx.fill(); } }
+    if (spec.pattern === 'stripes') { ctx.fillStyle = pc; for (let x = g.cx - 14; x < g.cx + 14; x += 3.4) ctx.fillRect(x, g.shY, 1.3, hem - g.shY + 3); }
+    if (spec.pattern === 'leaves') { ctx.fillStyle = pc; for (let x = g.cx - 12; x < g.cx + 12; x += 4) { ctx.beginPath(); ellipse(ctx, x, hem - 3.5, 1.6, 0.9, -0.6); ctx.fill(); ctx.beginPath(); ellipse(ctx, x + 2, hem - 5.5, 1.6, 0.9, 0.6); ctx.fill(); } }
+    // ourlet
+    ctx.fillStyle = shade(col, -0.25); ctx.fillRect(g.cx - 20, hem - 2.6, 40, 4);
+    ctx.strokeStyle = shade(col, 0.3); ctx.lineWidth = 0.6; ctx.setLineDash([1.2, 1.2]); ctx.beginPath(); ctx.moveTo(g.cx - 18, hem - 3.6); ctx.quadraticCurveTo(g.cx, hem - 2, g.cx + 18, hem - 3.6); ctx.stroke(); ctx.setLineDash([]);
+    // plis
+    ctx.strokeStyle = shade(col, -0.22); ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(g.cx - hw * 0.6, g.hipY + 1); ctx.quadraticCurveTo(g.cx - hw * 0.7, (g.hipY + hem) / 2, g.cx - hw * 0.85, hem - 2); ctx.moveTo(g.cx + hw * 0.5, g.hipY + 1); ctx.quadraticCurveTo(g.cx + hw * 0.6, (g.hipY + hem) / 2, g.cx + hw * 0.8, hem - 2); ctx.stroke();
+    ctx.restore();
+  }
   if (back) {
     if (spec.topStyle === 'coat') { ctx.strokeStyle = shade(col, -0.35); ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(g.cx, g.hipY - 1); ctx.lineTo(g.cx, hem); ctx.stroke(); }
     return;
@@ -296,7 +316,9 @@ function torsoFront(ctx: Ctx, spec: CharSpec, g: G, p: Pose, back: boolean) {
     // revers
     ctx.beginPath(); ctx.moveTo(g.cx - 3.5, g.shY - 0.5); ctx.lineTo(g.cx, g.shY + 6); ctx.lineTo(g.cx + 3.5, g.shY - 0.5); ctx.stroke();
     ctx.fillStyle = spec.topStyle === 'uniform' ? '#e8c45a' : '#d9b25b';
-    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(g.cx + 1.6, g.shY + 7 + k * 3.6, 0.75, 0, TAU); ctx.fill(); }
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(g.cx + 1.6, g.shY + 7 + k * 3.6, 0.95, 0, TAU); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.5; ctx.stroke(); }
+    // poches à rabat
+    for (const sd of [-1, 1]) { ctx.beginPath(); rrect(ctx, g.cx + sd * 4.2 - 2.6, g.hipY + 1, 5.2, 4, 1); ink(ctx, shade(col, -0.12), 0.8); ctx.fillStyle = shade(col, 0.2); ctx.fillRect(g.cx + sd * 4.2 - 2.6, g.hipY + 1, 5.2, 1.3); }
   } else if (spec.topStyle === 'shirt' || spec.topStyle === 'tunic') {
     ctx.strokeStyle = shade(col, -0.35); ctx.lineWidth = 0.9;
     ctx.beginPath(); ctx.moveTo(g.cx - 2.5, g.shY - 0.5); ctx.lineTo(g.cx, g.shY + 3.5); ctx.lineTo(g.cx + 2.5, g.shY - 0.5); ctx.stroke();
@@ -354,7 +376,8 @@ function armFront(ctx: Ctx, spec: CharSpec, g: G, p: Pose, side: number, back: b
   const col = back ? shade(topColor(spec), -0.08) : topColor(spec);
   ctx.beginPath(); capsule(ctx, sx, sy, ex, ey, 5.2, 4.6); ink(ctx, col, g.lw, { shadeFn: () => ctx.rect(sx + (side > 0 ? 0 : -1), sy - 3, 6, 30) });
   ctx.beginPath(); capsule(ctx, ex, ey, hx, hy - 1.4, 4.6, 4.0); ink(ctx, col, g.lw);
-  ctx.beginPath(); ctx.arc(hx, hy, 2.5, 0, TAU); ink(ctx, spec.skin, g.lw * 0.85);
+  ctx.beginPath(); ellipse(ctx, hx, hy - 2.2, 2.6, 1.6); ink(ctx, spec.cuff ?? shade(col, 0.3), g.lw * 0.6);
+  ctx.beginPath(); ctx.arc(hx, hy, 2.6, 0, TAU); ink(ctx, spec.skin, g.lw * 0.85);
 }
 
 function armSide(ctx: Ctx, spec: CharSpec, g: G, p: Pose, idx: number, far: boolean) {

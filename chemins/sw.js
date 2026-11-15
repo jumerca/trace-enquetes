@@ -1,7 +1,7 @@
 // Service worker — Les Chemins Oubliés. Généré au build : ne pas modifier dist/sw.js à la main.
-const BUILD = '0.1.0-202611152006';
+const BUILD = '0.1.0-202611152045';
 const CACHE = 'chemins-oublies-' + BUILD;
-const ASSETS = ["./","assets/alegreya-latin-400-italic-BXpar-rJ.woff2","assets/alegreya-latin-400-italic-CJvUQvZT.woff","assets/alegreya-latin-400-normal-BLlBRtDv.woff2","assets/alegreya-latin-400-normal-BuQWlRPA.woff","assets/alegreya-latin-700-normal-BS7r-qZs.woff","assets/alegreya-latin-700-normal-Vpz_43wJ.woff2","assets/alegreya-sc-latin-400-normal-eVOwGI7S.woff","assets/alegreya-sc-latin-400-normal-nTGC35F9.woff2","assets/alegreya-sc-latin-700-normal-C1NSl7Ln.woff","assets/alegreya-sc-latin-700-normal-ztAmjLTs.woff2","assets/index-7A7QuRq4.css","assets/index-B1sBOGc9.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-192.png","icons/icon-maskable-512.png","manifest.webmanifest","index.html"];
+const ASSETS = ["./","assets/alegreya-latin-400-italic-BXpar-rJ.woff2","assets/alegreya-latin-400-italic-CJvUQvZT.woff","assets/alegreya-latin-400-normal-BLlBRtDv.woff2","assets/alegreya-latin-400-normal-BuQWlRPA.woff","assets/alegreya-latin-700-normal-BS7r-qZs.woff","assets/alegreya-latin-700-normal-Vpz_43wJ.woff2","assets/alegreya-sc-latin-400-normal-eVOwGI7S.woff","assets/alegreya-sc-latin-400-normal-nTGC35F9.woff2","assets/alegreya-sc-latin-700-normal-C1NSl7Ln.woff","assets/alegreya-sc-latin-700-normal-ztAmjLTs.woff2","assets/index-7A7QuRq4.css","assets/index-baVsqLHO.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-192.png","icons/icon-maskable-512.png","manifest.webmanifest","index.html"];
 
 self.addEventListener('install', (e) => {
   // Pas de skipWaiting automatique : le jeu propose l'activation (Options → Rechercher les mises à jour).

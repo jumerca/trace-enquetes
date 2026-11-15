@@ -1,6 +1,9 @@
 // Primitives de dessin « BD franco-belge » : aplats, contour d'encre, ombrage en cellule.
 export const INK = '#2b1e16';
 
+/** Multiplicateur d'épaisseur des contours (mobilier, intérieurs : même famille de trait que les maisons). */
+export const LW = { mul: 1 };
+
 export type Ctx = CanvasRenderingContext2D;
 
 // Chaque tracé est aussi enregistré dans un Path2D : ink() peut ombrer (clip + nouveaux tracés) puis
@@ -64,7 +67,7 @@ export function ink(ctx: Ctx, fill: string, lw: number, opts: { shadeFn?: () => 
   }
   if (opts.stroke !== null) {
     ctx.strokeStyle = opts.stroke ?? INK;
-    ctx.lineWidth = lw;
+    ctx.lineWidth = lw * LW.mul;
     if (path) ctx.stroke(path); else ctx.stroke();
   }
 }

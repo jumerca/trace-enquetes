@@ -2,6 +2,7 @@
 import * as P from '../art/props';
 import * as I from '../art/interior';
 import type { PropTex } from '../art/props';
+import { LW } from '../art/draw';
 
 export const HOUSES: Record<string, P.HouseOpts> = {
   auberge: { w: 280, h: 160, d: 120, wall: '#efe0bf', roof: '#b0533c', timber: true, floors: 2, door: 0, windows: [-100, -50, 50, 100], sign: { text: 'Auberge', col: '#7a3a2a' }, chimney: -90, shutters: '#2f6a6f', flowers: true, dormer: true, lantern: true, seed: 11 },
@@ -85,10 +86,16 @@ function make(key: string, S: number): PropTex {
 }
 
 const cache = new Map<string, PropTex>();
+// maisons, arbres et buissons ont déjà leurs épaisseurs ; le reste du décor est épaissi
+const THICK_SKIP = new Set(['house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug']);
 export function propTex(key: string, S: number): PropTex {
   const id = key + '@' + S;
   let t = cache.get(id);
-  if (!t) { t = make(key, S); cache.set(id, t); }
+  if (!t) {
+    LW.mul = THICK_SKIP.has(key.split(':')[0]) ? 1 : 1.55;
+    try { t = make(key, S); } finally { LW.mul = 1; }
+    cache.set(id, t);
+  }
   return t;
 }
 export function clearTexCache(): void { cache.clear(); }

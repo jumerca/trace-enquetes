@@ -1,6 +1,6 @@
 // Décors dessinés : végétation, rochers, mobilier de village, mécanismes, bâtiments en vue trois quarts.
 // Chaque dessin est fait en unités « monde », origine au pied de l'objet (y = 0 au sol), à l'échelle S.
-import { Ctx, canvas, ink, ellipse, rrect, blob, scallop, shade, softShadow, INK, capsule, line, rgba } from './draw';
+import { Ctx, canvas, ink, ellipse, rrect, blob, shade, softShadow, INK, capsule, line } from './draw';
 import { Rng } from '../core/rng';
 
 export interface PropTex { canvas: HTMLCanvasElement; ax: number; ay: number; w: number; h: number }
@@ -25,31 +25,44 @@ export const LEAF = {
   willow: ['#567f3a', '#73984a', '#94b65c', '#b8d27a'],
 };
 
-function canopy(ctx: Ctx, rnd: () => number, cx: number, cy: number, rx: number, ry: number, pal: string[], lw = 2.3) {
-  // masse sombre, puis touffes de plus en plus claires vers le haut-gauche (lumière)
-  ctx.beginPath(); scallop(ctx, cx, cy, rx, ry, 14, rx * 0.12, rnd); ink(ctx, pal[0], lw);
-  const clumps = 9;
-  for (let i = 0; i < clumps; i++) {
-    const a = rnd() * TAU, d = rnd() * 0.55;
-    const x = cx + Math.cos(a) * rx * d - rx * 0.08, y = cy + Math.sin(a) * ry * d - ry * 0.12;
-    const r = rx * (0.3 + rnd() * 0.18);
-    ctx.beginPath(); scallop(ctx, x, y, r, r * 0.85, 9, r * 0.14, rnd);
-    ink(ctx, pal[1], lw * 0.55, { stroke: rgba(pal[0], 0.9) });
+function canopy(ctx: Ctx, rnd: () => number, cx: number, cy: number, rx: number, ry: number, pal: string[], lw = 2.4) {
+  // silhouette en gros lobes ronds (contour d'encre continu), éclairée en haut à gauche
+  const lobes: [number, number, number][] = [[cx, cy, Math.min(rx, ry) * 0.62]];
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + rnd() * 0.35 - Math.PI / 2;
+    const rr = Math.min(rx, ry) * (0.42 + rnd() * 0.12);
+    lobes.push([cx + Math.cos(a) * (rx - rr) * 0.95, cy + Math.sin(a) * (ry - rr) * 0.95, rr]);
   }
-  for (let i = 0; i < 7; i++) {
-    const a = Math.PI * (1.0 + rnd() * 0.8), d = 0.25 + rnd() * 0.45;
-    const x = cx + Math.cos(a) * rx * d, y = cy + Math.sin(a) * ry * d;
-    const r = rx * (0.17 + rnd() * 0.12);
-    ctx.beginPath(); scallop(ctx, x, y, r, r * 0.8, 7, r * 0.15, rnd); ctx.fillStyle = pal[2]; ctx.fill();
+  // 1. contour : traits épais puis remplissage par-dessus → un seul contour extérieur
+  ctx.lineWidth = lw * 2; ctx.strokeStyle = INK;
+  for (const [x, y, r] of lobes) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke(); }
+  ctx.fillStyle = pal[0];
+  for (const [x, y, r] of lobes) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+  // 2. chaque lobe : ton moyen décalé vers la lumière, puis croissant clair
+  ctx.save();
+  ctx.beginPath(); for (const [x, y, r] of lobes) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, TAU); } ctx.clip();
+  const order = [...lobes].sort((p, q) => p[1] - q[1]);
+  for (const [x, y, r] of order) {
+    ctx.fillStyle = pal[1]; ctx.beginPath(); ctx.arc(x - r * 0.12, y - r * 0.16, r * 0.86, 0, TAU); ctx.fill();
+    ctx.strokeStyle = shade(pal[0], -0.15); ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(x, y, r * 0.98, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+  }
+  for (const [x, y, r] of order) {
+    ctx.fillStyle = pal[2]; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.36, r * 0.5, 0, TAU); ctx.fill();
+  }
+  // motifs de feuilles (petits « u ») dans les zones sombres et moyennes
+  ctx.strokeStyle = shade(pal[0], -0.2); ctx.lineWidth = lw * 0.55; ctx.lineCap = 'round';
+  for (let i = 0; i < 22; i++) {
+    const [x, y, r] = lobes[Math.floor(rnd() * lobes.length)];
+    const a = rnd() * Math.PI * 2, d = rnd() * r * 0.8;
+    const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d + r * 0.15;
+    ctx.beginPath(); ctx.arc(px, py, 2.4, 0.2, Math.PI - 0.2); ctx.stroke();
   }
   ctx.fillStyle = pal[3];
-  for (let i = 0; i < 16; i++) {
-    const a = Math.PI * (1.05 + rnd() * 0.7), d = 0.35 + rnd() * 0.5;
-    ctx.beginPath(); ellipse(ctx, cx + Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d, 2 + rnd() * 3, 1.2 + rnd() * 1.6, -0.4); ctx.fill();
+  for (let i = 0; i < 12; i++) {
+    const [x, y, r] = order[Math.floor(rnd() * Math.min(4, order.length))];
+    ctx.beginPath(); ellipse(ctx, x - r * 0.35 + (rnd() - 0.5) * r * 0.5, y - r * 0.45 + (rnd() - 0.5) * r * 0.3, 2.2 + rnd() * 1.6, 1.4, -0.5); ctx.fill();
   }
-  // ombre propre en bas à droite
-  ctx.save(); ctx.beginPath(); scallop(ctx, cx, cy, rx, ry, 14, rx * 0.12, () => 0.5); ctx.clip();
-  ctx.fillStyle = 'rgba(20,40,30,0.22)'; ctx.beginPath(); ellipse(ctx, cx + rx * 0.45, cy + ry * 0.55, rx * 0.95, ry * 0.7); ctx.fill();
   ctx.restore();
 }
 
@@ -60,15 +73,21 @@ export function tree(kind: 'oak' | 'pine' | 'birch' | 'willow' | 'dead' | 'oakDa
     const H = 150 * k;
     return makeTex(110 * k, H + 20, H + 6, S, (ctx) => {
       softShadow(ctx, 10, 0, 40 * k, 12 * k, 0.3);
-      ctx.beginPath(); rrect(ctx, -5 * k, -26 * k, 10 * k, 28 * k, 3); ink(ctx, '#6b4630', 1.4);
+      ctx.beginPath(); rrect(ctx, -6 * k, -26 * k, 12 * k, 28 * k, 3); ink(ctx, '#7a5236', 2.2, { light: () => ctx.rect(-6 * k, -26 * k, 3 * k, 28 * k), lightCol: '#a3734a' });
       const pal = LEAF.pine;
       for (let t = 0; t < 4; t++) {
-        const y = -24 * k - t * 28 * k, w = (48 - t * 9) * k;
-        ctx.beginPath(); ctx.moveTo(0, y - 46 * k);
-        ctx.quadraticCurveTo(w * 0.3, y - 22 * k, w, y + 2 * k);
-        for (let i = 0; i <= 6; i++) ctx.lineTo(w - (i / 6) * 2 * w, y + (i % 2 ? 8 : 2) * k);
-        ctx.quadraticCurveTo(-w * 0.3, y - 22 * k, 0, y - 46 * k); ctx.closePath();
-        ink(ctx, pal[1], 1.5, { shadeFn: () => ctx.rect(2 * k, y - 60 * k, 80 * k, 80 * k), shadeCol: pal[0], light: () => { ctx.moveTo(-2, y - 40 * k); ctx.lineTo(-w * 0.75, y); ctx.lineTo(-w * 0.35, y); ctx.closePath(); }, lightCol: pal[2] });
+        const y = -22 * k - t * 27 * k, w = (50 - t * 10) * k, top = y - 44 * k;
+        const tier = () => {
+          ctx.moveTo(0, top);
+          ctx.quadraticCurveTo(w * 0.45, y - 24 * k, w, y - 2 * k);
+          const bumps = 4;
+          for (let i = 0; i < bumps; i++) { const x0 = w - (i / bumps) * 2 * w, x1 = w - ((i + 1) / bumps) * 2 * w; ctx.quadraticCurveTo((x0 + x1) / 2, y + 9 * k, x1, y - 2 * k); }
+          ctx.quadraticCurveTo(-w * 0.45, y - 24 * k, 0, top); ctx.closePath();
+        };
+        ctx.beginPath(); tier();
+        ink(ctx, pal[1], 2.3, { shadeFn: () => { ctx.moveTo(3 * k, top); ctx.lineTo(w + 4, y + 10 * k); ctx.lineTo(4 * k, y + 10 * k); ctx.closePath(); }, shadeCol: pal[0], light: () => { ctx.moveTo(-3, top + 8 * k); ctx.quadraticCurveTo(-w * 0.4, y - 18 * k, -w * 0.7, y); ctx.lineTo(-w * 0.35, y + 2); ctx.quadraticCurveTo(-w * 0.15, y - 18 * k, -3, top + 8 * k); ctx.closePath(); }, lightCol: pal[2] });
+        ctx.strokeStyle = shade(pal[0], -0.15); ctx.lineWidth = 1.4;
+        for (let i = 0; i < 3; i++) { const xx = -w * 0.5 + i * w * 0.5; ctx.beginPath(); ctx.arc(xx, y - 6 * k, 3, 0.2, Math.PI - 0.2); ctx.stroke(); }
       }
     });
   }
@@ -115,7 +134,7 @@ export function tree(kind: 'oak' | 'pine' | 'birch' | 'willow' | 'dead' | 'oakDa
     softShadow(ctx, 14 * k, 2, rx * 0.95, 16 * k, 0.32);
     // racines + tronc
     ctx.beginPath(); ctx.moveTo(-14 * k, 2); ctx.quadraticCurveTo(-6 * k, -6 * k, -7 * k, -40 * k); ctx.lineTo(-16 * k, -62 * k); ctx.lineTo(-6 * k, -58 * k); ctx.lineTo(0, -70 * k); ctx.lineTo(7 * k, -58 * k); ctx.lineTo(17 * k, -64 * k); ctx.lineTo(8 * k, -40 * k); ctx.quadraticCurveTo(7 * k, -6 * k, 15 * k, 2); ctx.quadraticCurveTo(0, -2, -14 * k, 2); ctx.closePath();
-    ink(ctx, '#7a5236', 1.5, { shadeFn: () => ctx.rect(1, -80 * k, 30 * k, 90 * k), light: () => ctx.rect(-12 * k, -60 * k, 4 * k, 60 * k) });
+    ink(ctx, '#7a5236', 2.3, { shadeFn: () => ctx.rect(1, -80 * k, 30 * k, 90 * k), light: () => ctx.rect(-12 * k, -60 * k, 4 * k, 60 * k), lightCol: '#a3734a' });
     ctx.strokeStyle = '#4e3322'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(-3 * k, -8 * k); ctx.quadraticCurveTo(-1 * k, -25 * k, -3 * k, -38 * k); ctx.moveTo(3 * k, -14 * k); ctx.lineTo(4 * k, -28 * k); ctx.stroke();
     canopy(ctx, rnd, 0, -H + ry + 4, rx, ry, pal);
   });
@@ -224,12 +243,15 @@ export function crate(S: number, seed = 1): PropTex {
 }
 
 export function lamp(S: number): PropTex {
-  return makeTex(26, 90, 86, S, (ctx) => {
-    softShadow(ctx, 3, 0, 10, 4);
-    ctx.beginPath(); rrect(ctx, -2, -68, 4, 68, 1.5); ink(ctx, '#3d3a3a', 1);
-    ctx.beginPath(); ctx.moveTo(-2, -66); ctx.quadraticCurveTo(-2, -76, 8, -76); ctx.lineTo(8, -73); ctx.quadraticCurveTo(1, -73, 2, -66); ctx.closePath(); ink(ctx, '#3d3a3a', 0.8);
-    ctx.beginPath(); ctx.moveTo(4, -72); ctx.lineTo(12, -72); ctx.lineTo(11, -60); ctx.lineTo(5, -60); ctx.closePath(); ink(ctx, '#f6d77a', 1);
-    ctx.beginPath(); ctx.moveTo(3, -72); ctx.lineTo(8, -78); ctx.lineTo(13, -72); ctx.closePath(); ink(ctx, '#3d3a3a', 0.8);
+  return makeTex(34, 100, 94, S, (ctx) => {
+    softShadow(ctx, 3, 0, 12, 4);
+    ctx.beginPath(); rrect(ctx, -5, -10, 10, 10, 2); ink(ctx, '#4a4744', 1.4);
+    ctx.beginPath(); rrect(ctx, -2.2, -72, 4.4, 64, 1.5); ink(ctx, '#3d3a3a', 1.2, { light: () => ctx.rect(-2.2, -72, 1.5, 64), lightCol: '#6a6662' });
+    // lanterne
+    ctx.beginPath(); ctx.moveTo(-8, -72); ctx.lineTo(8, -72); ctx.lineTo(6, -86); ctx.lineTo(-6, -86); ctx.closePath(); ink(ctx, '#ffd773', 1.4, { light: () => ctx.rect(-6, -86, 5, 14), lightCol: '#fff4c4' });
+    line(ctx, 0, -86, 0, -72, '#3d3a3a', 1.2);
+    ctx.beginPath(); ctx.moveTo(-10, -86); ctx.lineTo(0, -95); ctx.lineTo(10, -86); ctx.closePath(); ink(ctx, '#3d3a3a', 1.2);
+    ctx.beginPath(); rrect(ctx, -9, -73, 18, 3, 1); ink(ctx, '#3d3a3a', 1);
   });
 }
 
@@ -256,14 +278,25 @@ export function well(S: number): PropTex {
 }
 
 export function fountain(S: number): PropTex {
-  return makeTex(190, 150, 110, S, (ctx) => {
-    softShadow(ctx, 6, -4, 92, 28, 0.3);
-    ctx.beginPath(); ellipse(ctx, 0, -18, 86, 30); ink(ctx, '#b3ab9e', 1.8, { shadeFn: () => ellipse(ctx, 20, -6, 90, 30), shadeCol: '#958d80' });
-    ctx.beginPath(); ellipse(ctx, 0, -26, 74, 23); ink(ctx, '#4f86a6', 1.4, { light: () => ellipse(ctx, -18, -32, 40, 10), lightCol: '#79aeca' });
-    ctx.beginPath(); rrect(ctx, -9, -78, 18, 54, 3); ink(ctx, '#b3ab9e', 1.4, { shadeFn: () => ctx.rect(2, -80, 20, 60) });
-    ctx.beginPath(); ellipse(ctx, 0, -78, 26, 8); ink(ctx, '#c4bcae', 1.4);
-    ctx.beginPath(); ellipse(ctx, 0, -80, 20, 5.5); ink(ctx, '#5f97b6', 1);
-    ctx.beginPath(); ctx.arc(0, -92, 8, 0, TAU); ink(ctx, '#c4bcae', 1.2);
+  return makeTex(200, 170, 120, S, (ctx) => {
+    softShadow(ctx, 6, -4, 96, 30, 0.32);
+    // margelle de pierres taillées
+    ctx.beginPath(); ellipse(ctx, 0, -18, 88, 32); ink(ctx, '#b8b0a2', 1.8, { shadeFn: () => ellipse(ctx, 18, -4, 92, 30), shadeCol: '#958d80' });
+    ctx.strokeStyle = '#7d756a'; ctx.lineWidth = 1.2;
+    for (let i = 0; i < 16; i++) { const a = (i / 16) * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 76, -22 + Math.sin(a) * 25); ctx.lineTo(Math.cos(a) * 88, -18 + Math.sin(a) * 32); ctx.stroke(); }
+    ctx.beginPath(); ellipse(ctx, 0, -26, 76, 24); ink(ctx, '#3f7fa6', 1.6, { light: () => ellipse(ctx, -16, -32, 44, 11), lightCol: '#6fb0d4' });
+    // rides et reflets
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.6;
+    for (const [x, y, w] of [[-30, -22, 14], [24, -30, 10], [10, -16, 12], [-48, -30, 9]] as [number, number, number][]) { ctx.beginPath(); ctx.moveTo(x - w / 2, y); ctx.quadraticCurveTo(x, y - 3, x + w / 2, y); ctx.stroke(); }
+    // fût et vasque
+    ctx.beginPath(); rrect(ctx, -10, -80, 20, 56, 4); ink(ctx, '#c2baac', 1.8, { shadeFn: () => ctx.rect(3, -82, 20, 60), shadeCol: '#9a9284', light: () => ctx.rect(-10, -80, 4, 56), lightCol: '#dcd5c8' });
+    ctx.beginPath(); ellipse(ctx, 0, -80, 30, 10); ink(ctx, '#cfc7b9', 1.8, { shadeFn: () => ellipse(ctx, 8, -75, 30, 8), shadeCol: '#a8a092' });
+    ctx.beginPath(); ellipse(ctx, 0, -82, 23, 6.5); ink(ctx, '#5f9fc6', 1.2);
+    ctx.beginPath(); ctx.arc(0, -96, 8.5, 0, TAU); ink(ctx, '#cfc7b9', 1.6, { light: () => ctx.arc(-3, -99, 3, 0, TAU), lightCol: '#ece6da' });
+    // jets d'eau
+    ctx.strokeStyle = '#bfe4f4'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 4, -102); ctx.quadraticCurveTo(sd * 22, -122, sd * 30, -84); ctx.stroke(); ctx.beginPath(); ctx.moveTo(sd * 23, -80); ctx.quadraticCurveTo(sd * 40, -66, sd * 46, -36); ctx.stroke(); }
+    ctx.fillStyle = '#e8f6fc'; for (const [x, y] of [[-30, -84], [30, -84], [-46, -36], [46, -36], [0, -110]] as [number, number][]) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, TAU); ctx.fill(); }
   });
 }
 
