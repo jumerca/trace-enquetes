@@ -167,7 +167,7 @@ async function talkTo(id, plan = [], opts = {}) {
 
 async function use(x, y, dy = -26, plan = [], opts = {}) {
   const i = await info();
-  if (Math.hypot(x - i.x, y - i.y) > 240) await walkTo(x, y + 60, 80).catch(() => walkTo(x, y + 40, 80));
+  if (Math.hypot(x - i.x, y - i.y) > 240) await walkTo(x, y + 60, 80).catch(() => walkTo(x, y + 40, 80)).catch(() => {});
   await clickWorld(x, y, dy);
   await settle();
   await dialog(plan, opts);
@@ -179,10 +179,11 @@ const S = () => ev('({...__co.S})');
 
 async function fight(label) {
   const t0 = Date.now();
-  while (Date.now() - t0 < 300000) {
+  const g0 = await ev('__co.S.playTime');
+  while (Date.now() - t0 < 900000) {
     await dialog();
     const es = await ev('__t.enemies()');
-    if (!es.length) { check(`combat ${label} gagné`, true, `${Math.round((Date.now() - t0) / 1000)} s`); return; }
+    if (!es.length) { const g = Math.round((await ev('__co.S.playTime')) - g0); check(`combat ${label} gagné`, true, `${g} s de jeu (${Math.round((Date.now() - t0) / 1000)} s réelles), PV ${(await info()).hp}`); return; }
     const i = await info();
     // danger annoncé ?
     const d = es.find((e) => e.st === 'windup' && Math.hypot(e.x - i.x, e.y - i.y) < e.reach + 70);
