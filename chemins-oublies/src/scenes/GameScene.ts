@@ -523,7 +523,7 @@ export class GameScene extends Phaser.Scene implements Api {
     const e = this.combat.pick(wx, wy, pad);
     if (e) { this.setTarget({ kind: 'enemy', e }); this.showLabel(e.kind === 'murmure' ? 'Murmure' : e.kind === 'ancien' ? 'Ronceux ancien' : 'Ronceux', e.x, e.y - 70); return; }
     const n = this.npcs.pick(wx, wy, pad);
-    if (n) { this.setTarget({ kind: 'npc', npc: n }); this.showLabel(DIALOGS[n.id]?.name ?? n.id, n.x, n.y - 72); return; }
+    if (n) { this.setTarget({ kind: 'npc', npc: n }); this.showLabel(DIALOGS[n.id]?.name ?? n.id, n.x, n.y - 88); return; }
     const o = this.pickObj(wx, wy, pad);
     if (o) { this.setTarget({ kind: 'obj', obj: o }); if (!o.hidden) this.showLabel(o.name, o.x, o.y - (o.h ?? 50) - 8); return; }
     this.goToPoint(wx, wy, false);
@@ -843,7 +843,7 @@ export class GameScene extends Phaser.Scene implements Api {
     for (const n of this.npcs.npcs.values()) {
       let b = this.bubbles.get(n.id);
       const show = relevant.has(n.id);
-      if (show && !b) { b = this.add.image(n.x, n.y - 78, 'fx_bubble_q').setScale(1 / this.S_).setDepth(2e7); this.bubbles.set(n.id, b); this.tweens.add({ targets: b, y: '-=5', yoyo: true, repeat: -1, duration: 600 }); }
+      if (show && !b) { b = this.add.image(n.x, n.y - 96, 'fx_bubble_q').setScale(1 / this.S_).setDepth(2e7); this.bubbles.set(n.id, b); this.tweens.add({ targets: b, y: '-=5', yoyo: true, repeat: -1, duration: 600 }); }
       if (!show && b) { b.destroy(); this.bubbles.delete(n.id); }
     }
     for (const [id, b] of this.bubbles) { const n = this.npcs.npcs.get(id as NpcId); if (!n) { b.destroy(); this.bubbles.delete(id); } else b.setX(n.x); }

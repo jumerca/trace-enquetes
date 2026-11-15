@@ -3,6 +3,9 @@ import Phaser from 'phaser';
 import type { Dir } from '../core/state';
 import { FH, FOOT, type AnimName } from '../art/characters';
 
+/** Les personnages sont affichés plus grands que leurs dessins (proportions « aventure » : tête et silhouette lisibles). */
+export const CHAR_SCALE = 1.25;
+
 export class Actor {
   sprite: Phaser.GameObjects.Sprite;
   shadow: Phaser.GameObjects.Image;
@@ -12,8 +15,8 @@ export class Actor {
   y: number;
   constructor(public scene: Phaser.Scene, public id: string, x: number, y: number, S: number) {
     this.x = x; this.y = y;
-    this.shadow = scene.add.image(x, y, 'shadow').setScale(1 / S).setOrigin(0.5, 0.5);
-    this.sprite = scene.add.sprite(x, y, id).setOrigin(0.5, FOOT / FH).setScale(1 / S);
+    this.shadow = scene.add.image(x, y, 'shadow').setScale(1.25 / S).setOrigin(0.5, 0.5);
+    this.sprite = scene.add.sprite(x, y, id).setOrigin(0.5, FOOT / FH).setScale(CHAR_SCALE / S);
     this.play('idle', true);
   }
   setPos(x: number, y: number) {
