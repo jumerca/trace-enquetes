@@ -1,0 +1,197 @@
+// Créatures (ronceux, murmures) et animaux d'ambiance, dessinés image par image.
+import { canvas, ink, ellipse, blob, capsule, shade, INK, softShadow, rgba } from './draw';
+import { Rng } from '../core/rng';
+import type { Sheet, SheetFrame } from './characters';
+
+type F = (ctx: CanvasRenderingContext2D, i: number, n: number) => void;
+const TAU = Math.PI * 2;
+
+function sheet(id: string, fw: number, fh: number, S: number, anims: { name: string; n: number; rate: number; loop: boolean; draw: F }[]): Sheet {
+  const total = anims.reduce((a, b) => a + b.n, 0);
+  const W = Math.ceil(fw * S), Hh = Math.ceil(fh * S);
+  const cols = Math.max(1, Math.floor(2048 / W));
+  const [cv, ctx] = canvas(cols * W, Math.ceil(total / cols) * Hh);
+  const frames: SheetFrame[] = [];
+  const out: Sheet['anims'] = [];
+  let k = 0;
+  for (const a of anims) {
+    const names: string[] = [];
+    for (let i = 0; i < a.n; i++) {
+      const x = (k % cols) * W, y = Math.floor(k / cols) * Hh;
+      ctx.save(); ctx.translate(x, y); ctx.scale(S, S); ctx.beginPath(); ctx.rect(0, 0, fw, fh); ctx.clip();
+      ctx.translate(fw / 2, fh - 6);
+      a.draw(ctx, i, a.n);
+      ctx.restore();
+      const name = `${a.name}_${i}`;
+      frames.push({ name, x, y, w: W, h: Hh });
+      names.push(name);
+      k++;
+    }
+    out.push({ key: `${id}_${a.name}`, frames: names, rate: a.rate, loop: a.loop });
+  }
+  return { canvas: cv, frames, anims: out };
+}
+
+// ---------------------------------------------------------------- Ronceux : boule de ronces sur pattes de racines
+function ronceux(ctx: CanvasRenderingContext2D, o: { squash: number; swell: number; step: number; hurt?: boolean; dead?: number; big?: boolean; eyes?: 'open' | 'angry' | 'closed' }) {
+  const k = o.big ? 1.45 : 1;
+  const r = new Rng(o.big ? 9 : 5); const rnd = () => r.next();
+  const dead = o.dead ?? 0;
+  ctx.globalAlpha = 1 - dead * 0.9;
+  softShadow(ctx, 0, 0, 26 * k, 7 * k, 0.32);
+  // pattes
+  for (const s of [-1, 1]) {
+    const lift = Math.max(0, Math.sin(o.step * TAU + (s > 0 ? Math.PI : 0))) * 5;
+    ctx.beginPath(); capsule(ctx, s * 10 * k, -16 * k, s * 15 * k, -lift, 5 * k, 3.5 * k); ink(ctx, '#5a3a24', 1.3);
+  }
+  const R = (22 + o.swell * 7) * k;
+  const cy = -26 * k - o.swell * 4 + o.squash * 4 + dead * 10;
+  ctx.save(); ctx.translate(0, cy); ctx.scale(1 + o.squash * 0.12 + o.swell * 0.05, 1 - o.squash * 0.12);
+  ctx.beginPath(); blob(ctx, 0, 0, R, R * 0.88, 13, 0.25, rnd);
+  ink(ctx, o.hurt ? '#c96a4a' : '#3f5a2e', 1.6, { shadeFn: () => ellipse(ctx, R * 0.3, R * 0.35, R, R * 0.8), shadeCol: o.hurt ? '#a0503a' : '#2f4a24', light: () => ellipse(ctx, -R * 0.35, -R * 0.4, R * 0.5, R * 0.3), lightCol: o.hurt ? '#e08a6a' : '#5f7d3c' });
+  // épines
+  ctx.strokeStyle = '#6b4a30'; ctx.lineWidth = 1.6;
+  for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + rnd() * 0.3; const x = Math.cos(a) * R * 0.95, y = Math.sin(a) * R * 0.85; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * (6 + o.swell * 6), y + Math.sin(a) * (6 + o.swell * 6)); ctx.stroke(); }
+  ctx.fillStyle = '#c94a3a'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc((rnd() - 0.5) * R, (rnd() - 0.6) * R * 0.8, 2.2, 0, TAU); ctx.fill(); }
+  // yeux
+  const ey = -R * 0.1;
+  for (const s of [-1, 1]) {
+    if (o.eyes === 'closed' || dead) { ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(s * 7 * k - 3, ey); ctx.lineTo(s * 7 * k + 3, ey); ctx.stroke(); continue; }
+    ctx.beginPath(); ellipse(ctx, s * 7 * k, ey, 4 * k, 5 * k); ctx.fillStyle = '#fff3c0'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(s * 7 * k + 0.5, ey + 1, 2 * k, 0, TAU); ctx.fill();
+    if (o.eyes === 'angry') { ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(s * 12 * k, ey - 7 * k); ctx.lineTo(s * 3 * k, ey - 4 * k); ctx.stroke(); }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function murmure(ctx: CanvasRenderingContext2D, o: { t: number; stretch: number; hurt?: boolean; dead?: number; glow: number }) {
+  const dead = o.dead ?? 0;
+  ctx.globalAlpha = 1 - dead * 0.95;
+  softShadow(ctx, 0, 0, 16, 5, 0.25);
+  const y = -34 + Math.sin(o.t * TAU) * 3;
+  ctx.save(); ctx.translate(0, y); ctx.scale(1 - o.stretch * 0.2 + dead * 0.4, 1 + o.stretch * 0.35 - dead * 0.3);
+  const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 30);
+  g.addColorStop(0, rgba('#8a6fd0', 0.55 + o.glow * 0.3)); g.addColorStop(1, 'rgba(60,40,110,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0, -24);
+  ctx.bezierCurveTo(14, -16, 16, 6, 8, 14);
+  for (let i = 0; i < 4; i++) { const x = 8 - i * 5.3, w = Math.sin(o.t * TAU * 2 + i) * 3; ctx.quadraticCurveTo(x - 1, 22 + w, x - 2.6, 14 + (i % 2) * 3); }
+  ctx.bezierCurveTo(-16, 6, -14, -16, 0, -24);
+  ctx.closePath();
+  ink(ctx, o.hurt ? '#b07ad0' : '#3a2e5a', 1.5, { light: () => ellipse(ctx, -4, -10, 5, 8), lightCol: o.hurt ? '#d0a0f0' : '#5a4a8a' });
+  for (const s of [-1, 1]) { ctx.fillStyle = o.glow > 0.5 ? '#ffd36a' : '#e8e0ff'; ctx.beginPath(); ellipse(ctx, s * 5, -6, 2.4, 3.4 - o.stretch); ctx.fill(); }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+export function ronceuxSheet(S: number, big = false): Sheet {
+  const k = big ? 1.45 : 1;
+  return sheet(big ? 'ronceux_ancien' : 'ronceux', 80 * k, 80 * k, S, [
+    { name: 'idle', n: 4, rate: 5, loop: true, draw: (c, i) => ronceux(c, { squash: Math.sin(i / 4 * TAU) * 0.3, swell: 0, step: 0, big, eyes: i === 3 ? 'closed' : 'open' }) },
+    { name: 'walk', n: 4, rate: 8, loop: true, draw: (c, i) => ronceux(c, { squash: Math.abs(Math.sin(i / 4 * TAU)) * 0.4, swell: 0, step: i / 4, big, eyes: 'open' }) },
+    { name: 'windup', n: 3, rate: 4, loop: false, draw: (c, i) => ronceux(c, { squash: -0.2 * i, swell: (i + 1) / 3, step: 0, big, eyes: 'angry' }) },
+    { name: 'slam', n: 2, rate: 8, loop: false, draw: (c, i) => ronceux(c, { squash: i === 0 ? 1 : 0.4, swell: 0.4, step: 0, big, eyes: 'angry' }) },
+    { name: 'hurt', n: 2, rate: 8, loop: false, draw: (c, i) => ronceux(c, { squash: 0.5 - i * 0.3, swell: 0, step: 0, hurt: i === 0, big, eyes: 'closed' }) },
+    { name: 'die', n: 4, rate: 7, loop: false, draw: (c, i) => ronceux(c, { squash: 0.6, swell: 0, step: 0, dead: i / 3, big, eyes: 'closed' }) },
+  ]);
+}
+
+export function murmureSheet(S: number): Sheet {
+  return sheet('murmure', 70, 80, S, [
+    { name: 'idle', n: 6, rate: 8, loop: true, draw: (c, i) => murmure(c, { t: i / 6, stretch: 0, glow: 0.2 }) },
+    { name: 'windup', n: 3, rate: 5, loop: false, draw: (c, i) => murmure(c, { t: 0, stretch: -0.3 * (i + 1) / 3, glow: (i + 1) / 3 }) },
+    { name: 'dash', n: 2, rate: 10, loop: true, draw: (c, i) => murmure(c, { t: i / 2, stretch: 0.8, glow: 1 }) },
+    { name: 'hurt', n: 2, rate: 8, loop: false, draw: (c, i) => murmure(c, { t: 0, stretch: 0, hurt: i === 0, glow: 0 }) },
+    { name: 'die', n: 4, rate: 7, loop: false, draw: (c, i) => murmure(c, { t: 0, stretch: 0, dead: i / 3, glow: 0 }) },
+  ]);
+}
+
+export function animalsSheet(S: number): Sheet {
+  const deer = (c: CanvasRenderingContext2D, head: number, step: number) => {
+    softShadow(c, 0, 0, 22, 6, 0.28);
+    for (const [x, s] of [[-12, 0], [-7, 1], [9, 0], [14, 1]] as [number, number][]) { const l = Math.sin(step * TAU + s * Math.PI) * 3; c.beginPath(); capsule(c, x, -20, x + l, -1, 3.4, 2.6); ink(c, s ? '#8a5a35' : '#a8784a', 1.1); }
+    c.beginPath(); ellipse(c, 0, -24, 19, 9); ink(c, '#b8844f', 1.3, { light: () => ellipse(c, -4, -29, 10, 3), lightCol: '#d4a26a', shadeFn: () => c.rect(-20, -22, 40, 10) });
+    c.fillStyle = '#f4ecd8'; for (const [x, y] of [[-6, -26], [0, -27], [5, -25]]) { c.beginPath(); c.arc(x, y, 1.2, 0, TAU); c.fill(); }
+    const hy = head ? -10 : -40, hx = head ? 20 : 18;
+    c.beginPath(); capsule(c, 14, -28, hx, hy + 4, 7, 5); ink(c, '#b8844f', 1.2);
+    c.beginPath(); ellipse(c, hx + 3, hy, 7, 5, head ? 0.6 : -0.2); ink(c, '#b8844f', 1.2);
+    c.fillStyle = INK; c.beginPath(); c.arc(hx + 4, hy - 1, 1.3, 0, TAU); c.fill();
+    if (!head) { c.strokeStyle = '#6b4a30'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(hx, hy - 4); c.lineTo(hx - 3, hy - 14); c.lineTo(hx - 7, hy - 17); c.moveTo(hx - 3, hy - 14); c.lineTo(hx + 1, hy - 18); c.stroke(); }
+    c.beginPath(); ellipse(c, -19, -27, 3, 2); ink(c, '#f4ecd8', 1);
+  };
+  const rabbit = (c: CanvasRenderingContext2D, hop: number) => {
+    softShadow(c, 0, 0, 9, 3, 0.25);
+    const y = -hop * 6;
+    c.beginPath(); ellipse(c, 0, y - 7, 8, 6); ink(c, '#a89a88', 1.1);
+    c.beginPath(); ellipse(c, 6, y - 11, 4.5, 4); ink(c, '#a89a88', 1.1);
+    for (const dx of [4, 7]) { c.beginPath(); ellipse(c, dx, y - 18, 1.6, 5, 0.2); ink(c, '#a89a88', 1); }
+    c.beginPath(); c.arc(-8, y - 8, 2.2, 0, TAU); ink(c, '#f4ecd8', 0.8);
+    c.fillStyle = INK; c.beginPath(); c.arc(8, y - 12, 0.9, 0, TAU); c.fill();
+  };
+  const duck = (c: CanvasRenderingContext2D, t: number) => {
+    c.beginPath(); ellipse(c, 0, -4 + t, 11, 5); ink(c, '#8a7a5a', 1.1, { light: () => ellipse(c, -2, -7, 6, 2) });
+    c.beginPath(); ellipse(c, 8, -10 + t, 4.5, 4); ink(c, '#2f6a4a', 1.1);
+    c.beginPath(); ellipse(c, 13, -9 + t, 3, 1.4); ink(c, '#e0a030', 0.9);
+    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = 1; c.beginPath(); c.arc(0, 0, 13, 0.2, Math.PI - 0.2); c.stroke();
+  };
+  const bird = (c: CanvasRenderingContext2D, up: number) => {
+    c.translate(0, -30);
+    c.strokeStyle = INK; c.lineWidth = 2.2; c.beginPath(); c.moveTo(-9, up ? -5 : 3); c.quadraticCurveTo(-4, up ? -6 : 0, 0, 0); c.quadraticCurveTo(4, up ? -6 : 0, 9, up ? -5 : 3); c.stroke();
+    c.fillStyle = '#3a3a44'; c.beginPath(); ellipse(c, 0, 0, 3, 1.8); c.fill();
+  };
+  const butterfly = (c: CanvasRenderingContext2D, open: number, col: string) => {
+    c.translate(0, -30);
+    for (const s of [-1, 1]) { c.beginPath(); ellipse(c, s * 4 * open, -2, 4 * open + 0.6, 4); ink(c, col, 0.8); c.beginPath(); ellipse(c, s * 3 * open, 3, 3 * open + 0.5, 2.6); ink(c, shade(col, -0.2), 0.8); }
+    c.fillStyle = INK; c.fillRect(-0.6, -4, 1.2, 9);
+  };
+  return sheet('animals', 60, 60, S, [
+    { name: 'deer_graze', n: 4, rate: 2, loop: true, draw: (c, i) => deer(c, i < 3 ? 1 : 0, 0) },
+    { name: 'deer_walk', n: 4, rate: 6, loop: true, draw: (c, i) => deer(c, 0, i / 4) },
+    { name: 'rabbit', n: 3, rate: 6, loop: true, draw: (c, i) => rabbit(c, [0, 1, 0.4][i]) },
+    { name: 'duck', n: 2, rate: 2, loop: true, draw: (c, i) => duck(c, i * 0.8) },
+    { name: 'bird', n: 2, rate: 7, loop: true, draw: (c, i) => bird(c, i) },
+    { name: 'bfly_a', n: 2, rate: 9, loop: true, draw: (c, i) => butterfly(c, i ? 0.25 : 1, '#f2c94c') },
+    { name: 'bfly_b', n: 2, rate: 9, loop: true, draw: (c, i) => butterfly(c, i ? 0.25 : 1, '#e58aa0') },
+  ]);
+}
+
+/** Petites textures d'effets : particule douce, feuille, marqueur de destination, croix, cœur, étincelle. */
+export function fxTextures(S: number): Record<string, HTMLCanvasElement> {
+  const out: Record<string, HTMLCanvasElement> = {};
+  {
+    const [c, x] = canvas(32, 32); const g = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 32, 32); out.soft = c;
+  }
+  {
+    const [c, x] = canvas(14 * S, 10 * S); x.scale(S, S); x.beginPath(); ellipse(x, 7, 5, 6, 3, 0.4); ink(x, '#6f9a45', 0.8); out.leaf = c;
+  }
+  {
+    const [c, x] = canvas(14 * S, 10 * S); x.scale(S, S); x.beginPath(); ellipse(x, 7, 5, 6, 3, 0.4); ink(x, '#d4893a', 0.8); out.leaf2 = c;
+  }
+  {
+    const [c, x] = canvas(64 * S, 32 * S); x.scale(S, S); x.strokeStyle = '#fff4c8'; x.lineWidth = 3; x.beginPath(); ellipse(x, 32, 16, 26, 12); x.stroke(); x.strokeStyle = 'rgba(80,50,20,0.6)'; x.lineWidth = 1.2; x.stroke(); out.marker = c;
+  }
+  {
+    const [c, x] = canvas(32 * S, 32 * S); x.scale(S, S); x.lineCap = 'round'; x.strokeStyle = INK; x.lineWidth = 7; x.beginPath(); x.moveTo(8, 8); x.lineTo(24, 24); x.moveTo(24, 8); x.lineTo(8, 24); x.stroke(); x.strokeStyle = '#d04a3a'; x.lineWidth = 4; x.stroke(); out.cross = c;
+  }
+  {
+    const [c, x] = canvas(20 * S, 20 * S); x.scale(S, S); x.fillStyle = '#ffe9a0'; x.beginPath(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, r = i % 2 ? 3 : 9; x.lineTo(10 + Math.cos(a) * r, 10 + Math.sin(a) * r); } x.closePath(); x.fill(); out.spark = c;
+  }
+  {
+    const [c, x] = canvas(48 * S, 30 * S); x.scale(S, S); x.strokeStyle = 'rgba(255,255,255,0.75)'; x.lineWidth = 1.6; x.beginPath(); ellipse(x, 24, 15, 18, 7); x.stroke(); out.ripple = c;
+  }
+  {
+    const [c, x] = canvas(10, 10); x.fillStyle = '#fff'; x.fillRect(0, 0, 10, 10); out.white = c;
+  }
+  {
+    // indicateur d'interaction (petite bulle)
+    const [c, x] = canvas(26 * S, 30 * S); x.scale(S, S); x.beginPath(); x.moveTo(13, 28); x.lineTo(8, 20); x.arc(13, 12, 10, Math.PI * 0.75, Math.PI * 0.25); x.closePath(); ink(x, '#fff6dc', 1.6); x.fillStyle = INK; x.font = 'bold 13px serif'; x.textAlign = 'center'; x.fillText('…', 13, 15); out.bubble = c;
+  }
+  {
+    const [c, x] = canvas(26 * S, 30 * S); x.scale(S, S); x.beginPath(); x.moveTo(13, 28); x.lineTo(8, 20); x.arc(13, 12, 10, Math.PI * 0.75, Math.PI * 0.25); x.closePath(); ink(x, '#ffd36a', 1.6); x.fillStyle = INK; x.font = 'bold 15px serif'; x.textAlign = 'center'; x.fillText('!', 13, 17); out.bubble_q = c;
+  }
+  return out;
+}
