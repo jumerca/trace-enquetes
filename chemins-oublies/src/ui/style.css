@@ -117,8 +117,10 @@ svg { width: 100%; height: 100%; display: block; }
 .chip { border: 2px solid var(--ink2); border-radius: 20px; background: #fff8e6; padding: 4px 12px; min-height: 40px; }
 .chip.on { background: var(--teal); color: #fff; border-color: var(--ink); }
 .atlas-zones { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-.mapwrap { display: grid; place-items: center; }
-.map { max-width: 100%; max-height: 56vh; height: auto; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,.25); }
+.mapwrap { position: relative; height: min(58vh, 640px); overflow: hidden; border-radius: 10px; border: 2px solid var(--ink2); background: #efe2c0; touch-action: none; cursor: grab; }
+.mapwrap:active { cursor: grabbing; }
+.mapctl { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.map { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; image-rendering: auto; }
 .atlas-actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .inv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; align-content: start; }
@@ -213,7 +215,7 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 32px; }
   .title-wrap { margin-top: 0; }
   .sheet header { padding: 4px 10px; }
   .sbody { padding: 8px 12px 12px; }
-  .map { max-height: 52vh; }
+  .mapwrap { height: 50vh; }
   .inv { grid-template-columns: 1fr 1.3fr; }
   .detail img { width: 60px; height: 60px; }
   .compass { top: calc(60px + var(--safe-t)); width: 44px; height: 44px; }
@@ -225,3 +227,11 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 32px; }
 .title-wrap .logo { width: clamp(64px, 9vw, 120px); height: auto; border-radius: 24%; filter: drop-shadow(0 4px 0 rgba(43,30,22,.8)); margin-bottom: 4px; }
 .boot-logo { width: 110px; margin: 0 auto; border-radius: 24%; }
 @media (max-height: 500px) { .title-wrap .logo { width: 56px; } }
+
+/* commandes de caméra */
+.camctl { position: absolute; right: calc(12px + var(--safe-r)); bottom: calc(30px + var(--safe-b)); display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: auto; }
+.cb { min-width: 46px; height: 46px; border-radius: 23px; border: 2px solid var(--ink); background: radial-gradient(circle at 40% 35%, #fbf2da, #e2c995); box-shadow: 0 3px 0 rgba(43,30,22,.55); font-size: 24px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 10px; opacity: .92; }
+.cb:active { transform: scale(.94); }
+.cb svg { width: 24px; height: 24px; }
+.cb.recenter { background: linear-gradient(#3f9aa1, #2a7076); color: #fff8e8; font-size: 15px; font-weight: 700; }
+@media (max-height: 500px) { .cb { min-width: 42px; height: 42px; } .camctl { gap: 6px; bottom: calc(22px + var(--safe-b)); } }
