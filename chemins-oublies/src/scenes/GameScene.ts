@@ -18,6 +18,7 @@ import { ITEMS } from '../data/items';
 import { BORNE_POS, STONES, stoneLit, stepMill, BORNE_IDS } from '../systems/Puzzles';
 import { revealAround } from '../systems/Atlas';
 import { audio } from '../systems/Audio';
+import { Atmosphere, applyCameraFX } from '../systems/Atmosphere';
 import { writeSlot } from '../systems/SaveManager';
 import type { Api } from '../systems/api';
 import { ui } from '../ui/UI';
@@ -86,6 +87,10 @@ export class GameScene extends Phaser.Scene implements Api {
   private routeLayer: Phaser.GameObjects.Image | null = null;
   private exitMsgT = 0;
   selectedItem: string | null = null;
+  atmo!: Atmosphere;
+  private fpsT = 0;
+  private fpsN = 0;
+  private fxDowngraded = false;
 
   constructor() { super('game'); }
 
@@ -100,6 +105,7 @@ export class GameScene extends Phaser.Scene implements Api {
 
   create() {
     this.npcs = new NPCManager(this, this.S_);
+    this.atmo = new Atmosphere(this);
     this.combat = new Combat(this, {
       nav: null as any,
       heroPos: () => [this.hero.x, this.hero.y],
@@ -143,6 +149,7 @@ export class GameScene extends Phaser.Scene implements Api {
 
   // ============================================================== zones
   private clearZone() {
+    this.atmo?.clear();
     this.zoneObjs.forEach((o) => o.destroy()); this.zoneObjs = [];
     this.staticObjs.forEach((o) => o.destroy()); this.staticObjs = [];
     this.props = []; this.glows = []; this.arrows = []; this.stoneImgs.clear(); this.waterFx = []; this.sluices = {};
@@ -174,6 +181,8 @@ export class GameScene extends Phaser.Scene implements Api {
     this.npcs.spawn(id);
     this.combat.spawnZone(id);
     this.ambient();
+    this.atmo.build(z, this.settings.quality);
+    applyCameraFX(this.cameras.main, this.fxDowngraded ? 'moyenne' : this.settings.quality, !!z.interior);
     // caméra
     const cam = this.cameras.main;
     cam.setBackgroundColor(z.interior ? '#1a120e' : '#3f6b3a');
@@ -630,6 +639,12 @@ export class GameScene extends Phaser.Scene implements Api {
   // ============================================================== mise à jour
   update(time: number, dms: number) {
     const dt = Math.min(0.05, dms / 1000);
+    this.atmo.update(dt);
+    // qualité adaptative : si l'image saccade en qualité haute, on retire les effets coûteux
+    if (this.settings.quality === 'haute' && !this.fxDowngraded) {
+      this.fpsT += dt; this.fpsN++;
+      if (this.fpsT > 6) { const fps = this.fpsN / this.fpsT; this.fpsT = 0; this.fpsN = 0; if (fps < 38) { this.fxDowngraded = true; applyCameraFX(this.cameras.main, 'moyenne', !!this.zone.interior); } }
+    }
     if (this.attract) {
       // écran d'accueil : la caméra flâne dans le village, les habitants vivent leur vie
       this.attractT += dt;
@@ -729,7 +744,7 @@ export class GameScene extends Phaser.Scene implements Api {
     h.faceToward(h.x + dx, h.y + dy);
     h.play(running ? 'run' : 'walk');
     this.stepT -= dt;
-    if (this.stepT <= 0) { this.stepT = running ? 0.22 : 0.34; audio.sfx('step', { surface: this.surface() }); }
+    if (this.stepT <= 0) { this.stepT = running ? 0.22 : 0.34; const sf = this.surface(); audio.sfx('step', { surface: sf }); if (this.settings.quality !== 'basse') this.atmo.dust(h.x, h.y, sf); }
     if (!this.path.length && this.target?.kind === 'point') { this.target = null; h.play('idle'); }
   }
 

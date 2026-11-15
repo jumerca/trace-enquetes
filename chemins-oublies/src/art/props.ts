@@ -946,3 +946,16 @@ export function fern(seed: number, S: number): PropTex {
     }
   });
 }
+
+/** Escalier de pierre qui monte une falaise (vu de face). */
+export function stoneStairs(S: number, w: number, h: number): PropTex {
+  return makeTex(w + 40, h + 30, h + 10, S, (ctx) => {
+    const n = Math.max(4, Math.round(h / 14));
+    for (let i = n - 1; i >= 0; i--) {
+      const y = -((i + 1) / n) * h, sh = h / n, inset = (i / n) * 6;
+      ctx.beginPath(); ctx.roundRect(-w / 2 + inset, y, w - inset * 2, sh + 2, 3);
+      ink(ctx, i % 2 ? '#b8b0a0' : '#c4bcac', 2, { shadeFn: () => ctx.rect(-w, y + sh * 0.55, w * 2, sh), shadeCol: '#958c7c', light: () => ctx.rect(-w, y, w * 2, 2.5), lightCol: '#ddd6c8' });
+    }
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.roundRect(sd * (w / 2 + 6) - 9, -h - 6, 18, h + 8, 6); ink(ctx, '#8a7f6e', 2.4, { light: () => ctx.rect(sd * (w / 2 + 6) - 9, -h - 6, 18, 4), lightCol: '#b5ab98' }); ctx.fillStyle = '#5f8a3e'; ctx.beginPath(); ellipse(ctx, sd * (w / 2 + 6), -h - 6, 10, 4); ctx.fill(); }
+  });
+}

@@ -118,12 +118,18 @@ const villageEdgeTrees = scatter({
   water: [vRiver], bushChance: 0.18, rockChance: 0.05,
 }).filter((p) => {
   // forêt dense sur les bords, clairsemée au centre
+  if (p.y > 120 && p.y < 300) return false; // pas d'arbre sur la paroi de la falaise
   const edge = p.x < 300 || p.x > 2700 || p.y < 260 || p.y > 2020;
   return edge || (p.x * 7 + p.y * 3) % 5 === 0;
 });
 
 const village: ZoneDef = {
   id: 'clairval', name: 'Clairval', w: 3008, h: 2240, grass: GRASS_VILLAGE, music: 'village', seed: 101,
+  cliffs: [
+    { pts: [[0, 150], [400, 140], [800, 156], [1230, 150]], h: 78 },
+    { pts: [[1370, 150], [1800, 146], [2250, 158], [2330, 150]], h: 78 },
+    { pts: [[2440, 152], [2700, 140], [3008, 150]], h: 78 },
+  ],
   paths: vPaths,
   areas: [
     { kind: 'cobble', poly: placePoly },
@@ -164,9 +170,9 @@ const village: ZoneDef = {
     { tex: 'borne', x: 2640, y: 1115, foot: { r: 14 }, id: 'borneB' },
     { tex: 'borne', x: 2640, y: 815, foot: { r: 14 }, id: 'borneC' },
     { tex: 'splitrock', x: 2860, y: 595, foot: { w: 120, h: 40 }, occlude: true },
-    // portail nord
-    { tex: 'fence:200', x: 1140, y: 220, foot: { w: 200, h: 10 } }, { tex: 'fence:200', x: 1460, y: 220, foot: { w: 200, h: 10 } },
-    { tex: 'lamp', x: 1250, y: 226, foot: { r: 8 } }, { tex: 'lamp', x: 1350, y: 226, foot: { r: 8 } },
+    // portail nord : escalier de pierre dans la falaise
+    { tex: 'stairs2:120:84', x: 1300, y: 238, ground: true },
+    { tex: 'lamp', x: 1220, y: 250, foot: { r: 8 } }, { tex: 'lamp', x: 1380, y: 250, foot: { r: 8 } },
     // ronces qui ferment la route effacée tant qu'elle n'est pas révélée
     { tex: 'bramble:180:1', x: 2930, y: 520, foot: { w: 180, h: 40 }, cond: '!route_revealed' },
     { tex: 'bramble:150:2', x: 2950, y: 430, foot: { w: 150, h: 40 }, cond: '!route_revealed' },
@@ -223,11 +229,12 @@ const fClearings: [number, number, number][] = [[1200, 2040, 200], [950, 1480, 1
 const forestTrees = scatter({
   rect: { x: 20, y: 0, w: 3180, h: 2560 }, step: 78, seed: 57, kinds: ['pine', 'oakDark', 'pine', 'oak', 'birch', 'oakDark'],
   avoidPaths: fPaths, pathPad: 38, avoidCircles: fClearings.map(([x, y, r]) => [x, y, r + 30] as [number, number, number]),
-  avoidRects: [{ x: 560, y: 1260, w: 110, h: 90 }], water: [fStream], bushChance: 0.22, rockChance: 0.07, bushPal: 'dark',
+  avoidRects: [{ x: 560, y: 1260, w: 110, h: 90 }, { x: 0, y: 150, w: 3200, h: 160 }], water: [fStream], bushChance: 0.22, rockChance: 0.07, bushPal: 'dark',
 });
 
 const bois: ZoneDef = {
-  id: 'bois', name: 'Bois des Murmures', w: 3200, h: 2560, grass: GRASS_FOREST, music: 'foret', seed: 202, dark: 0.12, corridor: { pad: 34, clearings: fClearings },
+  id: 'bois', name: 'Bois des Murmures', w: 3200, h: 2560, grass: GRASS_FOREST, music: 'foret', seed: 202, dark: 0.12,
+  cliffs: [{ pts: [[0, 190], [500, 176], [900, 196], [1090, 190]], h: 84 }, { pts: [[1210, 190], [1700, 182], [2120, 196]], h: 84 }, { pts: [[2330, 186], [2800, 178], [3200, 190]], h: 84 }], corridor: { pad: 34, clearings: fClearings },
   paths: fPaths,
   areas: fClearings.map(([x, y, r]) => ({ kind: 'moss' as const, poly: ellipsePoly(x, y, r * 0.9, r * 0.7, 16, 0.06) })),
   water: [fStream],
@@ -241,6 +248,7 @@ const bois: ZoneDef = {
     { tex: 'stele', x: 1700, y: 1380, foot: { r: 12 }, id: 'stele' },
     { tex: 'carvedtree', x: 620, y: 1318, foot: { r: 15 }, occlude: true, id: 'arbre_grave' },
     { tex: 'bramble:150:7', x: 440, y: 1260, foot: { w: 150, h: 46 }, cond: '!passage_open', id: 'ronces_passage' },
+    { tex: 'stairs2:110:90', x: 1150, y: 282, ground: true },
     { tex: 'mist:260', x: 1150, y: 360, foot: { w: 260, h: 40 }, cond: '!stones_solved', depth: 200 },
     { tex: 'bramble:130:21', x: 935, y: 1345, foot: { w: 130, h: 40 }, cond: '!enc1_done' },
     { tex: 'bramble:90:22', x: 1140, y: 1505, foot: { w: 40, h: 150, dy: -40 }, cond: '!enc1_done' },
@@ -281,11 +289,12 @@ const moulinTrees = scatter({
   rect: { x: 20, y: 20, w: 2360, h: 1760 }, step: 96, seed: 77, kinds: ['oak', 'birch', 'pine', 'willow', 'oak'],
   avoidPaths: mPaths, pathPad: 40,
   avoidCircles: [[1250, 800, 300], [1500, 600, 260], [1600, 380, 160], [400, 1700, 140], [700, 1000, 160], [2250, 1000, 160]],
-  avoidRects: [{ x: 1380, y: 300, w: 400, h: 700 }, { x: 950, y: 820, w: 600, h: 420 }], water: [mRiver], bushChance: 0.15, rockChance: 0.07,
+  avoidRects: [{ x: 1380, y: 300, w: 400, h: 700 }, { x: 950, y: 820, w: 600, h: 420 }, { x: 0, y: 130, w: 1360, h: 150 }], water: [mRiver], bushChance: 0.15, rockChance: 0.07,
 });
 
 const moulin: ZoneDef = {
-  id: 'moulin', name: 'Moulin des Trois-Eaux', w: 2400, h: 1800, grass: ['#5ea03e', '#6bae48', '#7dbd54', '#4e8f36', '#94cc64'], music: 'moulin', seed: 303,
+  id: 'moulin', name: 'Moulin des Trois-Eaux', w: 2400, h: 1800,
+  cliffs: [{ pts: [[0, 170], [500, 158], [1000, 176], [1300, 168]], h: 76 }], grass: ['#5ea03e', '#6bae48', '#7dbd54', '#4e8f36', '#94cc64'], music: 'moulin', seed: 303,
   paths: mPaths,
   areas: [],
   water: [

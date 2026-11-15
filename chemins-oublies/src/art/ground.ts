@@ -125,6 +125,12 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
   // 4. chemins : peints ensemble, couche par couche, pour que les croisements se fondent
   const list = z.paths.map((p, pi) => ({ p, pi })).filter(({ p }) => (p.kind !== 'route' || flags('route_revealed')) && vis(bboxOf(p.pts, p.w + 30)));
   paintPaths(ctx, list.map(({ p, pi }) => ({ pts: p.pts, w: p.w, kind: p.kind, seed: z.seed * 13 + pi * 389 })), G[1]);
+  // falaises (paroi rocheuse, rebord herbu, ombre au pied)
+  for (const [ci, cl] of (z.cliffs ?? []).entries()) {
+    const b = bboxOf(cl.pts, cl.h + 40);
+    if (!vis(b)) continue;
+    paintCliff(ctx, cl.pts, cl.h, G, new Rng(z.seed * 3 + ci * 71));
+  }
   // la place pavée recouvre l'extrémité des chemins
   z.areas.forEach((a, ai) => {
     if (a.kind !== 'cobble') return;
@@ -222,6 +228,52 @@ export function paintPaths(ctx: C, list: PathPaint[], grass: string) {
       if (pp.w < 45 && rnd() < 0.08) { ctx.fillStyle = rgba(grass, 0.7); ctx.beginPath(); ellipse(ctx, x, y, 4 + rnd() * 3, 2.5); ctx.fill(); }
     }
     void edge;
+  }
+}
+
+function paintCliff(ctx: C, pts: Pt[], h: number, G: string[], r: Rng) {
+  const rnd = () => r.next();
+  const sp = samplePolyline(pts, 14);
+  const top = sp.map(([x, y]) => [x, y + Math.sin(x * 0.05) * 3] as Pt);
+  const face = () => { ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]); for (const [x, y] of top) ctx.lineTo(x, y); for (let i = top.length - 1; i >= 0; i--) ctx.lineTo(top[i][0], top[i][1] + h + Math.sin(i * 1.7) * 4); ctx.closePath(); };
+  // ombre portée au pied
+  ctx.save();
+  ctx.beginPath(); for (const [i, [x, y]] of top.entries()) (i ? ctx.lineTo(x, y + h + 26) : ctx.moveTo(x, y + h + 26)); for (let i = top.length - 1; i >= 0; i--) ctx.lineTo(top[i][0], top[i][1] + h - 4); ctx.closePath();
+  ctx.fillStyle = 'rgba(20,35,20,0.32)'; ctx.fill();
+  ctx.restore();
+  // paroi
+  face();
+  const grd = ctx.createLinearGradient(0, Math.min(...top.map((p) => p[1])), 0, Math.max(...top.map((p) => p[1])) + h);
+  grd.addColorStop(0, '#a49a88'); grd.addColorStop(0.5, '#8a7f6e'); grd.addColorStop(1, '#5f5648');
+  ctx.fillStyle = grd; ctx.fill(); ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.save(); face(); ctx.clip();
+  // gros blocs de roche
+  for (const [x, y] of top) {
+    for (let k = 0; k < 3; k++) {
+      const by = y + 8 + k * (h / 3) + rnd() * 6, bw = 14 + rnd() * 14, bh = h / 3 - 2;
+      ctx.beginPath(); ctx.roundRect(x - 6 + rnd() * 6, by, bw, bh, 5);
+      ctx.fillStyle = rgba(rnd() < 0.5 ? '#b5ab98' : '#7a705f', 0.55); ctx.fill();
+      ctx.strokeStyle = 'rgba(43,30,22,0.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(x - 3, by + 2, bw * 0.6, 2);
+    }
+  }
+  // fissures et mousses
+  for (const [x, y] of top) {
+    if (rnd() < 0.3) { ctx.strokeStyle = 'rgba(40,30,20,0.6)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x, y + 10); ctx.lineTo(x + (rnd() - 0.5) * 8, y + h * 0.5); ctx.lineTo(x + (rnd() - 0.5) * 10, y + h); ctx.stroke(); }
+    if (rnd() < 0.35) { ctx.fillStyle = 'rgba(90,140,60,0.75)'; ctx.beginPath(); ellipse(ctx, x, y + 10 + rnd() * h * 0.7, 5 + rnd() * 6, 2.5 + rnd() * 2); ctx.fill(); }
+  }
+  ctx.restore();
+  // rebord herbu qui déborde au sommet
+  ctx.beginPath();
+  ctx.moveTo(top[0][0], top[0][1] - 10);
+  for (let i = 0; i < top.length; i++) { const [x, y] = top[i]; const nx = top[Math.min(i + 1, top.length - 1)][0]; ctx.quadraticCurveTo((x + nx) / 2, y + 12 + rnd() * 5, nx, y + 4); }
+  for (let i = top.length - 1; i >= 0; i--) ctx.lineTo(top[i][0], top[i][1] - 12);
+  ctx.closePath();
+  ctx.fillStyle = G[2]; ctx.fill(); ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = 2.4; ctx.stroke();
+  ctx.fillStyle = shade(G[2], 0.18); for (const [x, y] of top) { ctx.beginPath(); ellipse(ctx, x, y - 4, 6, 2); ctx.fill(); }
+  // pied de falaise : cailloux et herbes
+  for (const [x, y] of top) {
+    if (rnd() < 0.4) { ctx.fillStyle = '#8f8a82'; ctx.beginPath(); ellipse(ctx, x + rnd() * 10, y + h + 6 + rnd() * 6, 4 + rnd() * 4, 3); ctx.fill(); ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = 1; ctx.stroke(); }
   }
 }
 

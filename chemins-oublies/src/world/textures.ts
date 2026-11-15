@@ -64,6 +64,7 @@ function make(key: string, S: number): PropTex {
     case 'wheel': return P.waterWheel(S);
     case 'mist': return P.mistWall(S, +a);
     case 'mat': return P.doormat(S);
+    case 'stairs2': return P.stoneStairs(S, +a, +b);
     case 'tall': return P.tallGrass(+a, S, b ? '#' + b : undefined);
     case 'fern': return P.fern(+a, S);
     case 'fbed': return P.flowerbed(S, +a, +b);
@@ -94,7 +95,7 @@ function make(key: string, S: number): PropTex {
 
 const cache = new Map<string, PropTex>();
 // maisons, arbres et buissons ont déjà leurs épaisseurs ; le reste du décor est épaissi
-const THICK_SKIP = new Set(['house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug', 'tall', 'fern', 'fbed', 'steps', 'mat']);
+const THICK_SKIP = new Set(['house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug', 'tall', 'fern', 'fbed', 'steps', 'mat', 'stairs2']);
 export function propTex(key: string, S: number): PropTex {
   const id = key + '@' + S;
   let t = cache.get(id);

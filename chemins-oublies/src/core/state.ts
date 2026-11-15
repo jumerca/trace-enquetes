@@ -109,4 +109,4 @@ export interface Settings {
   combat: 'exploration' | 'facile' | 'normale' | 'difficile';
   lastSlot: number;
 }
-export const DEFAULT_SETTINGS: Settings = { quality: 'haute', music: 0.6, sfx: 0.8, textSpeed: 'normale', combat: 'normale', lastSlot: -1 };
+export const DEFAULT_SETTINGS: Settings = { quality: (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) ? 'moyenne' : 'haute', music: 0.6, sfx: 0.8, textSpeed: 'normale', combat: 'normale', lastSlot: -1 };

@@ -47,6 +47,8 @@ export interface ZoneDef {
   dark?: number;
   /** sous-bois : seuls les sentiers (+marge) et les clairières sont praticables */
   corridor?: { pad: number; clearings: [number, number, number][] };
+  /** falaises : bord supérieur (polyligne) et hauteur de la paroi */
+  cliffs?: { pts: Pt[]; h: number }[];
 }
 
 /** Évalue une condition de drapeaux : "a & !b | c". */
