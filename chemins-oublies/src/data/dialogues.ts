@@ -89,7 +89,7 @@ export const DIALOGS: Record<string, NpcDialog> = {
     topics: [
       { id: 'registre', label: 'Le chemin des Saules ?', cond: () => has('lettre') && !flag('lettre_registre'), lines: () => [Sa("Le chemin des Saules… voyons. Le registre des rues."), Sa("Ici. « Chemin des Saules, rayé l'an dernier. Trois maisons : Verdier, Bastien, Lerouge. »", 'surprise'), Sa("Rayé, et personne n'a protesté. Verdier, c'est le nom d'Anton, le meunier. Sa famille vivait près du moulin, autrefois.", 'souci')], fx: ['flag:lettre_registre', 'clue:registre', 'log:La lettre est destinée à la famille Verdier : Anton.', 'quest'] },
       { id: 'cartes', label: 'Vos cartes', lines: () => [Sa("Deux siècles de cartes. Certaines montrent des villages que plus personne ne sait situer. J'appelle ça « l'étagère des absents »."), Sa("Maëlys y a passé plus de temps que partout ailleurs.")] },
-      { id: 'conservateurs', label: '« Conservateurs » ?', cond: () => flag('chapter_done') || has('page_maelys'), lines: () => [Sa("Où avez-vous lu ce mot ?", 'surprise'), Sa("… Ne le répétez pas trop fort. Certains archivistes de la Cité en parlaient, quand j'étais jeune. Des gardiens de cartes qui décidaient de ce qui devait être oublié.", 'souci'), Sa("Je n'en sais pas plus. Et pour être honnête, je préfère ne pas en savoir plus.")] },
+      { id: 'conservateurs', label: '« Conservateurs » ?', cond: () => flag('chapter_done') || has('page_maelys'), lines: () => [Sa("Où avez-vous lu ce mot ?", 'surprise'), Sa("… Ne le répétez pas trop fort. Certains archivistes de la Cité en parlaient, quand j'étais jeune. Des gardiens de cartes qui décidaient de ce qui devait être oublié.", 'souci'), Sa("On racontait aussi qu'ils plantaient des « gardiens » : des haies, des ronces, des brumes qui tiennent les curieux à distance des lieux qu'ils voulaient faire oublier.", 'souci'), Sa("Je n'en sais pas plus. Et pour être honnête, je préfère ne pas en savoir plus.")] },
     ],
   },
 
@@ -201,7 +201,8 @@ export const DIALOGS: Record<string, NpcDialog> = {
       };
       if (flag('chapter_done')) return { lines: [An("Écoutez-la ! Elle chante ! Trois semaines de silence… et ce matin, j'ai retrouvé le chemin tout seul.", 'joie')] };
       if (flag('mill_running')) return { lines: [An("Elle tourne… elle tourne vraiment !", 'joie')] };
-      if (S.zone === 'moulin') return { lines: [An("Vous avez ouvert le passage ! Je vous ai suivi de loin. Je reconnais tout : la porte, le bief, les vannes.", 'joie'), An("Allez-y, vous. Moi, j'ai peur qu'en touchant à quelque chose tout s'efface encore.", 'souci')] };
+      if (S.zone === 'moulin' && !flag('boss_done')) return { lines: [An("Vous avez ouvert le passage ! Mais regardez… ces ronces autour de la roue. Elles ont poussé en une nuit, le matin où j'ai oublié le chemin.", 'souci'), An("Elles bougent quand on approche. Comme si elles montaient la garde.", 'souci')] };
+      if (S.zone === 'moulin') return { lines: [An("Les ronces sont tombées en poussière ! Je reconnais tout : la porte, le bief, les vannes.", 'joie'), An("Allez-y, vous. Moi, j'ai peur qu'en touchant à quelque chose tout s'efface encore.", 'souci')] };
       return { lines: [An("Les pierres du nord… Quand j'étais gamin, on disait qu'il fallait les toucher dans le bon ordre pour que la brume s'écarte.")] };
     },
     topics: [

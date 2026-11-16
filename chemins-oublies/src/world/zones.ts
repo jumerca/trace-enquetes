@@ -28,7 +28,6 @@ function houseDecor(name: string, x: number, y: number, seed: number): PropDef[]
   // buissons aux angles
   for (const sd of [-1, 1]) if (r.next() < 0.75) out.push({ tex: `bush:${(seed + (sd > 0 ? 3 : 7)) % 9 + 1}:oak${r.next() < 0.4 ? ':#f2a0b8' : ''}`, x: x + sd * (hw + 18), y: y + 6, foot: { r: 16 }, occlude: true });
   // pas japonais devant la porte
-  if (o.door !== undefined) out.push({ tex: `steps:46:${seed}`, x: dx, y: y + 26, ground: true });
   // un tonneau ou un pot près de la porte
   if (o.door !== undefined && r.next() < 0.6) out.push({ tex: r.next() < 0.5 ? 'barrel' : 'pot', x: dx + (r.next() < 0.5 ? -28 : 28), y: y + 4, foot: { r: 10 } });
   return out;
@@ -82,21 +81,26 @@ function decor(seed: number, rect: Rect, n: number, avoid: (x: number, y: number
 }
 
 // ============================================================ CLAIRVAL
+// Routes principales, puis une allée par maison : elle sort tout droit de la porte et rejoint la route en douceur.
 const vPaths: PathDef[] = [
   { kind: 'dirt', w: 70, pts: [[1330, 2260], [1330, 1950], [1310, 1650], [1300, 1400]] },
-  { kind: 'dirt', w: 64, pts: [[1300, 990], [1300, 700], [1300, 400], [1300, -20]] },
-  { kind: 'dirt', w: 58, pts: [[1580, 1180], [1900, 1172], [2250, 1150], [2460, 1150], [2650, 1162], [2780, 1300], [2790, 1490]] },
+  // route du nord : contourne l'auberge par l'est jusqu'à l'escalier de la falaise
+  { kind: 'dirt', w: 60, pts: [[1470, 1010], [1505, 830], [1440, 640], [1325, 440], [1300, 250], [1300, -20]] },
+  { kind: 'dirt', w: 58, pts: [[1580, 1180], [1900, 1172], [2250, 1150], [2460, 1150], [2650, 1162], [2630, 1350], [2660, 1520], [2765, 1528]] },
   { kind: 'dirt', w: 50, pts: [[1010, 1190], [760, 1165], [560, 1150], [260, 1110]] },
-  { kind: 'dirt', w: 34, pts: [[580, 1150], [620, 960], [630, 790]] },
-  { kind: 'dirt', w: 34, pts: [[1300, 760], [1100, 745], [960, 705]] },
-  { kind: 'dirt', w: 34, pts: [[1540, 1010], [1780, 915]] },
-  { kind: 'dirt', w: 30, pts: [[1780, 915], [1950, 800], [2050, 725]] },
-  { kind: 'dirt', w: 34, pts: [[1560, 1330], [1740, 1475]] },
-  { kind: 'dirt', w: 32, pts: [[560, 1150], [600, 1350], [635, 1525]] },
-  { kind: 'dirt', w: 34, pts: [[1310, 1650], [1100, 1720], [955, 1765]] },
-  { kind: 'dirt', w: 34, pts: [[1320, 1800], [1600, 1850], [1760, 1865]] },
-  { kind: 'dirt', w: 32, pts: [[1900, 1172], [2000, 1350], [2070, 1485]] },
-  { kind: 'dirt', w: 26, pts: [[2780, 1300], [2900, 1220], [2960, 1100]] },
+  // allées
+  { kind: 'dirt', w: 40, pts: [[1300, 900], [1300, 995]] }, // auberge → place
+  { kind: 'dirt', w: 34, pts: [[820, 1090], [822, 1162]] }, // atelier
+  { kind: 'dirt', w: 32, pts: [[630, 780], [630, 860], [612, 1000], [585, 1150]] }, // maison A
+  { kind: 'dirt', w: 30, pts: [[900, 700], [900, 770], [760, 800], [632, 880]] }, // maison B
+  { kind: 'dirt', w: 32, pts: [[1780, 900], [1780, 980], [1762, 1090], [1745, 1174]] }, // archives
+  { kind: 'dirt', w: 30, pts: [[2050, 720], [2050, 800], [2015, 1000], [1980, 1170]] }, // maison C
+  { kind: 'dirt', w: 34, pts: [[1740, 1470], [1740, 1545], [1580, 1610], [1318, 1660]] }, // poste
+  { kind: 'dirt', w: 30, pts: [[2070, 1480], [2070, 1550], [1900, 1590], [1745, 1548]] }, // maison G
+  { kind: 'dirt', w: 32, pts: [[955, 1760], [955, 1825], [1120, 1845], [1320, 1830]] }, // maison de Ninon
+  { kind: 'dirt', w: 30, pts: [[635, 1520], [640, 1600], [625, 1760], [800, 1835], [955, 1826]] }, // maison D
+  { kind: 'dirt', w: 32, pts: [[1760, 1860], [1760, 1930], [1560, 1955], [1332, 1950]] }, // maison F
+  { kind: 'dirt', w: 30, pts: [[400, 1880], [410, 1950], [700, 1995], [1000, 1990], [1328, 1985]] }, // grange
   { kind: 'route', w: 56, pts: [[2650, 1162], [2600, 1000], [2600, 830], [2780, 680], [2900, 560], [3010, 470]] },
 ];
 const vRiver = { pts: [[2380, -30], [2360, 300], [2300, 600], [2330, 900], [2350, 1150], [2330, 1450], [2400, 1800], [2470, 2270]] as Pt[], w: 112 };
@@ -163,7 +167,6 @@ const village: ZoneDef = {
     { tex: 'haystack', x: 260, y: 1830, foot: { r: 30 } }, { tex: 'haystack', x: 520, y: 2060, foot: { r: 30 } }, { tex: 'cart', x: 640, y: 2060, foot: { w: 90, h: 22 } },
     { tex: 'beehive', x: 2960, y: 1600, foot: { r: 13 } }, { tex: 'beehive', x: 2990, y: 1650, foot: { r: 13 } },
     { tex: 'fence:200', x: 780, y: 1690, foot: { w: 200, h: 10 } }, { tex: 'fence:240', x: 2790, y: 1660, foot: { w: 240, h: 10 } },
-    { tex: 'fence:120', x: 1880, y: 1000 }, { tex: 'fence:140', x: 1100, y: 1880 },
     { tex: 'signpost', x: 1390, y: 1720, foot: { r: 8 }, id: 'panneau' },
     { tex: 'borne', x: 1395, y: 2050, foot: { r: 14 }, id: 'borne_arrivee' },
     { tex: 'borne', x: 1640, y: 1115, foot: { r: 14 }, id: 'borneA' },
@@ -289,7 +292,7 @@ const moulinTrees = scatter({
   rect: { x: 20, y: 20, w: 2360, h: 1760 }, step: 96, seed: 77, kinds: ['oak', 'birch', 'pine', 'willow', 'oak'],
   avoidPaths: mPaths, pathPad: 40,
   avoidCircles: [[1250, 800, 300], [1500, 600, 260], [1600, 380, 160], [400, 1700, 140], [700, 1000, 160], [2250, 1000, 160]],
-  avoidRects: [{ x: 1380, y: 300, w: 400, h: 700 }, { x: 950, y: 820, w: 600, h: 420 }, { x: 0, y: 130, w: 1360, h: 150 }], water: [mRiver], bushChance: 0.15, rockChance: 0.07,
+  avoidRects: [{ x: 1380, y: 300, w: 400, h: 700 }, { x: 950, y: 820, w: 600, h: 420 }, { x: 0, y: 130, w: 1360, h: 150 }, { x: 780, y: 780, w: 700, h: 700 }], water: [mRiver], bushChance: 0.15, rockChance: 0.07,
 });
 
 const moulin: ZoneDef = {
@@ -317,6 +320,8 @@ const moulin: ZoneDef = {
     { tex: 'cart', x: 960, y: 880, foot: { w: 90, h: 22 } },
     { tex: 'barrel', x: 1380, y: 950, foot: { r: 12 } },
     { tex: 'bramble:120:9', x: 820, y: 1170, cond: '!route_revealed' },
+    { tex: 'bramble:160:41', x: 1450, y: 930, cond: '!boss_done', depth: 30 }, { tex: 'bramble:90:42', x: 1192, y: 935, cond: '!boss_done', depth: 30 },
+    { tex: 'bramble:80:43', x: 1640, y: 360, cond: '!boss_done' }, { tex: 'bramble:80:44', x: 1395, y: 620, cond: '!boss_done' }, { tex: 'bramble:80:45', x: 1395, y: 780, cond: '!boss_done' },
     { tex: 'bramble:140:10', x: 300, y: 1440, cond: '!route_revealed' },
     ...decor(13, { x: 100, y: 100, w: 2200, h: 1600 }, 90, (x, y) => mPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 12) || distToPolyline(x, y, mRiver.pts) < 100 || (x > 1100 && x < 1800 && y > 300 && y < 1000), ['flowers:#', 'flowers:#:y', 'tall:#', 'tuft:#']),
     ...moulinTrees,
@@ -331,7 +336,7 @@ const moulin: ZoneDef = {
   exits: [
     { rect: { x: 300, y: 1760, w: 200, h: 40 }, to: 'bois', at: [1150, 110], facing: 'down' },
     { rect: { x: 0, y: 1420, w: 30, h: 160 }, to: 'clairval', at: [2900, 520], facing: 'left', cond: 'route_revealed' },
-    { rect: { x: 1170, y: 905, w: 44, h: 26 }, to: 'moulin_int', at: [360, 455], facing: 'up', door: true, cond: 'mill_unlocked', blockedMsg: 'La porte du moulin est fermée à clé. Le meunier doit avoir la clé.' },
+    { rect: { x: 1170, y: 905, w: 44, h: 26 }, to: 'moulin_int', at: [360, 455], facing: 'up', door: true, cond: 'mill_unlocked & boss_done', blockedMsg: 'La porte du moulin est fermée — et des ronces vivantes l\'enserrent.' },
   ],
 };
 

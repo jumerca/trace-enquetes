@@ -202,6 +202,7 @@ async function plantPick(api: Api, item: string, label: string) {
 
 async function lever(api: Api, id: string) {
   const L = LEVERS[id];
+  if (!flag('boss_done')) { await api.say([N("Des ronces épaisses enserrent le levier. Impossible d'y toucher tant qu'elles sont là.")]); return; }
   if (S.mill.solved) { await api.say([N('La roue tourne. Mieux vaut ne plus toucher aux vannes.')]); return; }
   await api.anim('work', 400);
   const ev = toggleVanne(L.v);

@@ -43,6 +43,7 @@ export const ROUTINES: Record<NpcId, () => Place | null> = {
     ? { zone: 'clairval', pts: [[1420, 300]], mode: 'stand', face: 'left', where: 'à la porte nord' }
     : { zone: 'clairval', pts: [[1300, 262]], mode: 'stand', face: 'down', where: 'garde la porte nord' },
   anton: () => {
+    if (flag('stones_solved') && !flag('boss_done')) return { zone: 'moulin', pts: [[640, 1330]], mode: 'stand', face: 'right', where: 'à l\'écart du moulin, sur le chemin' };
     if (flag('stones_solved')) return { zone: 'moulin', pts: [[1040, 1020]], mode: flag('mill_running') ? 'work' : 'stand', face: 'right', where: 'devant son moulin' };
     return { zone: 'bois', pts: [[1745, 1440]], mode: 'work', face: 'right', where: 'au campement, dans le Bois' };
   },

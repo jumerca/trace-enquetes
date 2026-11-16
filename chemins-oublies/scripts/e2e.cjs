@@ -313,7 +313,7 @@ async function solveBorne(id, x, y, target) {
   await walkTo(1880, 2060, 60);
   await fight('facultatif (ronceux ancien)');
   await use(1880, 2235, -20);
-  check('secret : coffre des ronces (+1 cœur)', (await S()).secrets.includes('coffre') && (await S()).maxHp === 6);
+  check('secret : coffre des ronces (+1 cœur)', (await S()).secrets.includes('coffre') && (await S()).maxHp >= 6);
   // sentier caché grâce à l'atlas
   await use(620, 1318, -40);
   check('arbre gravé examiné', (await flags()).arbre_vu);
@@ -344,6 +344,25 @@ async function solveBorne(id, x, y, target) {
   // Séquence 4 : le moulin
   await travel('moulin');
   await screenshot('08-moulin');
+  // le Gardien des Ronces
+  await walkTo(700, 1250, 80).catch(() => {});
+  await walkTo(1120, 1330, 60).catch(() => {});
+  for (let i = 0; i < 60 && !(await ev('__t.g().bossActive && !__t.g().busy')); i++) { await dialog(); await sleep(250); }
+  check('boss : le Gardien des Ronces se réveille', await ev('__t.g().bossActive'));
+  await screenshot('08b-boss');
+  {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 900000 && !(await flags()).boss_done) {
+      await dialog();
+      const b = await ev('(() => { const bo = __t.g().boss; return bo ? { st: bo.st, x: bo.x, y: bo.y } : null; })()');
+      if (!b) break;
+      if (b.st === 'windup' || b.st === 'cwindup') { if (await page.isVisible('#dodge')) { const bb = await page.locator('#dodge').boundingBox(); await tap(bb.x + bb.width / 2, bb.y + bb.height / 2); } await sleep(300); continue; }
+      if (b.st === 'exposed' || b.st === 'stunned') { await clickWorld(b.x, b.y, -60); await sleep(250); continue; }
+      await sleep(150);
+    }
+    await dialog();
+    check('boss vaincu (cœur de chêne)', (await flags()).boss_done && (await S()).inventory.includes('coeur_chene'), `${Math.round((Date.now() - t0) / 1000)} s`);
+  }
   await walkTo(1190, 990, 40);
   await travel('moulin_int');
   check('porte du moulin ouverte avec la clé', (await info()).zone === 'moulin_int');

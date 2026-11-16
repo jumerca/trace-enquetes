@@ -235,3 +235,11 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 32px; }
 .cb svg { width: 24px; height: 24px; }
 .cb.recenter { background: linear-gradient(#3f9aa1, #2a7076); color: #fff8e8; font-size: 15px; font-weight: 700; }
 @media (max-height: 500px) { .cb { min-width: 42px; height: 42px; } .camctl { gap: 6px; bottom: calc(22px + var(--safe-b)); } }
+
+/* combat */
+.dodge { position: absolute; right: calc(70px + var(--safe-r)); bottom: calc(30px + var(--safe-b)); width: 84px; height: 84px; border-radius: 50%; border: 3px solid var(--ink); background: radial-gradient(circle at 40% 35%, #ffe08a, #d9a441); font-family: 'Alegreya SC', serif; font-weight: 700; font-size: 16px; box-shadow: 0 4px 0 rgba(43,30,22,.6); pointer-events: auto; }
+.dodge:active { transform: scale(.92); }
+.bossbar { position: absolute; left: 50%; top: calc(64px + var(--safe-t)); transform: translateX(-50%); width: min(520px, 70vw); text-align: center; color: #fff6dc; text-shadow: 0 2px 0 var(--ink); font-family: 'Alegreya SC', serif; font-size: 1.05em; }
+.bossbar .bb { height: 14px; border: 2px solid var(--ink); border-radius: 8px; background: #3a1d16; overflow: hidden; margin-top: 2px; box-shadow: 0 3px 0 rgba(0,0,0,.4); }
+.bossbar .bb i { display: block; height: 100%; background: linear-gradient(#ffb04a, #d0503a); transition: width .25s; }
+@media (max-height: 500px) { .dodge { width: 70px; height: 70px; right: calc(62px + var(--safe-r)); bottom: calc(20px + var(--safe-b)); } .bossbar { top: calc(52px + var(--safe-t)); } }
