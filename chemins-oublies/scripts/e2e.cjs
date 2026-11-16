@@ -74,8 +74,10 @@ async function dialog(plan = [], opts = {}) {
 
 /** Marche jusqu'à (x, y) en cliquant sur des points visibles du chemin. */
 async function walkTo(x, y, tol = 36) {
+  const z0 = (await info()).zone;
   for (let k = 0; k < 60; k++) {
     let i = await info();
+    if (i.zone !== z0) return true; // entré par une porte en chemin
     if (i.dlg) await dialog();
     i = await info();
     if (Math.hypot(i.x - x, i.y - y) < tol) return true;
@@ -119,6 +121,7 @@ async function clickWorld(x, y, dy = -28) {
 let EXITS;
 async function travel(zone) {
   for (let hop = 0; hop < 6; hop++) {
+    for (let w = 0; w < 30 && (await info()).tr; w++) await sleep(150);
     const i = await info();
     if (i.zone === zone) return;
     // BFS
@@ -130,8 +133,10 @@ async function travel(zone) {
     const r = step.e.r;
     const interior = ['auberge', 'atelier', 'archives', 'moulin_int'].includes(i.zone);
     const tx = Math.max(20, r.x + r.w / 2), ty = Math.max(14, Math.min(r.y + r.h / 2, 99999));
-    if (step.e.door) await walkTo(tx, interior ? r.y - 18 : r.y + r.h + 22, 34);
-    else await walkTo(tx, ty, 30).catch(() => {});
+    try {
+      if (step.e.door) await walkTo(tx, interior ? r.y - 18 : r.y + r.h + 22, 34);
+      else await walkTo(tx, ty, 30).catch(() => {});
+    } catch (err) { await sleep(600); if ((await info()).zone !== i.zone) continue; throw err; }
     // franchit la sortie
     for (let t = 0; t < 4; t++) { const j = await info(); if (j.zone !== i.zone) break; const [sx, sy] = await ev(`__t.toScreen(${tx}, ${interior ? r.y + r.h - 4 : ty})`); await tap(sx, sy); await sleep(900); }
     for (let t = 0; t < 40; t++) { const j = await info(); if (j.zone !== i.zone && !j.tr) break; await sleep(150); }
@@ -187,6 +192,8 @@ async function fight(label) {
     const i = await info();
     // danger annoncé ?
     const d = es.find((e) => e.st === 'windup' && Math.hypot(e.x - i.x, e.y - i.y) < e.reach + 70);
+    // à portée de bâton : un coup interrompt sa préparation (comme un joueur le ferait)
+    if (d && d.k !== 'murmure' && Math.hypot(d.x - i.x, (d.y - i.y) * 1.3) < 62) { await clickWorld(d.x, d.y, -26); await sleep(300); continue; }
     if (d) {
       let ax = i.x - d.x, ay = i.y - d.y;
       if (d.k === 'murmure' && d.from && d.to) { const lx = d.to[0] - d.from[0], ly = d.to[1] - d.from[1]; ax = -ly; ay = lx; if ((i.x - d.from[0]) * ax + (i.y - d.from[1]) * ay < 0) { ax = -ax; ay = -ay; } }
@@ -237,6 +244,11 @@ async function solveBorne(id, x, y, target) {
   await dialog();
   await screenshot('01-arrivee');
 
+  if (process.env.FROM === 'moulin') {
+    // départ direct au moulin : toute la progression précédente est acquise
+    await ev(`(() => { const S = __co.S; Object.assign(S.flags, { borne_vue: true, agathe_moulin: true, t_ninon: true, t_salome: true, t_basile: true, bornes_solved: true, boussole_ok: true, theo_ok: true, anton_found: true, stones_solved: true, enc1_done: true, enc2_done: true, lettre_recue: true, jardin_accepte: true, pick_sauge: true, pick_pied_de_loup: true, pick_fleur_lanterne: true }); S.defeated.push('enc1', 'enc2'); S.inventory.push('boussole', 'cle_moulin', 'sauge', 'pied_de_loup', 'fleur_lanterne'); S.bornes = [0, 6, 7]; S.traces.push('route_bornes', 'route_bois'); __co.scene().loadZone('moulin', 400, 1690, 'up'); })()`);
+    await sleep(1000);
+  } else {
   // Séquence 1
   await use(1395, 2050, -30);
   check('borne d\'arrivée examinée', (await flags()).borne_vue);
@@ -341,6 +353,7 @@ async function solveBorne(id, x, y, target) {
   check('énigme 2 : pierres (eau, oiseau, clé)', (await flags()).stones_solved);
   await screenshot('07-pierres');
 
+  }
   // Séquence 4 : le moulin
   await travel('moulin');
   await screenshot('08-moulin');
