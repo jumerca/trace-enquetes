@@ -54,6 +54,12 @@ export class NavGrid {
       else this.blockRect(p.x - p.foot.w / 2 - HERO_R, p.y - p.foot.h - (p.foot.dy ?? 0) - HERO_R * 0.6, p.foot.w + HERO_R * 2, p.foot.h + HERO_R * 1.2);
     }
     for (const q of z.blockers) if (evalCond(q.cond, flag)) this.blockRect(q.x, q.y, q.w, q.h);
+    // falaises : la paroi n'est pas praticable
+    for (const cl of z.cliffs ?? []) for (let i = 0; i < cl.pts.length - 1; i++) {
+      const [x1, y1] = cl.pts[i], [x2, y2] = cl.pts[i + 1];
+      const n = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 8);
+      for (let k = 0; k <= n; k++) { const x = x1 + (x2 - x1) * k / n, y = y1 + (y2 - y1) * k / n; this.blockRect(x - 6, y - 14, 12, cl.h + 18); }
+    }
     // les sorties restent franchissables (portes)
     for (const e of z.exits) {
       if (!e.door) continue;

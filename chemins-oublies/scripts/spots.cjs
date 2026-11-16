@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
   p.on('pageerror', (e) => console.log('pageerror', e.message));
-  await p.addInitScript(() => localStorage.setItem('chemins-oublies.settings', JSON.stringify({ textSpeed: 'instantanee', quality: 'haute' })));
+  await p.addInitScript((q) => localStorage.setItem('chemins-oublies.settings', JSON.stringify({ textSpeed: 'instantanee', quality: q })), process.env.Q || 'moyenne');
   await p.goto('http://localhost:5173/');
   await p.waitForFunction(() => document.getElementById('boot') === null, null, { timeout: 120000 });
   await p.click('[data-h=new]'); await p.waitForTimeout(300); await p.click('[data-a=new]'); await p.waitForTimeout(1500);

@@ -1,5 +1,6 @@
 // État de partie : tout ce qui est sauvegardé. Les systèmes lisent et écrivent ici, jamais dans les sprites.
-export type ZoneId = 'clairval' | 'bois' | 'moulin' | 'auberge' | 'atelier' | 'archives' | 'moulin_int';
+export type ZoneId = 'clairval' | 'bois' | 'moulin' | 'auberge' | 'atelier' | 'archives' | 'moulin_int'
+  | 'poste' | 'maison_mara' | 'maison_ninon' | 'maisonA' | 'maisonB' | 'maisonC' | 'maisonD' | 'maisonF' | 'maisonG' | 'grange';
 export type Dir = 'down' | 'up' | 'left' | 'right';
 
 export const SAVE_SCHEMA = 3;
@@ -108,4 +109,4 @@ export interface Settings {
   combat: 'exploration' | 'facile' | 'normale' | 'difficile';
   lastSlot: number;
 }
-export const DEFAULT_SETTINGS: Settings = { quality: 'haute', music: 0.6, sfx: 0.8, textSpeed: 'normale', combat: 'normale', lastSlot: -1 };
+export const DEFAULT_SETTINGS: Settings = { quality: (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) ? 'moyenne' : 'haute', music: 0.6, sfx: 0.8, textSpeed: 'normale', combat: 'normale', lastSlot: -1 };

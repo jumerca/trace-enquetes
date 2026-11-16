@@ -62,6 +62,8 @@ class UIManager {
         <div id="itemsel" class="itemsel hidden"></div>
         <div id="hint" class="hint"></div>
         <div id="saved" class="saved">Sauvegardé</div>
+        <div id="bossbar" class="bossbar hidden"><b></b><div class="bb"><i></i></div></div>
+        <button id="dodge" class="dodge hidden" aria-label="Esquive (Espace)">Esquive</button>
         <div class="camctl"><button class="cb recenter hidden" data-c="c" aria-label="Recentrer sur Éloi (C)">${ICONS.target}<span>Éloi</span></button><button class="cb" data-c="+" aria-label="Zoomer (+)">＋</button><button class="cb" data-c="-" aria-label="Dézoomer (−)">−</button></div>
       </div>
       <div id="toasts"></div>
@@ -78,6 +80,7 @@ class UIManager {
       if (c === '-') this.game?.zoomStep(-1);
       if (c === 'c') this.game?.recenter();
     }));
+    $('#dodge').addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.game?.dodge(); });
     const dlg = $('#dialog');
     dlg.addEventListener('pointerdown', (e) => { e.stopPropagation(); if ((e.target as HTMLElement).closest('.dc button')) return; this.advance(); });
     $('#itemsel').addEventListener('click', () => this.selectItem(null));
@@ -182,6 +185,14 @@ class UIManager {
     const c = $('#compass');
     c.classList.toggle('hidden', compass === null);
     if (compass !== null) $('.needle', c).style.transform = `rotate(${compass + Math.PI / 2}rad)`;
+  }
+  setDodge(on: boolean) { $('#dodge').classList.toggle('hidden', !on); }
+  bossBar(name: string | null, pct = 1) {
+    const b = $('#bossbar');
+    if (!name) { b.classList.add('hidden'); return; }
+    b.classList.remove('hidden');
+    $('b', b).textContent = name;
+    $<HTMLElement>('.bb i', b).style.width = Math.round(pct * 100) + '%';
   }
   setFreeCam(on: boolean) { this.root.querySelector('.camctl .recenter')?.classList.toggle('hidden', !on); }
   setZoomLevel(_z: number) { /* réservé : indicateur de zoom */ }

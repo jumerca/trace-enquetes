@@ -567,6 +567,8 @@ export interface HouseOpts {
   chimney?: number; shutters?: string; flowers?: boolean;
   roofStyle?: 'tile' | 'slate' | 'thatch';
   dormer?: boolean; awning?: string; lantern?: boolean;
+  gable?: boolean; // pignon sur rue
+  ivy?: boolean;
   seed: number;
 }
 
@@ -578,12 +580,15 @@ export function houseGeom(o: HouseOpts) {
   const fH = Math.round(o.d * 0.62 + 20);
   const ridgeY = eaveY - fH;
   const bH = Math.round(o.d * 0.28 + 8);
-  const topY = ridgeY - bH;
-  return { fl, wallH, eaveY, fH, ridgeY, bH, topY, ov: 16 };
+  const gableH = Math.round(o.w * 0.36), depthUp = Math.round(o.d * 0.55 + 10);
+  const apexY = -wallH - gableH;
+  const topY = o.gable ? apexY - 6 - depthUp : ridgeY - bH;
+  return { fl, wallH, eaveY, fH, ridgeY, bH, topY, ov: 16, gableH, depthUp, apexY };
 }
 export function houseChimney(o: HouseOpts): [number, number] | undefined {
   if (o.chimney === undefined) return undefined;
   const g = houseGeom(o);
+  if (o.gable) return [o.chimney, g.apexY - g.depthUp * 0.5 + Math.abs(o.chimney) * 0.6 - 30];
   return [o.chimney, g.ridgeY - g.bH * 0.5 - 30];
 }
 
@@ -595,6 +600,8 @@ export function house(o: HouseOpts, S: number): PropTex {
   return makeTex(W, H, H - 16, S, (ctx) => {
     const hw = o.w / 2;
     softShadow(ctx, 20, 4, hw + 34, 20, 0.36);
+    // assise : terre tassée sous la maison
+    ctx.fillStyle = 'rgba(110,84,52,0.55)'; ctx.beginPath(); rrect(ctx, -hw - 12, -10, o.w + 24, 20, 10); ctx.fill();
     // ---- murs
     ctx.beginPath(); ctx.rect(-hw, -wallH, o.w, wallH);
     ink(ctx, o.wall, 2.4, { light: () => ctx.rect(-hw, -wallH, 6, wallH), lightCol: shade(o.wall, 0.16) });
@@ -619,6 +626,10 @@ export function house(o: HouseOpts, S: number): PropTex {
       ctx.lineWidth = 3;
       for (let i = 0; i < n; i++) { const x0 = -hw + (o.w / n) * i; if (i % 2) continue; ctx.beginPath(); ctx.moveTo(x0 + 4, -wallH / fl + 4); ctx.lineTo(x0 + o.w / n - 4, -6 - (fl > 1 ? 0 : 0)); ctx.stroke(); }
     }
+    // salissures et éclaboussures au pied du mur
+    const dg = ctx.createLinearGradient(0, -26, 0, 0);
+    dg.addColorStop(0, 'rgba(70,50,30,0)'); dg.addColorStop(1, 'rgba(70,50,30,0.32)');
+    ctx.fillStyle = dg; ctx.fillRect(-hw, -26, o.w, 26);
     // ombre portée de l'avant-toit sur le haut du mur
     const sh = ctx.createLinearGradient(0, -wallH, 0, -wallH + 26);
     sh.addColorStop(0, 'rgba(40,25,20,0.55)'); sh.addColorStop(1, 'rgba(40,25,20,0)');
@@ -631,6 +642,7 @@ export function house(o: HouseOpts, S: number): PropTex {
       ctx.beginPath(); ellipse(ctx, x + 7, -5, 8 + rnd() * 2, 6.5);
       ink(ctx, shade('#a8a090', (rnd() - 0.5) * 0.25), 1.3, { light: () => ellipse(ctx, x + 5, -8, 4, 2), lightCol: '#cfc8b8' });
     }
+    ctx.fillStyle = '#6f9a45'; for (let i = 0; i < 7; i++) { ctx.beginPath(); ellipse(ctx, -hw + rnd() * o.w, -9 + rnd() * 3, 3 + rnd() * 3, 1.6); ctx.fill(); }
     // ---- fenêtres (cintrées)
     const wins = o.windows ?? [-hw * 0.55, hw * 0.55];
     for (let f = 0; f < fl; f++) {
@@ -670,6 +682,7 @@ export function house(o: HouseOpts, S: number): PropTex {
       ctx.fillStyle = '#fff3d6'; ctx.font = 'bold 7.5px serif'; ctx.textAlign = 'center'; ctx.fillText(o.sign.text, sx + 16, sy + 7);
     }
     // ---- toit
+    if (o.gable) { gableRoof(ctx, o, G, rnd); finishHouse(ctx, o, hw, rnd); return; }
     const style = o.roofStyle ?? 'tile';
     const R = o.roof, Rd = shade(R, -0.24), Rl = shade(R, 0.18);
     const L = -hw - ov, Rr = hw + ov;
@@ -713,6 +726,7 @@ export function house(o: HouseOpts, S: number): PropTex {
         ctx.beginPath(); ctx.moveTo(x, yy); ctx.quadraticCurveTo(x + 1, yy + 5, x + 0.5, yy + 9); ctx.stroke();
       }
     }
+    if (style !== 'slate') { ctx.fillStyle = 'rgba(110,150,70,0.45)'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ellipse(ctx, L + rnd() * (Rr - L), ridgeY + 10 + rnd() * (eaveY - ridgeY - 10), 6 + rnd() * 5, 2.5); ctx.fill(); } }
     // lumière en haut du versant, ombre en bas
     const lg = ctx.createLinearGradient(0, ridgeY, 0, eaveY + 10);
     lg.addColorStop(0, 'rgba(255,245,215,0.28)'); lg.addColorStop(0.5, 'rgba(255,245,215,0)'); lg.addColorStop(1, 'rgba(40,20,10,0.22)');
@@ -748,7 +762,63 @@ export function house(o: HouseOpts, S: number): PropTex {
       ctx.beginPath(); rrect(ctx, cx - 13, cy - 31, 26, 7, 2); ink(ctx, '#8a7e70', 1.8, { light: () => ctx.rect(cx - 13, cy - 31, 26, 2), lightCol: '#b5a898' });
       ctx.fillStyle = '#2b2018'; ctx.fillRect(cx - 7, cy - 30, 14, 3);
     }
+    finishHouse(ctx, o, hw, rnd);
   });
+}
+
+/** Lierre éventuel et herbe qui pousse au pied des murs : la maison « tient » dans le paysage. */
+function finishHouse(ctx: Ctx, o: HouseOpts, hw: number, rnd: () => number) {
+  if (o.ivy) {
+    const sx = rnd() < 0.5 ? -hw + 6 : hw - 6;
+    ctx.strokeStyle = '#3f6a2e'; ctx.lineWidth = 1.6;
+    for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(sx + k * 3, 0); ctx.quadraticCurveTo(sx + (rnd() - 0.5) * 30, -40, sx + (rnd() - 0.5) * 24, -70 - rnd() * 20); ctx.stroke(); }
+    for (let i = 0; i < 34; i++) { const y = -rnd() * 85, x = sx + (rnd() - 0.5) * 30 * (1 + y / -90); ctx.beginPath(); ellipse(ctx, x, y, 3.2, 2.4, rnd()); ink(ctx, rnd() < 0.5 ? '#4f8a3a' : '#6aa64a', 0.7); }
+  }
+  for (let x = -hw - 10; x < hw + 10; x += 5 + rnd() * 5) {
+    const h = 4 + rnd() * 6;
+    ctx.strokeStyle = rnd() < 0.5 ? '#4f8f36' : '#6db048'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(x, 3); ctx.lineTo(x - 1.5, 3 - h); ctx.moveTo(x + 2, 3); ctx.lineTo(x + 3.5, 3 - h * 0.8); ctx.stroke();
+  }
+}
+
+/** Maison à pignon sur rue : façade triangulaire, deux versants vus en enfilade. */
+function gableRoof(ctx: Ctx, o: HouseOpts, G: ReturnType<typeof houseGeom>, rnd: () => number) {
+  const hw = o.w / 2, { wallH, apexY, depthUp, ov } = G;
+  const R = o.roof, Rd = shade(R, -0.26), Rl = shade(R, 0.14);
+  const eY = -wallH + 8, aY = apexY - 6;
+  const slope = (sd: number, col: string) => {
+    const x0 = sd * (hw + ov);
+    ctx.beginPath(); ctx.moveTo(x0, eY); ctx.lineTo(0, aY); ctx.lineTo(0, aY - depthUp); ctx.lineTo(x0, eY - depthUp); ctx.closePath();
+    ink(ctx, col, 2.4);
+    ctx.save(); ctx.clip();
+    // rangées de tuiles parallèles à la rive
+    ctx.strokeStyle = shade(col, -0.32); ctx.lineWidth = 1.1;
+    for (let t = 6; t < depthUp; t += 8) { ctx.beginPath(); ctx.moveTo(x0, eY - t); ctx.lineTo(0, aY - t); ctx.stroke(); }
+    ctx.strokeStyle = shade(col, 0.2); ctx.lineWidth = 1;
+    for (let t = 9; t < depthUp; t += 8) for (let u = 0.12; u < 1; u += 0.16) { const px = x0 * (1 - u), py = (eY - t) * (1 - u) + (aY - t) * u; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + sd * 3, py + 1); ctx.stroke(); }
+    if (o.roofStyle !== 'slate') { ctx.fillStyle = 'rgba(110,150,70,0.5)'; for (let i = 0; i < 5; i++) { const u = rnd(), t = rnd() * depthUp; ctx.beginPath(); ellipse(ctx, x0 * (1 - u), (eY - t) * (1 - u) + (aY - t) * u, 5, 2.5); ctx.fill(); } }
+    ctx.restore();
+  };
+  slope(-1, Rl); slope(1, Rd);
+  // faîtage
+  ctx.beginPath(); ctx.moveTo(-4, aY + 2); ctx.lineTo(-4, aY - depthUp); ctx.lineTo(4, aY - depthUp); ctx.lineTo(4, aY + 2); ctx.closePath(); ink(ctx, shade(R, -0.12), 2);
+  // pignon (mur triangulaire)
+  ctx.beginPath(); ctx.moveTo(-hw, -wallH); ctx.lineTo(0, apexY + 6); ctx.lineTo(hw, -wallH); ctx.closePath();
+  ink(ctx, o.wall, 2.4, { shadeFn: () => ctx.rect(-hw, -wallH - 14, o.w, 14), shadeCol: shade(o.wall, -0.18) });
+  if (o.timber) { ctx.strokeStyle = '#5a3a26'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, apexY + 8); ctx.lineTo(0, -wallH); ctx.moveTo(-hw * 0.5, -wallH); ctx.lineTo(0, apexY + 8 + (wallH * 0)); ctx.stroke(); }
+  // oculus
+  ctx.beginPath(); ctx.arc(0, (apexY - wallH) / 2 + 6, 8, 0, TAU); ink(ctx, '#2f4c5c', 1.8, { light: () => ctx.arc(-2, (apexY - wallH) / 2 + 4, 3.5, 0, TAU), lightCol: '#6f9cb4' });
+  ctx.strokeStyle = '#f2ead6'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-8, (apexY - wallH) / 2 + 6); ctx.lineTo(8, (apexY - wallH) / 2 + 6); ctx.stroke();
+  // rives épaisses le long du pignon
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(-hw - ov, eY); ctx.lineTo(0, aY); ctx.lineTo(hw + ov, eY); ctx.stroke();
+  ctx.strokeStyle = shade(R, -0.1); ctx.lineWidth = 6.5; ctx.stroke();
+  ctx.strokeStyle = Rl; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-hw - ov + 2, eY - 2); ctx.lineTo(0, aY - 2); ctx.lineTo(hw + ov - 2, eY - 2); ctx.stroke();
+  if (o.chimney !== undefined) {
+    const cx = o.chimney, cy = apexY - depthUp * 0.5 + Math.abs(cx) * 0.6;
+    ctx.beginPath(); ctx.rect(cx - 9, cy - 24, 18, 28); ink(ctx, '#a39484', 2, { shadeFn: () => ctx.rect(cx + 3, cy - 30, 10, 40), shadeCol: '#837466' });
+    ctx.beginPath(); rrect(ctx, cx - 12, cy - 29, 24, 7, 2); ink(ctx, '#8a7e70', 1.8);
+  }
 }
 
 function window_(ctx: Ctx, x: number, y: number, shutter: string, flowers: (() => number) | null, k = 1) {
@@ -813,5 +883,79 @@ export function mistWall(S: number, w: number): PropTex {
       g.addColorStop(0, 'rgba(225,230,240,0.55)'); g.addColorStop(1, 'rgba(225,230,240,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.fill();
     }
+  });
+}
+
+export function doormat(S: number): PropTex {
+  return makeTex(46, 22, 11, S, (ctx) => {
+    ctx.beginPath(); rrect(ctx, -18, -7, 36, 14, 3); ink(ctx, '#a0633a', 1.6, { light: () => ctx.rect(-18, -7, 36, 3), lightCol: '#c08050' });
+    ctx.strokeStyle = '#6b3f22'; ctx.lineWidth = 1; for (let x = -14; x <= 14; x += 4) { ctx.beginPath(); ctx.moveTo(x, -5); ctx.lineTo(x, 5); ctx.stroke(); }
+    ctx.strokeStyle = '#d9b25b'; ctx.lineWidth = 1.2; ctx.strokeRect(-14, -4, 28, 8);
+  });
+}
+
+/** Massif fleuri le long d'une façade. */
+export function flowerbed(S: number, w: number, seed: number): PropTex {
+  const r = new Rng(seed); const rnd = () => r.next();
+  return makeTex(w + 16, 40, 30, S, (ctx) => {
+    ctx.beginPath(); rrect(ctx, -w / 2, -12, w, 16, 6); ink(ctx, '#6b4a30', 1.8);
+    ctx.fillStyle = '#5a3d26'; ctx.fillRect(-w / 2 + 3, -9, w - 6, 3);
+    const cols = ['#e04a3a', '#f2a0b8', '#ffd84a', '#ffffff', '#b07ad8', '#ff9a3a'];
+    for (let x = -w / 2 + 6; x < w / 2 - 4; x += 7) {
+      ctx.beginPath(); ellipse(ctx, x, -12, 6, 5); ink(ctx, rnd() < 0.5 ? '#4f9a3e' : '#3f8a36', 1.2);
+      const c = cols[Math.floor(rnd() * cols.length)];
+      for (let k = 0; k < 2; k++) { const fx = x + (rnd() - 0.5) * 6, fy = -16 + rnd() * 6; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(fx, fy, 2.4, 0, TAU); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.7; ctx.stroke(); ctx.fillStyle = '#fff3a0'; ctx.beginPath(); ctx.arc(fx, fy, 0.8, 0, TAU); ctx.fill(); }
+    }
+  });
+}
+
+/** Pas japonais du seuil jusqu'au chemin. */
+export function steppingStones(S: number, len: number, seed: number): PropTex {
+  const r = new Rng(seed); const rnd = () => r.next();
+  return makeTex(50, len + 20, 10, S, (ctx) => {
+    for (let y = 4; y < len; y += 15) {
+      const x = (rnd() - 0.5) * 8;
+      ctx.beginPath(); ellipse(ctx, x, y, 10 + rnd() * 3, 6); ink(ctx, shade('#b5ad9e', (rnd() - 0.5) * 0.15), 1.4, { light: () => ellipse(ctx, x - 2, y - 2, 5, 2), lightCol: '#d6d0c2' });
+    }
+  });
+}
+
+/** Touffe de hautes herbes (ondule au vent). */
+export function tallGrass(seed: number, S: number, col = '#4f9a3e'): PropTex {
+  const r = new Rng(seed); const rnd = () => r.next();
+  return makeTex(44, 44, 38, S, (ctx) => {
+    softShadow(ctx, 2, 0, 15, 4, 0.22);
+    for (let i = 0; i < 13; i++) {
+      const x = (rnd() - 0.5) * 22, h = 16 + rnd() * 18, b = (rnd() - 0.5) * 12;
+      const c = i % 3 === 0 ? shade(col, 0.28) : i % 3 === 1 ? col : shade(col, -0.18);
+      ctx.beginPath(); ctx.moveTo(x - 2.2, 0); ctx.quadraticCurveTo(x + b * 0.3, -h * 0.6, x + b, -h); ctx.quadraticCurveTo(x + b * 0.3 + 1, -h * 0.55, x + 2.2, 0); ctx.closePath();
+      ink(ctx, c, 1, { stroke: shade(col, -0.45) });
+    }
+  });
+}
+
+/** Fougère de sous-bois. */
+export function fern(seed: number, S: number): PropTex {
+  const r = new Rng(seed); const rnd = () => r.next();
+  return makeTex(60, 40, 34, S, (ctx) => {
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + (i - 2.5) * 0.42 + (rnd() - 0.5) * 0.2, L = 18 + rnd() * 8;
+      const x2 = Math.cos(a) * L, y2 = Math.sin(a) * L * 0.8;
+      ctx.strokeStyle = '#2f5a2a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(x2 * 0.5, y2 * 0.7 - 4, x2, y2); ctx.stroke();
+      for (let k = 1; k < 7; k++) { const t = k / 7, px = x2 * t, py = y2 * t - 4 * t * (1 - t) * 4; for (const sd of [-1, 1]) { ctx.beginPath(); ellipse(ctx, px + sd * Math.cos(a + Math.PI / 2) * 3, py + sd * Math.sin(a + Math.PI / 2) * 3, 3 * (1 - t * 0.6), 1.2, a + sd * 0.7); ctx.fillStyle = k % 2 ? '#4f9a3e' : '#6db04c'; ctx.fill(); } }
+    }
+  });
+}
+
+/** Escalier de pierre qui monte une falaise (vu de face). */
+export function stoneStairs(S: number, w: number, h: number): PropTex {
+  return makeTex(w + 40, h + 30, h + 10, S, (ctx) => {
+    const n = Math.max(4, Math.round(h / 14));
+    for (let i = n - 1; i >= 0; i--) {
+      const y = -((i + 1) / n) * h, sh = h / n, inset = (i / n) * 6;
+      ctx.beginPath(); ctx.roundRect(-w / 2 + inset, y, w - inset * 2, sh + 2, 3);
+      ink(ctx, i % 2 ? '#b8b0a0' : '#c4bcac', 2, { shadeFn: () => ctx.rect(-w, y + sh * 0.55, w * 2, sh), shadeCol: '#958c7c', light: () => ctx.rect(-w, y, w * 2, 2.5), lightCol: '#ddd6c8' });
+    }
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.roundRect(sd * (w / 2 + 6) - 9, -h - 6, 18, h + 8, 6); ink(ctx, '#8a7f6e', 2.4, { light: () => ctx.rect(sd * (w / 2 + 6) - 9, -h - 6, 18, 4), lightCol: '#b5ab98' }); ctx.fillStyle = '#5f8a3e'; ctx.beginPath(); ellipse(ctx, sd * (w / 2 + 6), -h - 6, 10, 4); ctx.fill(); }
   });
 }

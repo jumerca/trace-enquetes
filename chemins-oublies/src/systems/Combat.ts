@@ -50,6 +50,7 @@ export interface CombatHost {
   settings(): Settings;
   onEncounterDone(id: string): void;
   onEngage(active: boolean): void;
+  onKill?(x: number, y: number): void;
 }
 
 const DIFF: Record<Settings['combat'], { windup: number; dmg: number; heroDmg: number }> = {
@@ -93,17 +94,20 @@ export class Combat {
     if (!e.alive || Math.hypot(e.x - hx, (e.y - hy) * 1.3) > 70 + (e.kind === 'ancien' ? 20 : 0)) return false;
     const dm = DIFF[this.host.settings().combat].heroDmg;
     e.hp -= dm;
+    // recul franc, éclair blanc
     const a = Math.atan2(e.y - hy, e.x - hx);
-    const nx = e.x + Math.cos(a) * 14, ny = e.y + Math.sin(a) * 14;
-    if (this.host.nav.freeAt(nx, ny)) { e.x = nx; e.y = ny; }
+    for (const k of [30, 20, 10]) { const nx = e.x + Math.cos(a) * k, ny = e.y + Math.sin(a) * k; if (this.host.nav.freeAt(nx, ny)) { e.x = nx; e.y = ny; break; } }
+    e.sprite.setTintFill(0xffffff); this.scene.time.delayedCall(80, () => e.sprite.clearTint());
+    if (e.st === 'windup') { e.st = 'recover'; e.t = 0; e.tele.clear(); e.sprite.play(`${e.def.tex}_idle`); } // un coup interrompt sa préparation
     audio.sfx('hit');
     if (e.hp <= 0) {
       e.st = 'dead'; e.tele.clear();
       e.sprite.play(`${e.def.tex}_die`);
       audio.sfx('poof');
       this.scene.tweens.add({ targets: e.sprite, alpha: 0, delay: 500, duration: 400, onComplete: () => e.sprite.setVisible(false) });
+      this.host.onKill?.(e.x, e.y);
       this.checkDone(e.enc);
-    } else if (e.st !== 'windup' && e.st !== 'strike') {
+    } else if (e.st !== 'strike') {
       e.st = 'hurt'; e.t = 0; e.sprite.play(`${e.def.tex}_hurt`);
     }
     return true;

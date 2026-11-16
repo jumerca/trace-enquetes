@@ -21,17 +21,17 @@ export const ROUTINES: Record<NpcId, () => Place | null> = {
     if (between(7, 12)) return { zone: 'clairval', pts: [[1300, 1000], [1000, 745], [640, 820], [600, 1150], [1540, 1010], [1780, 950], [2050, 765], [1900, 1180]], mode: 'loop', pause: 2, where: 'fait sa tournée (nord et est du village)' };
     if (between(12, 14)) return { zone: 'clairval', pts: [[1110, 1078]], mode: 'stand', face: 'down', where: 'déjeune sur un banc de la place' };
     if (between(14, 18)) return { zone: 'clairval', pts: [[1320, 1650], [955, 1800], [635, 1565], [1100, 1730], [1760, 1905], [2070, 1525], [1740, 1515]], mode: 'loop', pause: 2, where: 'fait sa tournée (sud du village)' };
-    return { zone: 'clairval', pts: [[1740, 1518]], mode: 'work', face: 'down', where: 'trie le courrier devant la Poste' };
+    return { zone: 'poste', pts: [[360, 250]], mode: 'work', face: 'down', talkRange: 125, where: 'trie le courrier à la Poste' };
   },
   mara: () => {
     if (between(7, 11)) return { zone: 'clairval', pts: [[2740, 1600], [2860, 1595]], mode: 'loop', pause: 5, where: 'dans son jardin, de l\'autre côté du pont' };
     if (between(11, 16)) return { zone: 'clairval', pts: [[1500, 1445]], mode: 'stand', face: 'down', where: 'à son étal du marché' };
     if (between(16, 19)) return { zone: 'clairval', pts: [[1420, 420], [1520, 470]], mode: 'loop', pause: 4, where: 'cueille des herbes près de la porte nord' };
-    return { zone: 'clairval', pts: [[2770, 1518]], mode: 'stand', face: 'down', where: 'devant sa maison, de l\'autre côté du pont' };
+    return { zone: 'maison_mara', pts: [[360, 300]], mode: 'work', face: 'down', where: 'chez elle, de l\'autre côté du pont' };
   },
   ninon: () => {
     if (between(7, 20)) return { zone: 'clairval', pts: [[1150, 1300], [1300, 1325], [1455, 1300], [1450, 1110], [1150, 1120]], mode: 'loop', pause: 1.2, speed: 70, where: 'joue autour de la fontaine' };
-    return { zone: 'clairval', pts: [[960, 1805]], mode: 'stand', face: 'down', where: 'devant sa maison, au sud du village' };
+    return { zone: 'maison_ninon', pts: [[340, 300]], mode: 'stand', face: 'down', where: 'chez elle, au sud du village' };
   },
   paulin: () => {
     if (between(7, 20)) return { zone: 'clairval', pts: [[1450, 1110], [1150, 1120], [1150, 1300], [1300, 1325], [1455, 1300]], mode: 'loop', pause: 0.8, speed: 85, where: 'court autour de la fontaine' };
@@ -43,6 +43,7 @@ export const ROUTINES: Record<NpcId, () => Place | null> = {
     ? { zone: 'clairval', pts: [[1420, 300]], mode: 'stand', face: 'left', where: 'à la porte nord' }
     : { zone: 'clairval', pts: [[1300, 262]], mode: 'stand', face: 'down', where: 'garde la porte nord' },
   anton: () => {
+    if (flag('stones_solved') && !flag('boss_done')) return { zone: 'moulin', pts: [[640, 1330]], mode: 'stand', face: 'right', where: 'à l\'écart du moulin, sur le chemin' };
     if (flag('stones_solved')) return { zone: 'moulin', pts: [[1040, 1020]], mode: flag('mill_running') ? 'work' : 'stand', face: 'right', where: 'devant son moulin' };
     return { zone: 'bois', pts: [[1745, 1440]], mode: 'work', face: 'right', where: 'au campement, dans le Bois' };
   },

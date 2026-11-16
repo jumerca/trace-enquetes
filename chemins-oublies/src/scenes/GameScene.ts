@@ -18,6 +18,8 @@ import { ITEMS } from '../data/items';
 import { BORNE_POS, STONES, stoneLit, stepMill, BORNE_IDS } from '../systems/Puzzles';
 import { revealAround } from '../systems/Atlas';
 import { audio } from '../systems/Audio';
+import { Atmosphere, applyCameraFX } from '../systems/Atmosphere';
+import { Boss, ARENA } from '../systems/Boss';
 import { writeSlot } from '../systems/SaveManager';
 import type { Api } from '../systems/api';
 import { ui } from '../ui/UI';
@@ -28,7 +30,7 @@ const CLOCK_RATE = 1.5; // minutes de jeu par seconde
 const WALK = 132, RUN = 215;
 
 interface PropRt { def: PropDef; img: Phaser.GameObjects.Image; x0: number; y0: number; x1: number; y1: number; alpha: number }
-type Target = { kind: 'npc'; npc: Npc } | { kind: 'obj'; obj: ObjDef } | { kind: 'enemy'; e: Enemy } | { kind: 'point' };
+type Target = { kind: 'npc'; npc: Npc } | { kind: 'obj'; obj: ObjDef } | { kind: 'enemy'; e: Enemy } | { kind: 'boss' } | { kind: 'cut'; img: Phaser.GameObjects.Image } | { kind: 'point' };
 
 export class GameScene extends Phaser.Scene implements Api {
   zone!: ZoneDef;
@@ -86,6 +88,19 @@ export class GameScene extends Phaser.Scene implements Api {
   private routeLayer: Phaser.GameObjects.Image | null = null;
   private exitMsgT = 0;
   selectedItem: string | null = null;
+  atmo!: Atmosphere;
+  boss: Boss | null = null;
+  bossActive = false;
+  private bossRing: Phaser.GameObjects.Image[] = [];
+  private hearts: Phaser.GameObjects.Image[] = [];
+  private hitStop = 0;
+  private dodgeT = 0;
+  private dodgeCd = 0;
+  private dodgeV: [number, number] = [0, 0];
+  private cut = new Set<string>();
+  private fpsT = 0;
+  private fpsN = 0;
+  private fxDowngraded = false;
 
   constructor() { super('game'); }
 
@@ -100,13 +115,15 @@ export class GameScene extends Phaser.Scene implements Api {
 
   create() {
     this.npcs = new NPCManager(this, this.S_);
+    this.atmo = new Atmosphere(this);
     this.combat = new Combat(this, {
       nav: null as any,
       heroPos: () => [this.hero.x, this.hero.y],
       heroHit: (d, x, y) => this.heroHit(d, x, y),
       settings: () => this.settings,
       onEncounterDone: (id) => this.encounterDone(id),
-      onEngage: (a) => { this.engaged = a; if (a) this.recenter(); ui.setDanger(a); audio.play(a ? 'danger' : ZONES[S.zone].music); },
+      onKill: (x, y) => { if (Math.random() < 0.5) this.dropHeart(x, y); },
+      onEngage: (a) => { this.engaged = a; ui.setDodge(a || this.bossActive); if (a) this.recenter(); ui.setDanger(a); audio.play(a ? 'danger' : ZONES[S.zone].music); },
     }, this.S_);
     Object.defineProperty((this.combat as any).host, 'nav', { get: () => this.nav });
     this.hero = new Actor(this, 'eloi', S.x, S.y, this.S_);
@@ -143,6 +160,7 @@ export class GameScene extends Phaser.Scene implements Api {
 
   // ============================================================== zones
   private clearZone() {
+    this.atmo?.clear();
     this.zoneObjs.forEach((o) => o.destroy()); this.zoneObjs = [];
     this.staticObjs.forEach((o) => o.destroy()); this.staticObjs = [];
     this.props = []; this.glows = []; this.arrows = []; this.stoneImgs.clear(); this.waterFx = []; this.sluices = {};
@@ -155,6 +173,7 @@ export class GameScene extends Phaser.Scene implements Api {
 
   loadZone(id: ZoneId, x?: number, y?: number, facing?: Dir) {
     this.clearZone();
+    this.cut.clear();
     this.npcs.clear(); this.combat.clear();
     const z = ZONES[id];
     this.zone = z;
@@ -173,7 +192,11 @@ export class GameScene extends Phaser.Scene implements Api {
     this.objs = OBJECTS.filter((o) => o.zone === id);
     this.npcs.spawn(id);
     this.combat.spawnZone(id);
+    this.boss?.destroy(); this.boss = null; this.bossActive = false; this.bossRing = []; this.hearts = []; ui.bossBar(null);
+    if (id === 'moulin' && flag('stones_solved') && !flag('boss_done')) this.boss = new Boss(this, (this.combat as any).host, this.S_);
     this.ambient();
+    this.atmo.build(z, this.settings.quality);
+    applyCameraFX(this.cameras.main, this.fxDowngraded ? 'moyenne' : this.settings.quality, !!z.interior);
     // caméra
     const cam = this.cameras.main;
     cam.setBackgroundColor(z.interior ? '#1a120e' : '#3f6b3a');
@@ -221,6 +244,7 @@ export class GameScene extends Phaser.Scene implements Api {
       if (def.tex === 'lamp') this.glow(def.x, def.y - 79, 0.9);
       if (def.tex === 'fire' || def.tex === 'fireplace') this.glow(def.x, def.y - 20, 1.4, true);
       if (def.tex.startsWith('house:')) this.glow(def.x, def.y - 40, 1.6);
+      if (def.tex.startsWith('tall:') && this.cut.has(`${z.id}:${def.x}:${def.y}`)) img.setVisible(false).setAlpha(0);
       if (def.tex === 'laundry' && !lowQ) this.tweens.add({ targets: img, scaleX: { from: img.scaleX, to: img.scaleX * 0.98 }, duration: 900, yoyo: true, repeat: -1 });
     }
     // flèches des bornes
@@ -233,6 +257,12 @@ export class GameScene extends Phaser.Scene implements Api {
       this.staticObjs.push(a); this.arrows.push(a);
       this.drawArrow(i);
     });
+    // paillassons devant les portes : on voit où l'on peut entrer
+    if (!z.interior) for (const e of z.exits) {
+      if (!e.door) continue;
+      const m = this.propImage({ tex: 'mat', x: e.rect.x + e.rect.w / 2, y: e.rect.y + 22, ground: true });
+      this.staticObjs.push(m);
+    }
     if (z.id === 'bois') this.updateStones();
     if (z.id === 'moulin') this.buildMill();
   }
@@ -475,7 +505,8 @@ export class GameScene extends Phaser.Scene implements Api {
       if (k === 'j') ui.openPanel('journal');
       if (k === '+' || k === '=') this.zoomStep(1);
       if (k === '-') this.zoomStep(-1);
-      if (k === 'c' || k === ' ') this.recenter();
+      if (k === ' ') { if (this.engaged || this.bossActive) this.dodge(); else this.recenter(); }
+      if (k === 'c') this.recenter();
     });
   }
 
@@ -520,11 +551,27 @@ export class GameScene extends Phaser.Scene implements Api {
     if (this.busy || this.time.now < this.busyUntil) return;
     const pad = 16 / this.cameras.main.zoom * (this.registry.get('renderScale') ?? 1);
     // ordre de priorité : ennemi, habitant, objet, sol
+    if (this.boss && this.boss.hitTest(wx, wy, pad)) { this.setTarget({ kind: 'boss' }); this.showLabel('Le Gardien des Ronces', this.boss.x, this.boss.y - 170); return; }
     const e = this.combat.pick(wx, wy, pad);
     if (e) { this.setTarget({ kind: 'enemy', e }); this.showLabel(e.kind === 'murmure' ? 'Murmure' : e.kind === 'ancien' ? 'Ronceux ancien' : 'Ronceux', e.x, e.y - 70); return; }
     const n = this.npcs.pick(wx, wy, pad);
     if (n) { this.setTarget({ kind: 'npc', npc: n }); this.showLabel(DIALOGS[n.id]?.name ?? n.id, n.x, n.y - 88); return; }
+    // une porte : Éloi entre
+    if (!this.zone.interior) for (const e of this.zone.exits) {
+      if (!e.door) continue;
+      const dx = e.rect.x + e.rect.w / 2;
+      if (Math.abs(wx - dx) < 28 + pad && wy > e.rect.y - 60 - pad && wy < e.rect.y + e.rect.h + 26 + pad) {
+        this.showLabel(evalCond(e.cond, flag) || (e.to === 'moulin_int' && has('cle_moulin')) ? 'Entrer : ' + ZONE_LABEL[e.to] : ZONE_LABEL[e.to] + ' (fermé)', dx, e.rect.y - 50);
+        this.goToPoint(dx, e.rect.y + e.rect.h / 2, false);
+        return;
+      }
+    }
     const o = this.pickObj(wx, wy, pad);
+    // hautes herbes : un coup de bâton les fauche
+    if (!o) {
+      const g = this.props.find((p) => p.def.tex.startsWith('tall:') && p.img.visible && p.img.alpha > 0.5 && Math.abs(wx - p.def.x) < 20 + pad && wy < p.def.y + 6 + pad && wy > p.def.y - 34 - pad);
+      if (g) { this.setTarget({ kind: 'cut', img: g.img }); return; }
+    }
     if (o) { this.setTarget({ kind: 'obj', obj: o }); if (!o.hidden) this.showLabel(o.name, o.x, o.y - (o.h ?? 50) - 8); return; }
     this.goToPoint(wx, wy, false);
   }
@@ -571,6 +618,8 @@ export class GameScene extends Phaser.Scene implements Api {
     if (t.kind === 'npc') return { x: t.npc.x, y: t.npc.y, r: t.npc.talkRange };
     if (t.kind === 'obj') return { x: t.obj.x, y: t.obj.y, r: t.obj.stand ?? 40 };
     if (t.kind === 'enemy') return { x: t.e.x, y: t.e.y, r: t.e.kind === 'ancien' ? 66 : 48 };
+    if (t.kind === 'boss' && this.boss) return { x: this.boss.x, y: this.boss.y + 6, r: 84 };
+    if (t.kind === 'cut') return { x: t.img.x, y: t.img.y, r: 34 };
     return null;
   }
 
@@ -614,6 +663,12 @@ export class GameScene extends Phaser.Scene implements Api {
   // ============================================================== mise à jour
   update(time: number, dms: number) {
     const dt = Math.min(0.05, dms / 1000);
+    this.atmo.update(dt);
+    // qualité adaptative : si l'image saccade en qualité haute, on retire les effets coûteux
+    if (this.settings.quality === 'haute' && !this.fxDowngraded) {
+      this.fpsT += dt; this.fpsN++;
+      if (this.fpsT > 6) { const fps = this.fpsN / this.fpsT; this.fpsT = 0; this.fpsN = 0; if (fps < 38) { this.fxDowngraded = true; applyCameraFX(this.cameras.main, 'moyenne', !!this.zone.interior); } }
+    }
     if (this.attract) {
       // écran d'accueil : la caméra flâne dans le village, les habitants vivent leur vie
       this.attractT += dt;
@@ -631,7 +686,22 @@ export class GameScene extends Phaser.Scene implements Api {
     if (this.hurtT > 0) this.hurtT -= dt;
     if (this.inv > 0) this.inv -= dt;
     this.updateGesture();
-    if (!modal && !this.busy && !this.transitioning) this.updateHero(dt);
+    if (this.hitStop > 0) { this.hitStop -= dt; return; }
+    if (this.dodgeCd > 0) this.dodgeCd -= dt;
+    if (this.dodgeT > 0) this.updateDodge(dt);
+    else if (!modal && !this.busy && !this.transitioning) this.updateHero(dt);
+    if (this.hearts.length) this.collectHearts();
+    if (this.boss && !modal && !this.transitioning) {
+      if (!this.bossActive && this.boss.st === 'intro' && !this.busy && Math.hypot(this.hero.x - ARENA.x, this.hero.y - ARENA.y) < ARENA.r - 20) void this.startBossFight();
+      if (this.bossActive) {
+        const diff = { exploration: [1.5, 0], facile: [1.35, 1], normale: [1, 1], difficile: [0.8, 1] }[this.settings.combat];
+        this.boss.update(dt, diff[0], diff[1]);
+        ui.bossBar('Le Gardien des Ronces', this.boss.hp / this.boss.maxHp);
+        // l'arène est fermée par les ronces
+        const dx = this.hero.x - ARENA.x, dy = this.hero.y - ARENA.y, d = Math.hypot(dx, dy);
+        if (d > ARENA.r - 10) this.hero.setPos(ARENA.x + dx / d * (ARENA.r - 12), ARENA.y + dy / d * (ARENA.r - 12));
+      }
+    }
     this.npcs.update(dt, this.nav, this.zone.id, [this.hero.x, this.hero.y]);
     if (!modal && !this.transitioning) this.combat.update(dt);
     if (this.zone.id === 'moulin') {
@@ -713,7 +783,7 @@ export class GameScene extends Phaser.Scene implements Api {
     h.faceToward(h.x + dx, h.y + dy);
     h.play(running ? 'run' : 'walk');
     this.stepT -= dt;
-    if (this.stepT <= 0) { this.stepT = running ? 0.22 : 0.34; audio.sfx('step', { surface: this.surface() }); }
+    if (this.stepT <= 0) { this.stepT = running ? 0.22 : 0.34; const sf = this.surface(); audio.sfx('step', { surface: sf }); if (this.settings.quality !== 'basse') this.atmo.dust(h.x, h.y, sf); }
     if (!this.path.length && this.target?.kind === 'point') { this.target = null; h.play('idle'); }
   }
 
@@ -729,14 +799,28 @@ export class GameScene extends Phaser.Scene implements Api {
     const t = this.target!; const h = this.hero;
     const tp = this.targetPos()!;
     h.faceToward(tp.x, tp.y);
-    if (t.kind === 'enemy') {
+    if (t.kind === 'enemy' || t.kind === 'boss') {
       this.attackT -= dt;
       if (this.attackT <= 0 && this.hurtT <= 0) {
-        this.attackT = 0.62;
+        this.attackT = 0.55;
         h.play('attack', true);
         audio.sfx('swing');
-        this.time.delayedCall(170, () => { if (t.e.alive) this.combat.strike(t.e, this.hero.x, this.hero.y); });
+        this.slash(tp.x, tp.y);
+        this.time.delayedCall(150, () => {
+          if (t.kind === 'enemy') { if (t.e.alive && this.combat.strike(t.e, this.hero.x, this.hero.y)) this.hitStop = 0.07; }
+          else if (this.boss) {
+            const r = this.boss.strike(this.hero.x, this.hero.y, { exploration: 2, facile: 1.5, normale: 1, difficile: 1 }[this.settings.combat]);
+            if (r === 'hit') this.hitStop = 0.09;
+            if (r === 'bounce') { const a = Math.atan2(this.hero.y - this.boss.y, this.hero.x - this.boss.x); const nx = this.hero.x + Math.cos(a) * 28, ny = this.hero.y + Math.sin(a) * 28; if (this.nav.freeAt(nx, ny)) this.hero.setPos(nx, ny); this.spark(this.boss.x, this.boss.y - 60); if (!flag('tuto_coeur')) { setFlag('tuto_coeur'); ui.hint('Ses ronces sont trop dures : attendez que son cœur s\'ouvre !'); } }
+          }
+        });
       }
+      return;
+    }
+    if (t.kind === 'cut') {
+      this.target = null; this.path = [];
+      h.play('attack', true); audio.sfx('swing'); this.slash(t.img.x, t.img.y - 10);
+      this.time.delayedCall(140, () => this.mow(t.img));
       return;
     }
     this.target = null; this.path = [];
@@ -813,6 +897,16 @@ export class GameScene extends Phaser.Scene implements Api {
     const look = this.path.length ? 70 : 0;
     const tx = this.hero.x + this.vx * look, ty = this.hero.y - 20 + this.vy * look * 0.7;
     if (this.camFree) { if (!(this as any)._panning) cam.centerOn(this.camX, this.camY); return; }
+    if (this.bossActive && this.boss && !(this as any)._panning) {
+      // combat de boss : la caméra cadre l'arène entière (Éloi et le Gardien toujours visibles)
+      const tx = (this.hero.x + this.boss.x) / 2 * 0.5 + ARENA.x * 0.5, ty = (this.hero.y + this.boss.y - 60) / 2 * 0.5 + ARENA.y * 0.5;
+      const k = Math.min(1, dt * 3);
+      this.camX += (tx - this.camX) * k; this.camY += (ty - this.camY) * k;
+      const want = Math.min(cam.height / (ARENA.r * 2 + 220), cam.width / (ARENA.r * 2 + 360));
+      cam.setZoom(cam.zoom + (want - cam.zoom) * k);
+      cam.centerOn(this.camX, this.camY);
+      return;
+    }
     const k = Math.min(1, dt * 4.5);
     this.camX += (tx - this.camX) * k; this.camY += (ty - this.camY) * k;
     if (!(this as any)._panning) cam.centerOn(this.camX, this.camY);
@@ -882,7 +976,7 @@ export class GameScene extends Phaser.Scene implements Api {
       const r = e.rect;
       if (hx < r.x || hx > r.x + r.w || hy < r.y || hy > r.y + r.h) continue;
       if (!evalCond(e.cond, flag)) {
-        if (e.to === 'moulin_int' && has('cle_moulin')) { setFlag('mill_unlocked'); audio.sfx('door'); void this.say([{ s: 'narr', t: "La clé d'Anton tourne dans la serrure. En soulevant la porte, elle s'ouvre avec un long grincement." }]); return; }
+        if (e.to === 'moulin_int' && has('cle_moulin') && flag('boss_done') && !flag('mill_unlocked')) { setFlag('mill_unlocked'); audio.sfx('door'); void this.say([{ s: 'narr', t: "La clé d'Anton tourne dans la serrure. En soulevant la porte, elle s'ouvre avec un long grincement." }]); return; }
         if (e.blockedMsg && this.exitMsgT <= 0) { this.exitMsgT = 4; void this.say([{ s: 'narr', t: e.blockedMsg }]); this.stopHero(); this.hero.setPos(hx, hy + 18); }
         continue;
       }
@@ -945,6 +1039,7 @@ export class GameScene extends Phaser.Scene implements Api {
     if (cp.zone !== this.zone.id) this.loadZone(cp.zone, cp.x, cp.y, 'up');
     else { this.hero.setPos(cp.x, cp.y); this.camX = cp.x; this.camY = cp.y; }
     this.combat.resetAlive();
+    if (this.bossActive && this.boss) this.boss.reset();
     ui.hearts();
     cam.fadeIn(600, 30, 10, 10);
     await this.say([{ s: 'narr', t: "Éloi reprend ses esprits un peu plus loin, le souffle court. Les créatures n'ont pas bougé." }, { s: 'eloi', t: "Quand elles se préparent, je m'écarte. Quand elles se reposent, je frappe." }]);
@@ -1007,7 +1102,8 @@ export class GameScene extends Phaser.Scene implements Api {
     addNote('note_finale');
     await this.say([
       { s: 'narr', t: "Sur la dernière page complétée, une annotation à l'encre brune. L'écriture penchée de Maëlys." },
-      { s: 'narr', t: "« Cette route n'a pas été oubliée. Elle a été effacée — volontairement. Les Conservateurs savent pourquoi. »" },
+      { s: 'narr', t: "« Cette route n'a pas été oubliée. Elle a été effacée — volontairement. Le gardien des ronces n'était pas là pour te barrer la route : il gardait le silence de la roue. »" },
+      { s: 'narr', t: "« Les Conservateurs savent pourquoi. »" },
       { s: 'narr', t: "« Ne me cherche pas encore à Brumecime. Pas avant d'avoir compris ce que les chemins protègent. — M. »" },
       { s: 'eloi', t: "Volontairement… Maëlys, dans quoi est-ce que tu t'es lancée ?", m: 'souci' },
     ]);
@@ -1017,6 +1113,126 @@ export class GameScene extends Phaser.Scene implements Api {
     this.save('fin');
     audio.sfx('fanfare');
     await ui.chapterEnd();
+    this.busy = false;
+  }
+
+  // ============================================================== combat façon aventure
+  private slash(tx: number, ty: number) {
+    const a = Math.atan2(ty - 30 - (this.hero.y - 30), tx - this.hero.x);
+    const sl = this.add.image(this.hero.x + Math.cos(a) * 26, this.hero.y - 30 + Math.sin(a) * 18, 'fx_slash').setRotation(a).setScale(0.9 / this.S_).setDepth(this.hero.y + 5).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: sl, alpha: 0, scale: 1.2 / this.S_, duration: 180, onComplete: () => sl.destroy() });
+  }
+  private spark(x: number, y: number) {
+    const s = this.add.image(x, y, 'fx_spark').setScale(1.4 / this.S_).setDepth(9e6).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: s, alpha: 0, scale: 2.4 / this.S_, angle: 90, duration: 260, onComplete: () => s.destroy() });
+  }
+  /** Fauche une touffe d'herbe : brins qui volent, parfois un cœur caché. */
+  private mow(img: Phaser.GameObjects.Image) {
+    if (!img.active || !img.visible) return;
+    audio.sfx('page');
+    for (let i = 0; i < 7; i++) {
+      const b = this.add.image(img.x, img.y - 12, 'fx_blade').setScale(1 / this.S_).setDepth(img.y + 10).setRotation(Math.random() * 6);
+      this.tweens.add({ targets: b, x: img.x + (Math.random() - 0.5) * 60, y: img.y - 10 - Math.random() * 30, angle: 360, alpha: 0, duration: 600, ease: 'Quad.easeOut', onComplete: () => b.destroy() });
+    }
+    img.setVisible(false).setAlpha(0);
+    this.cut.add(`${this.zone.id}:${img.x}:${img.y}`);
+    if (Math.random() < (S.hp < S.maxHp ? 0.22 : 0.08)) this.dropHeart(img.x, img.y);
+  }
+  dropHeart(x: number, y: number) {
+    const h = this.add.image(x, y - 10, 'fx_heart').setScale(1 / this.S_).setDepth(y + 1);
+    this.tweens.add({ targets: h, y: y - 26, duration: 220, yoyo: true, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: h, scale: 1.12 / this.S_, duration: 500, yoyo: true, repeat: -1, delay: 450 });
+    this.hearts.push(h);
+    this.time.delayedCall(14000, () => { if (h.active) { this.tweens.add({ targets: h, alpha: 0, duration: 600, onComplete: () => h.destroy() }); } });
+  }
+  private collectHearts() {
+    for (const h of this.hearts) {
+      if (!h.active) continue;
+      if (Math.hypot(h.x - this.hero.x, h.y - 14 - this.hero.y) < 34) {
+        h.destroy(); S.hp = Math.min(S.maxHp, S.hp + 1); audio.sfx('heal'); ui.hearts();
+      }
+    }
+    this.hearts = this.hearts.filter((h) => h.active);
+  }
+  /** Esquive (roulade) : bond rapide, invulnérable un court instant. */
+  dodge() {
+    if (this.dodgeCd > 0 || this.dodgeT > 0 || this.busy || ui.isModal()) return;
+    let ax = this.vx, ay = this.vy;
+    const threats: [number, number][] = this.combat.enemies.filter((e) => e.alive).map((e) => [e.x, e.y]);
+    if (this.boss && this.bossActive) threats.push([this.boss.x, this.boss.y]);
+    if (threats.length) {
+      threats.sort((p, q) => Math.hypot(p[0] - this.hero.x, p[1] - this.hero.y) - Math.hypot(q[0] - this.hero.x, q[1] - this.hero.y));
+      const [tx, ty] = threats[0];
+      const a = Math.atan2(this.hero.y - ty, this.hero.x - tx) + (Math.random() < 0.5 ? 0.9 : -0.9);
+      ax = Math.cos(a); ay = Math.sin(a);
+    }
+    if (Math.hypot(ax, ay) < 0.1) { const d = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[this.hero.dir]; ax = d[0]; ay = d[1]; }
+    const n = Math.hypot(ax, ay); this.dodgeV = [ax / n, ay / n];
+    this.dodgeT = 0.24; this.dodgeCd = 0.65; this.inv = Math.max(this.inv, 0.42);
+    this.path = []; if (this.target?.kind === 'point') this.target = null;
+    this.hero.faceToward(this.hero.x + ax * 10, this.hero.y + ay * 10); this.hero.play('run', true);
+    audio.sfx('whoosh');
+  }
+  private updateDodge(dt: number) {
+    this.dodgeT -= dt;
+    const sp = 430 * dt;
+    const nx = this.hero.x + this.dodgeV[0] * sp, ny = this.hero.y + this.dodgeV[1] * sp;
+    if (this.nav.freeAt(nx, ny)) this.hero.setPos(nx, ny);
+    this.hero.sprite.setAngle(this.dodgeT > 0 ? Math.sin((0.24 - this.dodgeT) / 0.24 * Math.PI) * 18 * Math.sign(this.dodgeV[0] || 1) : 0);
+    this.atmo.dust(this.hero.x, this.hero.y, 'dirt');
+    if (this.dodgeT <= 0) { this.hero.sprite.setAngle(0); this.hero.play('idle', true); }
+  }
+
+  // ============================================================== le Gardien des Ronces
+  private async startBossFight() {
+    if (!this.boss || this.bossActive) return;
+    this.busy = true; this.stopHero();
+    S.checkpoint = { zone: 'moulin', x: ARENA.x, y: ARENA.y + ARENA.r - 50 };
+    this.bossActive = true;
+    // anneau de ronces : l'arène se referme
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2, x = ARENA.x + Math.cos(a) * (ARENA.r + 20), y = ARENA.y + Math.sin(a) * (ARENA.r + 20);
+      const k = 'p:bramble:70:' + (i % 5 + 30) + '@' + this.S_;
+      if (!this.textures.exists(k)) this.textures.addCanvas(k, propTex('bramble:70:' + (i % 5 + 30), this.S_).canvas);
+      const b = this.add.image(x, y + 20, k).setScale(0.2 / this.S_).setOrigin(0.5, 0.85).setDepth(y);
+      this.tweens.add({ targets: b, scale: 1 / this.S_, y, duration: 500, delay: i * 25, ease: 'Back.easeOut' });
+      this.bossRing.push(b);
+    }
+    audio.sfx('slam'); this.cameras.main.shake(400, 0.006);
+    audio.play('danger');
+    await this.pan([this.boss.x, this.boss.y - 60], 900, 200);
+    this.boss.appear();
+    await this.wait(700);
+    await this.say([
+      { s: 'narr', t: "Les ronces qui étouffent la roue se mettent à bouger. Elles se rassemblent, se tressent, se dressent…" },
+      { s: 'eloi', t: "Ce n'est pas une haie. C'est un gardien. Quelqu'un l'a planté là pour que le moulin se taise !", m: 'surprise' },
+      { s: 'narr', t: "Au centre de la masse d'épines bat un cœur d'ambre, enfermé dans des pétales d'écorce." },
+    ]);
+    if (!flag('tuto_boss')) { setFlag('tuto_boss'); ui.toast('Ses ronces sont invulnérables : esquivez les coups annoncés, et frappez son cœur quand il s\'ouvre.', 'info'); }
+    await this.pan([this.hero.x, this.hero.y], 700, 0);
+    this.boss.onDefeat = () => void this.bossDefeated();
+    ui.setDodge(true);
+    this.engaged = true; ui.setDanger(true);
+    this.busy = false;
+  }
+
+  private async bossDefeated() {
+    this.busy = true; this.stopHero();
+    this.bossActive = false; ui.bossBar(null); ui.setDodge(false); this.engaged = false; ui.setDanger(false); this.applyZoom();
+    for (const [i, b] of this.bossRing.entries()) this.tweens.add({ targets: b, scale: 0, alpha: 0, duration: 400, delay: i * 20, onComplete: () => b.destroy() });
+    this.bossRing = [];
+    setFlag('boss_done');
+    audio.play('moulin');
+    await this.say([
+      { s: 'narr', t: "Le cœur d'ambre se fend. Les ronces sèchent d'un coup, tombent en poussière autour de la roue." },
+      { s: 'narr', t: "Dans les cendres, une graine dure comme une pierre, chaude comme une braise : un cœur de chêne." },
+      { s: 'eloi', t: "Le moulin est libre. Maintenant, la roue." },
+    ]);
+    this.give('coeur_chene');
+    S.maxHp += 1; S.hp = S.maxHp; ui.hearts();
+    this.toast('Cœur de chêne : un cœur de plus !', 'secret');
+    S.log.push('Le Gardien des Ronces est vaincu. Le moulin est libre.');
+    this.rebuild(); this.quest(); this.save('boss');
     this.busy = false;
   }
 
@@ -1126,7 +1342,7 @@ export class GameScene extends Phaser.Scene implements Api {
     if (!flag('boussole_ok') || flag('chapter_done')) return null;
     const st = currentMainStep()?.id;
     const goals: Record<string, [ZoneId, number, number]> = {
-      bois: ['clairval', 1300, 230], anton: ['bois', 1760, 1440], pierres: ['bois', 1100, 770], moulin: flag('mill_unlocked') ? ['moulin_int', 560, 360] : ['moulin', 1190, 940], roue: ['moulin', 1500, 500], route: ['moulin', 1250, 960],
+      bois: ['clairval', 1300, 230], anton: ['bois', 1760, 1440], pierres: ['bois', 1100, 770], gardien: ['moulin', ARENA.x, ARENA.y], moulin: flag('mill_unlocked') ? ['moulin_int', 560, 360] : ['moulin', 1190, 940], roue: ['moulin', 1500, 500], route: ['moulin', 1250, 960],
     };
     const g = st ? goals[st] : undefined; if (!g) return null;
     let [gz, gx, gy] = g;
