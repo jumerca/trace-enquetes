@@ -3,7 +3,7 @@ import { borneSolution, rotateBorne, bornesCorrect, touchStone, toggleVanne, ste
 import { migrate, writeSlot, readSlot, useStore, listSlots } from '../src/systems/SaveManager';
 import { DIALOGS } from '../src/data/dialogues';
 import { ITEMS } from '../src/data/items';
-import { CLUES, NOTES, MAIN } from '../src/data/story';
+import { CLUES, NOTES, MAIN, CLUE_TIPS, SIDE, hintText } from '../src/data/story';
 import { OBJECTS } from '../src/data/objects';
 import { SCRIPTS } from '../src/systems/Scripts';
 import { ROUTINES, NPC_IDS } from '../src/data/npcs';
@@ -73,6 +73,12 @@ describe('cohérence des données', () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+  it('chaque indice a un conseil d\'Éloi, et toutes les aides se lisent', () => {
+    expect(Object.keys(CLUES).filter((c) => !CLUE_TIPS[c])).toEqual([]);
+    setState(newGame());
+    for (const m of MAIN) for (const h of m.hints) expect(hintText(h).length).toBeGreaterThan(10);
+    for (const q of SIDE) expect(q.tip?.().length ?? 0).toBeGreaterThan(10);
   });
   it('chaque objet interactif a un script', () => { expect(OBJECTS.filter((o) => !SCRIPTS[o.id]).map((o) => o.id)).toEqual([]); });
   it('chaque étape de quête a au moins deux indices progressifs', () => { for (const m of MAIN) expect(m.hints.length).toBeGreaterThanOrEqual(2); });

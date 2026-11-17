@@ -248,3 +248,11 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 32px; }
 .bossbar .bb { height: 14px; border: 2px solid var(--ink); border-radius: 8px; background: #3a1d16; overflow: hidden; margin-top: 2px; box-shadow: 0 3px 0 rgba(0,0,0,.4); }
 .bossbar .bb i { display: block; height: 100%; background: linear-gradient(#ffb04a, #d0503a); transition: width .25s; }
 @media (max-height: 500px) { .dodge { width: 70px; height: 70px; right: calc(62px + var(--safe-r)); bottom: calc(20px + var(--safe-b)); } .bossbar { top: calc(52px + var(--safe-t)); } }
+/* indices : conseil d'Éloi au toucher */
+.cards.clues li { cursor: pointer; transition: transform .12s; }
+.cards.clues li:active { transform: scale(.98); }
+.cards.clues li.open { border-color: var(--teal); }
+.cards .tip { margin-top: 6px; background: #fff6dc; border-left: 4px solid var(--teal); padding: 5px 8px; border-radius: 4px; line-height: 1.35; font-size: .95em; }
+.cards .tip span { font-family: 'Alegreya SC', serif; font-weight: 700; color: var(--teal); }
+.cards .tip.hidden { display: none; }
+.cards.clues { align-items: start; }
