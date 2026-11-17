@@ -40,6 +40,8 @@ function make(key: string, S: number): PropTex {
     case 'signpost': return P.signpost(S, ['a', 'b']);
     case 'notice': return P.noticeBoard(S);
     case 'laundry': return P.laundry(S);
+    case 'bunting': return P.bunting(+a, S);
+    case 'feast': return P.feastTable(S);
     case 'woodpile': return P.woodpile(S);
     case 'haystack': return P.haystack(S);
     case 'cart': return P.cart(S);

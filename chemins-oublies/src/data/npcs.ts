@@ -11,7 +11,20 @@ const between = (a: number, b: number) => { const x = h(); return a < b ? x >= a
 export const NPC_IDS = ['agathe', 'basile', 'mara', 'ninon', 'paulin', 'salome', 'coline', 'theodore', 'anton', 'gaspard', 'odile'] as const;
 export type NpcId = typeof NPC_IDS[number];
 
-export const ROUTINES: Record<NpcId, () => Place | null> = {
+/** Fête des moissons : le soir, une fois la route revenue, tout le village se retrouve sur la place. */
+export const isFete = () => flag('chapter_done') && between(17, 23);
+const FETE_SPOT: Partial<Record<NpcId, [number, number, Dir]>> = {
+  agathe: [1400, 1105, 'down'], anton: [1475, 1100, 'down'], basile: [1185, 1105, 'right'], mara: [1110, 1250, 'right'],
+  coline: [1135, 1320, 'up'], theodore: [1500, 1262, 'left'], salome: [1520, 1318, 'left'], gaspard: [1245, 1335, 'up'], odile: [1360, 1340, 'up'],
+};
+const fete = (id: NpcId): Place | null => {
+  if (!isFete()) return null;
+  if (id === 'ninon' || id === 'paulin') return { zone: 'clairval', pts: id === 'ninon' ? [[1150, 1300], [1300, 1325], [1455, 1300], [1450, 1110], [1150, 1120]] : [[1455, 1300], [1300, 1325], [1150, 1300], [1150, 1120], [1450, 1110]], mode: 'loop', pause: 0.6, speed: 80, where: 'danse autour de la fontaine' };
+  const f = FETE_SPOT[id];
+  return f ? { zone: 'clairval', pts: [[f[0], f[1]]], mode: 'stand', face: f[2], where: 'à la fête des moissons, sur la place' } : null;
+};
+
+const BASE: Record<NpcId, () => Place | null> = {
   agathe: () => {
     if (between(6, 12)) return { zone: 'clairval', pts: [[1205, 965], [1395, 968]], mode: 'loop', pause: 3, where: "balaie devant l'auberge" };
     if (between(18, 21)) return { zone: 'clairval', pts: [[1175, 948], [1300, 950], [1425, 948]], mode: 'loop', pause: 2.5, where: "ferme les volets de l'auberge" };
@@ -50,5 +63,7 @@ export const ROUTINES: Record<NpcId, () => Place | null> = {
   gaspard: () => (between(6, 21) ? { zone: 'clairval', pts: [[2292, 1650]], mode: 'stand', face: 'right', where: 'pêche au bord de la rivière' } : null),
   odile: () => (between(6, 19) ? { zone: 'clairval', pts: [[760, 1612], [840, 1612]], mode: 'loop', pause: 6, where: 'dans son potager' } : null),
 };
+
+export const ROUTINES = Object.fromEntries(NPC_IDS.map((id) => [id, () => fete(id) ?? BASE[id]()])) as Record<NpcId, () => Place | null>;
 
 export const MAIN_NPCS: NpcId[] = ['agathe', 'basile', 'ninon', 'mara', 'anton', 'coline', 'theodore', 'salome'];

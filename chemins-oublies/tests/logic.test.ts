@@ -96,6 +96,19 @@ describe('cohérence des données', () => {
       }
     }
   });
+  it('pendant la fête des moissons, chacun est sur une case libre de la place', () => {
+    setState(newGame());
+    for (const f of ['chapter_done', 'route_revealed', 'stones_solved', 'boss_done', 'mill_running', 'theo_ok']) S.flags[f] = true;
+    const g = new NavGrid(ZONES.clairval, (f) => !!S.flags[f]);
+    for (let h = 17; h < 23; h += 0.5) {
+      S.clock = h * 60;
+      for (const id of NPC_IDS) {
+        const p = ROUTINES[id](); if (!p) continue;
+        expect(p.zone, `${id} ${h}h`).toBe('clairval');
+        for (const [x, y] of p.pts) expect(g.freeAt(x, y), `${id} ${h}h ${x},${y}`).toBe(true);
+      }
+    }
+  });
   it('les personnages indispensables sont toujours localisables', () => {
     for (let h = 0; h < 24; h++) { S.clock = h * 60; for (const id of ['agathe', 'basile', 'ninon', 'mara', 'salome', 'coline', 'theodore', 'anton'] as const) expect(ROUTINES[id](), `${id} à ${h}h`).not.toBeNull(); }
   });
