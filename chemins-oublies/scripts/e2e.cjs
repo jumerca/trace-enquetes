@@ -149,6 +149,7 @@ async function talkTo(id, plan = [], opts = {}) {
   const w = await ev(`__t.where('${id}')`);
   if (!w) throw new Error(id + ' introuvable à cette heure');
   await travel(w.zone);
+  await sleep(1300); await dialog(); // pensée d'Éloi à la première visite d'un lieu
   for (let k = 0; k < 8; k++) {
     let p = await ev(`__t.npc('${id}')`);
     if (!p) { await sleep(500); continue; }

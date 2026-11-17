@@ -171,7 +171,7 @@ export class GameScene extends Phaser.Scene implements Api {
     setFlag('vu_zone_' + id);
     this.time.delayedCall(1100, async () => {
       if (this.busy || ui.isModal()) return;
-      this.busy = true;
+      this.busy = true; this.path = []; this.target = null; this.hero.play('idle', true);
       try { await this.say(lines); } finally { this.busy = false; }
     });
   }
