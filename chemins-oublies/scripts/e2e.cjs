@@ -284,6 +284,11 @@ async function solveBorne(id, x, y, target) {
   }
   await talkTo('agathe');
   check('Agathe : le moulin existait', (await flags()).agathe_moulin);
+  // Porte nord sans autorisation : Théodore intercepte une seule fois, la conversation se ferme
+  await walkTo(1300, 330, 50).catch(() => {});
+  await clickWorld(1300, 215, 0); await sleep(2500);
+  await dialog(); await sleep(2000);
+  check('porte nord : Théodore intercepte, puis on est libre', !(await info()).dlg && !(await flags()).theo_ok);
   await screenshot('02-agathe');
 
   // Séquence 2

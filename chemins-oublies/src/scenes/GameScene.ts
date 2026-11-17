@@ -58,6 +58,8 @@ export class GameScene extends Phaser.Scene implements Api {
   private memActors: Actor[] = [];
   /** Après un travelling scénarisé, la caméra garde son cadrage jusqu'à la fin de la scène. */
   private camHold = false;
+  /** Théodore n'intercepte qu'une fois par approche de la porte nord. */
+  private theoArmed = true;
   private pendingMem: string | null = null;
   /** Musique imposée par une scène (souvenir, apparition…), sinon choisie selon le lieu et l'intrigue. */
   private musicOverride: Theme | null = null;
@@ -1103,9 +1105,26 @@ export class GameScene extends Phaser.Scene implements Api {
       }
     }
     // Théodore intercepte qui s'approche de la porte sans autorisation
-    if (this.zone.id === 'clairval' && !flag('theo_ok') && hy < 330 && Math.abs(hx - 1300) < 120 && !this.busy) {
+    // (une seule fois par approche : il faut s'éloigner de la porte pour qu'il intercepte de nouveau)
+    const nearGate = this.zone.id === 'clairval' && hy < 330 && Math.abs(hx - 1300) < 120;
+    if (!nearGate && hy > 380) this.theoArmed = true;
+    if (nearGate && this.theoArmed && !flag('theo_ok') && !this.busy && !ui.isModal()) {
       const n = this.npcs.npcs.get('theodore');
-      if (n && Math.hypot(n.x - hx, n.y - hy) < 90) { this.stopHero(); void this.talk(n).then(() => { if (!flag('theo_ok')) this.goToPoint(1300, 420, true); }); }
+      if (n && Math.hypot(n.x - hx, n.y - hy) < 90) {
+        this.theoArmed = false;
+        this.stopHero();
+        void this.talk(n).then(() => { if (!flag('theo_ok')) this.stepBack([[1300, 420], [1220, 400], [1380, 400], [1300, 360]]); });
+      }
+    }
+  }
+
+  /** Recule vers le premier point atteignable de la liste. */
+  private stepBack(pts: Pt[]) {
+    for (const [x, y] of pts) {
+      const d = this.nav.freeAt(x, y) ? [x, y] : this.nav.nearestFree(x, y, 4, [this.hero.x, this.hero.y]);
+      if (!d) continue;
+      const path = this.nav.findPath([this.hero.x, this.hero.y], d as Pt, false);
+      if (path) { this.target = { kind: 'point' }; this.path = path; return; }
     }
   }
 
