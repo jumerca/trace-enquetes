@@ -16,14 +16,14 @@ export const SCRIPTS: Record<string, (api: Api) => Promise<void>> = {
       E("Sur le flanc, une inscription usée : « TROIS-EAUX — UNE LIEUE ».", 'surprise'),
       E("Le moulin ! Il n'est pourtant sur aucune carte. Maëlys est passée par ici, j'en suis sûr. Commençons par l'auberge."),
     ]);
-    if (!flag('borne_vue')) { setFlag('borne_vue'); api.quest(); api.save(); }
+    if (!flag('borne_vue')) { setFlag('borne_vue'); api.quest(); api.save(); await api.fx('memory', 'borne'); }
   },
   async panneau(api) {
     await api.say([N("« ↑ Place du village   ← Champs   → Pont » — Une quatrième flèche a été arrachée. Il reste les clous.")]);
   },
   async notice(api) {
     await api.anim('inspect', 500);
-    await api.say([N("« DISPARU : Anton Verdier, meunier. Barbe grise, casquette, sent la farine. Récompense. »"), N("« Fête des moissons : reportée faute de farine. »"), N("« LE BOIS EST FERMÉ. — Théodore »")]);
+    await api.say([...(flag('chapter_done') ? [N("« Retrouvé : Anton Verdier. » Quelqu'un a ajouté au crayon : « Il sent toujours la farine. »"), N("« FÊTE DES MOISSONS : ce soir, sur la place ! La farine est revenue. »"), N("« Le Bois est rouvert. — Théodore »")] : [N("« DISPARU : Anton Verdier, meunier. Barbe grise, casquette, sent la farine. Récompense. »"), N("« Fête des moissons : reportée faute de farine. »"), N("« LE BOIS EST FERMÉ. — Théodore »")])]);
   },
   async fontaine(api) {
     await api.say([E("L'eau est fraîche et claire. Au fond brillent quelques pièces : des vœux."), E(flag('chapter_done') ? "J'en ajouterais bien une. Pour Maëlys." : "Je fais le vœu de retrouver la route. Et Maëlys.")]);
@@ -188,6 +188,8 @@ async function stone(api: Api, sym: string) {
     api.toast('La brume se retire vers le nord', 'decouverte');
     await api.say([N("Les trois gravures brillent ensemble. Un long souffle traverse les arbres, et la brume du nord se déchire comme un vieux drap.")]);
     api.rebuild(); api.quest(); api.save('pierres');
+    await api.wait(400);
+    await api.fx('memory', 'dispute');
   }
 }
 

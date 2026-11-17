@@ -155,6 +155,10 @@ const village: ZoneDef = {
     { tex: 'stall:d9b25b:bread', x: 1210, y: 1405, foot: { w: 104, h: 26 } },
     { tex: 'stall:5f7d3c:herbs', x: 1500, y: 1395, foot: { w: 104, h: 26 } },
     { tex: 'notice', x: 1530, y: 1012, foot: { w: 60, h: 14 }, id: 'notice' },
+    // fête des moissons, une fois la route revenue
+    { tex: 'bunting:300', x: 1300, y: 1068, cond: 'chapter_done' },
+    { tex: 'bunting:240', x: 1300, y: 1372, depth: -30, cond: 'chapter_done' },
+    { tex: 'feast', x: 1430, y: 1150, foot: { w: 176, h: 16 }, cond: 'chapter_done' },
     { tex: 'bench', x: 1110, y: 1050, foot: { w: 52, h: 14 } },
     { tex: 'bench', x: 1470, y: 1070, foot: { w: 52, h: 14 } },
     { tex: 'lamp', x: 1040, y: 1200, foot: { r: 7 } }, { tex: 'lamp', x: 1570, y: 1215, foot: { r: 7 } }, { tex: 'lamp', x: 1350, y: 1450, foot: { r: 7 } }, { tex: 'lamp', x: 1250, y: 960, foot: { r: 7 } },

@@ -3,7 +3,7 @@
 import { INK, Ctx, canvas, ink, ellipse, capsule, shade, rrect, softShadow } from './draw';
 
 export type HairStyle = 'tousle' | 'bun' | 'braid' | 'short' | 'pigtails' | 'long' | 'bald' | 'curly';
-export type Hat = 'none' | 'cap' | 'flatcap' | 'kettle' | 'kerchief';
+export type Hat = 'none' | 'cap' | 'flatcap' | 'kettle' | 'kerchief' | 'hood';
 export type TopStyle = 'coat' | 'shirt' | 'dress' | 'robe' | 'uniform' | 'tunic';
 
 export interface CharSpec {
@@ -606,6 +606,12 @@ function hatFront(ctx: Ctx, spec: CharSpec, g: G, hx: number, hy: number) {
       ctx.beginPath(); ctx.moveTo(hx - r * 0.85, hy - r * 0.55); ctx.bezierCurveTo(hx - r * 0.9, hy - r * 1.55, hx + r * 0.9, hy - r * 1.55, hx + r * 0.85, hy - r * 0.55); ctx.closePath();
       ink(ctx, '#a3acb5', g.lw, { shadeFn: () => ctx.rect(hx + 2, hy - r * 2, 20, 20), light: () => ellipse(ctx, hx - 3, hy - r * 1.05, 2, 3) });
       break;
+    case 'hood': // capuche profonde (le Conservateur)
+      ctx.beginPath(); ctx.moveTo(hx - r * 1.2, hy + r * 0.9); ctx.bezierCurveTo(hx - r * 1.45, hy - r * 1.7, hx + r * 1.45, hy - r * 1.7, hx + r * 1.2, hy + r * 0.9);
+      ctx.quadraticCurveTo(hx + r * 0.9, hy - r * 0.55, hx, hy - r * 0.62); ctx.quadraticCurveTo(hx - r * 0.9, hy - r * 0.55, hx - r * 1.2, hy + r * 0.9); ctx.closePath();
+      ink(ctx, c, g.lw, { shadeFn: () => ctx.rect(hx + r * 0.2, hy - r * 2, r * 2, r * 4), light: () => ellipse(ctx, hx - r * 0.5, hy - r * 0.95, 3, 1.4) });
+      ctx.fillStyle = 'rgba(20,18,30,0.55)'; ctx.beginPath(); ctx.moveTo(hx - r * 0.95, hy + r * 0.2); ctx.quadraticCurveTo(hx, hy - r * 0.75, hx + r * 0.95, hy + r * 0.2); ctx.quadraticCurveTo(hx, hy - r * 0.25, hx - r * 0.95, hy + r * 0.2); ctx.fill();
+      break;
     case 'kerchief':
       ctx.beginPath(); ctx.moveTo(hx - r * 1.05, hy - r * 0.2); ctx.bezierCurveTo(hx - r * 1.1, hy - r * 1.4, hx + r * 1.1, hy - r * 1.4, hx + r * 1.05, hy - r * 0.2); ctx.quadraticCurveTo(hx, hy - r * 0.65, hx - r * 1.05, hy - r * 0.2); ctx.closePath();
       ink(ctx, c, g.lw, { light: () => ellipse(ctx, hx - 3, hy - r * 0.95, 3, 1.4) });
@@ -648,6 +654,7 @@ function headBack(ctx: Ctx, spec: CharSpec, g: G, p: Pose) {
     ctx.beginPath(); ellipse(ctx, hx, hy - r * 0.5, r * 1.45, r * 0.36); ink(ctx, '#8d96a0', g.lw);
     ctx.beginPath(); ctx.moveTo(hx - r * 0.85, hy - r * 0.55); ctx.bezierCurveTo(hx - r * 0.9, hy - r * 1.55, hx + r * 0.9, hy - r * 1.55, hx + r * 0.85, hy - r * 0.55); ctx.closePath(); ink(ctx, '#a3acb5', g.lw);
   }
+  if (spec.hat === 'hood') { ctx.beginPath(); ctx.moveTo(hx - r * 1.2, hy + r * 1.0); ctx.bezierCurveTo(hx - r * 1.45, hy - r * 1.7, hx + r * 1.45, hy - r * 1.7, hx + r * 1.2, hy + r * 1.0); ctx.quadraticCurveTo(hx, hy + r * 1.5, hx - r * 1.2, hy + r * 1.0); ctx.closePath(); ink(ctx, c, g.lw, { shadeFn: () => ctx.rect(hx + r * 0.3, hy - r * 2, r * 2, r * 4) }); ctx.strokeStyle = shade(c, -0.3); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, hy - r * 1.1); ctx.lineTo(hx, hy + r * 1.1); ctx.stroke(); }
   if (spec.hat === 'kerchief') { ctx.beginPath(); ellipse(ctx, hx, hy - r * 0.45, r * 1.06, r * 0.75); ink(ctx, c, g.lw); }
   if (spec.goggles) { ctx.fillStyle = '#6a4a32'; ctx.fillRect(hx - r, hy - r * 0.6, r * 2, 2.2); }
   void p;
@@ -721,6 +728,7 @@ function headSide(ctx: Ctx, spec: CharSpec, g: G, p: Pose) {
     ctx.beginPath(); ellipse(ctx, hx, hy - r * 0.5, r * 1.45, r * 0.3); ink(ctx, '#8d96a0', g.lw);
     ctx.beginPath(); ctx.moveTo(hx - r * 0.85, hy - r * 0.55); ctx.bezierCurveTo(hx - r * 0.9, hy - r * 1.55, hx + r * 0.9, hy - r * 1.55, hx + r * 0.85, hy - r * 0.55); ctx.closePath(); ink(ctx, '#a3acb5', g.lw);
   }
+  if (spec.hat === 'hood') { ctx.beginPath(); ctx.moveTo(hx + r * 0.75, hy + r * 0.9); ctx.quadraticCurveTo(hx + r * 0.6, hy - r * 0.2, hx + r * 1.05, hy - r * 0.6); ctx.bezierCurveTo(hx + r * 0.9, hy - r * 1.7, hx - r * 1.5, hy - r * 1.5, hx - r * 1.35, hy + r * 1.1); ctx.closePath(); ink(ctx, c, g.lw, { shadeFn: () => ctx.rect(hx - r * 2, hy - r * 2, r * 1.6, r * 4) }); }
   if (spec.hat === 'kerchief') { ctx.beginPath(); ctx.moveTo(hx + r * 0.9, hy - r * 0.35); ctx.bezierCurveTo(hx + r * 0.8, hy - r * 1.4, hx - r * 1.2, hy - r * 1.4, hx - r * 1.05, hy - r * 0.1); ctx.lineTo(hx - r * 1.4, hy + r * 0.3); ctx.quadraticCurveTo(hx, hy - r * 0.5, hx + r * 0.9, hy - r * 0.35); ctx.closePath(); ink(ctx, c, g.lw); }
   if (spec.goggles) { ctx.fillStyle = '#6a4a32'; ctx.fillRect(hx - r, hy - r * 0.72, r * 1.9, 2.2); ctx.beginPath(); ctx.arc(hx + r * 0.6, hy - r * 0.62, 2.8, 0, TAU); ink(ctx, '#9fd2d8', 1); }
   ctx.restore();

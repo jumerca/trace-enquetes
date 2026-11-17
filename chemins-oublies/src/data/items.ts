@@ -45,6 +45,10 @@ export const ITEMS: Record<string, ItemDef> = {
   talisman: { name: 'Talisman de lierre', desc: "Un anneau de lierre tressé autour d'une pierre verte. Éloi se sent plus solide : un cœur de plus.", icon: (c) => { c.beginPath(); c.arc(0, 0, 15, 0, TAU); c.lineWidth = 6; c.strokeStyle = INK; c.stroke(); c.lineWidth = 4; c.strokeStyle = '#5c9a45'; c.stroke(); c.beginPath(); ellipse(c, 0, -15, 6, 7); ink(c, '#4fae8a', 1.4); } },
   coeur_chene: { name: 'Cœur de chêne', desc: "La graine laissée par le Gardien des Ronces : dure comme une pierre, chaude comme une braise. Éloi se sent plus solide (un cœur de plus).", icon: (c) => { c.beginPath(); ellipse(c, 0, 2, 13, 16); ink(c, '#8a5a35', 2, { light: () => ellipse(c, -4, -4, 4, 6), lightCol: '#c08a50' }); c.beginPath(); c.moveTo(0, -14); c.quadraticCurveTo(6, -24, 14, -20); c.quadraticCurveTo(6, -16, 2, -12); c.closePath(); ink(c, '#5c9a45', 1.4); c.fillStyle = 'rgba(255,190,90,0.6)'; c.beginPath(); c.arc(0, 4, 5, 0, TAU); c.fill(); } },
   frottis: { name: 'Frottis de la stèle', desc: "Le relevé au fusain qu'Anton a fait d'une pierre brisée : « La lune n'ouvre aucun chemin : elle les cache. »", icon: (c) => { c.beginPath(); rrect(c, -18, -16, 36, 32, 2); ink(c, '#f4ecd8', 1.6); c.save(); c.translate(0, 0); drawSymbol(c, 'lune', '#3a3530', 2); c.restore(); } },
+  insigne: {
+    name: "Insigne d'argent", desc: "Un petit insigne d'argent terni : un œil fermé, gravé sur une carte pliée. Théodore l'a gardé cinq ans sans oser le jeter.",
+    icon: (c) => { c.beginPath(); c.moveTo(-18, -14); c.lineTo(-6, -18); c.lineTo(6, -14); c.lineTo(18, -18); c.lineTo(18, 14); c.lineTo(6, 18); c.lineTo(-6, 14); c.lineTo(-18, 18); c.closePath(); ink(c, '#c9ced6', 2, { light: () => c.rect(-18, -16, 12, 6) }); line(c, -6, -16, -6, 16, '#8a9098', 1); line(c, 6, -14, 6, 18, '#8a9098', 1); c.beginPath(); c.moveTo(-10, 0); c.quadraticCurveTo(0, 7, 10, 0); c.strokeStyle = INK; c.lineWidth = 1.8; c.stroke(); for (const x of [-6, 0, 6]) line(c, x, 3.5, x * 1.2, 8, INK, 1.2); },
+  },
 };
 
 const iconCache = new Map<string, string>();

@@ -959,3 +959,44 @@ export function stoneStairs(S: number, w: number, h: number): PropTex {
     for (const sd of [-1, 1]) { ctx.beginPath(); ctx.roundRect(sd * (w / 2 + 6) - 9, -h - 6, 18, h + 8, 6); ink(ctx, '#8a7f6e', 2.4, { light: () => ctx.rect(sd * (w / 2 + 6) - 9, -h - 6, 18, 4), lightCol: '#b5ab98' }); ctx.fillStyle = '#5f8a3e'; ctx.beginPath(); ellipse(ctx, sd * (w / 2 + 6), -h - 6, 10, 4); ctx.fill(); }
   });
 }
+
+/** Guirlande de fanions entre deux mâts, avec lanternes (fête des moissons). */
+export function bunting(W: number, S: number): PropTex {
+  return makeTex(W + 20, 110, 100, S, (ctx) => {
+    const L = -W / 2, R = W / 2;
+    for (const x of [L, R]) { softShadow(ctx, x + 3, 0, 8, 3); ctx.beginPath(); rrect(ctx, x - 2.5, -92, 5, 92, 1.5); ink(ctx, '#7a5236', 1.1, { light: () => ctx.rect(x - 2.5, -92, 1.6, 92) }); ctx.beginPath(); ctx.arc(x, -93, 3.2, 0, TAU); ink(ctx, '#d9b25b', 1); }
+    const sag = 18, y0 = -86;
+    const yAt = (u: number) => y0 + sag * 4 * u * (1 - u);
+    ctx.strokeStyle = '#4a3a2a'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(L, y0); ctx.quadraticCurveTo(0, y0 + sag * 2, R, y0); ctx.stroke();
+    const cols = ['#d0503a', '#e9c33e', '#5a7aa8', '#f4ecd8', '#5f9a4a', '#b8453a'];
+    const n = Math.max(5, Math.round(W / 18));
+    for (let i = 1; i < n; i++) {
+      const u = i / n, x = L + W * u, y = yAt(u);
+      if (i % 4 === 2) { // lanterne
+        ctx.strokeStyle = '#4a3a2a'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 4); ctx.stroke();
+        ctx.beginPath(); ellipse(ctx, x, y + 10, 5, 6.5); ink(ctx, '#f0a23a', 1, { light: () => ellipse(ctx, x - 1.5, y + 8, 1.6, 2.4) });
+        ctx.fillStyle = 'rgba(255,220,120,0.35)'; ctx.beginPath(); ctx.arc(x, y + 10, 9, 0, TAU); ctx.fill();
+        continue;
+      }
+      ctx.beginPath(); ctx.moveTo(x - 6, y - 0.5); ctx.lineTo(x + 6, y + 0.5); ctx.lineTo(x + 0.5, y + 13); ctx.closePath(); ink(ctx, cols[i % cols.length], 0.9);
+    }
+  });
+}
+
+/** Longue table de banquet : nappe, pains, tartes, pichets. */
+export function feastTable(S: number): PropTex {
+  return makeTex(190, 80, 64, S, (ctx) => {
+    softShadow(ctx, 4, 2, 92, 10);
+    for (const x of [-80, 80]) { ctx.beginPath(); rrect(ctx, x - 3, -26, 6, 26, 1); ink(ctx, '#6b4a30', 1); }
+    ctx.beginPath(); rrect(ctx, -90, -40, 180, 18, 3); ink(ctx, '#f4ecd8', 1.3, { shadeFn: () => ctx.rect(-90, -28, 180, 10), shadeCol: '#ddd0b2' });
+    ctx.fillStyle = '#c0523a'; for (let x = -86; x < 86; x += 12) ctx.fillRect(x, -24, 6, 3);
+    ctx.beginPath(); rrect(ctx, -92, -46, 184, 10, 3); ink(ctx, '#f7f1e2', 1.1);
+    const food: [number, string, 'bread' | 'pie' | 'jug' | 'bowl'][] = [[-70, '#d6a53a', 'bread'], [-44, '#c48a3a', 'pie'], [-18, '#7a8ab0', 'jug'], [8, '#e07a3a', 'bowl'], [34, '#d6a53a', 'pie'], [58, '#c9a24a', 'bread'], [78, '#a35a3a', 'jug']];
+    for (const [x, c, k] of food) {
+      if (k === 'bread') { ctx.beginPath(); ellipse(ctx, x, -48, 10, 5.5); ink(ctx, c, 1, { light: () => ellipse(ctx, x - 3, -50, 4, 1.6) }); ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 0.7; for (const d of [-4, 0, 4]) { ctx.beginPath(); ctx.moveTo(x + d - 1.5, -51); ctx.lineTo(x + d + 1.5, -46); ctx.stroke(); } }
+      if (k === 'pie') { ctx.beginPath(); ellipse(ctx, x, -45, 10, 4); ink(ctx, '#d9b25b', 1); ctx.beginPath(); ellipse(ctx, x, -46.5, 7.5, 2.8); ink(ctx, c, 0.8); }
+      if (k === 'jug') { ctx.beginPath(); rrect(ctx, x - 4.5, -60, 9, 14, 3); ink(ctx, c, 1, { light: () => ctx.rect(x - 3, -58, 2, 9) }); ctx.beginPath(); ctx.arc(x + 5.5, -54, 3, -1.2, 1.2); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke(); }
+      if (k === 'bowl') { ctx.beginPath(); ctx.arc(x, -47, 8, 0, Math.PI); ctx.closePath(); ink(ctx, '#f4ecd8', 1); for (const d of [-4, 0, 4]) { ctx.beginPath(); ctx.arc(x + d, -48.5, 3, 0, TAU); ink(ctx, d ? '#d0503a' : '#7fb956', 0.7); } }
+    }
+  });
+}

@@ -198,7 +198,7 @@ export class AudioEngine {
   private drumSfx(t: number) { const c = this.ctx!; const o = c.createOscillator(); const g = c.createGain(); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.2); o.connect(g); g.connect(this.sfxBus); this.env(g, t, 0.003, 0.4, 0.35); o.start(t); o.stop(t + 0.4); }
 
   talk(speaker: string) {
-    const pitch: Record<string, number> = { eloi: 1, agathe: 0.85, basile: 0.75, ninon: 1.5, mara: 0.95, anton: 0.65, coline: 1.05, theodore: 0.6, salome: 1.15, paulin: 1.45, gaspard: 0.7, odile: 1 };
+    const pitch: Record<string, number> = { eloi: 1, agathe: 0.85, basile: 0.75, ninon: 1.5, mara: 0.95, anton: 0.65, coline: 1.05, theodore: 0.6, salome: 1.15, paulin: 1.45, gaspard: 0.7, odile: 1, maelys: 1.1, eloi_jeune: 1.35, conservateur: 0.5 };
     this.sfx('blip', { pitch: pitch[speaker] ?? 1 });
   }
 

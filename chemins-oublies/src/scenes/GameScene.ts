@@ -12,7 +12,8 @@ import { NPCManager, Npc } from '../systems/NPCManager';
 import { Combat, Enemy } from '../systems/Combat';
 import { OBJECTS, ObjDef, ENCOUNTERS } from '../data/objects';
 import { SCRIPTS } from '../systems/Scripts';
-import { DIALOGS, Line } from '../data/dialogues';
+import { DIALOGS, Line, FETE } from '../data/dialogues';
+import { MEMORIES } from '../data/memories';
 import { MAIN, SIDE, currentMainStep } from '../data/story';
 import { ITEMS } from '../data/items';
 import { BORNE_POS, STONES, stoneLit, stepMill, BORNE_IDS } from '../systems/Puzzles';
@@ -23,7 +24,7 @@ import { Boss, ARENA } from '../systems/Boss';
 import { writeSlot } from '../systems/SaveManager';
 import type { Api } from '../systems/api';
 import { ui } from '../ui/UI';
-import { NpcId } from '../data/npcs';
+import { NpcId, isFete } from '../data/npcs';
 import { CLUES, NOTES } from '../data/story';
 
 const CLOCK_RATE = 1.5; // minutes de jeu par seconde
@@ -54,6 +55,10 @@ export class GameScene extends Phaser.Scene implements Api {
   private idleT = 0;
   private busyUntil = 0;
   private busy = false;
+  private memActors: Actor[] = [];
+  /** Après un travelling scénarisé, la caméra garde son cadrage jusqu'à la fin de la scène. */
+  private camHold = false;
+  private pendingMem: string | null = null;
   private attackT = 0;
   private hurtT = 0;
   private inv = 0;
@@ -148,12 +153,85 @@ export class GameScene extends Phaser.Scene implements Api {
     if (!flag('intro_vue')) this.time.delayedCall(700, () => this.intro());
   }
 
+  /** Ce qu'Éloi pense en découvrant un lieu pour la première fois. */
+  private firstVisit(id: ZoneId) {
+    const T: Partial<Record<ZoneId, Line[]>> = {
+      bois: [
+        { s: 'eloi', t: "Le Bois des Murmures. On dirait que les arbres se penchent pour écouter ce qu'on dit." },
+        { s: 'eloi', t: "Maëlys disait : « Dans un bois qui change, ne regarde pas les sentiers, regarde la lumière. » Facile à dire quand on n'a pas peur du noir.", m: 'souci' },
+      ],
+      moulin: [
+        { s: 'eloi', t: "Le Moulin des Trois-Eaux… Il existe vraiment. À Valrive, personne ne m'aurait cru.", m: 'surprise' },
+        { s: 'eloi', t: "Maëlys, tu es venue jusqu'ici. Je le sens. Il y a encore l'odeur de ton encre partout dans cette histoire." },
+      ],
+      archives: [{ s: 'eloi', t: "Des cartes du sol au plafond. Maëlys a dû se sentir chez elle ici. Moi, j'ai peur d'éternuer." }],
+    };
+    const lines = T[id];
+    if (!lines || flag('vu_zone_' + id)) return;
+    setFlag('vu_zone_' + id);
+    this.time.delayedCall(1100, async () => {
+      if (this.busy || ui.isModal()) return;
+      this.busy = true; this.path = []; this.target = null; this.hero.play('idle', true);
+      try { await this.say(lines); } finally { this.busy = false; }
+    });
+  }
+
+  // ============================================================== souvenirs
+  /** Flash-back sépia : Maëlys (et Éloi enfant) apparaissent autour d'Éloi le temps d'un souvenir. */
+  async playMemory(id: string) {
+    const m = MEMORIES[id];
+    if (!m || flag('mem_' + id) || this.attract) return;
+    setFlag('mem_' + id);
+    const wasBusy = this.busy; this.busy = true;
+    this.path = []; this.target = null; this.hero.play('idle', true);
+    const cam = this.cameras.main;
+    const hx = this.hero.x, hy = this.hero.y;
+    audio.sfx('page');
+    cam.flash(900, 255, 238, 205);
+    await this.wait(300);
+    const pfx = (cam as any).postFX as Phaser.GameObjects.Components.FX | undefined;
+    let cm: any = null;
+    if (pfx && this.game.renderer.type === Phaser.WEBGL) { cm = pfx.addColorMatrix(); cm.sepia(); }
+    const veil = this.add.rectangle(hx, hy, 8000, 8000, 0xf3e2c0, cm ? 0.16 : 0.34).setDepth(1.6e7).setBlendMode(cm ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.MULTIPLY);
+    ui.setMemory(true);
+    const hidden: Actor[] = [];
+    for (const n of this.npcs.npcs.values()) { if (n.actor.sprite.visible) { n.actor.setVisible(false); hidden.push(n.actor); } }
+    if (m.child) this.hero.setVisible(false);
+    else this.hero.faceToward(hx + 40, hy);
+    for (const c of m.cast) {
+      const a = new Actor(this, c.id, hx + c.dx, hy + c.dy, this.S_);
+      a.setPos(hx + c.dx, hy + c.dy);
+      a.sprite.setAlpha(0); a.shadow.setAlpha(0);
+      this.tweens.add({ targets: [a.sprite, a.shadow], alpha: 1, duration: 600 });
+      this.memActors.push(a);
+    }
+    for (const a of this.memActors) { const o = this.memActors.find((b) => b !== a); if (o) a.faceToward(o.x, o.y); else a.faceToward(hx, hy); }
+    await this.pan([hx, hy - 30], 500, 200);
+    await this.say(m.lines);
+    cam.flash(900, 255, 238, 205);
+    await this.wait(250);
+    this.memActors.forEach((a) => a.destroy()); this.memActors = [];
+    veil.destroy();
+    if (cm && pfx) pfx.remove(cm);
+    ui.setMemory(false);
+    hidden.forEach((a) => a.setVisible(true));
+    this.hero.setVisible(true); this.hero.play('idle', true);
+    this.camX = this.hero.x; this.camY = this.hero.y;
+    await this.wait(350);
+    await this.say(m.after);
+    this.run([`note:${m.note}`, `log:Souvenir : ${NOTES[m.note]?.title.replace('Souvenir : ', '') ?? id}.`]);
+    this.save('souvenir');
+    this.busy = wasBusy;
+  }
+
   private async intro() {
     setFlag('intro_vue');
     await this.say([
       { s: 'narr', t: "Clairval. Un village au creux de la vallée, entre la rivière et le Bois des Murmures." },
       { s: 'eloi', t: "La dernière lettre de Maëlys venait d'ici. « Si je ne reviens pas, prends l'atlas et suis les chemins que personne ne voit. »" },
-      { s: 'eloi', t: "Elle a toujours aimé les phrases mystérieuses. Bon. Commençons par regarder autour de nous." },
+      { s: 'eloi', t: "Six mois sans nouvelles. Et la dernière fois qu'on s'est parlé, je lui ai crié dessus.", m: 'souci' },
+      { s: 'eloi', t: "Elle a toujours aimé les phrases mystérieuses. Moi, j'aime les cartes qui ont une légende." },
+      { s: 'eloi', t: "Bon. Un cartographe qui se lamente, c'est un cartographe qui ne marche pas. Commençons par regarder autour de nous." },
     ]);
     ui.tutorial();
   }
@@ -212,6 +290,7 @@ export class GameScene extends Phaser.Scene implements Api {
     audio.play(this.attract ? 'titre' : z.music);
     if (!this.attract) ui.zoneName(ZONE_LABEL[id]);
     revealAround(id, px, py);
+    if (!this.attract) this.firstVisit(id);
   }
 
   private propImage(def: PropDef): Phaser.GameObjects.Image {
@@ -664,6 +743,7 @@ export class GameScene extends Phaser.Scene implements Api {
   update(time: number, dms: number) {
     const dt = Math.min(0.05, dms / 1000);
     this.atmo.update(dt);
+    if (this.camHold && !this.busy && !ui.isModal()) this.camHold = false;
     // qualité adaptative : si l'image saccade en qualité haute, on retire les effets coûteux
     if (this.settings.quality === 'haute' && !this.fxDowngraded) {
       this.fpsT += dt; this.fpsN++;
@@ -853,7 +933,7 @@ export class GameScene extends Phaser.Scene implements Api {
     n.actor.faceToward(this.hero.x, this.hero.y); n.actor.play('idle', true);
     this.hero.faceToward(n.x, n.y);
     try {
-      const g = D.greet();
+      const g = isFete() && FETE[n.id] ? { lines: FETE[n.id], fx: undefined } : D.greet();
       await this.say(g.lines);
       if (g.fx) this.run(g.fx);
       for (;;) {
@@ -867,12 +947,14 @@ export class GameScene extends Phaser.Scene implements Api {
         if (t.anim) { n.actor.play('work', true); await this.wait(900); n.actor.play('idle', true); }
         await this.say(t.lines());
         if (t.fx) this.run(t.fx);
+        if (this.pendingMem) break;
       }
     } finally {
       n.talking = false; this.busy = false;
       n.actor.play(n.place.mode === 'work' ? 'work' : 'idle', true);
       if (n.place.face && n.place.mode !== 'loop') n.actor.face(n.place.face);
     }
+    if (this.pendingMem) { const m = this.pendingMem; this.pendingMem = null; this.busy = true; await this.wait(300); this.busy = false; await this.playMemory(m); }
   }
 
   // ============================================================== occlusion, caméra, lumière
@@ -896,7 +978,7 @@ export class GameScene extends Phaser.Scene implements Api {
     const cam = this.cameras.main;
     const look = this.path.length ? 70 : 0;
     const tx = this.hero.x + this.vx * look, ty = this.hero.y - 20 + this.vy * look * 0.7;
-    if (this.camFree) { if (!(this as any)._panning) cam.centerOn(this.camX, this.camY); return; }
+    if (this.camFree || this.camHold) { if (!(this as any)._panning) cam.centerOn(this.camX, this.camY); return; }
     if (this.bossActive && this.boss && !(this as any)._panning) {
       // combat de boss : la caméra cadre l'arène entière (Éloi et le Gardien toujours visibles)
       const tx = (this.hero.x + this.boss.x) / 2 * 0.5 + ARENA.x * 0.5, ty = (this.hero.y + this.boss.y - 60) / 2 * 0.5 + ARENA.y * 0.5;
@@ -1097,6 +1179,25 @@ export class GameScene extends Phaser.Scene implements Api {
     this.rebuild();
     await this.pan([2150, 1060], 1600, 1200);
     await this.say([{ s: 'eloi', t: "La route… elle revient ! Elle repart vers Clairval. Et de l'autre côté, un pont, vers l'est… vers la brume.", m: 'surprise' }]);
+    // Quelqu'un observe la route renaître depuis la brume.
+    const [gx, gy] = this.watcherSpot();
+    const watcher = new Actor(this, 'conservateur', gx, gy, this.S_);
+    watcher.setPos(gx, gy); watcher.face('left');
+    watcher.sprite.setAlpha(0); watcher.shadow.setAlpha(0);
+    await this.pan([gx - 60, gy - 30], 900, 0);
+    await new Promise<void>((r) => this.tweens.add({ targets: [watcher.sprite, watcher.shadow], alpha: 0.92, duration: 1400, onComplete: () => r() }));
+    await this.say([
+      { s: 'narr', t: "Au bout du pont, dans la brume, une silhouette grise. Immobile. Elle regarde la route renaître." },
+      { s: 'eloi', t: "Hé ! Vous, là-bas ! Attendez !", m: 'surprise' },
+    ]);
+    watcher.play('talk', true); await this.wait(900); watcher.play('idle', true);
+    await this.say([{ s: 'narr', t: "La silhouette lève lentement la main. Un salut, peut-être. Ou un geste pour prendre note." }]);
+    const puff = this.add.image(gx, gy - 40, 'fx_soft').setScale(3).setTint(0xdfe4ea).setAlpha(0).setDepth(gy + 2);
+    this.tweens.add({ targets: puff, alpha: 0.8, scale: 6, duration: 700, yoyo: true, onComplete: () => puff.destroy() });
+    await new Promise<void>((r) => this.tweens.add({ targets: [watcher.sprite, watcher.shadow], alpha: 0, duration: 900, delay: 300, onComplete: () => r() }));
+    watcher.destroy();
+    addNote('note_silhouette');
+    await this.say([{ s: 'eloi', t: flag('garde_avoue') ? "Un manteau gris, une capuche… Comme l'homme qui a payé Théodore, il y a cinq ans." : "Qui était-ce ? Il me regardait comme on regarde une carte qu'on va devoir corriger.", m: 'souci' }]);
     await this.pan([this.hero.x, this.hero.y], 1200, 100);
     await this.anim('atlas', 1200);
     addNote('note_finale');
@@ -1106,6 +1207,8 @@ export class GameScene extends Phaser.Scene implements Api {
       { s: 'narr', t: "« Les Conservateurs savent pourquoi. »" },
       { s: 'narr', t: "« Ne me cherche pas encore à Brumecime. Pas avant d'avoir compris ce que les chemins protègent. — M. »" },
       { s: 'eloi', t: "Volontairement… Maëlys, dans quoi est-ce que tu t'es lancée ?", m: 'souci' },
+      { s: 'eloi', t: "« Pas avant d'avoir compris. » Toujours une longueur d'avance, hein ?" },
+      { s: 'eloi', t: "Très bien. Je vais comprendre. Et cette fois, je ne claquerai pas la porte : je viendrai te chercher." },
     ]);
     setFlag('chapter_done'); S.chapterDone = true;
     S.log.push('La route effacée est revenue. Fin du prologue.');
@@ -1114,6 +1217,12 @@ export class GameScene extends Phaser.Scene implements Api {
     audio.sfx('fanfare');
     await ui.chapterEnd();
     this.busy = false;
+  }
+
+  /** Point au bout de la route, côté est, où le Conservateur apparaît (sur une case praticable). */
+  private watcherSpot(): [number, number] {
+    for (const [x, y] of [[2260, 1080], [2230, 1100], [2200, 1060], [2150, 1100]] as [number, number][]) if (this.nav.freeAt(x, y)) return [x, y];
+    return [2200, 1080];
   }
 
   // ============================================================== combat façon aventure
@@ -1242,6 +1351,7 @@ export class GameScene extends Phaser.Scene implements Api {
   private speaking(s: string | null) {
     this.hero.play(s === 'eloi' ? 'talk' : 'idle');
     for (const n of this.npcs.npcs.values()) if (n.talking) n.actor.play(s === n.id ? 'talk' : 'idle');
+    for (const a of this.memActors) a.play(s === a.id ? 'talk' : 'idle');
   }
   toast(msg: string, kind: 'decouverte' | 'objet' | 'info' | 'quete' | 'secret' = 'info') { ui.toast(msg, kind); }
   give(item: string, silent = false) {
@@ -1266,8 +1376,10 @@ export class GameScene extends Phaser.Scene implements Api {
     await this.wait(hold);
     this.camX = cam.midPoint.x; this.camY = cam.midPoint.y;
     (this as any)._panning = false;
+    this.camHold = true;
   }
   async fx(effect: string, data?: any) {
+    if (effect === 'memory') { await this.playMemory(data as string); return; }
     if (effect === 'borne') this.drawArrow(data as number);
     if (effect === 'bornesGlow') {
       this.arrows.forEach((a, i) => { this.drawArrow(i); const s = this.add.image(a.x, a.y, 'fx_soft').setScale(4).setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd36a).setDepth(9e6); this.tweens.add({ targets: s, alpha: 0, scale: 7, duration: 1400, onComplete: () => s.destroy() }); });
@@ -1310,6 +1422,7 @@ export class GameScene extends Phaser.Scene implements Api {
       else if (k === 'baume') { S.counters.baume = (S.counters.baume ?? 0) + Number(v); this.give('baume'); }
       else if (k === 'save') this.save();
       else if (k === 'quest') this.quest();
+      else if (k === 'memory') this.pendingMem = v;
     }
   }
 

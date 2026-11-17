@@ -13,6 +13,8 @@ export const CLUES: Record<string, { title: string; text: string }> = {
   anton_lune: { title: "Frottis d'Anton", text: "Relevé sur une pierre brisée : « La lune n'ouvre aucun chemin : elle les cache. »" },
   anton_roue: { title: 'Anton : la roue', text: "« La roue est vieille et lourde : un filet d'eau ne la fera jamais tourner. Il lui faut un coup d'eau. » Et il serrait toujours le frein, à l'intérieur." },
   journal_meunier: { title: 'Journal du meunier', text: "Vanne de prise : laisse entrer la rivière dans le bief. Vanne de décharge : vide le bief vers la rivière. Vanne motrice : lâche l'eau du bief sur la roue. « La vieille roue ne démarre qu'avec un bief plein, lâché d'un seul coup. »" },
+  ninon_garde: { title: 'Ninon : la borne tournée', text: "Il y a cinq ans, un soir, Ninon a vu un homme « avec un chapeau en fer » tourner la borne près de la fontaine. Il pleurait, croit-elle. Il lui a donné un sucre d'orge en disant que c'était un jeu." },
+  theodore_aveu: { title: "L'aveu de Théodore", text: "Un homme en manteau gris, encapuchonné, portant un insigne d'argent (un œil fermé sur une carte), a payé Théodore pour tourner les trois bornes. Le lendemain, plus personne ne se rappelait la route du moulin." },
   registre: { title: 'Registre des rues', text: "« Chemin des Saules — rayé l'an dernier. Trois maisons : Verdier, Bastien, Lerouge. » Verdier est le nom d'Anton, le meunier." },
 };
 
@@ -23,6 +25,11 @@ export const NOTES: Record<string, { title: string; text: string }> = {
   note_passage: { title: 'Sentier caché', text: "Derrière les ronces, à l'ouest du Bois, un ancien sentier mène à une clairière oubliée." },
   note_pierres: { title: 'Les pierres gravées', text: "L'eau, puis l'oiseau, puis la clé. La lune, elle, cachait le chemin. La brume s'est retirée vers le nord." },
   note_page: { title: 'Page de carnet', text: "« Les Conservateurs ne détruisent pas les chemins, ils les mettent à l'abri. Reste à savoir de quoi. — M. »" },
+  mem_borne: { title: 'Souvenir : la première borne', text: "Valrive, six ans plus tôt. « Une borne, c'est une promesse : d'ici, on arrive quelque part. Écoute ceux qui se trompent, petit : leurs erreurs dessinent le contour de la vérité. »" },
+  mem_boussole: { title: 'Souvenir : la boussole', text: "« Elle n'a jamais montré le nord. Celle-ci montre les chemins qui veulent qu'on les retrouve. Je te la donnerai le jour où tu sauras te perdre sans avoir peur. »" },
+  mem_dispute: { title: 'Souvenir : la dernière soirée', text: "La veille de son départ, Maëlys a parlé de « gens très patients » qui n'aiment pas qu'on redessine certains chemins. Éloi a claqué la porte. Il ne lui a pas dit au revoir." },
+  note_insigne: { title: "L'insigne d'argent", text: "Un œil fermé, gravé sur une carte pliée. L'homme en gris l'a perdu à Clairval il y a cinq ans, le soir où les bornes ont été tournées. Salomé y reconnaît le sceau des Conservateurs." },
+  note_silhouette: { title: 'La silhouette grise', text: "Quand la route est revenue, quelqu'un nous observait depuis le pont de l'est. Manteau gris, capuche. Il a levé la main, comme pour saluer — ou pour prendre note — puis la brume l'a repris." },
   note_finale: { title: 'Sous le moulin', text: "« Cette route n'a pas été oubliée. Elle a été effacée — volontairement. Le gardien des ronces n'était pas là pour te barrer la route : il gardait le silence de la roue. Les Conservateurs savent pourquoi. Ne me cherche pas encore à Brumecime. — M. »" },
 };
 
@@ -50,6 +57,10 @@ export const SIDE: { id: string; title: string; started: () => boolean; text: ()
   {
     id: 'jardin', title: 'Le Jardin de Mara', started: () => flag('jardin_accepte'), done: () => flag('jardin_fini'),
     text: () => { if (flag('jardin_fini')) return 'Mara a retrouvé ses trois plantes.'; const n = ['sauge', 'pied_de_loup', 'fleur_lanterne'].filter((i) => has(i)).length; return `Cueillir dans le Bois la sauge des brumes (ruisseau), le pied-de-loup (première clairière) et la fleur-lanterne (près des pierres) : ${n}/3.`; },
+  },
+  {
+    id: 'garde', title: 'Le Secret du garde', started: () => flag('ninon_garde'), done: () => flag('garde_avoue'),
+    text: () => flag('garde_avoue') ? "Théodore a tourné les bornes, il y a cinq ans, sur ordre d'un homme en gris. Il a gardé son insigne." : "Ninon a vu un homme « avec un chapeau en fer » tourner une borne, il y a cinq ans. Un seul habitant de Clairval porte un chapeau de fer.",
   },
 ];
 

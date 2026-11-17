@@ -15,6 +15,10 @@ export const CAST: Record<string, CharSpec> = {
   coline: { id: 'coline', height: 0.98, width: 1, headR: 12, skin: '#c98d64', hair: '#2b2a35', hairStyle: 'curly', top: '#c56b3a', topStyle: 'shirt', bottom: '#3e4450', shoes: '#3a2a20', apron: '#7a5236', goggles: true },
   theodore: { id: 'theodore', height: 1.12, width: 1.12, headR: 12.2, skin: '#e7b48c', hair: '#5a4030', hairStyle: 'short', hat: 'kettle', top: '#7a2f32', topStyle: 'tunic', bottom: '#3a3530', shoes: '#2a1d16', mustache: true, belt: '#4a3020' },
   salome: { id: 'salome', height: 0.96, width: 0.96, headR: 12, skin: '#efc8a8', hair: '#c9c4c0', hairStyle: 'bun', top: '#6a4a7a', topStyle: 'robe', bottom: '#3a2e40', shoes: '#3a2a2a', glasses: true, accent: '#b89ac9', shawl: true, pattern: 'stripes', patternCol: '#7d5c8e' },
+  // souvenirs et mystère
+  maelys: { id: 'maelys', height: 1.06, width: 0.95, headR: 12, skin: '#e8b894', hair: '#6a4a3a', hairStyle: 'braid', top: '#5a4a7a', topStyle: 'coat', bottom: '#3a3040', shoes: '#4a2e22', accent: '#c9a24a', scarf: true, bag: '#7a4e2e', eyeCol: '#3a5a6a', cuff: '#c9a24a' },
+  eloi_jeune: { id: 'eloi_jeune', height: 0.74, width: 0.92, headR: 12, skin: '#f2c9a0', hair: '#8a4a26', hairStyle: 'tousle', top: '#4f8f5a', topStyle: 'shirt', bottom: '#5b4a3e', shoes: '#5a3522', eyeCol: '#2e5a3a' },
+  conservateur: { id: 'conservateur', height: 1.15, width: 1.0, headR: 12, skin: '#d9c2b0', hair: '#3a3a40', hairStyle: 'short', hat: 'hood', hatCol: '#6e737c', top: '#7a7f88', topStyle: 'robe', bottom: '#4a4e56', shoes: '#2a2a30', accent: '#d8dde4', shawl: true, eyeCol: '#8a9aa8' },
   // habitants d'ambiance
   gaspard: { id: 'gaspard', height: 1, width: 1.1, headR: 12, skin: '#dca57c', hair: '#6a5240', hairStyle: 'short', hat: 'flatcap', hatCol: '#3a5a50', top: '#4a6a5a', topStyle: 'shirt', bottom: '#4a4038', shoes: '#3a2a20', beard: true },
   odile: { id: 'odile', height: 0.98, width: 1.12, headR: 12.2, skin: '#f0c4a0', hair: '#7a4a2a', hairStyle: 'long', hat: 'kerchief', hatCol: '#c0523a', top: '#7a8a4a', topStyle: 'dress', bottom: '#4a3a30', shoes: '#4d2d1d', apron: '#e8dcc0', pattern: 'dots', patternCol: '#c9d79a' },

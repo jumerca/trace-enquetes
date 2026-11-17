@@ -89,6 +89,8 @@ class UIManager {
   }
 
   attachGame(g: GameScene | null) { this.game = g; $('#hud').classList.toggle('hidden', !g); if (g) { this.hearts(); this.refresh(); } }
+  /** Mode souvenir : boîte de dialogue et portraits teintés sépia. */
+  setMemory(on: boolean) { document.body.classList.toggle('memory', on); }
   isModal() { return this.modal > 0 || !!this.panel; }
 
   // ------------------------------------------------------------ dialogues
