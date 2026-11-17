@@ -4,7 +4,7 @@ import { SPEAKER_NAME, Line } from '../data/dialogues';
 import { CAST, ELOI } from '../data/cast';
 import { portrait, CharSpec } from '../art/characters';
 import { ITEMS, itemIcon } from '../data/items';
-import { MAIN, SIDE, CLUES, NOTES, currentMainStep, SECRETS_TOTAL, SECRET_LABEL } from '../data/story';
+import { MAIN, SIDE, CLUES, NOTES, CLUE_TIPS, hintText, currentMainStep, SECRETS_TOTAL, SECRET_LABEL } from '../data/story';
 import { ROUTINES, MAIN_NPCS, NpcId } from '../data/npcs';
 import { DIALOGS } from '../data/dialogues';
 import { renderMap } from '../systems/Atlas';
@@ -158,7 +158,11 @@ class UIManager {
     return new Promise<number>((resolve) => {
       options.forEach((o, i) => {
         const b = h(`<button class="choice ${o.startsWith('· ') ? 'seen' : ''}">${esc(o.replace(/^· /, ''))}</button>`);
-        b.addEventListener('click', (e) => { e.stopPropagation(); audio.sfx('tap'); this.modal--; if (!this.modal) dlg.classList.add('hidden'); dc.innerHTML = ''; resolve(i); });
+        // « clic fantôme » au toucher : le doigt qui vient de faire avancer le texte ne doit pas choisir à sa place
+        let armed = false;
+        b.addEventListener('pointerdown', () => { armed = true; });
+        b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') armed = true; });
+        b.addEventListener('click', (e) => { e.stopPropagation(); if (!armed && e.detail !== 0) return; audio.sfx('tap'); this.modal--; if (!this.modal) dlg.classList.add('hidden'); dc.innerHTML = ''; resolve(i); });
         dc.appendChild(b);
       });
     });
@@ -254,12 +258,13 @@ class UIManager {
     if (this.atlasTab === 'carte') {
       body = `<div class="atlas-zones">${zones.map((z) => `<button class="chip ${z === this.atlasZone ? 'on' : ''}" data-z="${z}">${ZONE_LABEL[z]}</button>`).join('')}</div><div class="mapwrap"></div><div class="atlas-actions"><button class="btn primary" id="consult">${ICONS.atlas} Consulter l'atlas ici</button><span class="small">L'atlas révèle parfois ce que les yeux ne voient pas.</span></div>`;
     } else if (this.atlasTab === 'indices') {
-      body = S.clues.length ? `<ul class="cards">${S.clues.map((c) => `<li><b>${esc(CLUES[c]?.title ?? c)}</b><p>${esc(CLUES[c]?.text ?? '')}</p></li>`).join('')}</ul>` : `<p class="empty">Aucun indice pour l'instant. Parlez aux habitants, examinez ce qui vous entoure.</p>`;
+      body = S.clues.length ? `<p class="small">Touchez un indice pour lire ce qu'Éloi en conclut.</p><ul class="cards clues">${S.clues.map((c) => { const tp = CLUE_TIPS[c]; const ok = !!(tp?.done && flag(tp.done)); return `<li class="${ok ? 'done' : ''}" data-clue="${c}"><b>${esc(CLUES[c]?.title ?? c)}${ok ? ' ✓' : ''}</b><p>${esc(CLUES[c]?.text ?? '')}</p>${tp ? `<div class="tip hidden"><span>Éloi :</span> ${esc(ok && tp.solved ? tp.solved : tp.tip)}</div>` : ''}</li>`; }).join('')}</ul>` : `<p class="empty">Aucun indice pour l'instant. Parlez aux habitants, examinez ce qui vous entoure.</p>`;
     } else {
       body = `<ul class="cards notes">${S.notes.map((n) => `<li><b>${esc(NOTES[n]?.title ?? n)}</b><p>${esc(NOTES[n]?.text ?? '')}</p></li>`).join('')}</ul><p class="small">Secrets découverts : ${S.secrets.length} / ${SECRETS_TOTAL}${S.secrets.length ? ' — ' + S.secrets.map((s) => SECRET_LABEL[s]).join(', ') : ''}</p>`;
     }
     this.frame("L'Atlas de Maëlys", [['carte', 'Carte'], ['indices', `Indices (${S.clues.length})`], ['notes', 'Annotations']], this.atlasTab, body, (t) => { this.atlasTab = t; this.renderAtlas(); });
     const P = $('#panel');
+    P.querySelectorAll<HTMLElement>('.clues li').forEach((li) => li.addEventListener('click', () => { const t = li.querySelector('.tip'); if (!t) return; t.classList.toggle('hidden'); li.classList.toggle('open'); audio.sfx('page'); }));
     if (this.atlasTab === 'carte') {
       const wrap = $('.mapwrap', P);
       const here = S.zone === this.atlasZone;
@@ -343,7 +348,7 @@ class UIManager {
       void done;
     } else if (this.journalTab === 'missions') {
       const qs = SIDE.filter((q) => q.started());
-      body = qs.length ? `<ul class="cards">${qs.map((q) => `<li class="${q.done() ? 'done' : ''}"><b>${esc(q.title)}${q.done() ? ' ✓' : ''}</b><p>${esc(q.text())}</p></li>`).join('')}</ul>` : '<p class="empty">Aucune mission pour l\'instant. Certains habitants auraient bien besoin d\'aide…</p>';
+      body = qs.length ? `<ul class="cards">${qs.map((q) => `<li class="${q.done() ? 'done' : ''}"><b>${esc(q.title)}${q.done() ? ' ✓' : ''}</b><p>${esc(q.text())}</p>${!q.done() && q.tip ? `<div class="tip"><span>Conseil :</span> ${esc(q.tip())}</div>` : ''}</li>`).join('')}</ul>` : '<p class="empty">Aucune mission pour l\'instant. Certains habitants auraient bien besoin d\'aide…</p>';
     } else if (this.journalTab === 'habitants') {
       const known = MAIN_NPCS.filter((id) => flag('met_' + id) || flag('t_' + id));
       body = `<p class="small">Où trouver les habitants, à cette heure-ci (${PHASE_LABEL[phaseNow()]}) :</p><ul class="people">${MAIN_NPCS.map((id) => {
@@ -361,10 +366,10 @@ class UIManager {
       if (!step) return;
       const n = Math.min(step.hints.length, (S.hints[step.id] ?? 0) + 1);
       S.hints[step.id] = n;
-      $('#hintbox').innerHTML = step.hints.slice(0, n).map((t, i) => `<p><b>Indice ${i + 1}.</b> ${esc(t)}</p>`).join('') + (n >= step.hints.length ? '' : '<p class="small">Touchez encore pour un indice plus précis.</p>');
+      $('#hintbox').innerHTML = step.hints.slice(0, n).map((t, i) => `<p><b>Indice ${i + 1}.</b> ${esc(hintText(t))}</p>`).join('') + (n >= step.hints.length ? '' : '<p class="small">Touchez encore pour un indice plus précis.</p>');
       audio.sfx('page');
     });
-    if (step && S.hints[step.id] && hb) { const n = S.hints[step.id]; $('#hintbox').innerHTML = step.hints.slice(0, n).map((t, i) => `<p><b>Indice ${i + 1}.</b> ${esc(t)}</p>`).join(''); }
+    if (step && S.hints[step.id] && hb) { const n = S.hints[step.id]; $('#hintbox').innerHTML = step.hints.slice(0, n).map((t, i) => `<p><b>Indice ${i + 1}.</b> ${esc(hintText(t))}</p>`).join(''); }
   }
 
   private renderMenu(sub: 'main' | 'save' | 'load' | 'options' = 'main') {
@@ -545,7 +550,12 @@ class UIManager {
         <button class="btn big primary">Continuer à explorer</button></div></div>`);
       this.root.appendChild(el);
       this.modal++;
-      el.querySelector('button')!.addEventListener('click', () => { el.remove(); this.modal--; res(); });
+      const btn = el.querySelector('button')!;
+      // même protection que pour les choix : le toucher qui termine le dernier dialogue ne doit pas fermer cet écran
+      let armed = false;
+      btn.addEventListener('pointerdown', () => { armed = true; });
+      btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') armed = true; });
+      btn.addEventListener('click', (e) => { if (!armed && e.detail !== 0) return; el.remove(); this.modal--; res(); });
     });
   }
 }

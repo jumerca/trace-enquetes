@@ -24,7 +24,7 @@ const HELPERS = `window.__t = {
   toScreen(x, y) { const g = this.g(); const cam = g.cameras.main; const rs = g.registry.get('renderScale'); return [(x - cam.worldView.x) * cam.zoom / rs, (y - cam.worldView.y) * cam.zoom / rs]; },
   toWorld(sx, sy) { const g = this.g(); const cam = g.cameras.main; const rs = g.registry.get('renderScale'); return [cam.worldView.x + sx * rs / cam.zoom, cam.worldView.y + sy * rs / cam.zoom]; },
   path(x, y) { const g = this.g(); const n = g.nav; const d = n.freeAt(x, y) ? [x, y] : n.nearestFree(x, y, 6, [g.hero.x, g.hero.y]); if (!d) return null; return n.findPath([g.hero.x, g.hero.y], d, false); },
-  hits(sx, sy) { const g = this.g(); const [wx, wy] = this.toWorld(sx, sy); const pad = 16 / g.cameras.main.zoom * g.registry.get('renderScale'); return !!(g.combat.pick(wx, wy, pad) || g.npcs.pick(wx, wy, pad + 6) || g.pickObj(wx, wy, pad + 6)); },
+  hits(sx, sy, noDoor) { const g = this.g(); const [wx, wy] = this.toWorld(sx, sy); const pad = 16 / g.cameras.main.zoom * g.registry.get('renderScale'); const door = !noDoor && !g.zone.interior && g.zone.exits.some((e) => e.door && Math.abs(wx - (e.rect.x + e.rect.w / 2)) < 40 + pad && wy > e.rect.y - 70 - pad && wy < e.rect.y + e.rect.h + 36 + pad); return !!(door || g.combat.pick(wx, wy, pad) || g.npcs.pick(wx, wy, pad + 6) || g.pickObj(wx, wy, pad + 6)); },
   npc(id) { const n = this.g().npcs.npcs.get(id); return n ? [n.x, n.y] : null; },
   where(id) { const p = __co.routines[id](); return p ? { zone: p.zone, pt: p.pts[0] } : null; },
   enemies() { return this.g().combat.enemies.filter((e) => e.alive).map((e) => ({ x: e.x, y: e.y, st: e.st, k: e.kind, from: e.dashFrom, to: e.dashTo, reach: e.def.reach, enc: e.enc.id })); },
@@ -65,6 +65,7 @@ async function dialog(plan = [], opts = {}) {
       }
       await page.locator('#dialog .dc button').nth(k).click();
     } else {
+      opts.onLine?.(i.text);
       const box = await page.locator('#dialog .db').boundingBox();
       await tap(box.x + box.width / 2, box.y + box.height / 2);
     }
@@ -73,7 +74,7 @@ async function dialog(plan = [], opts = {}) {
 }
 
 /** Marche jusqu'à (x, y) en cliquant sur des points visibles du chemin. */
-async function walkTo(x, y, tol = 36) {
+async function walkTo(x, y, tol = 36, toDoor = false) {
   const z0 = (await info()).zone;
   for (let k = 0; k < 60; k++) {
     let i = await info();
@@ -84,6 +85,7 @@ async function walkTo(x, y, tol = 36) {
     const path = await ev(`__t.path(${x}, ${y})`);
     if (!path) throw new Error(`pas de chemin vers ${x},${y} (${i.zone} depuis ${Math.round(i.x)},${Math.round(i.y)})`);
     let pick = null;
+    if (!path.length) path.push([x, y]); // chemin vide : viser la cible directement
     const pts = [[i.x, i.y], ...path];
     // échantillonne le chemin et garde le point le plus lointain visible et cliquable
     for (let s = 1; s < pts.length; s++) {
@@ -94,15 +96,18 @@ async function walkTo(x, y, tol = 36) {
         const [sx, sy] = await ev(`__t.toScreen(${wx}, ${wy})`);
         const ok = sx > 70 && sx < W - 70 && sy > 100 && sy < H - (sx < 500 ? 170 : 90);
         if (!ok) { if (pick) break; continue; }
-        if (await ev(`__t.hits(${sx}, ${sy})`)) continue;
+        if (await ev(`__t.hits(${sx}, ${sy}, ${toDoor})`)) continue;
         pick = [sx, sy];
       }
     }
     if (!pick) {
       // repli : le point visible le plus proche de la cible, dans l'écran
       const [sx, sy] = await ev(`__t.toScreen(${path[path.length - 1][0]}, ${path[path.length - 1][1]})`);
-      pick = [Math.min(W - 40, Math.max(40, sx)), Math.min(H - 30, Math.max(90, sy))];
-      if (await ev(`__t.hits(${pick[0]}, ${pick[1]})`)) throw new Error(`aucun point cliquable vers ${x},${y}`);
+      pick = [Math.min(W - 40, Math.max(40, sx)), Math.min(H - 30, Math.max(H < 500 && sx > 260 && sx < W - 300 ? 40 : 90, sy))]; // au centre, le haut de l'écran est libre (pas de bouton)
+      if (await ev(`__t.hits(${pick[0]}, ${pick[1]}, ${toDoor})`)) {
+        if ((await ev('__t.enemies()')).some((e) => Math.hypot(e.x - x, e.y - y) < 200)) return true; // la cible est sous une créature : on est arrivé au combat
+        throw new Error(`aucun point cliquable vers ${x},${y}`);
+      }
     }
     dbg('walk', Math.round(i.x), Math.round(i.y), '→', x, y, 'tap', pick.map(Math.round));
     await tap(pick[0], pick[1]);
@@ -112,7 +117,21 @@ async function walkTo(x, y, tol = 36) {
   throw new Error(`n'arrive pas à ${x},${y}`);
 }
 
+/** Comme un joueur : si la cible est sous l'interface ou hors de l'écran, on fait glisser la vue pour l'amener au centre. */
+async function ensureVisible(x, y) {
+  for (let k = 0; k < 3; k++) {
+    const [sx, sy] = await ev(`__t.toScreen(${x}, ${y})`);
+    if (sx > 90 && sx < W - 110 && sy > 80 && sy < H - 80) return;
+    const dx = Math.max(-W * 0.5, Math.min(W * 0.5, W / 2 - sx)), dy = Math.max(-H * 0.5, Math.min(H * 0.5, H / 2 - sy));
+    const ax = W / 2 - dx / 2, ay = H / 2 - dy / 2;
+    await page.mouse.move(ax, ay); await page.mouse.down();
+    for (let st = 1; st <= 8; st++) await page.mouse.move(ax + dx * st / 8, ay + dy * st / 8);
+    await page.mouse.up(); await sleep(250);
+  }
+}
+
 async function clickWorld(x, y, dy = -28) {
+  await ensureVisible(x, y + dy);
   const [sx, sy] = await ev(`__t.toScreen(${x}, ${y + dy})`);
   await tap(sx, sy);
   await sleep(120);
@@ -134,7 +153,7 @@ async function travel(zone) {
     const interior = ['auberge', 'atelier', 'archives', 'moulin_int'].includes(i.zone);
     const tx = Math.max(20, r.x + r.w / 2), ty = Math.max(14, Math.min(r.y + r.h / 2, 99999));
     try {
-      if (step.e.door) await walkTo(tx, interior ? r.y - 18 : r.y + r.h + 22, 34);
+      if (step.e.door) await walkTo(tx, interior ? r.y - 18 : r.y + r.h + 22, 34, true);
       else await walkTo(tx, ty, 30).catch(() => {});
     } catch (err) { await sleep(600); if ((await info()).zone !== i.zone) continue; throw err; }
     // franchit la sortie
@@ -155,6 +174,7 @@ async function talkTo(id, plan = [], opts = {}) {
     if (!p) { await sleep(500); continue; }
     const i = await info();
     if (Math.hypot(p[0] - i.x, p[1] - i.y) > 260) { await walkTo(p[0], p[1] + 70, 90).catch(() => {}); p = await ev(`__t.npc('${id}')`); }
+    if (!p) { await travel(w.zone); continue; }
     dbg('talk', id, p.map(Math.round));
     await clickWorld(p[0], p[1], -30);
     await settle();
@@ -183,12 +203,12 @@ async function use(x, y, dy = -26, plan = [], opts = {}) {
 const flags = () => ev('__co.S.flags');
 const S = () => ev('({...__co.S})');
 
-async function fight(label) {
+async function fight(label, enc) {
   const t0 = Date.now();
   const g0 = await ev('__co.S.playTime');
-  while (Date.now() - t0 < 900000) {
+  while (Date.now() - t0 < 240000) {
     await dialog();
-    const es = await ev('__t.enemies()');
+    const es = (await ev('__t.enemies()')).filter((e) => !enc || e.enc === enc);
     if (!es.length) { const g = Math.round((await ev('__co.S.playTime')) - g0); check(`combat ${label} gagné`, true, `${g} s de jeu (${Math.round((Date.now() - t0) / 1000)} s réelles), PV ${(await info()).hp}`); return; }
     const i = await info();
     // danger annoncé ?
@@ -233,7 +253,7 @@ async function solveBorne(id, x, y, target) {
   page = await ctx.newPage();
   page.on('pageerror', (e) => { errors.push(e.message); log('pageerror', e.message); });
   page.on('console', (m) => { if (m.type() === 'error') { errors.push(m.text()); log('console.error', m.text().slice(0, 200)); } });
-  await page.addInitScript(() => { if (!localStorage.getItem('chemins-oublies.settings')) localStorage.setItem('chemins-oublies.settings', JSON.stringify({ textSpeed: 'instantanee', quality: 'moyenne' })); });
+  await page.addInitScript(() => { if (!localStorage.getItem('chemins-oublies.settings')) localStorage.setItem('chemins-oublies.settings', JSON.stringify({ textSpeed: 'instantanee', quality: (window.__Q || 'basse') })); });
   const T0 = Date.now();
   await page.goto(URL);
   await page.waitForFunction(() => document.getElementById('boot') === null, null, { timeout: 120000 });
@@ -248,6 +268,11 @@ async function solveBorne(id, x, y, target) {
   if (process.env.FROM === 'moulin') {
     // départ direct au moulin : toute la progression précédente est acquise
     await ev(`(() => { const S = __co.S; Object.assign(S.flags, { borne_vue: true, agathe_moulin: true, t_ninon: true, t_salome: true, t_basile: true, bornes_solved: true, boussole_ok: true, theo_ok: true, anton_found: true, stones_solved: true, enc1_done: true, enc2_done: true, lettre_recue: true, jardin_accepte: true, pick_sauge: true, pick_pied_de_loup: true, pick_fleur_lanterne: true }); S.defeated.push('enc1', 'enc2'); S.inventory.push('boussole', 'cle_moulin', 'sauge', 'pied_de_loup', 'fleur_lanterne'); S.bornes = [0, 6, 7]; S.traces.push('route_bornes', 'route_bois'); __co.scene().loadZone('moulin', 400, 1690, 'up'); })()`);
+    await sleep(1000);
+  } else {
+  if (process.env.FROM === 'bois') {
+    // départ à la porte du Bois : enquête du village acquise
+    await ev(`(() => { const S = __co.S; Object.assign(S.flags, { borne_vue: true, agathe_moulin: true, met_agathe: true, t_ninon: true, met_ninon: true, t_salome: true, met_salome: true, t_basile: true, met_basile: true, lettre_recue: true, lettre_registre: true, bornes_solved: true, coline_besoin: true, met_coline: true, met_mara: true, mara_aimant: true, jardin_accepte: true, boussole_ok: true, met_theodore: true, theo_ok: true, mem_borne: true, mem_boussole: true, cache_pont: true }); S.secrets.push('pont'); S.inventory.push('boussole', 'lettre', 'page_droite'); S.bornes = [0, 6, 7]; S.traces.push('route_bornes'); S.clues.push('salome', 'mara_eau', 'mara_creatures'); __co.scene().loadZone('clairval', 1300, 330, 'up'); })()`);
     await sleep(1000);
   } else {
   // Séquence 1
@@ -300,6 +325,7 @@ async function solveBorne(id, x, y, target) {
   check('rechargement : progression restaurée', ['bornes_solved', 'boussole_ok', 'theo_ok', 'lettre_registre'].every((f) => after.flags[f]) && JSON.stringify(after.bornes) === JSON.stringify(before.bornes) && after.zone === before.zone, `zone ${after.zone}, bornes ${after.bornes}`);
   check('rechargement : énigme des bornes reste résolue', after.flags.bornes_solved && after.traces.includes('route_bornes'));
 
+  }
   // Séquence 3 : le Bois
   await travel('bois');
   await screenshot('04-bois');
@@ -309,7 +335,7 @@ async function solveBorne(id, x, y, target) {
   await walkTo(1180, 1840);
   await walkTo(1010, 1580, 60);
   await screenshot('05-combat1');
-  await fight('1 (ronceux)');
+  await fight('1 (ronceux)', 'enc1');
   check('rencontre 1 terminée', (await flags()).enc1_done);
   await sleep(900);
   await talkTo('anton', ['roue', 'pierres', 'lettre']);
@@ -323,8 +349,8 @@ async function solveBorne(id, x, y, target) {
   check('cueillette : sauge', (await S()).inventory.includes('sauge'));
   // coffre gardé (rencontre facultative)
   await walkTo(1890, 1900);
-  await walkTo(1880, 2060, 60);
-  await fight('facultatif (ronceux ancien)');
+  await walkTo(1880, 2060, 60).catch(async (e) => { if (Math.hypot((await info()).x - 1880, (await info()).y - 2060) > 260) throw e; }); // l'ancien est déjà à portée
+  await fight('facultatif (ronceux ancien)', 'enc3');
   await use(1880, 2235, -20);
   check('secret : coffre des ronces (+1 cœur)', (await S()).secrets.includes('coffre') && (await S()).maxHp >= 6);
   // sentier caché grâce à l'atlas
@@ -343,7 +369,7 @@ async function solveBorne(id, x, y, target) {
   // cercle de pierres
   await walkTo(1000, 1120, 60);
   await walkTo(1100, 900, 80);
-  await fight('2 (murmures)');
+  await fight('2 (murmures)', 'enc2');
   check('rencontre 2 terminée', (await flags()).enc2_done);
   await use(1290, 640, -14);
   check('cueillette : fleur-lanterne', (await S()).inventory.includes('fleur_lanterne'));
@@ -360,9 +386,9 @@ async function solveBorne(id, x, y, target) {
   await screenshot('08-moulin');
   // le Gardien des Ronces
   await walkTo(700, 1250, 80).catch(() => {});
-  await walkTo(1120, 1330, 60).catch(() => {});
+  await walkTo(1120, 1290, 40).catch(() => {});
   for (let i = 0; i < 60 && !(await ev('__t.g().bossActive && !__t.g().busy')); i++) { await dialog(); await sleep(250); }
-  check('boss : le Gardien des Ronces se réveille', await ev('__t.g().bossActive'));
+  check('boss : le Gardien des Ronces se réveille', await ev('__t.g().bossActive'), JSON.stringify(await info()).slice(0, 200));
   await screenshot('08b-boss');
   {
     const t0 = Date.now();
@@ -410,6 +436,25 @@ async function solveBorne(id, x, y, target) {
   await talkTo('mara', ['plantes']);
   check('mission accomplie : Jardin de Mara (baume)', (await flags()).jardin_fini && (await S()).counters.baume === 3);
   await screenshot('11-retour');
+
+  // Mystère : le secret du garde
+  await ev('__co.S.clock = Math.floor(__co.S.clock / 1440) * 1440 + 10 * 60');
+  await talkTo('ninon', ['Qui avait tourné']);
+  check('Ninon a vu l\'homme au chapeau de fer', (await flags()).ninon_garde);
+  await talkTo('theodore', ["c'était vous"]);
+  check('mission : Théodore avoue et donne l\'insigne', (await flags()).garde_avoue && (await S()).inventory.includes('insigne'));
+  await talkTo('salome', ['insigne']);
+  check('Salomé reconnaît le sceau des Conservateurs', (await flags()).insigne_salome);
+
+  // Fête des moissons, le soir après le prologue
+  await ev('__co.S.clock = Math.floor(__co.S.clock / 1440) * 1440 + 19 * 60; __co.scene().loadZone("clairval", 1300, 1180, "down")');
+  await sleep(1500); await page.evaluate(HELPERS);
+  const fete = await ev('(() => { const g = __co.scene(); return [...g.npcs.npcs.keys()]; })()');
+  check('fête : tout le village est sur la place', ['agathe', 'anton', 'basile', 'mara', 'coline', 'theodore', 'salome', 'ninon'].every((id) => fete.includes(id)), fete.join(','));
+  let seen = '';
+  await talkTo('agathe', [], { onLine: (t) => { seen += t; } });
+  check('fête : Agathe a une réplique de fête', seen.includes('régale'), seen.slice(0, 80));
+  await screenshot('12-fete');
 
   // Rechargement final
   const fin = await S();

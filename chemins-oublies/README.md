@@ -20,9 +20,10 @@ npm run preview        # sert dist/ sur http://localhost:4173
 ## Tests
 
 ```bash
-npm test                         # unitaires : navigation, énigmes, sauvegardes/migrations, cohérence des données
+npm test                         # unitaires : navigation, énigmes, sauvegardes/migrations, cohérence des données, partitions
 npm run preview &                # puis :
 node scripts/e2e.cjs             # recette : joue le prologue complet par de vrais clics (Chromium)
+FROM=bois node scripts/e2e.cjs   # départ à la porte du Bois (FROM=moulin : devant le moulin)
 node scripts/e2e.cjs --touch --w=844 --h=390   # même parcours au toucher, écran de téléphone en paysage
 node scripts/e2e.cjs --unusual   # ordre de conversation inhabituel
 node scripts/tour.cjs 1280 720 /tmp/tour       # captures de chaque lieu
@@ -62,4 +63,4 @@ Données séparées de l'affichage : `src/data/` (dialogues, quêtes, objets, ha
 **Graphismes** : tout est dessiné procéduralement au chargement (Canvas 2D, contour d'encre, ombrage en aplats),
 puis envoyé à Phaser comme textures. Les personnages sont de vraies planches de sprites générées image par image
 (marche 8 images, course 6, parole, observation, atlas, attaque, choc, attente) en trois orientations.
-**Son** : musique et effets synthétisés (WebAudio), aucun fichier audio.
+**Son** : musique et effets synthétisés (WebAudio), aucun fichier audio. 14 morceaux écrits (`src/systems/Music.ts`) : village le jour / le soir / la nuit, fête, Bois (inquiet puis apaisé), maisons, auberge, Archives, moulin (à l'arrêt puis en marche), souvenirs, combat, boss, titre. Le morceau suit le lieu, l'heure et l'avancée de l'histoire, avec fondu enchaîné.

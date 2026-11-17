@@ -1,19 +1,12 @@
 // Son et musique entièrement synthétisés (WebAudio) : aucune ressource à télécharger, fonctionne hors ligne.
 // Thèmes : village, forêt, intérieur, moulin, danger. Ambiances : eau, oiseaux, grillons, vent, machinerie.
 
-type Theme = 'village' | 'foret' | 'interieur' | 'moulin' | 'danger' | 'titre' | 'none';
+import { SONGS, compile, Theme, Ev } from './Music';
+export type { Theme };
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
-
-interface ThemeDef { bpm: number; scale: number[]; root: number; chords: number[][]; lead: 'flute' | 'pluck' | 'bell'; pad: boolean; bass: boolean; perc?: boolean; density: number }
-const THEMES: Record<Exclude<Theme, 'none'>, ThemeDef> = {
-  titre: { bpm: 72, root: 62, scale: [0, 2, 4, 7, 9, 12, 14], chords: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], lead: 'flute', pad: true, bass: true, density: 0.5 },
-  village: { bpm: 96, root: 67, scale: [0, 2, 4, 5, 7, 9, 12, 14], chords: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [7, 11, 14]], lead: 'pluck', pad: false, bass: true, density: 0.62 },
-  foret: { bpm: 66, root: 62, scale: [0, 2, 3, 7, 9, 12, 14], chords: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], lead: 'flute', pad: true, bass: false, density: 0.35 },
-  interieur: { bpm: 80, root: 65, scale: [0, 2, 4, 7, 9, 12], chords: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], lead: 'bell', pad: true, bass: true, density: 0.4 },
-  moulin: { bpm: 88, root: 64, scale: [0, 2, 4, 7, 9, 11, 12], chords: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [2, 5, 9]], lead: 'pluck', pad: true, bass: true, density: 0.5 },
-  danger: { bpm: 128, root: 57, scale: [0, 1, 3, 7, 8, 12], chords: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 1, 5]], lead: 'pluck', pad: true, bass: true, perc: true, density: 0.55 },
-};
+const COMPILED = new Map<string, { evs: Ev[]; len: number }>();
+function score(t: Exclude<Theme, 'none'>) { let c = COMPILED.get(t); if (!c) { c = compile(SONGS[t]); COMPILED.set(t, c); } return c; }
 
 export class AudioEngine {
   ctx: AudioContext | null = null;
@@ -25,7 +18,9 @@ export class AudioEngine {
   private theme: Theme = 'none';
   private nextBeat = 0;
   private beat = 0;
-  private seed = 1;
+  private evIdx = 0;
+  private pending: Theme | null = null;
+  private fadeUntil = 0;
   private water: { src: AudioBufferSourceNode; g: GainNode } | null = null;
   private wind: { src: AudioBufferSourceNode; g: GainNode } | null = null;
   private machine = 0;
@@ -53,61 +48,80 @@ export class AudioEngine {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     window.setInterval(() => this.tick(), 60);
     document.addEventListener('visibilitychange', () => { if (!this.ctx) return; if (document.hidden) this.ctx.suspend(); else this.ctx.resume(); });
-    const th = this.theme; this.theme = 'none'; this.play(th);
+    const th = this.theme; this.theme = 'none'; this.start(th);
   }
 
   setVolumes(music: number, sfx: number) {
     this.musicVol = music; this.sfxVol = sfx;
     if (!this.ctx) return;
-    this.musicBus.gain.setTargetAtTime(music * 0.5, this.ctx.currentTime, 0.1);
+    this.musicBus.gain.setTargetAtTime(music * 0.5 * (this.theme !== 'none' ? SONGS[this.theme].vol ?? 1 : 1), this.ctx.currentTime, 0.1);
     this.sfxBus.gain.setTargetAtTime(sfx, this.ctx.currentTime, 0.05);
     this.ambBus.gain.setTargetAtTime(sfx * 0.7, this.ctx.currentTime, 0.1);
   }
 
   play(t: Theme) {
-    if (t === this.theme) return;
-    this.theme = t;
-    this.seed = Array.from(t).reduce((a, c) => a * 31 + c.charCodeAt(0), 7);
-    if (this.ctx) { this.nextBeat = this.ctx.currentTime + 0.4; this.beat = 0; }
+    if (t === this.theme && !this.pending) return;
+    if (t === this.pending) return;
+    if (!this.ctx || this.theme === 'none') { this.start(t); return; }
+    // fondu enchaîné : on baisse la musique, puis le nouveau morceau démarre
+    this.pending = t;
+    const now = this.ctx.currentTime;
+    this.musicBus.gain.cancelScheduledValues(now);
+    this.musicBus.gain.setValueAtTime(this.musicBus.gain.value, now);
+    this.musicBus.gain.linearRampToValueAtTime(0.0001, now + 0.7);
+    this.fadeUntil = now + 0.75;
   }
-  get currentTheme() { return this.theme; }
-
-  private rnd() { this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff; return this.seed / 0x7fffffff; }
+  private start(t: Theme) {
+    this.theme = t; this.pending = null; this.beat = 0; this.evIdx = 0;
+    if (this.ctx) {
+      this.nextBeat = this.ctx.currentTime + 0.15;
+      const now = this.ctx.currentTime, v = this.musicVol * 0.5 * (t !== 'none' ? SONGS[t].vol ?? 1 : 1);
+      this.musicBus.gain.cancelScheduledValues(now);
+      this.musicBus.gain.setValueAtTime(0.0001, now);
+      this.musicBus.gain.linearRampToValueAtTime(v, now + 0.9);
+    }
+  }
+  get currentTheme() { return this.pending ?? this.theme; }
 
   private tick() {
     const c = this.ctx; if (!c || c.state !== 'running') return;
     this.updateAmbience();
-    if (this.theme === 'none') return;
-    const def = THEMES[this.theme];
-    const spb = 60 / def.bpm / 2; // croches
+    if (this.pending && c.currentTime >= this.fadeUntil) this.start(this.pending);
+    if (this.theme === 'none' || this.pending) return;
+    const song = SONGS[this.theme];
+    const sc = score(this.theme);
+    const spb = 60 / song.bpm / 2; // une croche
     while (this.nextBeat < c.currentTime + 0.25) {
-      this.scheduleBeat(def, this.beat, this.nextBeat, spb);
+      const pos = this.beat % sc.len;
+      if (pos === 0) this.evIdx = 0;
+      const sw = song.swing && pos % 2 === 1 ? spb * song.swing : 0;
+      while (this.evIdx < sc.evs.length && sc.evs[this.evIdx].at < pos + 1) {
+        const e = sc.evs[this.evIdx++];
+        if (e.at >= pos) this.playEv(e, this.nextBeat + sw + (e.at - pos) * spb, spb);
+      }
       this.nextBeat += spb;
       this.beat++;
     }
   }
 
-  private scheduleBeat(d: ThemeDef, b: number, t: number, spb: number) {
-    const bar = Math.floor(b / 8) % d.chords.length;
-    const chord = d.chords[bar];
-    const inBar = b % 8;
-    if (inBar === 0) {
-      if (d.pad) for (const n of chord) this.pad(NOTE(d.root - 12 + n), t, spb * 8);
-      if (d.bass) this.pluck(NOTE(d.root - 24 + chord[0]), t, spb * 3, 0.22, 'triangle');
-    }
-    if (d.bass && inBar === 4) this.pluck(NOTE(d.root - 24 + chord[(b >> 3) % 2 ? 2 : 0]), t, spb * 3, 0.16, 'triangle');
-    if (!d.pad && (inBar === 2 || inBar === 6)) for (const n of chord) this.pluck(NOTE(d.root - 12 + n), t, spb * 1.5, 0.05, 'triangle');
-    if (d.perc) { if (inBar % 4 === 0) this.drum(t, 0.35, 70); if (inBar % 4 === 2) this.hat(t, 0.08); }
-    // mélodie : notes de la gamme proches des notes de l'accord, phrases de 2 mesures
-    const phraseBar = Math.floor(b / 8) % 4;
-    if (this.rnd() < d.density && !(phraseBar === 3 && inBar > 4)) {
-      const deg = Math.floor(this.rnd() * d.scale.length);
-      let n = d.root + d.scale[deg];
-      if (inBar === 0) n = d.root + 12 + chord[Math.floor(this.rnd() * 3)] - 12;
-      const dur = spb * (this.rnd() < 0.3 ? 3 : 1.5);
-      if (d.lead === 'flute') this.flute(NOTE(n), t, dur * 1.4);
-      else if (d.lead === 'bell') this.bell(NOTE(n + 12), t, 0.09);
-      else this.pluck(NOTE(n), t, dur, 0.11, 'triangle');
+  private playEv(e: Ev, t: number, spb: number) {
+    const f = NOTE(e.note), d = e.dur * spb;
+    switch (e.part) {
+      case 'lead':
+        if (e.inst === 'flute') this.flute(f, t, Math.max(0.2, d * 1.05), 0.085 * e.vol);
+        else if (e.inst === 'bell') this.bell(f, t, 0.075 * e.vol);
+        else if (e.inst === 'harp') this.harp(f, t, Math.max(0.6, d * 1.6), 0.1 * e.vol);
+        else if (e.inst === 'fiddle') this.fiddle(f, t, Math.max(0.12, d * 0.95), 0.05 * e.vol);
+        else this.pluck(f, t, Math.max(0.18, d), 0.1 * e.vol, 'triangle');
+        break;
+      case 'bass': this.pluck(f, t, Math.max(0.2, d), 0.2 * e.vol, 'triangle'); break;
+      case 'chord': this.pluck(f, t, Math.max(0.15, d), 0.035 * e.vol, 'triangle'); break;
+      case 'arp': this.harp(f, t, Math.max(0.4, d * 1.5), 0.04 * e.vol); break;
+      case 'pad': this.pad(f, t, d, 0.022 * e.vol); break;
+      case 'spark': this.bell(f, t, 0.03 * e.vol); break;
+      case 'drum': this.drum(t, 0.32 * e.vol, 70); break;
+      case 'snare': this.noise(t, 0.12, 0.1 * e.vol, 'bandpass', 1800, 0.8, this.musicBus); break;
+      case 'hat': this.hat(t, 0.06 * e.vol); break;
     }
   }
 
@@ -123,11 +137,11 @@ export class AudioEngine {
     this.env(g, t, 0.008, vol, Math.max(0.15, dur));
     o.start(t); o.stop(t + dur + 0.05);
   }
-  private flute(f: number, t: number, dur: number) {
+  private flute(f: number, t: number, dur: number, vol = 0.09) {
     const c = this.ctx!; const o = c.createOscillator(); const g = c.createGain(); const lfo = c.createOscillator(); const lg = c.createGain();
     o.type = 'sine'; o.frequency.value = f; lfo.frequency.value = 5; lg.gain.value = f * 0.006; lfo.connect(lg); lg.connect(o.frequency);
     o.connect(g); g.connect(this.musicBus);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.08); g.gain.setValueAtTime(0.09, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.08); g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.start(t); lfo.start(t); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
   }
   private bell(f: number, t: number, vol: number, bus?: GainNode) {
@@ -137,11 +151,28 @@ export class AudioEngine {
       this.env(g, t, 0.005, vol * v, 1.2 / m + 0.4); o.start(t); o.stop(t + 2);
     }
   }
-  private pad(f: number, t: number, dur: number) {
+  private pad(f: number, t: number, dur: number, vol = 0.025) {
     const c = this.ctx!; const flt = c.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 900; const g = c.createGain();
     flt.connect(g); g.connect(this.musicBus);
     for (const det of [-6, 6]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det; o.connect(flt); o.start(t); o.stop(t + dur + 0.6); }
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.025, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.5);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.5);
+  }
+  /** Harpe / clavecin doux : attaque nette, longue résonance, harmonique d'octave. */
+  private harp(f: number, t: number, dur: number, vol: number) {
+    const c = this.ctx!;
+    for (const [m, v, ty] of [[1, 1, 'triangle'], [2, 0.25, 'sine']] as [number, number, OscillatorType][]) {
+      const o = c.createOscillator(); const g = c.createGain(); o.type = ty; o.frequency.value = f * m; o.connect(g); g.connect(this.musicBus);
+      this.env(g, t, 0.004, vol * v, dur / m + 0.1); o.start(t); o.stop(t + dur + 0.2);
+    }
+  }
+  /** Violon : dent de scie filtrée, archet progressif et vibrato retardé. */
+  private fiddle(f: number, t: number, dur: number, vol: number) {
+    const c = this.ctx!; const o = c.createOscillator(); const flt = c.createBiquadFilter(); const g = c.createGain(); const lfo = c.createOscillator(); const lg = c.createGain();
+    o.type = 'sawtooth'; o.frequency.value = f; flt.type = 'lowpass'; flt.frequency.value = Math.min(4200, f * 4); flt.Q.value = 0.8;
+    lfo.frequency.value = 5.5; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.008, t + Math.min(0.25, dur)); lfo.connect(lg); lg.connect(o.frequency);
+    o.connect(flt); flt.connect(g); g.connect(this.musicBus);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.04); g.gain.setValueAtTime(vol * 0.85, t + dur * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.08);
+    o.start(t); lfo.start(t); o.stop(t + dur + 0.12); lfo.stop(t + dur + 0.12);
   }
   private noise(t: number, dur: number, vol: number, type: BiquadFilterType, freq: number, q = 1, bus?: GainNode) {
     const c = this.ctx!; const s = c.createBufferSource(); s.buffer = this.noiseBuf; const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; const g = c.createGain();

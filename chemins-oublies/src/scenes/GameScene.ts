@@ -18,7 +18,7 @@ import { MAIN, SIDE, currentMainStep } from '../data/story';
 import { ITEMS } from '../data/items';
 import { BORNE_POS, STONES, stoneLit, stepMill, BORNE_IDS } from '../systems/Puzzles';
 import { revealAround } from '../systems/Atlas';
-import { audio } from '../systems/Audio';
+import { audio, type Theme } from '../systems/Audio';
 import { Atmosphere, applyCameraFX } from '../systems/Atmosphere';
 import { Boss, ARENA } from '../systems/Boss';
 import { writeSlot } from '../systems/SaveManager';
@@ -59,6 +59,9 @@ export class GameScene extends Phaser.Scene implements Api {
   /** Après un travelling scénarisé, la caméra garde son cadrage jusqu'à la fin de la scène. */
   private camHold = false;
   private pendingMem: string | null = null;
+  /** Musique imposée par une scène (souvenir, apparition…), sinon choisie selon le lieu et l'intrigue. */
+  private musicOverride: Theme | null = null;
+  private musicT = 0;
   private attackT = 0;
   private hurtT = 0;
   private inv = 0;
@@ -128,7 +131,7 @@ export class GameScene extends Phaser.Scene implements Api {
       settings: () => this.settings,
       onEncounterDone: (id) => this.encounterDone(id),
       onKill: (x, y) => { if (Math.random() < 0.5) this.dropHeart(x, y); },
-      onEngage: (a) => { this.engaged = a; ui.setDodge(a || this.bossActive); if (a) this.recenter(); ui.setDanger(a); audio.play(a ? 'danger' : ZONES[S.zone].music); },
+      onEngage: (a) => { this.engaged = a; ui.setDodge(a || this.bossActive); if (a) this.recenter(); ui.setDanger(a); this.music(); },
     }, this.S_);
     Object.defineProperty((this.combat as any).host, 'nav', { get: () => this.nav });
     this.hero = new Actor(this, 'eloi', S.x, S.y, this.S_);
@@ -152,6 +155,25 @@ export class GameScene extends Phaser.Scene implements Api {
     this.events.on('shutdown', () => { this.npcs.clear(); this.combat.clear(); this.clearZone(); });
     if (!flag('intro_vue')) this.time.delayedCall(700, () => this.intro());
   }
+
+  /** La musique suit le lieu, l'heure et l'avancée de l'histoire. */
+  musicFor(): Theme {
+    if (this.attract) return 'titre';
+    if (this.musicOverride) return this.musicOverride;
+    if (this.bossActive) return 'boss';
+    if (this.engaged) return 'danger';
+    const id = this.zone.id, ph = phaseOf(S.clock);
+    if (id === 'auberge') return 'auberge';
+    if (id === 'archives') return 'archives';
+    if (id === 'moulin_int' || id === 'moulin') return flag('mill_running') ? 'moulin' : 'moulin_silence';
+    if (this.zone.interior) return 'maison';
+    if (id === 'bois') return flag('stones_solved') ? 'foret_clair' : 'foret';
+    if (isFete()) return 'fete';
+    if (ph === 'nuit') return 'nuit';
+    if (ph === 'soir') return 'soir';
+    return 'village';
+  }
+  music() { audio.play(this.musicFor()); }
 
   /** Ce qu'Éloi pense en découvrant un lieu pour la première fois. */
   private firstVisit(id: ZoneId) {
@@ -187,6 +209,7 @@ export class GameScene extends Phaser.Scene implements Api {
     const cam = this.cameras.main;
     const hx = this.hero.x, hy = this.hero.y;
     audio.sfx('page');
+    this.musicOverride = 'souvenir'; this.music();
     cam.flash(900, 255, 238, 205);
     await this.wait(300);
     const pfx = (cam as any).postFX as Phaser.GameObjects.Components.FX | undefined;
@@ -214,6 +237,7 @@ export class GameScene extends Phaser.Scene implements Api {
     veil.destroy();
     if (cm && pfx) pfx.remove(cm);
     ui.setMemory(false);
+    this.musicOverride = null; this.music();
     hidden.forEach((a) => a.setVisible(true));
     this.hero.setVisible(true); this.hero.play('idle', true);
     this.camX = this.hero.x; this.camY = this.hero.y;
@@ -287,7 +311,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.camX = px; this.camY = py; cam.centerOn(px, py);
     S.x = px; S.y = py;
     S.checkpoint = { zone: id, x: px, y: py };
-    audio.play(this.attract ? 'titre' : z.music);
+    this.music();
     if (!this.attract) ui.zoneName(ZONE_LABEL[id]);
     revealAround(id, px, py);
     if (!this.attract) this.firstVisit(id);
@@ -744,6 +768,7 @@ export class GameScene extends Phaser.Scene implements Api {
     const dt = Math.min(0.05, dms / 1000);
     this.atmo.update(dt);
     if (this.camHold && !this.busy && !ui.isModal()) this.camHold = false;
+    this.musicT += dt; if (this.musicT > 2) { this.musicT = 0; this.music(); }
     // qualité adaptative : si l'image saccade en qualité haute, on retire les effets coûteux
     if (this.settings.quality === 'haute' && !this.fxDowngraded) {
       this.fpsT += dt; this.fpsN++;
@@ -889,8 +914,12 @@ export class GameScene extends Phaser.Scene implements Api {
         this.time.delayedCall(150, () => {
           if (t.kind === 'enemy') { if (t.e.alive && this.combat.strike(t.e, this.hero.x, this.hero.y)) this.hitStop = 0.07; }
           else if (this.boss) {
+            const was2 = this.boss.phase2;
             const r = this.boss.strike(this.hero.x, this.hero.y, { exploration: 2, facile: 1.5, normale: 1, difficile: 1 }[this.settings.combat]);
             if (r === 'hit') this.hitStop = 0.09;
+            // équilibrage : à mi-combat, le gardien perd deux cœurs de sève ; Éloi en difficulté en trouve un de plus
+            if (r === 'hit' && this.boss.alive && !was2 && this.boss.phase2) for (const k of [-1, 1]) this.dropHeart(ARENA.x + k * ARENA.r * 0.55, ARENA.y + 60);
+            else if (r === 'hit' && this.boss.alive && S.hp <= 2 && Math.random() < 0.35) this.dropHeart(ARENA.x + (Math.random() - 0.5) * ARENA.r, ARENA.y + ARENA.r * 0.4);
             if (r === 'bounce') { const a = Math.atan2(this.hero.y - this.boss.y, this.hero.x - this.boss.x); const nx = this.hero.x + Math.cos(a) * 28, ny = this.hero.y + Math.sin(a) * 28; if (this.nav.freeAt(nx, ny)) this.hero.setPos(nx, ny); this.spark(this.boss.x, this.boss.y - 60); if (!flag('tuto_coeur')) { setFlag('tuto_coeur'); ui.hint('Ses ronces sont trop dures : attendez que son cœur s\'ouvre !'); } }
           }
         });
@@ -1181,6 +1210,7 @@ export class GameScene extends Phaser.Scene implements Api {
     await this.say([{ s: 'eloi', t: "La route… elle revient ! Elle repart vers Clairval. Et de l'autre côté, un pont, vers l'est… vers la brume.", m: 'surprise' }]);
     // Quelqu'un observe la route renaître depuis la brume.
     const [gx, gy] = this.watcherSpot();
+    this.musicOverride = 'moulin_silence'; this.music();
     const watcher = new Actor(this, 'conservateur', gx, gy, this.S_);
     watcher.setPos(gx, gy); watcher.face('left');
     watcher.sprite.setAlpha(0); watcher.shadow.setAlpha(0);
@@ -1196,6 +1226,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.tweens.add({ targets: puff, alpha: 0.8, scale: 6, duration: 700, yoyo: true, onComplete: () => puff.destroy() });
     await new Promise<void>((r) => this.tweens.add({ targets: [watcher.sprite, watcher.shadow], alpha: 0, duration: 900, delay: 300, onComplete: () => r() }));
     watcher.destroy();
+    this.musicOverride = null; this.music();
     addNote('note_silhouette');
     await this.say([{ s: 'eloi', t: flag('garde_avoue') ? "Un manteau gris, une capuche… Comme l'homme qui a payé Théodore, il y a cinq ans." : "Qui était-ce ? Il me regardait comme on regarde une carte qu'on va devoir corriger.", m: 'souci' }]);
     await this.pan([this.hero.x, this.hero.y], 1200, 100);
@@ -1308,7 +1339,7 @@ export class GameScene extends Phaser.Scene implements Api {
       this.bossRing.push(b);
     }
     audio.sfx('slam'); this.cameras.main.shake(400, 0.006);
-    audio.play('danger');
+    audio.play('boss');
     await this.pan([this.boss.x, this.boss.y - 60], 900, 200);
     this.boss.appear();
     await this.wait(700);
@@ -1331,7 +1362,7 @@ export class GameScene extends Phaser.Scene implements Api {
     for (const [i, b] of this.bossRing.entries()) this.tweens.add({ targets: b, scale: 0, alpha: 0, duration: 400, delay: i * 20, onComplete: () => b.destroy() });
     this.bossRing = [];
     setFlag('boss_done');
-    audio.play('moulin');
+    this.music();
     await this.say([
       { s: 'narr', t: "Le cœur d'ambre se fend. Les ronces sèchent d'un coup, tombent en poussière autour de la roue." },
       { s: 'narr', t: "Dans les cendres, une graine dure comme une pierre, chaude comme une braise : un cœur de chêne." },

@@ -56,7 +56,7 @@ export interface CombatHost {
 const DIFF: Record<Settings['combat'], { windup: number; dmg: number; heroDmg: number }> = {
   exploration: { windup: 1.5, dmg: 0, heroDmg: 2 },
   facile: { windup: 1.35, dmg: 1, heroDmg: 1.5 },
-  normale: { windup: 1, dmg: 1, heroDmg: 1 },
+  normale: { windup: 1.1, dmg: 1, heroDmg: 1 },
   difficile: { windup: 0.75, dmg: 1, heroDmg: 1 },
 };
 

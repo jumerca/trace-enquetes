@@ -107,9 +107,12 @@ export class NPCManager {
   }
 
   pick(wx: number, wy: number, pad: number): Npc | null {
-    let best: Npc | null = null;
+    // parmi les habitants sous le doigt, celui dont le corps est le plus proche du point touché
+    let best: Npc | null = null, bd = Infinity;
     for (const n of this.npcs.values()) {
-      if (Math.abs(wx - n.x) < 22 + pad && wy < n.y + 8 + pad && wy > n.y - 80 - pad && (!best || n.y > best.y)) best = n;
+      if (!(Math.abs(wx - n.x) < 22 + pad && wy < n.y + 8 + pad && wy > n.y - 80 - pad)) continue;
+      const d = Math.hypot(wx - n.x, (wy - (n.y - 36)) * 0.7) - n.y * 0.001;
+      if (d < bd) { bd = d; best = n; }
     }
     return best;
   }

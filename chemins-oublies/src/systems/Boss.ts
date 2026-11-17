@@ -10,8 +10,8 @@ type St = 'intro' | 'idle' | 'windup' | 'lash' | 'exposed' | 'cwindup' | 'charge
 export const ARENA = { x: 1120, y: 1130, r: 260 };
 
 export class Boss {
-  hp = 16;
-  readonly maxHp = 16;
+  hp = 12;
+  readonly maxHp = 12;
   st: St = 'intro';
   t = 0;
   x = ARENA.x + 20;
