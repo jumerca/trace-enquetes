@@ -9,6 +9,7 @@ export interface NpcDialog { name: string; role: string; greet: () => { lines: L
 
 const E = (t: string, m?: Mood): Line => ({ s: 'eloi', t, m });
 const say = (s: string) => (t: string, m?: Mood): Line => ({ s, t, m });
+const Bt = say('bastien'), Le = say('lena'), Ys = say('ysolde');
 const A = say('agathe'), N = say('ninon'), Sa = say('salome'), B = say('basile'), M = say('mara'), C = say('coline'), T = say('theodore'), An = say('anton');
 const ph = () => phaseOf(S.clock);
 
@@ -237,6 +238,94 @@ export const DIALOGS: Record<string, NpcDialog> = {
     ],
   },
 
+  // ======================= Chapitre II : les Hautes Terres
+  bastien: {
+    name: 'Jules Bastien', role: 'Berger des landes',
+    greet: () => {
+      if (!flag('met_bastien')) return {
+        lines: [
+          Bt("Un voyageur ! Ça fait des lunes qu'on n'en a pas vu passer par le pont du moulin.", 'surprise'),
+          E("Éloi, cartographe. Vous êtes… le berger ?"),
+          Bt("Jules Bastien. Berger, fils de berger. Mes bêtes, la bruyère, et moi."),
+          E("Bastien… Comme la famille du chemin des Saules, à Clairval ?", 'surprise'),
+          Bt("Le chemin des quoi ?", 'souci'),
+          Bt("Drôle de nom. Ça ne me dit rien. Enfin… ça me fait comme une dent qui tire. Bah.", 'souci'),
+          Bt("Écoute, petit : ici, la lande parle. Il y a trois ronds d'herbe argentée où l'on entend des voix. Je n'y mène plus mes bêtes."),
+          Bt("Et la chaussée de la tourbière est noyée de brume depuis cinq ans. Le même automne que… je ne sais plus quoi. On ne sait plus grand-chose, par ici.", 'souci'),
+        ],
+        fx: ['flag:met_bastien', 'clue:bastien_voix', 'log:Jules Bastien, berger : la lande garde des voix.', 'quest', 'save'],
+      };
+      if (flag('chapter2_done')) return { lines: [Bt("La tour brille de nouveau, là-haut. Mon grand-père disait que c'était bon signe. Les bêtes aussi ont l'air de le croire.", 'joie')] };
+      if (flag('devoreur_done')) return { lines: [Bt("La brume s'est levée ! Je vois les hauts pour la première fois depuis cinq ans. On dirait un pays neuf.", 'joie')] };
+      if (flag('veilles_solved')) return { lines: [Bt("Tu as réveillé les veilleuses ! Mais la brume ne s'en va pas, elle se ramasse au nord-est. Fais attention, ça ressemble à une bête.", 'souci')] };
+      return { lines: [Bt(ph() === 'nuit' || ph() === 'soir' ? "Les bêtes sont rentrées. La lande, la nuit, ça n'est pas pour les gens." : "Tu as écouté les voix ? Moi je n'ose pas. J'ai peur de reconnaître la mienne.")] };
+    },
+    topics: [
+      { id: 'tourbiere', label: 'La tourbière ?', lines: () => [Bt("La chaussée de planches traverse la tourbière jusqu'aux hauts. Cinq vieilles pierres la gardent : les veilleuses."), Bt("Ma grand-mère disait qu'on les réveille « en marchant comme marchaient les anciens ». Va comprendre."), Bt("Et attention à celle qui porte un œil fermé. Elle n'était pas là quand j'étais petit.", 'souci')] },
+      { id: 'troupeau', label: 'Vos moutons ?', cond: () => !flag('troupeau_accepte'), lines: () => [Bt("Il m'en manque trois. Les sottes, elles suivent la brume comme si elle les appelait."), Bt("Si tu en croises, approche-toi doucement : elles connaissent le chemin de la bergerie, il faut juste leur rappeler.")], fx: ['flag:troupeau_accepte', 'log:Mission : le Troupeau égaré.', 'quest'] },
+      { id: 'rendu', label: 'Vos moutons sont rentrés', cond: () => flag('troupeau_accepte') && !flag('troupeau_fini') && flag('mouton1') && flag('mouton2') && flag('mouton3'), lines: () => [Bt("Toutes les trois ! Tu as le don, toi. Tu parles aux bêtes comme on parle aux chemins.", 'joie'), Bt("Tiens : du baume de suif et de bruyère. Ça soigne les bergers et les cartographes.")], fx: ['flag:troupeau_fini', 'baume:2', 'log:Mission accomplie : le Troupeau égaré.', 'quest', 'save'] },
+      { id: 'saules', label: 'Le chemin des Saules', cond: () => flag('echo_2'), lines: () => [E("À Clairval, un registre parle de trois maisons rayées, sur le chemin des Saules : Verdier, Bastien, Lerouge."), Bt("Verdier… Le meunier, non ?", 'surprise'), Bt("Mon père parlait parfois d'une rue avec des saules, et d'un moulin qui chantait. Je croyais que c'était un conte pour m'endormir.", 'souci'), Bt("Il y a une Lerouge, à Brumecime. Léna. Elle tisse. Toujours la même chose.")], fx: ['flag:bastien_saules'] },
+    ],
+  },
+  ysolde: {
+    name: 'Ysolde', role: 'Veilleuse de la Tour des Vents',
+    greet: () => {
+      if (!flag('met_ysolde')) return {
+        lines: [
+          Ys("Encore quelqu'un qui regarde la tour comme on regarde un gâteau derrière une vitre."),
+          Ys("La dernière, c'était une dame avec un atlas sous le bras. Et toi… tu as son atlas.", 'surprise'),
+          E("Maëlys ! Vous l'avez vue ? Quand ?"),
+          Ys("Au printemps. Elle est restée trois jours. Elle a parlé avec l'homme en gris, Silas, et puis elle est partie vers l'est. Sans se retourner.", 'souci'),
+          Ys("Je suis la veilleuse : je garde la tour. Enfin, je gardais. Silas a emporté la clé il y a cinq ans."),
+          Ys("Ta Maëlys m'a dit qu'elle en avait fait une autre. Cachée, disait-elle, « dans un souvenir que quelqu'un tisse sans le savoir »."),
+          Ys("Moi, je n'ai plus beaucoup de souvenirs. Mais j'ai de bons yeux.", 'joie'),
+        ],
+        fx: ['flag:met_ysolde', 'clue:ysolde_cle', 'log:Ysolde, la veilleuse : la clé de la tour est cachée « dans un souvenir ».', 'quest', 'save'],
+      };
+      if (flag('chapter2_done')) return { lines: [Ys("La lumière court de nouveau sur les hauts. Les bergers retrouveront leurs chemins."), Ys("Va, petit. Et salue Maëlys de ma part : dis-lui que la vieille Ysolde avait raison sur la cloche.", 'joie')] };
+      if (flag('tour_ouverte')) return { lines: [Ys("La fenêtre de l'ouest boit le soleil. Les miroirs doivent le conduire jusqu'à la lentille. Regarde le rayon : il te dira où il va.")], fx: ['clue:ysolde_miroirs'] };
+      if (has('cle_tour')) return { lines: [Ys("Cette clé… du fil d'argent ? Ah, la petite Lerouge ! Évidemment. Va, ouvre.", 'joie')] };
+      return { lines: [Ys("Un souvenir que quelqu'un tisse sans le savoir… Qui, à Brumecime, tisse toujours la même chose ?")] };
+    },
+    topics: [
+      { id: 'silas', label: "L'homme en gris ?", lines: () => [Ys("Silas. Un Conservateur, de ceux de la Cité. Il est venu il y a cinq ans, avec ses cartes et ses scellés."), Ys("Il n'est pas méchant. Il a peur. C'est pire : les gens qui ont peur rangent le monde dans des boîtes.", 'souci')] },
+      { id: 'tour', label: 'La Tour des Vents', lines: () => [Ys("Autrefois, quand la brume tombait, la tour renvoyait la lumière sur les hauts. Les bergers voyaient leurs chemins briller."), Ys("La lumière entre par la fenêtre de l'ouest, fait le tour de la salle et monte dans l'œil de verre. Quatre miroirs, rien de plus.")], fx: ['clue:ysolde_miroirs'] },
+      { id: 'maelys', label: 'Maëlys, ici ?', lines: () => [Ys("Elle chantait faux et marchait vite. Elle m'a demandé à quoi servait la cloche des veilleuses."), Ys("Et puis un soir, elle m'a dit : « Ysolde, si un garçon vient, ne lui fermez pas la porte. Il la claquerait. »", 'joie'), E("… Elle me connaît trop bien.", 'souci')] },
+    ],
+  },
+  lena: {
+    name: 'Léna Lerouge', role: 'Tisserande de Brumecime',
+    greet: () => {
+      if (!flag('met_lena')) return {
+        lines: [
+          Le("Oh ! Un étranger ? Personne ne monte jamais jusqu'ici. On dit que la lande avale les gens.", 'surprise'),
+          E("Elle a essayé. Je suis Éloi. Vous tissez ?"),
+          Le("Léna. Léna Lerouge. Je tisse… toujours le même motif. Une rue bordée de saules, une maison bleue.", 'souci'),
+          Le("Je ne sais pas pourquoi. Mes mains le savent, elles. Moi pas."),
+          E("Lerouge… Sur le chemin des Saules, à Clairval, il y avait une maison Lerouge.", 'surprise'),
+          Le("Clairval ? Je suis née ici. Enfin… je crois. Je ne me souviens pas d'avant cinq ans. Personne ici ne s'en souvient.", 'souci'),
+        ],
+        fx: ['flag:met_lena', 'log:Léna Lerouge tisse sans le savoir le chemin des Saules.', 'quest', 'save'],
+      };
+      if (flag('chapter2_done')) return { lines: [Le("Cette nuit, j'ai rêvé d'une maison bleue, et ma mère chantait dans la cuisine. Ce n'était pas un rêve, je crois.", 'joie'), Le("Un jour, j'irai à Clairval. Voir si les saules sont toujours là.")] };
+      if (flag('lena_cle')) return { lines: [Le("Une clé, dans ma tapisserie… Et dire que je la tisse depuis le printemps sans la voir !", 'surprise'), Le("La dame aux cartes m'avait demandé ce nœud-là. « Ça te fera du bien », disait-elle.")] };
+      return { lines: [Le(ph() === 'soir' ? "Le soir, je viens au puits. On entend la lande d'ici. Elle chantonne, parfois." : "Attention aux fils, ils sont tendus comme des cordes de violon.")] };
+    },
+    topics: [
+      { id: 'motif', label: 'Ce motif, je peux le voir ?', cond: () => flag('met_ysolde') && !has('cle_tour') && !flag('tour_ouverte'), anim: 'work', lines: () => [
+        Le("Bien sûr. Regarde : la rue aux saules, la maison bleue… et ce petit nœud d'argent, dans le coin.", 'joie'),
+        Le("Une dame aux cartes m'a demandé de le tisser au printemps. Elle disait que ça me ferait du bien. Je n'ai jamais compris."),
+        E("« Un souvenir que quelqu'un tisse sans le savoir. » Léna… je peux ?", 'surprise'),
+        { s: 'narr', t: "Éloi tire doucement sur le fil. Le nœud se défait, se déplie… et prend la forme d'une clé, tissée si serré qu'elle tient comme du métal." },
+        Le("Une clé ?! Dans ma tapisserie ?", 'surprise'),
+        E("La clé de la Tour des Vents. Maëlys l'a cachée dans le seul endroit où Silas ne chercherait jamais : votre souvenir du chemin des Saules."),
+        Le("Mon souvenir… Alors la maison bleue existe ?", 'souci'),
+        E("À Clairval. Je vous la montrerai sur la carte. Promis."),
+      ], fx: ['give:cle_tour', 'flag:lena_cle', 'note:note_tapisserie', 'log:La clé de la tour était tissée dans la tapisserie de Léna.', 'quest', 'save'] },
+      { id: 'brumecime', label: 'Brumecime ?', lines: () => [Le("Quatre maisons, une tour, un puits, et beaucoup de vent. Les gens d'ici ne descendent jamais."), Le("Ysolde garde la tour. Enfin, la porte de la tour. Elle est fermée depuis que l'homme en gris est passé.")] },
+    ],
+  },
+
   paulin: {
     name: 'Paulin', role: 'Garçon du village',
     greet: () => ({ lines: [flag('chapter_done') ? { s: 'paulin', t: "J'ai vu la route ! Bon… d'accord. Ninon avait raison.", m: 'surprise' } : { s: 'paulin', t: "Ninon dit qu'elle voit des chemins invisibles. Moi je vois rien. C'est pas juste.", m: 'colere' }] }),
@@ -269,4 +358,4 @@ export const FETE: Record<string, Line[]> = {
   odile: [{ s: 'odile', t: "Tarte aux potirons ! Prenez-en deux, personne ne compte.", m: 'joie' }],
 };
 
-export const SPEAKER_NAME: Record<string, string> = { eloi: 'Éloi', narr: '', maelys: 'Maëlys', eloi_jeune: 'Éloi, 11 ans', conservateur: '???', ...Object.fromEntries(Object.entries(DIALOGS).map(([k, v]) => [k, v.name])) };
+export const SPEAKER_NAME: Record<string, string> = { eloi: 'Éloi', narr: '', maelys: 'Maëlys', eloi_jeune: 'Éloi, 11 ans', conservateur: "L'homme en gris", ...Object.fromEntries(Object.entries(DIALOGS).map(([k, v]) => [k, v.name])) };

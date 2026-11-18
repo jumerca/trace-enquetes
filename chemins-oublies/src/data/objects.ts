@@ -53,6 +53,31 @@ export const OBJECTS: ObjDef[] = [
   { id: 'jauge', zone: 'moulin', x: 1478, y: 480, name: 'Jauge du bief', w: 30, h: 60, stand: 60 },
   { id: 'roue', zone: 'moulin', x: 1450, y: 900, name: 'Roue à aubes', w: 120, h: 130, stand: 70 },
   { id: 'panneau_brume', zone: 'moulin', x: 2200, y: 980, name: 'Panneau', w: 60, h: 90 },
+  // Chapitre II : Landes de Brume
+  { id: 'panneau_landes', zone: 'landes', x: 300, y: 1610, name: 'Poteau indicateur', w: 50, h: 90 },
+  { id: 'echo_1', zone: 'landes', x: 620, y: 1810, name: 'Cercle d\'herbe argentée', w: 90, h: 50, stand: 30, cond: '!echo_1' },
+  { id: 'echo_2', zone: 'landes', x: 1300, y: 1770, name: 'Cercle d\'herbe argentée', w: 90, h: 50, stand: 30, cond: '!echo_2' },
+  { id: 'echo_3', zone: 'landes', x: 1450, y: 950, name: 'Cercle d\'herbe argentée', w: 90, h: 50, stand: 30, cond: '!echo_3' },
+  { id: 'veille_saule', zone: 'landes', x: 1640, y: 1070, name: 'Pierre au saule', w: 44, h: 90, kind: 'puzzle' },
+  { id: 'veille_corbeau', zone: 'landes', x: 1830, y: 1300, name: 'Pierre au corbeau', w: 44, h: 90, kind: 'puzzle' },
+  { id: 'veille_cloche', zone: 'landes', x: 1560, y: 1430, name: 'Pierre à la cloche', w: 44, h: 90, kind: 'puzzle' },
+  { id: 'veille_lanterne', zone: 'landes', x: 1760, y: 990, name: 'Pierre à la lanterne', w: 44, h: 90, kind: 'puzzle' },
+  { id: 'veille_oeil', zone: 'landes', x: 1440, y: 1170, name: 'Pierre à l\'œil fermé', w: 44, h: 90, kind: 'puzzle' },
+  { id: 'brasero1', zone: 'landes', x: 2408, y: 676, name: 'Brasero', w: 46, h: 80, stand: 44, kind: 'lever' },
+  { id: 'brasero2', zone: 'landes', x: 2715, y: 693, name: 'Brasero', w: 46, h: 80, stand: 44, kind: 'lever' },
+  { id: 'brasero3', zone: 'landes', x: 2560, y: 900, name: 'Brasero', w: 46, h: 80, stand: 44, kind: 'lever' },
+  { id: 'mouton1', zone: 'landes', x: 380, y: 1900, name: 'Mouton égaré', w: 50, h: 40, cond: '!mouton1' },
+  { id: 'mouton2', zone: 'landes', x: 1700, y: 1880, name: 'Mouton égaré', w: 50, h: 40, cond: '!mouton2' },
+  { id: 'mouton3', zone: 'landes', x: 860, y: 760, name: 'Mouton égaré', w: 50, h: 40, cond: '!mouton3' },
+  // Brumecime
+  { id: 'puits_bru', zone: 'brumecime', x: 1200, y: 1150, name: 'Puits', w: 60, h: 90, stand: 46 },
+  { id: 'metier', zone: 'tissage', x: 360, y: 290, name: 'Métier à tisser', w: 160, h: 130, stand: 56 },
+  { id: 'miroirA', zone: 'tour', x: 100, y: 300, name: 'Miroir', w: 56, h: 100, stand: 44, kind: 'puzzle' },
+  { id: 'miroirB', zone: 'tour', x: 590, y: 300, name: 'Miroir', w: 56, h: 100, stand: 44, kind: 'puzzle' },
+  { id: 'miroirC', zone: 'tour', x: 590, y: 440, name: 'Miroir', w: 56, h: 100, stand: 44, kind: 'puzzle' },
+  { id: 'miroirD', zone: 'tour', x: 420, y: 440, name: 'Miroir', w: 56, h: 100, stand: 44, kind: 'puzzle' },
+  { id: 'lentille', zone: 'tour', x: 420, y: 240, name: 'Grande lentille', w: 80, h: 130, stand: 50 },
+  { id: 'bureau_maelys', zone: 'tour', x: 110, y: 470, name: 'Pupitre', w: 110, h: 60, stand: 46 },
 ];
 
 export const LEVERS: Record<string, { pos: Pt; v: 'v1' | 'v2' | 'v3' }> = {
@@ -64,5 +89,7 @@ export interface EncounterDef { id: string; zone: ZoneId; center: Pt; radius: nu
 export const ENCOUNTERS: EncounterDef[] = [
   { id: 'enc1', zone: 'bois', center: [950, 1480], radius: 240, checkpoint: [1170, 1830], enemies: [{ kind: 'ronceux', x: 890, y: 1430 }, { kind: 'ronceux', x: 1020, y: 1520 }] },
   { id: 'enc2', zone: 'bois', center: [1100, 770], radius: 250, checkpoint: [1010, 1130], enemies: [{ kind: 'murmure', x: 1010, y: 720 }, { kind: 'murmure', x: 1200, y: 800 }] },
+  { id: 'enc4', zone: 'landes', center: [720, 1150], radius: 200, checkpoint: [660, 1580], enemies: [{ kind: 'murmure', x: 660, y: 1100 }, { kind: 'murmure', x: 800, y: 1190 }] },
+  { id: 'enc5', zone: 'landes', center: [2300, 1250], radius: 180, checkpoint: [2250, 1020], enemies: [{ kind: 'ronceux', x: 2280, y: 1230 }, { kind: 'ronceux', x: 2380, y: 1260 }], optional: true },
   { id: 'enc3', zone: 'bois', center: [1880, 2160], radius: 170, checkpoint: [1890, 1880], enemies: [{ kind: 'ancien', x: 1880, y: 2150 }], optional: true },
 ];

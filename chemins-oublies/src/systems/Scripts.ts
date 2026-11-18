@@ -4,6 +4,7 @@ import type { Line } from '../data/dialogues';
 import { S, flag, setFlag, has, addClue, addNote, addSecret, addTrace } from '../core/state';
 import { rotateBorne, bornesCorrect, DIR_LABEL, touchStone, toggleVanne, millStatus, BORNE_IDS } from './Puzzles';
 import { LEVERS } from '../data/objects';
+import { touchVeille, toggleMirror, traceBeam } from './Chapter2';
 
 const E = (t: string, m?: Line['m']): Line => ({ s: 'eloi', t, m });
 const N = (t: string): Line => ({ s: 'narr', t });
@@ -120,6 +121,48 @@ export const SCRIPTS: Record<string, (api: Api) => Promise<void>> = {
   async pierre_oiseau(api) { await stone(api, 'oiseau'); },
   async pierre_cle(api) { await stone(api, 'cle'); },
   async pierre_lune(api) { await stone(api, 'lune'); },
+  // ================= Chapitre II
+  async panneau_landes(api) { await api.say([N("« ← Moulin des Trois-Eaux    ↑ Brumecime » — Sous « Brumecime », quelqu'un a gravé un œil fermé… puis l'a rayé d'un coup de couteau.")]); },
+  async echo_1(api) { await echo(api, 1); },
+  async echo_2(api) { await echo(api, 2); },
+  async echo_3(api) { await echo(api, 3); },
+  async veille_saule(api) { await veille(api, 'saule'); },
+  async veille_corbeau(api) { await veille(api, 'corbeau'); },
+  async veille_cloche(api) { await veille(api, 'cloche'); },
+  async veille_lanterne(api) { await veille(api, 'lanterne'); },
+  async veille_oeil(api) { await veille(api, 'oeil'); },
+  async brasero1(api) { await brasero(api, 0); },
+  async brasero2(api) { await brasero(api, 1); },
+  async brasero3(api) { await brasero(api, 2); },
+  async mouton1(api) { await mouton(api, 1); },
+  async mouton2(api) { await mouton(api, 2); },
+  async mouton3(api) { await mouton(api, 3); },
+  async puits_bru(api) { await api.say([E("Un puits très profond. Tout au fond, l'eau reflète un bout de ciel… et la Tour des Vents, à l'envers.")]); },
+  async metier(api) {
+    await api.anim('inspect', 700);
+    if (has('cle_tour') || flag('tour_ouverte')) { await api.say([E("La tapisserie de Léna : la rue aux saules, la maison bleue. Il manque un petit nœud d'argent, dans le coin.")]); return; }
+    if (!flag('met_ysolde')) { await api.say([E("Une tapisserie : une rue bordée de saules, une maison bleue… Ce motif, je l'ai déjà vu quelque part."), E("Au coin, un petit nœud de fil d'argent, plus serré que les autres. Bizarre.")]); return; }
+    await api.say([E("« Un souvenir que quelqu'un tisse sans le savoir. » La rue aux saules… et ce nœud d'argent, dans le coin.", 'surprise'), N("Éloi tire doucement sur le fil. Le nœud se défait, se déplie… et prend la forme d'une clé, tissée si serré qu'elle tient comme du métal.")]);
+    api.give('cle_tour'); addNote('note_tapisserie'); setFlag('lena_cle');
+    await api.say([E("Maëlys… Tu l'as cachée dans le souvenir de quelqu'un d'autre. Dans le chemin des Saules.", 'joie')]);
+    api.quest(); api.save();
+  },
+  async miroirA(api) { await miroir(api, 'miroirA'); },
+  async miroirB(api) { await miroir(api, 'miroirB'); },
+  async miroirC(api) { await miroir(api, 'miroirC'); },
+  async miroirD(api) { await miroir(api, 'miroirD'); },
+  async lentille(api) {
+    if (!flag('miroirs_solved')) { await api.say([E("Une lentille grande comme une roue de charrette. Elle attend la lumière."), E("Le rayon de la fenêtre… Il faut le lui amener avec les miroirs.")]); return; }
+    if (!flag('chapter2_done')) { await api.fx('finale2'); return; }
+    await api.say([E("La lentille brille encore. Dans le verre, les chemins des hauts filent tous vers l'est.")]);
+  },
+  async bureau_maelys(api) {
+    await api.anim('inspect', 700);
+    if (flag('pupitre_lu')) { await api.say([E("« …crois-le quand il dira qu'il a peur. » Je l'ai lu dix fois.")]); return; }
+    setFlag('pupitre_lu');
+    await api.say([N("Sur le pupitre, une feuille pliée en quatre. Au dos, un seul mot : « Éloi »."), N("« Si tu lis ceci, c'est que tu as su te perdre sans avoir peur. Je suis fière de toi. »"), N("« Ne crois pas tout ce que dira Silas. Mais crois-le quand il dira qu'il a peur. — M. »"), E("Elle savait que j'arriverais jusqu'ici. Elle a toujours une longueur d'avance.", 'joie')]);
+    addNote('note_pupitre'); api.save();
+  },
   async brume(api) { await api.say([E("Une brume si épaisse qu'elle repousse la main. Elle a l'air… de m'attendre. Les pierres gravées, autour, y sont sûrement pour quelque chose.")]); },
   // ---- Moulin
   async levier1(api) { await lever(api, 'levier1'); },
@@ -225,4 +268,64 @@ async function lever(api: Api, id: string) {
     return;
   }
   await api.say([N(`${label} ${m[L.v] ? "s'ouvre" : 'se ferme'}. ${millStatus()}`)]);
+}
+
+
+// ================= Chapitre II : fonctions
+async function echo(api: Api, n: number) {
+  if (flag('echo_' + n)) { await api.say([E("L'herbe argentée s'est tue. La voix a dit ce qu'elle avait à dire.")]); return; }
+  if (await api.fx('engaged')) { await api.say([E("Impossible d'écouter quoi que ce soit avec ces ombres autour de moi !", 'souci')]); return; }
+  await api.anim('atlas', 1100);
+  if (!flag('echos_vus')) { setFlag('echos_vus'); await api.say([N("L'atlas tremble entre les mains d'Éloi. Ses pages se couvrent de givre… et la lande se met à parler.")]); addNote('note_echos'); }
+  setFlag('echo_' + n);
+  await api.fx('memory', 'echo' + n);
+  api.rebuild(); api.quest(); api.save('echo');
+}
+
+async function veille(api: Api, sym: string) {
+  if (flag('veilles_solved')) { await api.say([N(sym === 'oeil' ? "L'œil fermé reste éteint, et c'est très bien ainsi." : 'La pierre veille. Son signe luit doucement dans la brume.')]); return; }
+  await api.anim('work', 450);
+  const r = touchVeille(sym);
+  await api.fx('veilles');
+  if (r === 'trap') { api.sfx('wrong'); await api.say([N("L'œil fermé s'entrouvre… La brume gronde sur la tourbière, et toutes les pierres s'éteignent.")]); return; }
+  if (r === 'wrong') { api.sfx('wrong'); await api.say([N('Le signe grésille, puis toutes les pierres s\'éteignent. Ce n\'était pas le bon ordre.')]); return; }
+  api.sfx('hum', { pitch: 1 + (S.counters.veille ?? 0) * 0.2 });
+  if (r === 'solved') {
+    setFlag('veilles_solved');
+    api.sfx('discover');
+    await api.wait(400);
+    await api.fx('mistCauseway');
+    addTrace('route_landes');
+    api.toast('La brume quitte la chaussée', 'decouverte');
+    await api.say([N("Les quatre pierres s'allument ensemble. Un long souffle passe sur la tourbière : la brume se retire de la chaussée de planches… et se ramasse au loin, au nord-est, comme une bête qu'on dérange.")]);
+    api.rebuild(); api.quest(); api.save('veilles');
+  }
+}
+
+async function brasero(api: Api, i: number) {
+  const r = await api.fx('brasero', i);
+  if (r === true) return;
+  if (r === false) { await api.say([E("Les braises sont encore trop chaudes pour reprendre. Un autre !")]); return; }
+  await api.say([E(flag('devoreur_done') ? "Le brasero refroidit. La brume ne reviendra pas de sitôt." : "Un vieux brasero de pierre, rempli de mousse sèche. Il n'attend qu'une étincelle.")]);
+}
+
+async function mouton(api: Api, n: number) {
+  await api.say([N("Un mouton égaré, la laine pleine de bruyère. Il bêle, regarde Éloi… et trotte vers la bergerie.")]);
+  setFlag('mouton' + n);
+  api.sfx('quest');
+  api.rebuild(); api.quest(); api.save();
+}
+
+async function miroir(api: Api, id: string) {
+  if (flag('miroirs_solved')) { await api.say([E("Le miroir renvoie la lumière là où il faut. Je n'y touche plus.")]); return; }
+  toggleMirror(id);
+  api.sfx('lever');
+  await api.fx('mirrors');
+  if (traceBeam().lit) {
+    setFlag('miroirs_solved');
+    api.sfx('discover');
+    await api.wait(500);
+    api.rebuild();
+    await api.fx('finale2');
+  }
 }

@@ -34,7 +34,10 @@ const HELPERS = `window.__t = {
 const ev = (js) => page.evaluate(js);
 const info = () => ev('__t.info()');
 const sleep = (ms) => page.waitForTimeout(ms);
-async function tap(x, y) { if (TOUCH) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); }
+async function tap(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) { const cam = await ev('(() => { const c = __t.g().cameras.main; return { zoom: c.zoom, wv: [c.worldView.x, c.worldView.y, c.worldView.width], rs: __t.g().registry.get("renderScale") }; })()'); throw new Error('toucher invalide ' + x + ',' + y + ' caméra ' + JSON.stringify(cam) + ' ' + new Error().stack.split('\n').slice(2, 4).join(' / ')); }
+  if (TOUCH) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+}
 
 async function settle(max = 12000) {
   const t0 = Date.now();
@@ -109,6 +112,7 @@ async function walkTo(x, y, tol = 36, toDoor = false) {
         throw new Error(`aucun point cliquable vers ${x},${y}`);
       }
     }
+    if (!pick.every(Number.isFinite)) throw new Error(`point de destination invalide vers ${x},${y} depuis ${Math.round(i.x)},${Math.round(i.y)}`);
     dbg('walk', Math.round(i.x), Math.round(i.y), '→', x, y, 'tap', pick.map(Math.round));
     await tap(pick[0], pick[1]);
     await sleep(150);
@@ -150,7 +154,7 @@ async function travel(zone) {
     while (step && step.z !== i.zone) { cur = step.z; step = prev[cur]; }
     if (!step) throw new Error('aucune route vers ' + zone);
     const r = step.e.r;
-    const interior = ['auberge', 'atelier', 'archives', 'moulin_int'].includes(i.zone);
+    const interior = !!(await ev('__t.g().zone.interior'));
     const tx = Math.max(20, r.x + r.w / 2), ty = Math.max(14, Math.min(r.y + r.h / 2, 99999));
     try {
       if (step.e.door) await walkTo(tx, interior ? r.y - 18 : r.y + r.h + 22, 34, true);
@@ -232,6 +236,90 @@ async function fight(label, enc) {
   check(`combat ${label} gagné`, false, 'délai dépassé');
 }
 
+// ================= Chapitre II
+async function fightDevoreur() {
+  const t0 = Date.now();
+  const BR = [[2408, 676], [2715, 693], [2560, 900]];
+  while (Date.now() - t0 < 300000) {
+    await dialog();
+    const b = await ev('(() => { const g = __t.g(); const B = g.boss; return B ? { alive: B.alive, x: B.x, y: B.y, st: B.st, lit: B.lit, cool: B.cool, tg: B.targets, hp: B.hp, active: g.bossActive } : null; })()');
+    if (!b) { check('boss du chapitre II : le Dévoreur de brume est vaincu', false, 'aucun boss dans la zone'); return; }
+    if (!b.alive) { check('boss du chapitre II : le Dévoreur de brume est vaincu', true, `${Math.round((Date.now() - t0) / 1000)} s, PV ${(await info()).hp}`); return; }
+    const i = await info();
+    // nappe de brume annoncée sous Éloi : s'écarter
+    if (b.st === 'windup' && b.tg.some(([x, y]) => Math.hypot(i.x - x, i.y - y) < 90)) {
+      const [tx, ty] = b.tg[0]; const a = Math.atan2(i.y - ty, i.x - tx); const nx = i.x + Math.cos(a) * 130, ny = i.y + Math.sin(a) * 100;
+      const [sx, sy] = await ev(`__t.toScreen(${nx}, ${ny})`); await tap(sx, sy); await sleep(450); continue;
+    }
+    if (!b.lit.some((v) => v > 0)) {
+      // allumer le brasero disponible le plus proche
+      let k = -1, best = 1e9; BR.forEach(([x, y], j) => { const d = Math.hypot(x - i.x, y - i.y); if (b.cool[j] <= 0 && d < best) { best = d; k = j; } });
+      if (k >= 0) { await clickWorld(BR[k][0], BR[k][1], -40); await sleep(700); continue; }
+    }
+    await clickWorld(b.x, b.y, -70); await sleep(380);
+  }
+  check('boss du chapitre II : le Dévoreur de brume est vaincu', false, 'délai dépassé');
+}
+
+async function chapter2() {
+  await ev('__co.S.clock = Math.floor(__co.S.clock / 1440) * 1440 + 9 * 60');
+  await travel('landes');
+  await dialog();
+  check('chapitre II : arrivée dans les Landes de Brume', (await info()).zone === 'landes' && (await flags()).vu_zone_landes);
+  await screenshot('20-landes');
+  await talkTo('bastien', ['tourbière', 'moutons']);
+  check('chapitre II : Bastien, le berger', (await flags()).met_bastien && (await flags()).troupeau_accepte);
+  for (const [n, x, y] of [[1, 620, 1810], [2, 1300, 1770], [3, 1450, 950]]) await use(x, y, -6);
+  const f1 = await flags();
+  check('chapitre II : les trois voix de la lande (échos)', f1.echo_1 && f1.echo_2 && f1.echo_3 && (await S()).clues.includes('echo_cloche'));
+  // les moutons égarés
+  for (const [x, y] of [[380, 1900], [1700, 1880], [860, 760]]) await use(x, y, -16);
+  await talkTo('bastien', ['sont rentrés']);
+  check('mission : le Troupeau égaré', (await flags()).troupeau_fini);
+  // pierres veilleuses : l'œil fermé est un piège, puis le bon ordre
+  await use(1440, 1170, -40);
+  check('énigme : l\'œil fermé réinitialise les veilleuses', ((await S()).counters.veille ?? 0) === 0 && !(await flags()).veilles_solved);
+  for (const [x, y] of [[1640, 1070], [1830, 1300], [1560, 1430], [1760, 990]]) await use(x, y, -40);
+  check('énigme : pierres veilleuses (saule, corbeau, cloche, lanterne)', (await flags()).veilles_solved);
+  await screenshot('21-veilleuses');
+  // la chaussée, puis le Dévoreur
+  await walkTo(2050, 1120, 50).catch(() => {});
+  await walkTo(2300, 960, 60).catch(() => {});
+  await walkTo(2560, 900, 50).catch(() => {});
+  for (let k = 0; k < 60 && !(await ev('__t.g().bossActive && !__t.g().busy')); k++) { await dialog(); await sleep(250); }
+  check('boss du chapitre II : le Dévoreur de brume se forme', await ev('__t.g().bossActive'), JSON.stringify(await info()).slice(0, 120));
+  await screenshot('22-devoreur');
+  await fightDevoreur();
+  for (let k = 0; k < 40 && !(await flags()).devoreur_done; k++) { await dialog(); await sleep(250); }
+  await dialog();
+  check('Dévoreur vaincu : cœur de brume, route de Brumecime libre', (await flags()).devoreur_done && (await S()).inventory.includes('coeur_brume'));
+  // Brumecime
+  await travel('brumecime');
+  await dialog();
+  check('chapitre II : arrivée à Brumecime', (await info()).zone === 'brumecime');
+  await screenshot('23-brumecime');
+  await talkTo('ysolde', ['homme en gris', 'Tour des Vents']);
+  await talkTo('lena', ['motif']);
+  const f2 = await flags();
+  check('chapitre II : Ysolde et Léna ; la clé tissée dans la tapisserie', f2.met_ysolde && f2.met_lena && (await S()).inventory.includes('cle_tour'));
+  await travel('tour');
+  await dialog();
+  check('chapitre II : la Tour des Vents s\'ouvre avec la clé', (await info()).zone === 'tour' && (await flags()).tour_ouverte);
+  await use(110, 470, -20);
+  check('le pupitre de Maëlys', (await flags()).pupitre_lu);
+  // les miroirs : chacun pivote une fois
+  for (const [x, y] of [[100, 300], [590, 300], [590, 440]]) await use(x, y, -60);
+  check('énigme : la lumière ne monte pas encore', !(await flags()).miroirs_solved);
+  await screenshot('24-miroirs');
+  await use(420, 440, -60);
+  for (let t = 0; t < 240; t++) { await dialog(); if (await page.isVisible('.chapter-end')) break; await sleep(250); }
+  check('écran de fin du Chapitre II', await page.isVisible('.chapter-end'));
+  await screenshot('25-fin-chapitre2');
+  await page.click('.chapter-end button'); await sleep(500);
+  const f3 = await flags();
+  check('Chapitre II terminé : Silas, sauf-conduit, chemins des hauts', f3.chapter2_done && f3.miroirs_solved && (await S()).inventory.includes('sauf_conduit') && (await S()).traces.includes('route_hauts'));
+}
+
 async function screenshot(name) { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` }); }
 
 async function solveBorne(id, x, y, target) {
@@ -264,6 +352,12 @@ async function solveBorne(id, x, y, target) {
   await sleep(1500); await page.evaluate(HELPERS);
   await dialog();
   await screenshot('01-arrivee');
+
+  if (process.env.FROM === 'chap2') {
+    // départ au début du Chapitre II : le prologue est terminé
+    await ev(`(() => { const S = __co.S; Object.assign(S.flags, { intro_vue: true, borne_vue: true, agathe_moulin: true, t_ninon: true, t_salome: true, t_basile: true, bornes_solved: true, boussole_ok: true, theo_ok: true, anton_found: true, stones_solved: true, enc1_done: true, enc2_done: true, boss_done: true, mill_unlocked: true, brake_released: true, journal_lu: true, mill_running: true, route_revealed: true, chapter_done: true, mem_borne: true, mem_boussole: true, mem_dispute: true }); S.chapterDone = true; S.defeated.push('enc1', 'enc2'); S.inventory.push('boussole', 'cle_moulin'); S.mill.solved = true; S.mill.brake = false; S.bornes = [0, 6, 7]; S.traces.push('route_bornes', 'route_bois', 'route_moulin'); S.maxHp = 6; S.hp = 6; S.clock = 9 * 60; __co.scene().loadZone('moulin', 2200, 1060, 'right'); })()`);
+    await sleep(1000); await page.evaluate(HELPERS);
+  } else {
 
   if (process.env.FROM === 'moulin') {
     // départ direct au moulin : toute la progression précédente est acquise
@@ -461,13 +555,16 @@ async function solveBorne(id, x, y, target) {
   check('fête : Agathe a une réplique de fête', seen.includes('régale'), seen.slice(0, 80));
   await screenshot('12-fete');
 
+  }
+  await chapter2();
+
   // Rechargement final
   const fin = await S();
   await page.reload();
   await page.waitForFunction(() => document.getElementById('boot') === null, null, { timeout: 120000 });
   await page.click('[data-h=continue]'); await sleep(1500); await page.evaluate(HELPERS);
   const fin2 = await S();
-  check('rechargement final : tout est conservé', fin2.flags.chapter_done && fin2.mill.solved && fin2.secrets.length === fin.secrets.length && fin2.zone === fin.zone);
+  check('rechargement final : tout est conservé', fin2.flags.chapter_done && fin2.flags.chapter2_done && fin2.mill.solved && fin2.secrets.length === fin.secrets.length && fin2.zone === fin.zone);
   const sc = await ev('__t.g().zone.id');
   check('la roue tourne toujours après rechargement', fin2.mill.solved && sc === fin2.zone);
 

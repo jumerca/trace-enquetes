@@ -241,3 +241,23 @@ export function hangingHerbs(S: number): PropTex {
     for (let i = 0; i < 7; i++) { const x = -50 + i * 17; line(ctx, x, -40, x, -30, '#6b4a30', 1); ctx.beginPath(); ctx.moveTo(x - 6, -30); ctx.lineTo(x + 6, -30); ctx.lineTo(x + 2, -6); ctx.lineTo(x - 2, -6); ctx.closePath(); ink(ctx, cols[i % cols.length], 1.4); }
   });
 }
+
+/** Métier à tisser de Léna, avec la tapisserie en cours : une rue bordée de saules et une maison bleue. */
+export function loom(S: number): PropTex {
+  return makeTex(170, 150, 136, S, (ctx) => {
+    softShadow(ctx, 4, 0, 72, 9);
+    for (const x of [-70, 70]) { ctx.beginPath(); rrect(ctx, x - 5, -120, 10, 120, 2); ink(ctx, '#7a5236', 1.4, { light: () => ctx.rect(x - 5, -120, 3, 120), lightCol: '#9a6d45' }); }
+    ctx.beginPath(); rrect(ctx, -76, -126, 152, 10, 3); ink(ctx, '#6b4a30', 1.4);
+    ctx.beginPath(); rrect(ctx, -76, -40, 152, 10, 3); ink(ctx, '#6b4a30', 1.4);
+    // tapisserie
+    ctx.beginPath(); rrect(ctx, -60, -114, 120, 70, 2); ink(ctx, '#e8dcc0', 1.2);
+    ctx.fillStyle = '#9fc4d8'; ctx.fillRect(-58, -112, 116, 24);
+    ctx.fillStyle = '#c9b78a'; ctx.beginPath(); ctx.moveTo(-20, -46); ctx.lineTo(-6, -88); ctx.lineTo(6, -88); ctx.lineTo(20, -46); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5a7aa8'; ctx.fillRect(22, -82, 26, 20); ctx.fillStyle = '#a6463a'; ctx.beginPath(); ctx.moveTo(20, -82); ctx.lineTo(35, -94); ctx.lineTo(50, -82); ctx.closePath(); ctx.fill();
+    for (const x of [-46, -32, 32]) { ctx.strokeStyle = '#5f7d3c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, -50); ctx.lineTo(x, -78); ctx.stroke(); for (const k of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x, -78); ctx.quadraticCurveTo(x + k * 8, -80, x + k * 9, -60); ctx.stroke(); } }
+    ctx.strokeStyle = 'rgba(90,70,50,0.25)'; ctx.lineWidth = 0.6; for (let x = -58; x < 60; x += 4) { ctx.beginPath(); ctx.moveTo(x, -112); ctx.lineTo(x, -46); ctx.stroke(); }
+    // fils de chaîne et pelote
+    ctx.strokeStyle = '#d8cfbd'; ctx.lineWidth = 0.6; for (let x = -58; x < 60; x += 6) { ctx.beginPath(); ctx.moveTo(x, -44); ctx.lineTo(x, -30); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(52, -14, 9, 0, Math.PI * 2); ink(ctx, '#8a6aa8', 1.1);
+  });
+}

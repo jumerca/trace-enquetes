@@ -12,7 +12,7 @@ import { NPCManager, Npc } from '../systems/NPCManager';
 import { Combat, Enemy } from '../systems/Combat';
 import { OBJECTS, ObjDef, ENCOUNTERS } from '../data/objects';
 import { SCRIPTS } from '../systems/Scripts';
-import { DIALOGS, Line, FETE } from '../data/dialogues';
+import { DIALOGS, Line, FETE, SPEAKER_NAME } from '../data/dialogues';
 import { MEMORIES } from '../data/memories';
 import { MAIN, SIDE, currentMainStep } from '../data/story';
 import { ITEMS } from '../data/items';
@@ -21,6 +21,9 @@ import { revealAround } from '../systems/Atlas';
 import { audio, type Theme } from '../systems/Audio';
 import { Atmosphere, applyCameraFX } from '../systems/Atmosphere';
 import { Boss, ARENA } from '../systems/Boss';
+import { Devoreur } from '../systems/Devoreur';
+import { L_ARENA } from '../world/zones';
+import { mirrorBack, traceBeam, veilleLit, VEILLES } from '../systems/Chapter2';
 import { writeSlot } from '../systems/SaveManager';
 import type { Api } from '../systems/api';
 import { ui } from '../ui/UI';
@@ -99,7 +102,9 @@ export class GameScene extends Phaser.Scene implements Api {
   private exitMsgT = 0;
   selectedItem: string | null = null;
   atmo!: Atmosphere;
-  boss: Boss | null = null;
+  boss: Boss | Devoreur | null = null;
+  /** arène du boss de la zone (Gardien ou Dévoreur) */
+  private get AR() { return this.boss?.arena ?? ARENA; }
   bossActive = false;
   private bossRing: Phaser.GameObjects.Image[] = [];
   private hearts: Phaser.GameObjects.Image[] = [];
@@ -155,6 +160,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.cameras.main.fadeIn(500, 20, 14, 10);
     this.scale.on('resize', () => this.applyZoom());
     this.events.on('shutdown', () => { this.npcs.clear(); this.combat.clear(); this.clearZone(); });
+    if (flag('mem_echo2')) SPEAKER_NAME.conservateur = 'Silas';
     if (!flag('intro_vue')) this.time.delayedCall(700, () => this.intro());
   }
 
@@ -168,7 +174,10 @@ export class GameScene extends Phaser.Scene implements Api {
     if (id === 'auberge') return 'auberge';
     if (id === 'archives') return 'archives';
     if (id === 'moulin_int' || id === 'moulin') return flag('mill_running') ? 'moulin' : 'moulin_silence';
+    if (id === 'tour') return 'archives';
     if (this.zone.interior) return 'maison';
+    if (id === 'landes') return 'landes';
+    if (id === 'brumecime') return ph === 'nuit' ? 'nuit' : 'hauts';
     if (id === 'bois') return flag('stones_solved') ? 'foret_clair' : 'foret';
     if (isFete()) return 'fete';
     if (ph === 'nuit') return 'nuit';
@@ -189,10 +198,20 @@ export class GameScene extends Phaser.Scene implements Api {
         { s: 'eloi', t: "Maëlys, tu es venue jusqu'ici. Je le sens. Il y a encore l'odeur de ton encre partout dans cette histoire." },
       ],
       archives: [{ s: 'eloi', t: "Des cartes du sol au plafond. Maëlys a dû se sentir chez elle ici. Moi, j'ai peur d'éternuer." }],
+      landes: [
+        { s: 'eloi', t: "Les Landes de Brume. De la bruyère à perte de vue, et ce silence… On dirait que le vent écoute.", m: 'surprise' },
+        { s: 'eloi', t: "La silhouette grise est passée par ici. Et Maëlys aussi, j'en suis sûr. Ouvrons l'œil — et l'atlas." },
+      ],
+      brumecime: [
+        { s: 'eloi', t: "Brumecime. Un hameau accroché aux nuages, et cette tour, tout en haut, qui regarde les quatre vents." },
+        { s: 'eloi', t: "Si quelqu'un ici se souvient de Maëlys, je dois le trouver." },
+      ],
+      tour: [{ s: 'eloi', t: "Des miroirs, une lentille immense… La tour ne sert pas à guetter. Elle sert à montrer les chemins.", m: 'surprise' }],
     };
     const lines = T[id];
     if (!lines || flag('vu_zone_' + id)) return;
     setFlag('vu_zone_' + id);
+    this.quest();
     this.time.delayedCall(1100, async () => {
       if (this.busy || ui.isModal()) return;
       this.busy = true; this.path = []; this.target = null; this.hero.play('idle', true);
@@ -212,12 +231,13 @@ export class GameScene extends Phaser.Scene implements Api {
     const hx = this.hero.x, hy = this.hero.y;
     audio.sfx('page');
     this.musicOverride = 'souvenir'; this.music();
-    cam.flash(900, 255, 238, 205);
+    if (m.style === 'echo') cam.flash(900, 200, 225, 245); else cam.flash(900, 255, 238, 205);
     await this.wait(300);
     const pfx = (cam as any).postFX as Phaser.GameObjects.Components.FX | undefined;
     let cm: any = null;
-    if (pfx && this.game.renderer.type === Phaser.WEBGL) { cm = pfx.addColorMatrix(); cm.sepia(); }
-    const veil = this.add.rectangle(hx, hy, 8000, 8000, 0xf3e2c0, cm ? 0.16 : 0.34).setDepth(1.6e7).setBlendMode(cm ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.MULTIPLY);
+    const echo = m.style === 'echo';
+    if (pfx && this.game.renderer.type === Phaser.WEBGL) { cm = pfx.addColorMatrix(); if (echo) { cm.desaturate(); cm.brightness(1.08, true); } else cm.sepia(); }
+    const veil = this.add.rectangle(hx, hy, 8000, 8000, echo ? 0xbfd6ea : 0xf3e2c0, cm ? (echo ? 0.22 : 0.16) : 0.34).setDepth(1.6e7).setBlendMode(cm ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.MULTIPLY);
     ui.setMemory(true);
     const hidden: Actor[] = [];
     for (const n of this.npcs.npcs.values()) { if (n.actor.sprite.visible) { n.actor.setVisible(false); hidden.push(n.actor); } }
@@ -245,7 +265,9 @@ export class GameScene extends Phaser.Scene implements Api {
     this.camX = this.hero.x; this.camY = this.hero.y;
     await this.wait(350);
     await this.say(m.after);
-    this.run([`note:${m.note}`, `log:Souvenir : ${NOTES[m.note]?.title.replace('Souvenir : ', '') ?? id}.`]);
+    if (m.note) this.run([`note:${m.note}`, `log:Souvenir : ${NOTES[m.note]?.title.replace('Souvenir : ', '') ?? id}.`]);
+    if (m.clue) this.run([`clue:${m.clue}`, `log:${CLUES[m.clue]?.title ?? id}.`, 'quest']);
+    if (id === 'echo2') SPEAKER_NAME.conservateur = 'Silas';
     this.save('souvenir');
     this.busy = wasBusy;
   }
@@ -279,6 +301,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.clearZone();
     this.cut.clear();
     this.npcs.clear(); this.combat.clear();
+    if (this.engaged && !this.attract) { this.engaged = false; ui.setDodge(false); ui.setDanger(false); }
     const z = ZONES[id];
     this.zone = z;
     S.zone = id;
@@ -297,7 +320,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.npcs.spawn(id);
     this.combat.spawnZone(id);
     this.boss?.destroy(); this.boss = null; this.bossActive = false; this.bossRing = []; this.hearts = []; ui.bossBar(null);
-    if (id === 'moulin' && flag('stones_solved') && !flag('boss_done')) this.boss = new Boss(this, (this.combat as any).host, this.S_);
+    this.ensureBoss();
     this.ambient();
     this.atmo.build(z, this.settings.quality);
     applyCameraFX(this.cameras.main, this.fxDowngraded ? 'moyenne' : this.settings.quality, !!z.interior);
@@ -346,6 +369,8 @@ export class GameScene extends Phaser.Scene implements Api {
       if (def.sway && !lowQ) this.tweens.add({ targets: img, angle: { from: -0.6, to: 0.6 }, duration: 2200 + ((def.x * 7) % 1500), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       if (def.smoke && !lowQ) this.smoke(def.x + def.smoke[0], def.y + def.smoke[1]);
       if (def.id?.startsWith('pierre_')) this.stoneImgs.set(def.id.slice(7), img);
+      if (def.id?.startsWith('veille_')) this.stoneImgs.set('v_' + def.id.slice(7), img);
+      if (def.id?.startsWith('miroir')) this.stoneImgs.set(def.id, img);
       if (def.tex === 'lamp') this.glow(def.x, def.y - 79, 0.9);
       if (def.tex === 'fire' || def.tex === 'fireplace') this.glow(def.x, def.y - 20, 1.4, true);
       if (def.tex.startsWith('house:')) this.glow(def.x, def.y - 40, 1.6);
@@ -369,7 +394,37 @@ export class GameScene extends Phaser.Scene implements Api {
       this.staticObjs.push(m);
     }
     if (z.id === 'bois') this.updateStones();
+    if (z.id === 'landes') this.updateVeilles();
+    if (z.id === 'tour') this.updateMirrors();
     if (z.id === 'moulin') this.buildMill();
+  }
+
+  /** Remplace la texture d'un décor (même ancrage que la nouvelle texture). */
+  private swapTex(img: Phaser.GameObjects.Image, key: string) {
+    const k = 'p:' + key + '@' + this.S_;
+    const t = propTex(key, this.S_);
+    if (!this.textures.exists(k)) this.textures.addCanvas(k, t.canvas);
+    img.setTexture(k).setOrigin(t.ax, t.ay);
+  }
+  /** Pierres veilleuses : symbole allumé pour celles déjà éveillées. */
+  private updateVeilles() {
+    for (const sym of VEILLES) { const img = this.stoneImgs.get('v_' + sym); if (img) this.swapTex(img, 'stone:' + sym + (flag('veilles_solved') && sym !== 'oeil' || veilleLit(sym) ? ':lit' : '')); }
+  }
+  private beamG: Phaser.GameObjects.Graphics | null = null;
+  /** Miroirs de la tour : orientation, et rayon de lumière depuis la fenêtre. */
+  private updateMirrors() {
+    for (const id of ['miroirA', 'miroirB', 'miroirC', 'miroirD']) { const img = this.stoneImgs.get(id); if (img) this.swapTex(img, mirrorBack(id) ? 'mirror' : 'mirror:slash'); }
+    this.beamG?.destroy();
+    const g = this.add.graphics().setDepth(9e6).setBlendMode(Phaser.BlendModes.ADD);
+    this.beamG = g; this.staticObjs.push(g);
+    const { pts, lit } = traceBeam();
+    const lift = 66; // le rayon passe à hauteur des miroirs
+    for (const [w, a] of [[16, 0.12], [7, 0.35], [2.5, 0.9]] as [number, number][]) {
+      g.lineStyle(w, lit ? 0xfff0a0 : 0xffe6a0, a); g.beginPath();
+      pts.forEach(([x, y], i) => { const yy = i === 0 ? 105 : y - (lit && i === pts.length - 1 ? 88 : lift); if (i) g.lineTo(x, yy); else g.moveTo(x, yy); });
+      g.strokePath();
+    }
+    if (!lit) { const [ex, ey] = pts[pts.length - 1]; g.fillStyle(0xfff2b0, 0.5).fillCircle(ex, ey - lift, 9); }
   }
 
   /** Une flèche « posée à plat » : on simule la rotation dans le plan du sol (vue plongeante). */
@@ -539,8 +594,17 @@ export class GameScene extends Phaser.Scene implements Api {
     }
   }
 
+  /** Crée le boss de la zone dès que ses conditions sont réunies (à l'arrivée, ou après une énigme). */
+  private ensureBoss() {
+    if (this.boss) return;
+    const id = this.zone.id;
+    if (id === 'moulin' && flag('stones_solved') && !flag('boss_done')) this.boss = new Boss(this, (this.combat as any).host, this.S_);
+    if (id === 'landes' && flag('veilles_solved') && !flag('devoreur_done')) this.boss = new Devoreur(this, (this.combat as any).host, this.S_, L_ARENA, () => ['brasero1', 'brasero2', 'brasero3'].map((b) => this.props.find((p) => p.def.id === b)?.img).filter(Boolean) as Phaser.GameObjects.Image[]);
+  }
+
   rebuild() {
     this.nav = new NavGrid(this.zone, flag);
+    this.ensureBoss();
     this.buildStatic();
     this.objs = OBJECTS.filter((o) => o.zone === this.zone.id);
   }
@@ -656,7 +720,7 @@ export class GameScene extends Phaser.Scene implements Api {
     if (this.busy || this.time.now < this.busyUntil) return;
     const pad = 16 / this.cameras.main.zoom * (this.registry.get('renderScale') ?? 1);
     // ordre de priorité : ennemi, habitant, objet, sol
-    if (this.boss && this.boss.hitTest(wx, wy, pad)) { this.setTarget({ kind: 'boss' }); this.showLabel('Le Gardien des Ronces', this.boss.x, this.boss.y - 170); return; }
+    if (this.boss && this.boss.hitTest(wx, wy, pad)) { this.setTarget({ kind: 'boss' }); this.showLabel(this.boss.name, this.boss.x, this.boss.y - 170); return; }
     const e = this.combat.pick(wx, wy, pad);
     if (e) { this.setTarget({ kind: 'enemy', e }); this.showLabel(e.kind === 'murmure' ? 'Murmure' : e.kind === 'ancien' ? 'Ronceux ancien' : 'Ronceux', e.x, e.y - 70); return; }
     const n = this.npcs.pick(wx, wy, pad);
@@ -799,14 +863,14 @@ export class GameScene extends Phaser.Scene implements Api {
     else if (!modal && !this.busy && !this.transitioning) this.updateHero(dt);
     if (this.hearts.length) this.collectHearts();
     if (this.boss && !modal && !this.transitioning) {
-      if (!this.bossActive && this.boss.st === 'intro' && !this.busy && Math.hypot(this.hero.x - ARENA.x, this.hero.y - ARENA.y) < ARENA.r - 20) void this.startBossFight();
+      if (!this.bossActive && this.boss.st === 'intro' && !this.busy && Math.hypot(this.hero.x - this.AR.x, this.hero.y - this.AR.y) < this.AR.r - 20) void this.startBossFight();
       if (this.bossActive) {
         const diff = { exploration: [1.5, 0], facile: [1.35, 1], normale: [1, 1], difficile: [0.8, 1] }[this.settings.combat];
         this.boss.update(dt, diff[0], diff[1]);
-        ui.bossBar('Le Gardien des Ronces', this.boss.hp / this.boss.maxHp);
+        ui.bossBar(this.boss.name, this.boss.hp / this.boss.maxHp);
         // l'arène est fermée par les ronces
-        const dx = this.hero.x - ARENA.x, dy = this.hero.y - ARENA.y, d = Math.hypot(dx, dy);
-        if (d > ARENA.r - 10) this.hero.setPos(ARENA.x + dx / d * (ARENA.r - 12), ARENA.y + dy / d * (ARENA.r - 12));
+        const dx = this.hero.x - this.AR.x, dy = this.hero.y - this.AR.y, d = Math.hypot(dx, dy);
+        if (d > this.AR.r - 10) this.hero.setPos(this.AR.x + dx / d * (this.AR.r - 12), this.AR.y + dy / d * (this.AR.r - 12));
       }
     }
     this.npcs.update(dt, this.nav, this.zone.id, [this.hero.x, this.hero.y]);
@@ -886,8 +950,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.blockedT = 0;
     if (d <= sp) { h.setPos(tx, ty); this.path.shift(); }
     else h.setPos(nx, ny);
-    this.vx = dx / d; this.vy = dy / d;
-    h.faceToward(h.x + dx, h.y + dy);
+    if (d > 0.001) { this.vx = dx / d; this.vy = dy / d; h.faceToward(h.x + dx, h.y + dy); }
     h.play(running ? 'run' : 'walk');
     this.stepT -= dt;
     if (this.stepT <= 0) { this.stepT = running ? 0.22 : 0.34; const sf = this.surface(); audio.sfx('step', { surface: sf }); if (this.settings.quality !== 'basse') this.atmo.dust(h.x, h.y, sf); }
@@ -920,9 +983,9 @@ export class GameScene extends Phaser.Scene implements Api {
             const r = this.boss.strike(this.hero.x, this.hero.y, { exploration: 2, facile: 1.5, normale: 1, difficile: 1 }[this.settings.combat]);
             if (r === 'hit') this.hitStop = 0.09;
             // équilibrage : à mi-combat, le gardien perd deux cœurs de sève ; Éloi en difficulté en trouve un de plus
-            if (r === 'hit' && this.boss.alive && !was2 && this.boss.phase2) for (const k of [-1, 1]) this.dropHeart(ARENA.x + k * ARENA.r * 0.55, ARENA.y + 60);
-            else if (r === 'hit' && this.boss.alive && S.hp <= 2 && Math.random() < 0.35) this.dropHeart(ARENA.x + (Math.random() - 0.5) * ARENA.r, ARENA.y + ARENA.r * 0.4);
-            if (r === 'bounce') { const a = Math.atan2(this.hero.y - this.boss.y, this.hero.x - this.boss.x); const nx = this.hero.x + Math.cos(a) * 28, ny = this.hero.y + Math.sin(a) * 28; if (this.nav.freeAt(nx, ny)) this.hero.setPos(nx, ny); this.spark(this.boss.x, this.boss.y - 60); if (!flag('tuto_coeur')) { setFlag('tuto_coeur'); ui.hint('Ses ronces sont trop dures : attendez que son cœur s\'ouvre !'); } }
+            if (r === 'hit' && this.boss.alive && !was2 && this.boss.phase2) for (const k of [-1, 1]) this.dropHeart(this.AR.x + k * this.AR.r * 0.55, this.AR.y + 60);
+            else if (r === 'hit' && this.boss.alive && S.hp <= 2 && Math.random() < 0.35) this.dropHeart(this.AR.x + (Math.random() - 0.5) * this.AR.r, this.AR.y + this.AR.r * 0.4);
+            if (r === 'bounce') { const a = Math.atan2(this.hero.y - this.boss.y, this.hero.x - this.boss.x); const nx = this.hero.x + Math.cos(a) * 28, ny = this.hero.y + Math.sin(a) * 28; if (this.nav.freeAt(nx, ny)) this.hero.setPos(nx, ny); this.spark(this.boss.x, this.boss.y - 60); if (this.boss.kind === 'devoreur') ui.hint('Il se dissout dans la brume : allumez un brasero !'); else if (!flag('tuto_coeur')) { setFlag('tuto_coeur'); ui.hint('Ses ronces sont trop dures : attendez que son cœur s\'ouvre !'); } }
           }
         });
       }
@@ -1007,15 +1070,18 @@ export class GameScene extends Phaser.Scene implements Api {
 
   private updateCamera(dt: number) {
     const cam = this.cameras.main;
+    // garde-fou : une position invalide (division par zéro quelque part) ne doit jamais figer la caméra
+    if (!Number.isFinite(this.camX) || !Number.isFinite(this.camY)) { this.camX = this.hero.x; this.camY = this.hero.y; }
+    if (!Number.isFinite(this.vx) || !Number.isFinite(this.vy)) { this.vx = 0; this.vy = 0; }
     const look = this.path.length ? 70 : 0;
     const tx = this.hero.x + this.vx * look, ty = this.hero.y - 20 + this.vy * look * 0.7;
     if (this.camFree || this.camHold) { if (!(this as any)._panning) cam.centerOn(this.camX, this.camY); return; }
     if (this.bossActive && this.boss && !(this as any)._panning) {
       // combat de boss : la caméra cadre l'arène entière (Éloi et le Gardien toujours visibles)
-      const tx = (this.hero.x + this.boss.x) / 2 * 0.5 + ARENA.x * 0.5, ty = (this.hero.y + this.boss.y - 60) / 2 * 0.5 + ARENA.y * 0.5;
+      const tx = (this.hero.x + this.boss.x) / 2 * 0.5 + this.AR.x * 0.5, ty = (this.hero.y + this.boss.y - 60) / 2 * 0.5 + this.AR.y * 0.5;
       const k = Math.min(1, dt * 3);
       this.camX += (tx - this.camX) * k; this.camY += (ty - this.camY) * k;
-      const want = Math.min(cam.height / (ARENA.r * 2 + 220), cam.width / (ARENA.r * 2 + 360));
+      const want = Math.min(cam.height / (this.AR.r * 2 + 220), cam.width / (this.AR.r * 2 + 360));
       cam.setZoom(cam.zoom + (want - cam.zoom) * k);
       cam.centerOn(this.camX, this.camY);
       return;
@@ -1089,6 +1155,7 @@ export class GameScene extends Phaser.Scene implements Api {
       const r = e.rect;
       if (hx < r.x || hx > r.x + r.w || hy < r.y || hy > r.y + r.h) continue;
       if (!evalCond(e.cond, flag)) {
+        if (e.to === 'tour' && has('cle_tour') && !flag('tour_ouverte')) { setFlag('tour_ouverte'); this.take('cle_tour'); audio.sfx('door'); this.quest(); this.save(); void this.say([{ s: 'narr', t: "La clé d'argent tourne sans un bruit. La porte de la Tour des Vents s'ouvre sur un escalier qui sent la pierre froide et le vent." }]); continue; }
         if (e.to === 'moulin_int' && has('cle_moulin') && flag('boss_done') && !flag('mill_unlocked')) { setFlag('mill_unlocked'); audio.sfx('door'); void this.say([{ s: 'narr', t: "La clé d'Anton tourne dans la serrure. En soulevant la porte, elle s'ouvre avec un long grincement." }]); return; }
         if (e.blockedMsg && this.exitMsgT <= 0) { this.exitMsgT = 4; void this.say([{ s: 'narr', t: e.blockedMsg }]); this.stopHero(); this.hero.setPos(hx, hy + 18); }
         continue;
@@ -1206,6 +1273,10 @@ export class GameScene extends Phaser.Scene implements Api {
         return;
       }
       if (this.zone.id === 'moulin' && flag('mill_running') && !flag('route_revealed')) { this.busy = false; await this.finale(); return; }
+      // près d'un cercle d'herbe argentée : l'atlas fait entendre la voix
+      if (this.zone.id === 'landes') for (const o of OBJECTS.filter((x) => x.id.startsWith('echo_') && !flag(x.id))) {
+        if (Math.hypot(hx - o.x, hy - o.y) < 170) { await SCRIPTS[o.id](this); return; }
+      }
       if (this.zone.id === 'clairval' && flag('bornes_solved') && Object.values(BORNE_POS).some(([x, y]) => Math.hypot(hx - x, hy - y) < 220)) {
         await this.say([{ s: 'eloi', t: "La trace dorée brille plus fort près des bornes. Elle file vers le rocher fendu… puis s'arrête net." }]);
         return;
@@ -1265,7 +1336,7 @@ export class GameScene extends Phaser.Scene implements Api {
     this.quest();
     this.save('fin');
     audio.sfx('fanfare');
-    await ui.chapterEnd();
+    await ui.chapterEnd(1);
     this.busy = false;
   }
 
@@ -1273,6 +1344,68 @@ export class GameScene extends Phaser.Scene implements Api {
   private watcherSpot(): [number, number] {
     for (const [x, y] of [[2260, 1080], [2230, 1100], [2200, 1060], [2150, 1100]] as [number, number][]) if (this.nav.freeAt(x, y)) return [x, y];
     return [2200, 1080];
+  }
+
+  // ============================================================== fin du Chapitre II
+  /** La lentille s'allume ; l'atlas reçoit les chemins des hauts ; Silas monte l'escalier. */
+  private async finale2() {
+    if (flag('chapter2_done')) return;
+    this.busy = true; this.stopHero();
+    await this.say([{ s: 'narr', t: "La lentille s'embrase. Un faisceau d'or traverse la salle et vient frapper l'atlas, ouvert entre les mains d'Éloi." }]);
+    await this.anim('atlas', 1500);
+    audio.sfx('discover');
+    addTrace('route_hauts'); addNote('note_hauts');
+    await this.say([
+      { s: 'narr', t: "Sur les pages blanches, des dizaines de chemins se dessinent, fins comme des cheveux. Ils serpentent à travers les Hautes Terres… et convergent tous vers l'est." },
+      { s: 'eloi', t: "Vers une ville. Il n'y a qu'un mot, en lettres minuscules : « la Cité ».", m: 'surprise' },
+    ]);
+    // Silas monte l'escalier
+    this.musicOverride = 'moulin_silence'; this.music();
+    audio.sfx('door');
+    const silas = new Actor(this, 'conservateur', 640, 270, this.S_);
+    silas.setPos(640, 270); silas.sprite.setAlpha(0); silas.shadow.setAlpha(0);
+    this.memActors.push(silas);
+    this.tweens.add({ targets: [silas.sprite, silas.shadow], alpha: 1, duration: 700 });
+    silas.play('walk', true); silas.face('left');
+    await new Promise<void>((r) => this.tweens.add({ targets: silas, x: 540, y: 330, duration: 1400, onUpdate: () => silas.setPos(silas.x, silas.y), onComplete: () => r() }));
+    silas.play('idle', true); silas.faceToward(this.hero.x, this.hero.y); this.hero.faceToward(silas.x, silas.y);
+    SPEAKER_NAME.conservateur = 'Silas';
+    const L: Line[] = [
+      { s: 'conservateur', t: "Elle a toujours aimé les belles lumières." },
+      { s: 'eloi', t: "Vous ! L'homme en gris. Silas.", m: 'surprise' },
+      { s: 'conservateur', t: "Silas Vey, Conservateur de troisième rang. Et toi, tu es celui qui claque les portes." },
+      { s: 'eloi', t: "Où est Maëlys ?", m: 'colere' },
+      { s: 'conservateur', t: "À la Cité des Cartes. Elle s'y est rendue d'elle-même, il y a trois mois. Elle a demandé qu'on t'arrête ici, si tu venais." },
+      { s: 'eloi', t: "Qu'on m'arrête ?!", m: 'colere' },
+      { s: 'conservateur', t: "Pour te protéger. Elle dit que tu as tout son courage… et aucune de ses précautions." },
+      { s: 'eloi', t: "Pourquoi effacer des chemins ? Le moulin, les saules, la chaussée… Des gens ont tout oublié !" },
+      { s: 'conservateur', t: "Les chemins s'usent quand on les emprunte sans les regarder. Trop de pas, trop de bruit, et un lieu finit par s'oublier tout seul, mal, n'importe comment.", m: 'souci' },
+      { s: 'conservateur', t: "Nous, nous les mettons au repos. Proprement. La route du moulin menait aux hauts ; les hauts mènent à la Source. Et la Source ne doit pas être retrouvée par n'importe qui." },
+    ];
+    if (flag('garde_avoue')) L.push({ s: 'eloi', t: "Vous avez payé Théodore. Il en a eu honte pendant cinq ans." }, { s: 'conservateur', t: "… Je sais. Je le lui dirai moi-même. Je le lui dois.", m: 'souci' });
+    if (flag('lena_cle')) L.push({ s: 'eloi', t: "Et Léna ? Elle tisse la rue qu'on lui a prise, sans savoir pourquoi." }, { s: 'conservateur', t: "Je n'ai jamais prétendu que nous avions raison partout.", m: 'souci' });
+    L.push(
+      { s: 'conservateur', t: "Je devrais t'arrêter. C'est ce qu'elle a demandé, et c'est ce que mon ordre exige." },
+      { s: 'conservateur', t: "Mais je suis fatigué d'effacer." },
+      { s: 'narr', t: "Silas sort de sa manche un carton scellé de cire grise et le pose sur le pupitre." },
+      { s: 'conservateur', t: "Un sauf-conduit pour la Cité. Ne le montre qu'aux portes. Et regarde où tu mets les pieds : les chemins que tu rouvres, d'autres les emprunteront aussi." },
+    );
+    await this.say(L);
+    this.give('sauf_conduit');
+    await new Promise<void>((r) => this.tweens.add({ targets: [silas.sprite, silas.shadow], alpha: 0, duration: 1100, onComplete: () => r() }));
+    silas.destroy(); this.memActors = this.memActors.filter((a) => a !== silas);
+    this.musicOverride = null; this.music();
+    addNote('note_silas');
+    await this.say([
+      { s: 'eloi', t: "« Crois-le quand il dira qu'il a peur. » Il avait peur. Mais pas de moi.", m: 'souci' },
+      { s: 'eloi', t: "La Cité des Cartes. J'arrive, Maëlys. Et cette fois, c'est moi qui viens te chercher." },
+    ]);
+    setFlag('chapter2_done');
+    S.log.push('Silas a laissé partir Éloi. Fin du Chapitre II.');
+    this.quest(); this.save('fin2');
+    audio.sfx('fanfare');
+    await ui.chapterEnd(2);
+    this.busy = false;
   }
 
   // ============================================================== combat façon aventure
@@ -1346,11 +1479,12 @@ export class GameScene extends Phaser.Scene implements Api {
   private async startBossFight() {
     if (!this.boss || this.bossActive) return;
     this.busy = true; this.stopHero();
-    S.checkpoint = { zone: 'moulin', x: ARENA.x, y: ARENA.y + ARENA.r - 50 };
+    S.checkpoint = { zone: this.zone.id, x: this.AR.x, y: this.AR.y + this.AR.r - 50 };
     this.bossActive = true;
+    if (this.boss.kind === 'devoreur') { await this.startDevoreur(); return; }
     // anneau de ronces : l'arène se referme
     for (let i = 0; i < 28; i++) {
-      const a = (i / 28) * Math.PI * 2, x = ARENA.x + Math.cos(a) * (ARENA.r + 20), y = ARENA.y + Math.sin(a) * (ARENA.r + 20);
+      const a = (i / 28) * Math.PI * 2, x = this.AR.x + Math.cos(a) * (this.AR.r + 20), y = this.AR.y + Math.sin(a) * (this.AR.r + 20);
       const k = 'p:bramble:70:' + (i % 5 + 30) + '@' + this.S_;
       if (!this.textures.exists(k)) this.textures.addCanvas(k, propTex('bramble:70:' + (i % 5 + 30), this.S_).canvas);
       const b = this.add.image(x, y + 20, k).setScale(0.2 / this.S_).setOrigin(0.5, 0.85).setDepth(y);
@@ -1375,11 +1509,53 @@ export class GameScene extends Phaser.Scene implements Api {
     this.busy = false;
   }
 
+  /** Le Dévoreur de brume : un mur de brume referme l'arène, il se forme au-dessus de la tourbière. */
+  private async startDevoreur() {
+    const A = this.AR;
+    for (let i = 0; i < 30; i++) {
+      const a = (i / 30) * Math.PI * 2, x = A.x + Math.cos(a) * (A.r + 24), y = A.y + Math.sin(a) * (A.r + 24) * 0.85;
+      const b = this.add.image(x, y - 20, 'fx_soft').setScale(0.4).setTint(0xdfe8ee).setAlpha(0).setDepth(y + 30);
+      this.tweens.add({ targets: b, alpha: 0.75, scale: 2.4 + (i % 3) * 0.4, duration: 700, delay: i * 30 });
+      this.tweens.add({ targets: b, x: x + 6, duration: 1800 + i * 40, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.bossRing.push(b);
+    }
+    audio.sfx('whoosh'); audio.play('boss');
+    await this.pan([this.boss!.x, this.boss!.y - 80], 900, 200);
+    this.boss!.appear();
+    await this.wait(600);
+    await this.say([
+      { s: 'narr', t: "La brume de la tourbière se ramasse sur elle-même, s'épaissit… et ouvre deux yeux pâles." },
+      { s: 'eloi', t: "C'est elle qui a mangé la chaussée. Elle dévore les chemins, comme les ronces gardaient le moulin !", m: 'surprise' },
+      { s: 'eloi', t: "Mes coups la traversent… mais les vieux braseros, là. Le feu chasse la brume." },
+    ]);
+    if (!flag('tuto_devoreur')) { setFlag('tuto_devoreur'); ui.toast('Insaisissable dans la brume : touchez un brasero pour l\'allumer, puis frappez le Dévoreur tant que la flamme brûle.', 'info'); }
+    await this.pan([this.hero.x, this.hero.y], 700, 0);
+    this.boss!.onDefeat = () => void this.bossDefeated();
+    ui.setDodge(true); this.engaged = true; ui.setDanger(true);
+    this.busy = false;
+  }
+
   private async bossDefeated() {
     this.busy = true; this.stopHero();
     this.bossActive = false; ui.bossBar(null); ui.setDodge(false); this.engaged = false; ui.setDanger(false); this.applyZoom();
     for (const [i, b] of this.bossRing.entries()) this.tweens.add({ targets: b, scale: 0, alpha: 0, duration: 400, delay: i * 20, onComplete: () => b.destroy() });
     this.bossRing = [];
+    if (this.boss?.kind === 'devoreur') {
+      setFlag('devoreur_done');
+      this.music();
+      await this.say([
+        { s: 'narr', t: "Le Dévoreur se déchire comme un vieux drap. La brume reflue vers les hauts, et le chemin de Brumecime apparaît, net, au nord." },
+        { s: 'narr', t: "Là où il flottait, une larme de verre froid, qui brille d'une lumière de lune : un cœur de brume." },
+        { s: 'eloi', t: "Brumecime… Maëlys est passée par là. Je le sens, ses pas sont encore sur cette lande." },
+      ]);
+      this.give('coeur_brume');
+      S.maxHp += 1; S.hp = S.maxHp; ui.hearts();
+      this.toast('Cœur de brume : un cœur de plus !', 'secret');
+      S.log.push('Le Dévoreur de brume est vaincu. La route de Brumecime est libre.');
+      this.rebuild(); this.quest(); this.save('boss');
+      this.busy = false;
+      return;
+    }
     setFlag('boss_done');
     this.music();
     await this.say([
@@ -1428,14 +1604,25 @@ export class GameScene extends Phaser.Scene implements Api {
     (this as any)._panning = false;
     this.camHold = true;
   }
-  async fx(effect: string, data?: any) {
+  async fx(effect: string, data?: any): Promise<unknown> {
     if (effect === 'memory') { await this.playMemory(data as string); return; }
+    if (effect === 'engaged') return this.engaged;
+    if (effect === 'brasero') return (this.bossActive && this.boss instanceof Devoreur) ? this.boss.light(data as number) : null;
     if (effect === 'borne') this.drawArrow(data as number);
     if (effect === 'bornesGlow') {
       this.arrows.forEach((a, i) => { this.drawArrow(i); const s = this.add.image(a.x, a.y, 'fx_soft').setScale(4).setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd36a).setDepth(9e6); this.tweens.add({ targets: s, alpha: 0, scale: 7, duration: 1400, onComplete: () => s.destroy() }); });
       await this.wait(600);
     }
     if (effect === 'stones') this.updateStones();
+    if (effect === 'veilles') this.updateVeilles();
+    if (effect === 'mistCauseway') {
+      const m = this.props.find((p) => p.def.tex === 'mist:300' && p.def.x === 2050);
+      await this.pan([2050, 1100], 900, 0);
+      if (m) await new Promise<void>((r) => this.tweens.add({ targets: m.img, alpha: 0, x: m.img.x + 160, y: m.img.y - 120, duration: 1600, onComplete: () => r() }));
+      await this.pan([2560, 760], 1100, 700);
+    }
+    if (effect === 'finale2') { await this.finale2(); }
+    if (effect === 'mirrors') this.updateMirrors();
     if (effect === 'mist') {
       const m = this.props.find((p) => p.def.tex.startsWith('mist'));
       if (m) await new Promise<void>((r) => this.tweens.add({ targets: m.img, alpha: 0, y: m.img.y - 60, duration: 1600, onComplete: () => r() }));
@@ -1502,9 +1689,12 @@ export class GameScene extends Phaser.Scene implements Api {
 
   /** Angle (radians, écran) de la boussole vers l'objectif, ou null. */
   compass(): number | null {
-    if (!flag('boussole_ok') || flag('chapter_done')) return null;
+    if (!flag('boussole_ok') || flag('chapter2_done')) return null;
     const st = currentMainStep()?.id;
+    const echoGoal: [ZoneId, number, number] = !flag('echo_1') ? ['landes', 620, 1810] : !flag('echo_2') ? ['landes', 1300, 1770] : ['landes', 1450, 950];
     const goals: Record<string, [ZoneId, number, number]> = {
+      c2_depart: ['moulin', 2390, 1060], c2_berger: ['landes', 1100, 1330], c2_echos: echoGoal, c2_veilles: ['landes', 1640, 1220], c2_devoreur: ['landes', L_ARENA.x, L_ARENA.y],
+      c2_brumecime: !flag('met_ysolde') ? ['brumecime', 1300, 660] : ['tissage', 360, 350], c2_cle: ['tissage', 360, 330], c2_miroirs: flag('tour_ouverte') ? ['tour', 420, 330] : ['brumecime', 1200, 600], c2_silas: ['tour', 420, 330],
       bois: ['clairval', 1300, 230], anton: ['bois', 1760, 1440], pierres: ['bois', 1100, 770], gardien: ['moulin', ARENA.x, ARENA.y], moulin: flag('mill_unlocked') ? ['moulin_int', 560, 360] : ['moulin', 1190, 940], roue: ['moulin', 1500, 500], route: ['moulin', 1250, 960],
     };
     const g = st ? goals[st] : undefined; if (!g) return null;

@@ -86,7 +86,7 @@ export class Atmosphere {
     }
     // reflets qui coulent dans la rivière (masque = forme de l'eau)
     if (q !== 'basse') for (const w of z.water) {
-      if (w.channel) continue;
+      if (w.channel || w.bog) continue;
       const g = s.make.graphics({}, false);
       g.lineStyle(w.w * 0.82, 0xffffff, 1); g.beginPath(); g.moveTo(w.pts[0][0], w.pts[0][1]); for (const [x, y] of w.pts.slice(1)) g.lineTo(x, y); g.strokePath();
       const xs = w.pts.map((p) => p[0]), ys = w.pts.map((p) => p[1]);

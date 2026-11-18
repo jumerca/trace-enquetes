@@ -14,7 +14,7 @@ export interface Api {
   rebuild(): void; // reconstruit décors et collisions après un changement de drapeaux
   wait(ms: number): Promise<void>;
   pan(to: Pt, ms: number, hold?: number): Promise<void>;
-  fx(effect: string, data?: any): Promise<void> | void;
+  fx(effect: string, data?: any): Promise<unknown> | unknown;
   quest(): void;
   run(fx: string[]): void;
 }

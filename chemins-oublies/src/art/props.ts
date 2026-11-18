@@ -422,7 +422,7 @@ export function borneArrow(S: number): PropTex {
   });
 }
 
-export const SYMBOLS = ['eau', 'oiseau', 'cle', 'lune'] as const;
+export const SYMBOLS = ['eau', 'oiseau', 'cle', 'lune', 'saule', 'corbeau', 'cloche', 'lanterne', 'oeil'] as const;
 export type Symbol = typeof SYMBOLS[number];
 
 export function drawSymbol(ctx: Ctx, s: Symbol, col: string, lw = 2) {
@@ -431,6 +431,11 @@ export function drawSymbol(ctx: Ctx, s: Symbol, col: string, lw = 2) {
   if (s === 'oiseau') { ctx.moveTo(-9, -1); ctx.quadraticCurveTo(-4, -7, 0, 1); ctx.quadraticCurveTo(4, -7, 9, -1); ctx.moveTo(0, 1); ctx.lineTo(0, 6); }
   if (s === 'cle') { ctx.arc(-4, 0, 4, 0, TAU); ctx.moveTo(0, 0); ctx.lineTo(9, 0); ctx.moveTo(6, 0); ctx.lineTo(6, 4); ctx.moveTo(9, 0); ctx.lineTo(9, 4); }
   if (s === 'lune') { ctx.arc(0, 0, 8, -1.9, 1.9); ctx.quadraticCurveTo(-6, 0, Math.cos(-1.9) * 8, Math.sin(-1.9) * 8); }
+  if (s === 'saule') { ctx.moveTo(0, 8); ctx.lineTo(0, -6); for (const k of [-1, 1]) for (const r of [4, 8]) { ctx.moveTo(0, -6); ctx.quadraticCurveTo(k * r, -8, k * (r + 1), 4); } }
+  if (s === 'corbeau') { ctx.moveTo(-9, 2); ctx.quadraticCurveTo(-4, -6, 2, -2); ctx.lineTo(8, -5); ctx.lineTo(4, 0); ctx.quadraticCurveTo(0, 6, -9, 2); ctx.moveTo(-2, 3); ctx.lineTo(-3, 8); ctx.moveTo(1, 3); ctx.lineTo(1, 8); }
+  if (s === 'cloche') { ctx.moveTo(-7, 5); ctx.quadraticCurveTo(-6, -8, 0, -8); ctx.quadraticCurveTo(6, -8, 7, 5); ctx.lineTo(-7, 5); ctx.moveTo(0, -8); ctx.lineTo(0, -10); ctx.moveTo(2, 8); ctx.arc(0, 8, 2, 0, TAU); }
+  if (s === 'lanterne') { ctx.rect(-4, -5, 8, 11); ctx.moveTo(-6, -5); ctx.lineTo(6, -5); ctx.moveTo(0, -5); ctx.lineTo(0, -9); ctx.moveTo(-6, 6); ctx.lineTo(6, 6); ctx.moveTo(0, -1); ctx.arc(0, 1, 2, -Math.PI / 2, Math.PI * 1.5); }
+  if (s === 'oeil') { ctx.moveTo(-9, 0); ctx.quadraticCurveTo(0, 7, 9, 0); for (const x of [-5, 0, 5]) { ctx.moveTo(x, 4); ctx.lineTo(x * 1.2, 8); } ctx.moveTo(-9, -4); ctx.lineTo(9, -4); ctx.lineTo(9, -9); ctx.lineTo(-9, -9); ctx.closePath(); }
   ctx.stroke();
 }
 
@@ -998,5 +1003,108 @@ export function feastTable(S: number): PropTex {
       if (k === 'jug') { ctx.beginPath(); rrect(ctx, x - 4.5, -60, 9, 14, 3); ink(ctx, c, 1, { light: () => ctx.rect(x - 3, -58, 2, 9) }); ctx.beginPath(); ctx.arc(x + 5.5, -54, 3, -1.2, 1.2); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke(); }
       if (k === 'bowl') { ctx.beginPath(); ctx.arc(x, -47, 8, 0, Math.PI); ctx.closePath(); ink(ctx, '#f4ecd8', 1); for (const d of [-4, 0, 4]) { ctx.beginPath(); ctx.arc(x + d, -48.5, 3, 0, TAU); ink(ctx, d ? '#d0503a' : '#7fb956', 0.7); } }
     }
+  });
+}
+
+
+// ============================================================ Chapitre II : les Hautes Terres
+/** Brasero de pierre : éteint, ou allumé (flamme bleutée qui repousse la brume). */
+export function brazier(S: number, lit: boolean): PropTex {
+  return makeTex(60, 96, 88, S, (ctx) => {
+    softShadow(ctx, 3, 0, 22, 6);
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-7, -38); ctx.lineTo(7, -38); ctx.lineTo(10, 0); ctx.closePath(); ink(ctx, '#7f7a72', 1.4, { shadeFn: () => ctx.rect(2, -40, 12, 42), shadeCol: '#615c55' });
+    ctx.beginPath(); ctx.moveTo(-20, -38); ctx.quadraticCurveTo(0, -30, 20, -38); ctx.lineTo(16, -48); ctx.lineTo(-16, -48); ctx.closePath(); ink(ctx, '#5a554e', 1.4, { light: () => ctx.rect(-16, -48, 32, 3), lightCol: '#8a857c' });
+    if (lit) {
+      ctx.fillStyle = 'rgba(160,220,255,0.28)'; ctx.beginPath(); ctx.arc(0, -60, 26, 0, TAU); ctx.fill();
+      for (const [c, w, h] of [['#8fd0ff', 15, 32], ['#d6f2ff', 9, 22], ['#ffffff', 4, 11]] as [string, number, number][]) { ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(-w, -46); ctx.quadraticCurveTo(-w * 0.8, -46 - h * 0.7, 0, -46 - h); ctx.quadraticCurveTo(w * 0.8, -46 - h * 0.7, w, -46); ctx.closePath(); ctx.fill(); }
+    } else { ctx.fillStyle = '#2e2a26'; ctx.beginPath(); ellipse(ctx, 0, -47, 14, 3); ctx.fill(); ctx.fillStyle = '#6a5a4a'; for (const x of [-7, 0, 6]) { ctx.beginPath(); ellipse(ctx, x, -49, 4, 2); ctx.fill(); } }
+  });
+}
+
+/** Lieu d'écho : anneau de lumière pâle posé au sol, avec des brins d'herbe argentée. */
+export function echoSpot(S: number, heard: boolean): PropTex {
+  return makeTex(110, 60, 34, S, (ctx) => {
+    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 46);
+    g.addColorStop(0, heard ? 'rgba(200,220,240,0.12)' : 'rgba(170,215,255,0.5)'); g.addColorStop(1, 'rgba(170,215,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ellipse(ctx, 0, 0, 50, 22); ctx.fill();
+    ctx.strokeStyle = heard ? 'rgba(220,230,240,0.35)' : 'rgba(225,240,255,0.9)'; ctx.lineWidth = 1.4; ctx.setLineDash([5, 4]); ctx.beginPath(); ellipse(ctx, 0, 0, 34, 14); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#c9d6dc'; ctx.lineWidth = 1; for (let i = 0; i < 9; i++) { const a = i / 9 * TAU, x = Math.cos(a) * 30, y = Math.sin(a) * 12; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 2, y - 8, x + 4, y - 12); ctx.stroke(); }
+  });
+}
+
+/** Touffe de bruyère : buisson bas, fleurs mauves. */
+export function heather(S: number, seed: number): PropTex {
+  const r = new Rng(seed); const rnd = () => r.next();
+  return makeTex(60, 40, 34, S, (ctx) => {
+    softShadow(ctx, 2, 0, 24, 5, 0.22);
+    ctx.beginPath(); blob(ctx, 0, -10, 24, 12, 9, 0.25, rnd); ink(ctx, '#5f6d3f', 1.1, { shadeFn: () => ctx.rect(-30, -8, 60, 12), shadeCol: '#4c5833' });
+    for (let i = 0; i < 26; i++) { const x = (rnd() - 0.5) * 42, y = -6 - rnd() * 16; ctx.fillStyle = rnd() < 0.5 ? '#b678c2' : '#d39bd8'; ctx.beginPath(); ctx.arc(x, y, 1.6 + rnd(), 0, TAU); ctx.fill(); }
+  });
+}
+
+/** Chaussée de planches sur la tourbière. */
+export function causeway(S: number, w: number): PropTex {
+  return makeTex(w + 10, 46, 34, S, (ctx) => {
+    for (const x of [-w / 2 + 6, w / 2 - 6]) for (const y of [-6, 6]) { ctx.beginPath(); rrect(ctx, x - 3, y - 10, 6, 14, 1); ink(ctx, '#5a4030', 0.9); }
+    for (let x = -w / 2; x < w / 2 - 4; x += 11) { ctx.beginPath(); rrect(ctx, x, -12 + ((x * 7) % 3), 10, 24, 1.5); ink(ctx, x % 2 ? '#9a7652' : '#8a6848', 1, { light: () => ctx.rect(x, -12, 10, 3), lightCol: '#b8946a' }); }
+  });
+}
+
+/** La Tour des Vents : haute tour de pierre, toit d'ardoise, girouette, grande lentille au sommet. */
+export function windTower(S: number, lit: boolean): PropTex {
+  return makeTex(230, 470, 452, S, (ctx) => {
+    softShadow(ctx, 10, 0, 100, 18, 0.32);
+    ctx.beginPath(); ctx.moveTo(-70, 0); ctx.lineTo(-58, -330); ctx.lineTo(58, -330); ctx.lineTo(70, 0); ctx.closePath();
+    ink(ctx, '#b2a998', 2, { shadeFn: () => ctx.rect(14, -340, 70, 345), shadeCol: '#8e8676', light: () => ctx.rect(-70, -330, 10, 330), lightCol: '#cbc3b2' });
+    ctx.save(); ctx.beginPath(); ctx.moveTo(-68, 0); ctx.lineTo(-56, -328); ctx.lineTo(56, -328); ctx.lineTo(68, 0); ctx.closePath(); ctx.clip();
+    ctx.strokeStyle = 'rgba(80,70,60,0.35)'; ctx.lineWidth = 1; for (let y = -20; y > -330; y -= 22) { ctx.beginPath(); ctx.moveTo(-68 + (-y / 330) * 12, y); ctx.lineTo(68 - (-y / 330) * 12, y); ctx.stroke(); for (let x = -60 + ((y / 22) % 2) * 14; x < 60; x += 28) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 22); ctx.stroke(); } }
+    ctx.restore();
+    // porte et fenêtres
+    ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(-20, -48); ctx.arc(0, -48, 20, Math.PI, 0); ctx.lineTo(20, 0); ctx.closePath(); ink(ctx, '#5a3a26', 1.6, { light: () => ctx.rect(-20, -60, 6, 60), lightCol: '#7a5236' });
+    for (const y of [-140, -230]) { ctx.beginPath(); ctx.moveTo(-9, y + 20); ctx.lineTo(-9, y); ctx.arc(0, y, 9, Math.PI, 0); ctx.lineTo(9, y + 20); ctx.closePath(); ink(ctx, '#2c3640', 1.4); }
+    // balcon et lentille
+    ctx.beginPath(); rrect(ctx, -76, -342, 152, 14, 3); ink(ctx, '#7f776a', 1.6);
+    ctx.beginPath(); ctx.arc(0, -372, 26, 0, TAU); ink(ctx, lit ? '#fff2b0' : '#9fc4d8', 2, { light: () => ellipse(ctx, -8, -380, 7, 10), lightCol: '#ffffff' });
+    if (lit) { const g = ctx.createRadialGradient(0, -372, 10, 0, -372, 110); g.addColorStop(0, 'rgba(255,240,170,0.65)'); g.addColorStop(1, 'rgba(255,240,170,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -372, 110, 0, TAU); ctx.fill(); }
+    ctx.beginPath(); ctx.moveTo(-60, -340); ctx.lineTo(0, -430); ctx.lineTo(60, -340); ctx.closePath(); ink(ctx, '#4f5a6a', 2, { shadeFn: () => ctx.rect(0, -440, 70, 110), shadeCol: '#3e4856' });
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -430); ctx.lineTo(0, -448); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-14, -446); ctx.lineTo(12, -446); ctx.lineTo(16, -442); ctx.lineTo(12, -438); ctx.lineTo(-14, -438); ctx.closePath(); ink(ctx, '#c9a24a', 1);
+  });
+}
+
+/** Miroir orientable sur pied (vue de dessus inclinée) : '/' ou '\\'. */
+export function mirror(S: number, slash: boolean): PropTex {
+  return makeTex(80, 110, 96, S, (ctx) => {
+    softShadow(ctx, 3, 0, 22, 6);
+    ctx.beginPath(); rrect(ctx, -4, -46, 8, 46, 2); ink(ctx, '#6b4a30', 1.2);
+    ctx.beginPath(); ellipse(ctx, 0, -2, 18, 6); ink(ctx, '#5a4030', 1.2);
+    ctx.save(); ctx.translate(0, -66); ctx.rotate(slash ? -0.65 : 0.65);
+    ctx.beginPath(); rrect(ctx, -26, -9, 52, 18, 4); ink(ctx, '#c9a24a', 1.6);
+    ctx.beginPath(); rrect(ctx, -22, -6, 44, 12, 3); ink(ctx, '#cfe6f2', 1, { light: () => ctx.rect(-22, -6, 44, 4), lightCol: '#ffffff' });
+    ctx.restore();
+  });
+}
+
+/** Lentille de la tour (intérieur) : grand disque de verre sur un socle de cuivre. */
+export function lens(S: number, lit: boolean): PropTex {
+  return makeTex(110, 150, 136, S, (ctx) => {
+    softShadow(ctx, 3, 0, 36, 8);
+    ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(-12, -50); ctx.lineTo(12, -50); ctx.lineTo(26, 0); ctx.closePath(); ink(ctx, '#a8693a', 1.6, { shadeFn: () => ctx.rect(4, -52, 30, 54), shadeCol: '#8a5530' });
+    ctx.beginPath(); ctx.arc(0, -88, 38, 0, TAU); ink(ctx, '#b98a4a', 2);
+    ctx.beginPath(); ctx.arc(0, -88, 31, 0, TAU); ink(ctx, lit ? '#fff1b0' : '#a9cfe0', 1.4, { light: () => ellipse(ctx, -10, -98, 9, 13), lightCol: '#ffffff' });
+    if (lit) { const g = ctx.createRadialGradient(0, -88, 8, 0, -88, 70); g.addColorStop(0, 'rgba(255,240,170,0.7)'); g.addColorStop(1, 'rgba(255,240,170,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -88, 70, 0, TAU); ctx.fill(); }
+  });
+}
+
+/** Mouton de lande (décor). */
+export function sheep(S: number, seed: number): PropTex {
+  const r = new Rng(seed); const rnd = () => r.next();
+  return makeTex(56, 44, 38, S, (ctx) => {
+    softShadow(ctx, 2, 0, 18, 4);
+    for (const x of [-9, -3, 5, 10]) { ctx.beginPath(); rrect(ctx, x - 1.5, -10, 3, 10, 1); ink(ctx, '#3a3030', 0.8); }
+    ctx.beginPath(); blob(ctx, 0, -16, 16, 10, 9, 0.18, rnd); ink(ctx, '#efe9dc', 1.2, { shadeFn: () => ctx.rect(-20, -12, 40, 10), shadeCol: '#d6cfc0' });
+    const sx = seed % 2 ? 1 : -1;
+    ctx.beginPath(); ellipse(ctx, sx * 16, -19, 5.5, 4.5); ink(ctx, '#3a3030', 1);
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx * 17.5, -20, 1, 0, TAU); ctx.fill();
   });
 }

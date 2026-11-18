@@ -17,6 +17,11 @@ export const HOUSES: Record<string, P.HouseOpts> = {
   maisonF: { w: 170, h: 104, d: 88, wall: '#e4d4b8', roof: '#a85a42', timber: true, door: 40, windows: [-40], chimney: -30, shutters: '#4f7a5a', gable: true, seed: 26 },
   maisonG: { w: 150, h: 100, d: 80, wall: '#efe3c8', roof: '#8a4a35', door: -20, windows: [35], shutters: '#7a3a6a', flowers: true, gable: true, ivy: true, seed: 27 },
   mara: { w: 175, h: 100, d: 92, wall: '#e2d2ae', roof: '#b9a05a', door: -35, windows: [40], chimney: 50, shutters: '#5f7d3c', roofStyle: 'thatch', flowers: true, seed: 28 },
+  // Brumecime : maisons de pierre grise, toits d'ardoise, volets bleu-gris
+  bruA: { w: 170, h: 104, d: 92, wall: '#b9b2a4', roof: '#4f5a6a', stone: true, door: -30, windows: [40], chimney: 50, shutters: '#5a6f86', roofStyle: 'slate', seed: 41 },
+  bruB: { w: 190, h: 112, d: 96, wall: '#c4bcab', roof: '#56606e', stone: true, door: 30, windows: [-50], chimney: -40, shutters: '#7a5a8a', roofStyle: 'slate', ivy: true, seed: 42 },
+  bruC: { w: 160, h: 100, d: 88, wall: '#aea795', roof: '#4a5361', stone: true, door: 0, windows: [-50, 50], chimney: 45, shutters: '#5a7a6a', roofStyle: 'slate', gable: true, seed: 43 },
+  bruD: { w: 200, h: 116, d: 98, wall: '#beb6a5', roof: '#535d6b', stone: true, door: -40, windows: [30, 70], chimney: 60, shutters: '#8a5a3a', roofStyle: 'thatch', sign: { text: 'Tissage', col: '#5a3a6a' }, seed: 44 },
   grange: { w: 210, h: 120, d: 100, wall: '#9a6a45', roof: '#7a6458', door: 0, windows: [], roofStyle: 'slate', shutters: '#5a3a26', seed: 29 },
 };
 
@@ -41,6 +46,14 @@ function make(key: string, S: number): PropTex {
     case 'notice': return P.noticeBoard(S);
     case 'laundry': return P.laundry(S);
     case 'bunting': return P.bunting(+a, S);
+    case 'brazier': return P.brazier(S, a === 'on');
+    case 'echo': return P.echoSpot(S, a === 'heard');
+    case 'heather': return P.heather(S, +a);
+    case 'causeway': return P.causeway(S, +a);
+    case 'tower': return P.windTower(S, a === 'lit');
+    case 'mirror': return P.mirror(S, a === 'slash');
+    case 'lens': return P.lens(S, a === 'lit');
+    case 'sheep': return P.sheep(S, +a);
     case 'feast': return P.feastTable(S);
     case 'woodpile': return P.woodpile(S);
     case 'haystack': return P.haystack(S);
@@ -91,13 +104,14 @@ function make(key: string, S: number): PropTex {
     case 'pot': return I.plantPot(S);
     case 'bed': return I.bed(S, '#' + (a ?? 'a6463a'));
     case 'herbs': return I.hangingHerbs(S);
+    case 'loom': return I.loom(S);
     default: throw new Error('Texture inconnue : ' + key);
   }
 }
 
 const cache = new Map<string, PropTex>();
 // maisons, arbres et buissons ont déjà leurs épaisseurs ; le reste du décor est épaissi
-const THICK_SKIP = new Set(['house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug', 'tall', 'fern', 'fbed', 'steps', 'mat', 'stairs2']);
+const THICK_SKIP = new Set(['tower', 'echo', 'heather', 'house', 'mill', 'tree', 'bush', 'carvedtree', 'wall', 'flowers', 'tuft', 'mist', 'arrow', 'rug', 'tall', 'fern', 'fbed', 'steps', 'mat', 'stairs2']);
 export function propTex(key: string, S: number): PropTex {
   const id = key + '@' + S;
   let t = cache.get(id);

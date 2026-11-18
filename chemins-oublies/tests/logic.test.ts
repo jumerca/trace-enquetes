@@ -109,6 +109,7 @@ describe('cohérence des données', () => {
     for (let h = 17; h < 23; h += 0.5) {
       S.clock = h * 60;
       for (const id of NPC_IDS) {
+        if (['bastien', 'lena', 'ysolde'].includes(id)) continue; // habitants des Hautes Terres
         const p = ROUTINES[id](); if (!p) continue;
         expect(p.zone, `${id} ${h}h`).toBe('clairval');
         for (const [x, y] of p.pts) expect(g.freeAt(x, y), `${id} ${h}h ${x},${y}`).toBe(true);

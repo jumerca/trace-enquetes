@@ -1,6 +1,7 @@
 // État de partie : tout ce qui est sauvegardé. Les systèmes lisent et écrivent ici, jamais dans les sprites.
 export type ZoneId = 'clairval' | 'bois' | 'moulin' | 'auberge' | 'atelier' | 'archives' | 'moulin_int'
-  | 'poste' | 'maison_mara' | 'maison_ninon' | 'maisonA' | 'maisonB' | 'maisonC' | 'maisonD' | 'maisonF' | 'maisonG' | 'grange';
+  | 'poste' | 'maison_mara' | 'maison_ninon' | 'maisonA' | 'maisonB' | 'maisonC' | 'maisonD' | 'maisonF' | 'maisonG' | 'grange'
+  | 'landes' | 'brumecime' | 'tour' | 'tissage';
 export type Dir = 'down' | 'up' | 'left' | 'right';
 
 export const SAVE_SCHEMA = 3;
