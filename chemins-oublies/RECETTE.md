@@ -177,7 +177,7 @@ sur appareil réel, **—** = à vérifier.
 | Chapitre II seul, souris (`FROM=chap2`) | **20 / 20** |
 | Chapitre II seul, toucher 844×390 (`FROM=chap2 --touch`) | **20 / 20** |
 | Partie complète au toucher, prologue puis chapitre II | **69 / 69**, aucune erreur JavaScript |
-| Partie complète à la souris, prologue puis chapitre II | 69 / 69 sur l'avant-dernière version ; relance sur la version finale : RES_MOUSE |
+| Partie complète à la souris, prologue puis chapitre II | **69 / 69**, aucune erreur JavaScript |
 
 Anomalies trouvées et corrigées pendant cette campagne :
 
