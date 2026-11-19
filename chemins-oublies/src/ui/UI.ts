@@ -5,7 +5,7 @@ import { CAST, ELOI } from '../data/cast';
 import { portrait, CharSpec } from '../art/characters';
 import { ITEMS, itemIcon } from '../data/items';
 import { MAIN, SIDE, CLUES, NOTES, CLUE_TIPS, hintText, currentMainStep, SECRETS_TOTAL, SECRET_LABEL } from '../data/story';
-import { ROUTINES, MAIN_NPCS, NpcId } from '../data/npcs';
+import { ROUTINES, MAIN_NPCS, C2_NPCS, NpcId } from '../data/npcs';
 import { DIALOGS } from '../data/dialogues';
 import { renderMap } from '../systems/Atlas';
 import { ZONE_LABEL, ZONES } from '../world/zones';
@@ -229,7 +229,7 @@ class UIManager {
     audio.sfx('open');
     this.panel = p;
     this.root.querySelector(`.ib[data-p="${p}"] .badge`)?.classList.remove('on');
-    if (p === 'atlas') this.atlasZone = (['clairval', 'bois', 'moulin'] as ZoneId[]).includes(S.zone) ? S.zone : S.zone === 'moulin_int' ? 'moulin' : 'clairval';
+    if (p === 'atlas') this.atlasZone = (['clairval', 'bois', 'moulin', 'landes', 'brumecime'] as ZoneId[]).includes(S.zone) ? S.zone : S.zone === 'moulin_int' ? 'moulin' : (S.zone === 'tour' || S.zone === 'tissage') ? 'brumecime' : 'clairval';
     this.invSel = null; this.combineFrom = null;
     this.renderPanel();
     $('#panel').classList.remove('hidden');
@@ -253,7 +253,7 @@ class UIManager {
   }
 
   private renderAtlas() {
-    const zones: ZoneId[] = (['clairval', 'bois', 'moulin'] as ZoneId[]).filter((z) => z === 'clairval' || S.discovered[z]);
+    const zones: ZoneId[] = (['clairval', 'bois', 'moulin', 'landes', 'brumecime'] as ZoneId[]).filter((z) => z === 'clairval' || S.discovered[z]);
     let body = '';
     if (this.atlasTab === 'carte') {
       body = `<div class="atlas-zones">${zones.map((z) => `<button class="chip ${z === this.atlasZone ? 'on' : ''}" data-z="${z}">${ZONE_LABEL[z]}</button>`).join('')}</div><div class="mapwrap"></div><div class="atlas-actions"><button class="btn primary" id="consult">${ICONS.atlas} Consulter l'atlas ici</button><span class="small">L'atlas révèle parfois ce que les yeux ne voient pas.</span></div>`;
@@ -343,15 +343,16 @@ class UIManager {
     const step = currentMainStep();
     if (this.journalTab === 'quete') {
       const done = MAIN.filter((m) => m.done());
-      body = `<div class="quest-now">${step ? `<h3>${esc(step.title)}</h3><p>${esc(step.text())}</p>` : '<h3>Prologue terminé</h3><p>La route effacée est revenue. Les trois lieux restent à explorer : secrets, missions, habitants…</p>'}${step ? `<button class="btn" id="hintbtn">${ICONS.star} Un indice ?</button><div id="hintbox" class="hintbox"></div>` : ''}</div>
-      <h4>Le Prologue — La Route effacée</h4><ol class="steps">${MAIN.map((m) => `<li class="${m.done() ? 'done' : m === step ? 'now' : 'todo'}">${m.done() || m === step ? esc(m.title) : '…'}</li>`).join('')}</ol>`;
+      body = `<div class="quest-now">${step ? `<h3>${esc(step.title)}</h3><p>${esc(step.text())}</p>` : '<h3>Chapitre II terminé</h3><p>Silas a laissé partir Éloi, et tous les chemins des hauts mènent vers la Cité. Les lieux restent à explorer : secrets, missions, habitants…</p>'}${step ? `<button class="btn" id="hintbtn">${ICONS.star} Un indice ?</button><div id="hintbox" class="hintbox"></div>` : ''}</div>
+      ${(() => { const c2 = flag('chapter_done'); return `<h4>${c2 ? 'Chapitre II — Les Voix des bois' : 'Le Prologue — La Route effacée'}</h4>`; })()}<ol class="steps">${MAIN.filter((m) => (m.chapter === 2) === flag('chapter_done')).map((m) => `<li class="${m.done() ? 'done' : m === step ? 'now' : 'todo'}">${m.done() || m === step ? esc(m.title) : '…'}</li>`).join('')}</ol>`;
       void done;
     } else if (this.journalTab === 'missions') {
       const qs = SIDE.filter((q) => q.started());
       body = qs.length ? `<ul class="cards">${qs.map((q) => `<li class="${q.done() ? 'done' : ''}"><b>${esc(q.title)}${q.done() ? ' ✓' : ''}</b><p>${esc(q.text())}</p>${!q.done() && q.tip ? `<div class="tip"><span>Conseil :</span> ${esc(q.tip())}</div>` : ''}</li>`).join('')}</ul>` : '<p class="empty">Aucune mission pour l\'instant. Certains habitants auraient bien besoin d\'aide…</p>';
     } else if (this.journalTab === 'habitants') {
-      const known = MAIN_NPCS.filter((id) => flag('met_' + id) || flag('t_' + id));
-      body = `<p class="small">Où trouver les habitants, à cette heure-ci (${PHASE_LABEL[phaseNow()]}) :</p><ul class="people">${MAIN_NPCS.map((id) => {
+      const PEOPLE = flag('chapter_done') ? [...C2_NPCS, ...MAIN_NPCS] : MAIN_NPCS;
+      const known = PEOPLE.filter((id) => flag('met_' + id) || flag('t_' + id));
+      body = `<p class="small">Où trouver les habitants, à cette heure-ci (${PHASE_LABEL[phaseNow()]}) :</p><ul class="people">${PEOPLE.map((id) => {
         const p = ROUTINES[id as NpcId]();
         const met = known.includes(id);
         const where = p ? `${ZONE_LABEL[p.zone]} — ${p.where}` : 'introuvable pour l\'instant';
@@ -540,12 +541,17 @@ class UIManager {
   }
   refreshPortraitWarn() { this.renderPortraitWarn(); }
 
-  chapterEnd(): Promise<void> {
+  chapterEnd(n: 1 | 2 = 1): Promise<void> {
     return new Promise((res) => {
       const done = SIDE.filter((q) => q.done()).length;
-      const el = h(`<div class="chapter-end"><div class="ce-box"><div class="ornament"></div><h2>Fin du Prologue</h2><h3>La Route effacée</h3>
+      const txt = n === 1
+        ? `<h2>Fin du Prologue</h2><h3>La Route effacée</h3>
         <p>La route du Moulin des Trois-Eaux est revenue sur les cartes… et dans les mémoires. Mais au-delà de la brume, vers les Hautes Terres de Brumecime, Maëlys a laissé une autre piste.</p>
-        <p class="next">À suivre : <b>Chapitre II — Les Voix des bois</b> (non disponible dans cette version).</p>
+        <p class="next">Le <b>Chapitre II — Les Voix des bois</b> commence : la route continue à l'est du moulin, par le pont.</p>`
+        : `<h2>Fin du Chapitre II</h2><h3>Les Voix des bois</h3>
+        <p>Les voix de la lande ont parlé, la Tour des Vents brille de nouveau sur les Hautes Terres, et Silas a laissé partir Éloi. Tous les chemins des hauts mènent à l'est.</p>
+        <p class="next">À suivre : <b>Chapitre III — La Cité des Cartes</b> (non disponible dans cette version).</p>`;
+      const el = h(`<div class="chapter-end"><div class="ce-box"><div class="ornament"></div>${txt}
         <ul><li>Temps de jeu : ${fmtTime(S.playTime)}</li><li>Missions accomplies : ${done} / ${SIDE.length}</li><li>Secrets découverts : ${S.secrets.length} / ${SECRETS_TOTAL}</li><li>Indices recueillis : ${S.clues.length}</li></ul>
         <button class="btn big primary">Continuer à explorer</button></div></div>`);
       this.root.appendChild(el);
@@ -563,7 +569,12 @@ class UIManager {
 function phaseNow(): Phase { const x = (S.clock % 1440) / 60; return x >= 6 && x < 12 ? 'matin' : x >= 12 && x < 18 ? 'apresmidi' : x >= 18 && x < 22 ? 'soir' : 'nuit'; }
 function fmtTime(s: number) { const m = Math.floor(s / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; }
 function stepTitle(st: any) {
-  if (st.chapterDone || st.flags?.chapter_done) return 'Prologue terminé';
+  if (st.flags?.chapter2_done) return 'Chapitre II terminé';
+  if (st.chapterDone || st.flags?.chapter_done) {
+    const c2: [string, string][] = [['c2_silas', 'miroirs_solved'], ['c2_miroirs', 'tour_ouverte'], ['c2_cle', 'met_lena'], ['c2_brumecime', 'devoreur_done'], ['c2_devoreur', 'veilles_solved'], ['c2_veilles', 'echo_3'], ['c2_echos', 'met_bastien'], ['c2_berger', 'vu_zone_landes']];
+    for (const [id, f] of c2) if (st.flags?.[f]) return 'Chapitre II — ' + MAIN.find((q) => q.id === id)!.title;
+    return 'Chapitre II — ' + MAIN.find((q) => q.id === 'c2_depart')!.title;
+  }
   const order: [string, string][] = [['route', 'mill_running'], ['roue', 'brake_released'], ['moulin', 'stones_solved'], ['pierres', 'anton_found'], ['anton', 'theo_ok'], ['bois', 'bornes_solved'], ['bornes', 't_basile'], ['temoins', 'agathe_moulin'], ['agathe', 'borne_vue']];
   for (const [id, f] of order) if (st.flags?.[f]) return MAIN.find((q) => q.id === id)!.title;
   return MAIN[0].title;

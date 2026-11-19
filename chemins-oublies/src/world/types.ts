@@ -4,7 +4,7 @@ export type Pt = [number, number];
 
 export interface PathDef { pts: Pt[]; w: number; kind: 'dirt' | 'cobble' | 'forest' | 'route' }
 export interface AreaDef { poly: Pt[]; kind: 'cobble' | 'field' | 'garden' | 'sand' | 'wood' | 'stone' | 'moss' | 'dark' | 'mud' | 'rug' }
-export interface WaterDef { pts: Pt[]; w: number; channel?: string } // channel = id d'un canal du moulin
+export interface WaterDef { pts: Pt[]; w: number; channel?: string; bog?: boolean } // bog : tourbière (eau sombre, immobile) // channel = id d'un canal du moulin
 export interface Rect { x: number; y: number; w: number; h: number }
 
 /** Placement d'un décor : clé de texture (cf. world/textures.ts), position au sol, empreinte de collision. */
@@ -40,7 +40,7 @@ export interface ZoneDef {
   props: PropDef[];
   blockers: (Rect & { cond?: string })[];
   exits: ExitDef[];
-  music: 'village' | 'foret' | 'interieur' | 'moulin';
+  music: 'village' | 'foret' | 'interieur' | 'moulin' | 'landes';
   seed: number;
   /** cases franchissables imposées (intérieurs : sol) */
   walkPoly?: Pt[];

@@ -1,11 +1,17 @@
-# Les Chemins Oubliés — Prologue : La Route effacée
+# Les Chemins Oubliés — Prologue et Chapitre II
 
 Aventure narrative 2,5D illustrée (JLG Creative), jouable au toucher et à la souris, **sans joystick**.
-Version **0.1.0**. PWA installable, jouable hors ligne après le premier chargement, sauvegardes locales.
+Version **0.2.0**. PWA installable, jouable hors ligne après le premier chargement, sauvegardes locales.
 
-Contenu : Clairval (village, auberge, atelier, archives), le Bois des Murmures, le Moulin des Trois-Eaux ;
-8 personnages principaux + 3 habitants d'ambiance ; 3 énigmes principales ; 2 missions facultatives ; 3 secrets ;
-2 rencontres obligatoires + 1 facultative.
+**Prologue — La Route effacée** : Clairval (village, auberge, atelier, archives, maisons), le Bois des Murmures,
+le Moulin des Trois-Eaux ; 8 personnages principaux + 3 habitants d'ambiance ; 3 énigmes ; le Gardien des Ronces ;
+3 missions facultatives ; 3 secrets ; 3 souvenirs de Maëlys ; la fête des moissons.
+
+**Chapitre II — Les Voix des bois** : les Landes de Brume, le hameau de Brumecime, la Tour des Vents, l'atelier de
+tissage ; 3 nouveaux habitants (Jules Bastien, Ysolde, Léna Lerouge) et Silas, le Conservateur ; une nouvelle
+mécanique (les **échos** : voix restées dans les lieux, entendues avec l'atlas) ; 2 énigmes (pierres veilleuses,
+miroirs) ; le Dévoreur de brume (braseros) ; une mission (le Troupeau égaré). Le chapitre commence à la fin du
+prologue, par le pont de l'est du moulin.
 
 ## Lancer
 
@@ -23,7 +29,7 @@ npm run preview        # sert dist/ sur http://localhost:4173
 npm test                         # unitaires : navigation, énigmes, sauvegardes/migrations, cohérence des données, partitions
 npm run preview &                # puis :
 node scripts/e2e.cjs             # recette : joue le prologue complet par de vrais clics (Chromium)
-FROM=bois node scripts/e2e.cjs   # départ à la porte du Bois (FROM=moulin : devant le moulin)
+FROM=bois node scripts/e2e.cjs   # départ à la porte du Bois (FROM=moulin : devant le moulin ; FROM=chap2 : début du Chapitre II)
 node scripts/e2e.cjs --touch --w=844 --h=390   # même parcours au toucher, écran de téléphone en paysage
 node scripts/e2e.cjs --unusual   # ordre de conversation inhabituel
 node scripts/tour.cjs 1280 720 /tmp/tour       # captures de chaque lieu
@@ -63,4 +69,4 @@ Données séparées de l'affichage : `src/data/` (dialogues, quêtes, objets, ha
 **Graphismes** : tout est dessiné procéduralement au chargement (Canvas 2D, contour d'encre, ombrage en aplats),
 puis envoyé à Phaser comme textures. Les personnages sont de vraies planches de sprites générées image par image
 (marche 8 images, course 6, parole, observation, atlas, attaque, choc, attente) en trois orientations.
-**Son** : musique et effets synthétisés (WebAudio), aucun fichier audio. 14 morceaux écrits (`src/systems/Music.ts`) : village le jour / le soir / la nuit, fête, Bois (inquiet puis apaisé), maisons, auberge, Archives, moulin (à l'arrêt puis en marche), souvenirs, combat, boss, titre. Le morceau suit le lieu, l'heure et l'avancée de l'histoire, avec fondu enchaîné.
+**Son** : musique et effets synthétisés (WebAudio), aucun fichier audio. 17 morceaux écrits (`src/systems/Music.ts`) : village le jour / le soir / la nuit, fête, landes de Brume, Brumecime, Bois (inquiet puis apaisé), maisons, auberge, Archives, moulin (à l'arrêt puis en marche), souvenirs, combat, boss, titre. Le morceau suit le lieu, l'heure et l'avancée de l'histoire, avec fondu enchaîné.

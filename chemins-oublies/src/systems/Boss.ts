@@ -10,6 +10,9 @@ type St = 'intro' | 'idle' | 'windup' | 'lash' | 'exposed' | 'cwindup' | 'charge
 export const ARENA = { x: 1120, y: 1130, r: 260 };
 
 export class Boss {
+  readonly name = 'Le Gardien des Ronces';
+  readonly kind = 'gardien';
+  arena = ARENA;
   hp = 12;
   readonly maxHp = 12;
   st: St = 'intro';

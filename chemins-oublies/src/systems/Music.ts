@@ -3,7 +3,7 @@
 
 export type Theme =
   | 'titre' | 'village' | 'soir' | 'nuit' | 'fete' | 'foret' | 'foret_clair' | 'maison' | 'auberge' | 'archives'
-  | 'moulin_silence' | 'moulin' | 'souvenir' | 'danger' | 'boss' | 'none';
+  | 'moulin_silence' | 'moulin' | 'souvenir' | 'danger' | 'boss' | 'landes' | 'hauts' | 'none';
 
 export type Inst = 'pluck' | 'flute' | 'bell' | 'harp' | 'fiddle';
 type Accomp = 'strum' | 'waltz' | 'arp' | 'pad' | 'box' | 'drive';
@@ -111,6 +111,18 @@ export const SONGS: Record<Exclude<Theme, 'none'>, Song> = {
     bpm: 100, bar: 8, lead: 'pluck', lead2: 'flute', accomp: 'arp', perc: 'light',
     chords: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'C'],
     melody: ['E5 G5 C6/2 G5 E5 G5/2', 'D5 G5 B5/2 G5 D5 G5/2', 'C5 E5 A5/2 G5 E5 C5/2', 'A5/2 F5 A5 C6/4', 'G5/2 E5 G5 C6/2 E6/2', 'D6/2 B5 G5 D5/4', 'C5 D5 F5 A5 G5/2 F5/2', 'E5/2 D5/2 C5/4'],
+  },
+  // Landes de Brume : complainte de cornemuse (violon sur bourdon), mode de mi éolien, à 6/8
+  landes: {
+    bpm: 72, bar: 6, lead: 'fiddle', lead2: 'flute', accomp: 'pad', perc: 'none', rest: 2, shift: -2,
+    chords: ['Em', 'Em', 'D', 'Em', 'C', 'D', 'Em', 'Em'],
+    melody: ['B4/3 E5 G5/2', 'F#5/2 E5 D5/3', 'D5/3 F#5 A5/2', 'G5/2 F#5 E5/3', 'E5/2 G5 C6/3', 'B5/2 A5 F#5/3', 'G5/2 E5 B4 D5/2', 'E5/6'],
+  },
+  // Brumecime : air clair des hauts, harpe et cloches dans le vent
+  hauts: {
+    bpm: 80, bar: 8, lead: 'harp', lead2: 'flute', accomp: 'arp', perc: 'none', rest: 1,
+    chords: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'G'],
+    melody: ['D5/2 G5/2 B5/3 A5', 'A5/2 F#5/2 D5/4', 'E5/2 G5 B5 E6/2 D6/2', 'C6/4 G5/4', 'B5/2 D6 B5 G5/2 B5/2', 'A5/2 F#5 A5 D6/4', 'E6/2 C6 A5 E5/2 G5/2', 'G5/8'],
   },
   // Souvenirs : boîte à musique nostalgique
   souvenir: {

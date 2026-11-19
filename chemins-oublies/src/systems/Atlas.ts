@@ -6,7 +6,7 @@ import { evalCond } from '../world/types';
 import { INK } from '../art/draw';
 
 const FOG = 64;
-const OUTDOOR: ZoneId[] = ['clairval', 'bois', 'moulin'];
+const OUTDOOR: ZoneId[] = ['clairval', 'bois', 'moulin', 'landes', 'brumecime'];
 const bits = new Map<ZoneId, Uint8Array>();
 
 function grid(z: ZoneId): Uint8Array {
@@ -83,6 +83,8 @@ export function renderMap(z: ZoneId, maxW: number, opts: { hero?: [number, numbe
   if (z === 'clairval' && S.traces.includes('route_bornes')) trace([[1640, 1150], [2640, 1150], [2640, 830], [2860, 600], ...(flag('route_revealed') ? [[3008, 470] as [number, number]] : [])]);
   if (z === 'bois' && S.traces.includes('route_bois')) trace([[1100, 760], [1100, 540], [1150, 300], [1150, 0]]);
   if (z === 'bois' && flag('passage_open')) trace([[560, 1370], [480, 1300], [400, 1180], [300, 1000]]);
+  if (z === 'landes' && S.traces.includes('route_landes')) { trace([[0, 1700], [820, 1545], [1500, 1300], [1930, 1120], [2170, 1120], [2560, 800], [2880, 0]]); }
+  if (z === 'brumecime' && S.traces.includes('route_hauts')) { trace([[1200, 1800], [1200, 600]]); trace([[1200, 600], [2400, 300]]); }
   if (z === 'moulin' && flag('route_revealed')) { trace([[1190, 960], [800, 1180], [420, 1400], [0, 1500]]); trace([[1190, 960], [1500, 1110], [2400, 1060]]); }
   ctx.setLineDash([]);
   for (const m of opts.marks ?? []) { ctx.fillStyle = m.col ?? '#c0523a'; ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, m.y, 26, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }

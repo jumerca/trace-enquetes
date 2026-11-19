@@ -1,4 +1,4 @@
-# Recette — Les Chemins Oubliés, Prologue : La Route effacée (V0.1)
+# Recette — Les Chemins Oubliés (V0.2 : Prologue et Chapitre II)
 
 Document de recette de la version 0.1 : ce qui est testé, comment le rejouer, et les résultats de la dernière campagne.
 
@@ -23,13 +23,14 @@ reflètent donc pas un vrai appareil ; seules comptent les vérifications.
 
 ### 2.1 Tests unitaires — `npm test`
 
-43 tests, tous verts :
+52 tests, tous verts :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
 | `tests/logic.test.ts` (21) | chaque indice a un conseil d’Éloi et toutes les aides se lisent, énigmes (bornes, pierres, vannes et bief), sauvegardes et migrations v1→v3, cohérence des données (chaque effet de dialogue référence un objet, un indice ou une note qui existe ; chaque objet interactif a un script ; chaque étape a au moins deux aides), chaque personnage principal change de répliques selon la progression, habitants toujours sur une case praticable à toute heure, personnages indispensables toujours localisables, places de la fête des moissons praticables |
 | `tests/nav.test.ts` (6) | grille de navigation, recherche de chemin, falaises infranchissables, portes |
-| `tests/music.test.ts` (16) | lecture des notes et accords ; pour chacun des 14 morceaux : chaque mesure contient exactement le bon nombre de temps, la mélodie reste dans une tessiture chantable |
+| `tests/music.test.ts` (18) | lecture des notes et accords ; pour chacun des 17 morceaux : chaque mesure contient exactement le bon nombre de temps, la mélodie reste dans une tessiture chantable |
+| `tests/chapter2.test.ts` (7) | pierres veilleuses (bon ordre, piège de l'œil fermé, mauvais ordre) ; miroirs (lentille éteinte au départ, une seule combinaison gagnante sur 16) ; chaque objet des nouveaux lieux a un script et est accessible ; rencontres loin des échos ; indices des échos |
 
 ### 2.2 Parcours de bout en bout — `scripts/e2e.cjs`
 
@@ -151,6 +152,42 @@ sur appareil réel, **—** = à vérifier.
 | D4 | Qualité adaptative | Si l'image saccade en « haute », les effets coûteux sont retirés | — |
 | D5 | Installation PWA depuis le lien HTTPS | Icône, plein écran, jeu hors ligne après le premier chargement | M |
 | D6 | Mise à jour | Options → Rechercher les mises à jour : nouvelle version proposée et activée | — |
+
+### 3.9 Chapitre II — Les Voix des bois
+
+| # | Scénario | Attendu | Statut |
+|---|---|---|---|
+| K1 | Après l'écran de fin du prologue | Nouvel objectif « Au-delà de la brume » ; le pont de l'est du moulin est ouvert | A |
+| K2 | Landes de Brume, Jules Bastien | Arrivée (pensées d'Éloi), rencontre du berger, indice des voix | A |
+| K3 | Les trois échos | Toucher un cercle d'herbe argentée (ou consulter l'atlas tout près) : flash-back bleuté, indice dans l'atlas ; impossible d'écouter en plein combat | A V |
+| K4 | Pierres veilleuses | L'œil fermé est un piège (tout s'éteint) ; saule, corbeau, cloche, lanterne libèrent la chaussée | A |
+| K5 | Le Dévoreur de brume | Arène de brume ; coups qui traversent tant qu'aucun brasero ne brûle ; brasero allumé = vulnérable ; nappes de brume annoncées au sol ; victoire = +1 cœur, chemin de Brumecime | A V |
+| K6 | Mission « Le Troupeau égaré » | 3 moutons ramenés → baume | A |
+| K7 | Brumecime : Ysolde, Léna | La clé est tissée dans la tapisserie de Léna ; la porte de la tour s'ouvre avec elle | A |
+| K8 | La Tour des Vents | Le rayon part de la fenêtre et suit les miroirs ; une seule combinaison sur 16 allume la lentille | A V, tests ✔ |
+| K9 | Finale : Silas | Chemins des hauts dans l'atlas, conversation avec Silas (répliques selon Théodore et Léna), sauf-conduit, écran « Fin du Chapitre II » | A V |
+| K10 | Journal, boussole, atlas | Étapes du chapitre II, habitants des Hautes Terres, boussole vers l'objectif, cartes de la lande et de Brumecime | V |
+| K11 | Musique | Complainte de la lande, air des hauts à Brumecime, arpèges dans la tour, boss | tests ✔ |
+
+## 4b. Résultats de la campagne du 18 novembre 2026 (Chapitre II)
+
+| Campagne | Résultat |
+|---|---|
+| Tests unitaires (`npm test`) | **52 / 52** |
+| Chapitre II seul, souris (`FROM=chap2`) | **20 / 20** |
+| Chapitre II seul, toucher 844×390 (`FROM=chap2 --touch`) | **20 / 20** |
+| Partie complète au toucher, prologue puis chapitre II | **69 / 69**, aucune erreur JavaScript |
+| Partie complète à la souris, prologue puis chapitre II | **69 / 69**, aucune erreur JavaScript |
+
+Anomalies trouvées et corrigées pendant cette campagne :
+
+| # | Anomalie | Gravité | Correction |
+|---|---|---|---|
+| C1 | Caméra figée pour de bon : quand un point du chemin tombait exactement sur la position d'Éloi, sa vitesse devenait invalide (division par zéro), et la caméra qui la suit aussi. Existait aussi dans le prologue. | Majeure | Vitesse calculée seulement si la distance est non nulle ; garde-fou qui recentre la caméra si sa position devient invalide. |
+| C2 | Le bouton « Esquive » et l'état de danger restaient actifs en changeant de lieu pendant un combat. | Moyenne | Remis à zéro à chaque changement de lieu. |
+| C3 | Sortie Lande → Brumecime sous les boutons du menu sur téléphone en paysage. | Majeure (téléphone) | Zones de sortie agrandies entre la lande et le hameau. |
+| C4 | Des murmures pouvaient attaquer pendant l'écoute d'un écho. | Moyenne | Rencontre déplacée loin des échos ; impossible d'écouter en plein combat (contrôle automatique). |
+| C5 | Le Dévoreur n'apparaissait qu'en revenant dans la lande après avoir éveillé les pierres. | Bloquante | Le boss est créé dès que la brume quitte la chaussée. |
 
 ## 4. Résultats de la campagne du 17 novembre 2026
 

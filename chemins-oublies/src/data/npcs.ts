@@ -8,7 +8,7 @@ export interface Place { zone: ZoneId; pts: Pt[]; mode: 'stand' | 'loop' | 'work
 const h = () => (S.clock % 1440) / 60;
 const between = (a: number, b: number) => { const x = h(); return a < b ? x >= a && x < b : x >= a || x < b; };
 
-export const NPC_IDS = ['agathe', 'basile', 'mara', 'ninon', 'paulin', 'salome', 'coline', 'theodore', 'anton', 'gaspard', 'odile'] as const;
+export const NPC_IDS = ['agathe', 'basile', 'mara', 'ninon', 'paulin', 'salome', 'coline', 'theodore', 'anton', 'gaspard', 'odile', 'bastien', 'lena', 'ysolde'] as const;
 export type NpcId = typeof NPC_IDS[number];
 
 /** Fête des moissons : le soir, une fois la route revenue, tout le village se retrouve sur la place. */
@@ -61,9 +61,22 @@ const BASE: Record<NpcId, () => Place | null> = {
     return { zone: 'bois', pts: [[1745, 1440]], mode: 'work', face: 'right', where: 'au campement, dans le Bois' };
   },
   gaspard: () => (between(6, 21) ? { zone: 'clairval', pts: [[2292, 1650]], mode: 'stand', face: 'right', where: 'pêche au bord de la rivière' } : null),
+  // Chapitre II
+  bastien: () => (between(6, 20)
+    ? { zone: 'landes', pts: [[1100, 1330], [1170, 1300]], mode: 'loop', pause: 6, face: 'up', where: 'garde ses moutons près de la bergerie, dans la lande' }
+    : { zone: 'landes', pts: [[1000, 1040]], mode: 'stand', face: 'down', where: 'devant sa cabane, dans la lande' }),
+  lena: () => {
+    if (between(18, 23)) return { zone: 'brumecime', pts: [[1120, 1230]], mode: 'stand', face: 'right', where: 'près du puits de Brumecime' };
+    return { zone: 'tissage', pts: [[360, 350]], mode: 'work', face: 'up', talkRange: 120, where: 'à son métier, dans l\'atelier de tissage' };
+  },
+  ysolde: () => (flag('tour_ouverte')
+    ? { zone: 'tour', pts: [[250, 390]], mode: 'stand', face: 'right', where: 'dans la Tour des Vents' }
+    : { zone: 'brumecime', pts: [[1300, 660]], mode: 'stand', face: 'left', where: 'au pied de la Tour des Vents' }),
   odile: () => (between(6, 19) ? { zone: 'clairval', pts: [[760, 1612], [840, 1612]], mode: 'loop', pause: 6, where: 'dans son potager' } : null),
 };
 
 export const ROUTINES = Object.fromEntries(NPC_IDS.map((id) => [id, () => fete(id) ?? BASE[id]()])) as Record<NpcId, () => Place | null>;
 
 export const MAIN_NPCS: NpcId[] = ['agathe', 'basile', 'ninon', 'mara', 'anton', 'coline', 'theodore', 'salome'];
+/** Habitants des Hautes Terres (Chapitre II) */
+export const C2_NPCS: NpcId[] = ['bastien', 'ysolde', 'lena'];

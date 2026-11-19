@@ -90,8 +90,18 @@ export function paintChunk(z: ZoneDef, cx: number, cy: number, scale: number, fl
     ctx.strokeStyle = isCh ? '#6b6258' : '#5d7a3e'; ctx.lineWidth = wd.w + (isCh ? 18 : 34); ctx.stroke();
     ctx.strokeStyle = isCh ? '#9a9286' : '#c9b78a'; ctx.lineWidth = wd.w + (isCh ? 10 : 16); ctx.stroke();
     ctx.strokeStyle = '#2b1e16'; ctx.lineWidth = wd.w + 3; ctx.stroke();
-    ctx.strokeStyle = isCh ? '#5a4a3a' : '#3f6f8f'; ctx.lineWidth = wd.w; ctx.stroke();
-    if (!isCh) {
+    ctx.strokeStyle = isCh ? '#5a4a3a' : wd.bog ? '#33402f' : '#3f6f8f'; ctx.lineWidth = wd.w; ctx.stroke();
+    if (wd.bog) {
+      ctx.strokeStyle = '#3d4c37'; ctx.lineWidth = wd.w * 0.75; ctx.stroke();
+      ctx.strokeStyle = '#4a5a42'; ctx.lineWidth = wd.w * 0.4; ctx.stroke();
+      // touffes de linaigrette, flaques claires, mousses
+      for (const [x, y] of samplePolyline(wd.pts, 30)) {
+        const o = (rnd() - 0.5) * wd.w * 0.8;
+        if (rnd() < 0.35) { ctx.fillStyle = 'rgba(140,170,170,0.35)'; ctx.beginPath(); ellipse(ctx, x + o, y + (rnd() - 0.5) * 20, 10 + rnd() * 12, 4 + rnd() * 4); ctx.fill(); }
+        if (rnd() < 0.45) { const tx = x + (rnd() - 0.5) * wd.w * 0.9, ty = y + (rnd() - 0.5) * 30; ctx.fillStyle = '#5f7a3e'; ctx.beginPath(); ellipse(ctx, tx, ty, 7, 3.5); ctx.fill(); ctx.strokeStyle = '#7a9a52'; ctx.lineWidth = 1; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(tx - 4 + k * 3, ty); ctx.lineTo(tx - 5 + k * 3.4, ty - 9); ctx.stroke(); } if (rnd() < 0.6) { ctx.fillStyle = '#f4f2ea'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(tx - 4 + k * 4, ty - 10 - (k % 2) * 2, 2.2, 0, TAU); ctx.fill(); } } }
+      }
+    }
+    if (!isCh && !wd.bog) {
       ctx.strokeStyle = '#4f86a6'; ctx.lineWidth = wd.w * 0.7; ctx.stroke();
       ctx.strokeStyle = '#64a0bf'; ctx.lineWidth = wd.w * 0.35; ctx.stroke();
       // reflets

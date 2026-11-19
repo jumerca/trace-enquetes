@@ -319,7 +319,7 @@ const moulin: ZoneDef = {
     { tex: 'sluice:closed', x: 1450, y: 800, id: 'vanne3_s', depth: -40 },
     { tex: 'bridge:260:60', x: 1740, y: 1130, ground: true, depth: -100, cond: 'route_revealed' },
     { tex: 'signpost', x: 2200, y: 980, foot: { r: 8 }, id: 'panneau_brume' },
-    { tex: 'mist:300', x: 2330, y: 1110, depth: 300 },
+    { tex: 'mist:300', x: 2330, y: 1110, depth: 300, cond: '!chapter_done' },
     { tex: 'sacks', x: 1060, y: 940, foot: { w: 60, h: 18 } },
     { tex: 'cart', x: 960, y: 880, foot: { w: 90, h: 22 } },
     { tex: 'barrel', x: 1380, y: 950, foot: { r: 12 } },
@@ -334,12 +334,14 @@ const moulin: ZoneDef = {
     { x: 0, y: 0, w: 18, h: 1800, cond: '!route_revealed' },
     { x: 0, y: 0, w: 18, h: 1420, cond: 'route_revealed' }, { x: 0, y: 1580, w: 18, h: 220, cond: 'route_revealed' },
     { x: 0, y: 1782, w: 300, h: 18 }, { x: 500, y: 1782, w: 1900, h: 18 },
-    { x: 2280, y: 900, w: 120, h: 300 },
+    { x: 2280, y: 900, w: 120, h: 300, cond: '!chapter_done' },
+    { x: 2382, y: 0, w: 18, h: 990, cond: 'chapter_done' }, { x: 2382, y: 1130, w: 18, h: 670, cond: 'chapter_done' },
     { x: 1405, y: 820, w: 70, h: 110 }, // la roue
   ],
   exits: [
     { rect: { x: 300, y: 1760, w: 200, h: 40 }, to: 'bois', at: [1150, 110], facing: 'down' },
     { rect: { x: 0, y: 1420, w: 30, h: 160 }, to: 'clairval', at: [2900, 520], facing: 'left', cond: 'route_revealed' },
+    { rect: { x: 2374, y: 990, w: 26, h: 140 }, to: 'landes', at: [80, 1700], facing: 'right', cond: 'chapter_done' },
     { rect: { x: 1170, y: 905, w: 44, h: 26 }, to: 'moulin_int', at: [360, 455], facing: 'up', door: true, cond: 'mill_unlocked & boss_done', blockedMsg: 'La porte du moulin est fermée — et des ronces vivantes l\'enserrent.' },
   ],
 };
@@ -427,9 +429,125 @@ const grange = room('grange', 'La grange', 'wood', [], '', 'wood', [
   { tex: 'woodpile', x: 130, y: 460, foot: { w: 60, h: 16 } }, { tex: 'sacks', x: 420, y: 460, foot: { w: 60, h: 18 } },
 ], back(400, 1880));
 
-export const ZONES: Record<ZoneId, ZoneDef> = { clairval: village, bois, moulin, auberge, atelier, archives, moulin_int: moulinInt, poste, maison_mara: maisonMara, maison_ninon: maisonNinon, maisonA, maisonB, maisonC, maisonD, maisonF, maisonG, grange };
+// ============================================================ CHAPITRE II : LES LANDES DE BRUME
+// La route revenue franchit le pont de l'est du moulin, puis traverse la lande jusqu'à une tourbière
+// noyée de brume. Une chaussée de planches la franchit ; au-delà, l'arène du Dévoreur et la montée vers Brumecime.
+const GRASS_LANDE = ['#7d9650', '#88a259', '#95ad63', '#6c8646', '#a2b86e'];
+const lBog = { pts: [[1500, -60], [1760, 450], [2050, 860], [2050, 1360], [2400, 1760], [3260, 1990]] as Pt[], w: 230, bog: true };
+const lPaths: PathDef[] = [
+  { kind: 'dirt', w: 56, pts: [[0, 1700], [420, 1660], [820, 1545], [1160, 1425], [1500, 1300], [1780, 1160], [1930, 1120]] },
+  { kind: 'dirt', w: 50, pts: [[2170, 1120], [2350, 960], [2560, 800], [2700, 600], [2850, 300], [2880, -20]] },
+  { kind: 'dirt', w: 34, pts: [[1160, 1425], [1110, 1230], [1020, 1060]] }, // bergerie
+  { kind: 'dirt', w: 28, pts: [[420, 1660], [560, 1760], [620, 1800]] }, // écho 1
+  { kind: 'dirt', w: 28, pts: [[1500, 1300], [1420, 1060], [1450, 960]] }, // écho 3
+];
+export const L_ARENA = { x: 2560, y: 760, r: 210 };
+export const VEILLE_POS: Record<string, Pt> = { saule: [1640, 1070], corbeau: [1830, 1300], cloche: [1560, 1430], lanterne: [1760, 990], oeil: [1440, 1170] };
+const landesTrees = scatter({
+  rect: { x: 30, y: 30, w: 3140, h: 2140 }, step: 140, seed: 91, kinds: ['pine', 'birch', 'dead', 'pine'],
+  avoidPaths: lPaths, pathPad: 50,
+  avoidCircles: [[L_ARENA.x, L_ARENA.y, L_ARENA.r + 70], [1640, 1220, 300], [1150, 1220, 200], [620, 1800, 120], [1300, 1760, 140], [1450, 960, 120], [720, 1150, 220]],
+  avoidRects: [{ x: 2600, y: 0, w: 500, h: 200 }], water: [lBog], bushChance: 0.18, rockChance: 0.2, bushPal: 'dark',
+}).filter((p, i) => i % 2 === 0 || p.x < 300 || p.y > 1950 || p.x > 2900);
+const landes: ZoneDef = {
+  id: 'landes', name: 'Landes de Brume', w: 3200, h: 2200, grass: GRASS_LANDE, music: 'landes', seed: 404, dark: 0.06,
+  paths: lPaths,
+  areas: [{ kind: 'moss', poly: ellipsePoly(L_ARENA.x, L_ARENA.y, L_ARENA.r, L_ARENA.r * 0.75, 18, 0.05) }, { kind: 'moss', poly: ellipsePoly(1640, 1220, 230, 170, 16, 0.06) }],
+  water: [lBog],
+  bridges: [{ x: 1905, y: 1088, w: 290, h: 64 }],
+  props: [
+    { tex: 'causeway:280', x: 2050, y: 1140, ground: true, depth: -100 },
+    { tex: 'mist:300', x: 2050, y: 1150, depth: 220, cond: '!veilles_solved' },
+    { tex: 'mist:260', x: 2870, y: 220, depth: 220, cond: '!devoreur_done' },
+    { tex: 'echo', x: 620, y: 1810, ground: true, id: 'echo_1_s', cond: '!echo_1' }, { tex: 'echo:heard', x: 620, y: 1810, ground: true, cond: 'echo_1' },
+    { tex: 'echo', x: 1300, y: 1770, ground: true, id: 'echo_2_s', cond: '!echo_2' }, { tex: 'echo:heard', x: 1300, y: 1770, ground: true, cond: 'echo_2' },
+    { tex: 'echo', x: 1450, y: 950, ground: true, id: 'echo_3_s', cond: '!echo_3' }, { tex: 'echo:heard', x: 1450, y: 950, ground: true, cond: 'echo_3' },
+    ...Object.entries(VEILLE_POS).map(([sym, [x, y]]) => ({ tex: 'stone:' + sym, x, y, foot: { r: 18 }, id: 'veille_' + sym })),
+    { tex: 'house:bruC', x: 1000, y: 960, foot: { w: 168, h: 70 }, occlude: true, smoke: [45, -170] as Pt },
+    { tex: 'fence:200', x: 1240, y: 1130, foot: { w: 200, h: 10 } }, { tex: 'fence:160', x: 1340, y: 1230, foot: { w: 10, h: 160 } },
+    ...[[1180, 1180, 1], [1250, 1210, 2], [1290, 1160, 3], [1210, 1240, 4]].map(([x, y, sd]) => ({ tex: 'sheep:' + sd, x, y, foot: { r: 12 } })),
+    { tex: 'sheep:5', x: 380, y: 1900, foot: { r: 12 }, id: 'mouton1_s', cond: '!mouton1' }, { tex: 'sheep:6', x: 1700, y: 1880, foot: { r: 12 }, id: 'mouton2_s', cond: '!mouton2' }, { tex: 'sheep:7', x: 860, y: 760, foot: { r: 12 }, id: 'mouton3_s', cond: '!mouton3' },
+    { tex: 'sheep:5', x: 1150, y: 1260, foot: { r: 12 }, cond: 'mouton1' }, { tex: 'sheep:6', x: 1300, y: 1270, foot: { r: 12 }, cond: 'mouton2' }, { tex: 'sheep:7', x: 1240, y: 1265, foot: { r: 12 }, cond: 'mouton3' },
+    { tex: 'signpost', x: 300, y: 1610, foot: { r: 8 }, id: 'panneau_landes' },
+    { tex: 'rock:401:1.8:m', x: 1450, y: 900, foot: { r: 26 } }, { tex: 'rock:402:1.3:m', x: 520, y: 1850, foot: { r: 20 } },
+    { tex: 'tree:dead:7', x: 700, y: 1770, foot: { r: 10 } }, { tex: 'tree:dead:8', x: 1380, y: 1720, foot: { r: 10 } },
+    ...[0, 1, 2].map((i) => { const a = [-2.6, -0.5, 1.57][i]; return { tex: 'brazier', x: Math.round(L_ARENA.x + Math.cos(a) * 175), y: Math.round(L_ARENA.y + Math.sin(a) * 140), foot: { r: 14 }, id: 'brasero' + (i + 1) }; }),
+    ...decor(41, { x: 60, y: 60, w: 3080, h: 2080 }, 170, (x, y) => lPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 10) || distToPolyline(x, y, lBog.pts) < lBog.w / 2 + 30 || Math.hypot(x - L_ARENA.x, y - L_ARENA.y) < L_ARENA.r || Object.values(VEILLE_POS).some(([vx, vy]) => Math.hypot(x - vx, y - vy) < 60), ['heather:#', 'heather:#', 'tuft:#:6f8a48', 'tall:#:7a9450', 'flowers:#:y']),
+    ...landesTrees,
+  ],
+  blockers: [
+    { x: 1935, y: 1070, w: 230, h: 110, cond: '!veilles_solved' },
+    { x: 2760, y: 0, w: 240, h: 200, cond: '!devoreur_done' },
+    { x: 0, y: 0, w: 18, h: 1630 }, { x: 0, y: 1770, w: 18, h: 430 }, { x: 0, y: 2182, w: 3200, h: 18 },
+    { x: 0, y: 0, w: 2790, h: 18 }, { x: 2970, y: 0, w: 230, h: 18 }, { x: 3182, y: 0, w: 18, h: 2200 },
+  ],
+  exits: [
+    { rect: { x: 0, y: 1630, w: 26, h: 140 }, to: 'moulin', at: [2330, 1060], facing: 'left' },
+    { rect: { x: 2790, y: 0, w: 180, h: 170 }, to: 'brumecime', at: [1200, 1640], facing: 'up', cond: 'devoreur_done' },
+  ],
+};
+
+// ============================================================ BRUMECIME
+const GRASS_HAUTS = ['#76925a', '#81a062', '#8dab6c', '#68844f', '#9ab678'];
+const bPaths: PathDef[] = [
+  { kind: 'cobble', w: 64, pts: [[1200, 1820], [1200, 1450], [1200, 1150], [1200, 640]] },
+  { kind: 'dirt', w: 32, pts: [[620, 880], [620, 960], [900, 1060], [1200, 1100]] },
+  { kind: 'dirt', w: 32, pts: [[1780, 880], [1780, 960], [1500, 1060], [1200, 1100]] },
+  { kind: 'dirt', w: 32, pts: [[600, 1320], [600, 1400], [900, 1370], [1200, 1320]] },
+  { kind: 'dirt', w: 32, pts: [[1740, 1340], [1740, 1420], [1500, 1370], [1200, 1320]] },
+];
+const bHouses: PropDef[] = [H('bruA', 650, 860), H('bruB', 1750, 860), H('bruC', 600, 1300), H('bruD', 1780, 1320)];
+const brumecimeTrees = scatter({
+  rect: { x: 30, y: 30, w: 2340, h: 1740 }, step: 110, seed: 93, kinds: ['pine', 'pine', 'birch', 'oakDark'],
+  avoidPaths: bPaths, pathPad: 50,
+  avoidCircles: [[1200, 1150, 260], [1200, 520, 260]], avoidRects: bHouses.map((h) => ({ x: h.x - 140, y: h.y - 270, w: 280, h: 330 })), bushChance: 0.15, rockChance: 0.12, bushPal: 'dark',
+}).filter((p) => p.x < 380 || p.x > 2020 || p.y < 300 || p.y > 1600 || (p.x * 3 + p.y) % 7 === 0);
+const brumecime: ZoneDef = {
+  id: 'brumecime', name: 'Brumecime', w: 2400, h: 1800, grass: GRASS_HAUTS, music: 'landes', seed: 505,
+  paths: bPaths,
+  areas: [{ kind: 'cobble', poly: ellipsePoly(1200, 1150, 230, 160, 18, 0.04) }],
+  water: [], bridges: [],
+  props: [
+    ...bHouses, ...bHouses.flatMap((h, i) => houseDecor(h.tex.split(':')[1], h.x, h.y, 700 + i * 13)),
+    { tex: 'tower', x: 1200, y: 560, foot: { w: 150, h: 60 }, occlude: true, id: 'tour_bat', cond: '!miroirs_solved' },
+    { tex: 'tower:lit', x: 1200, y: 560, foot: { w: 150, h: 60 }, occlude: true, cond: 'miroirs_solved' },
+    { tex: 'well', x: 1200, y: 1150, foot: { r: 30 }, id: 'puits_bru' },
+    { tex: 'lamp', x: 1080, y: 1260, foot: { r: 7 } }, { tex: 'lamp', x: 1320, y: 1040, foot: { r: 7 } }, { tex: 'lamp', x: 1130, y: 640, foot: { r: 8 } }, { tex: 'lamp', x: 1270, y: 640, foot: { r: 8 } },
+    { tex: 'bench', x: 1060, y: 1080, foot: { w: 52, h: 14 } }, { tex: 'laundry', x: 1950, y: 1500, foot: { w: 8, h: 8 } },
+    { tex: 'woodpile', x: 420, y: 980, foot: { w: 60, h: 16 } }, { tex: 'beehive', x: 380, y: 1420, foot: { r: 13 } },
+    { tex: 'sheep:8', x: 1500, y: 1600, foot: { r: 12 } }, { tex: 'sheep:9', x: 1560, y: 1640, foot: { r: 12 } },
+    ...decor(57, { x: 60, y: 60, w: 2280, h: 1680 }, 120, (x, y) => bPaths.some((p) => distToPolyline(x, y, p.pts) < p.w / 2 + 12) || Math.hypot(x - 1200, y - 1150) < 260 || Math.hypot(x - 1200, y - 560) < 200 || bHouses.some((h) => Math.abs(x - h.x) < 130 && y > h.y - 260 && y < h.y + 40), ['heather:#', 'flowers:#:b', 'tuft:#:68844f', 'flowers:#']),
+    ...brumecimeTrees,
+  ],
+  blockers: [{ x: 0, y: 1782, w: 1110, h: 18 }, { x: 1290, y: 1782, w: 1110, h: 18 }, { x: 0, y: 0, w: 2400, h: 18 }, { x: 0, y: 0, w: 18, h: 1800 }, { x: 2382, y: 0, w: 18, h: 1800 }],
+  exits: [
+    { rect: { x: 1110, y: 1700, w: 180, h: 100 }, to: 'landes', at: [2880, 250], facing: 'down' },
+    { rect: { x: 1172, y: 532, w: 56, h: 26 }, to: 'tour', at: [360, 455], facing: 'up', door: true, cond: 'tour_ouverte', blockedMsg: 'La porte de la tour est fermée à clé.' },
+    { rect: { x: 1720, y: 1306, w: 44, h: 26 }, to: 'tissage', at: [360, 455], facing: 'up', door: true },
+  ],
+};
+
+// Le soleil entre par la fenêtre ouest et tombe sur le miroir A ; quatre miroirs doivent le mener à la lentille.
+const tour = room('tour', 'La Tour des Vents', 'stone', [-260], 'maps', 'stone', [
+  { tex: 'lens', x: 420, y: 240, foot: { w: 70, h: 30 }, id: 'lentille', cond: '!miroirs_solved' },
+  { tex: 'lens:lit', x: 420, y: 240, foot: { w: 70, h: 30 }, cond: 'miroirs_solved' },
+  { tex: 'mirror', x: 100, y: 300, foot: { r: 16 }, id: 'miroirA' }, { tex: 'mirror', x: 590, y: 300, foot: { r: 16 }, id: 'miroirB' },
+  { tex: 'mirror', x: 590, y: 440, foot: { r: 16 }, id: 'miroirC' }, { tex: 'mirror', x: 420, y: 440, foot: { r: 16 }, id: 'miroirD' },
+  { tex: 'stairs', x: 640, y: 230, foot: { w: 76, h: 40 } },
+  { tex: 'desk', x: 110, y: 470, foot: { w: 110, h: 26 }, id: 'bureau_maelys' },
+], { to: 'brumecime', at: [1200, 610] });
+const tissage = room('tissage', "L'atelier de tissage", 'stone', [520], 'home', 'wood', [
+  { tex: 'loom', x: 360, y: 290, foot: { w: 160, h: 34 }, id: 'metier' },
+  { tex: 'shelf:jars:7', x: 120, y: 250, foot: { w: 96, h: 30 } },
+  { tex: 'fireplace', x: 610, y: 230, foot: { w: 120, h: 40 } },
+  { tex: 'table:6', x: 520, y: 430, foot: { w: 90, h: 26 } }, { tex: 'chair', x: 465, y: 435, foot: { r: 9 } },
+  { tex: 'sacks', x: 110, y: 460, foot: { w: 60, h: 18 } }, { tex: 'pot', x: 660, y: 470, foot: { r: 10 } },
+], { to: 'brumecime', at: [1740, 1370] });
+
+export const ZONES: Record<ZoneId, ZoneDef> = { clairval: village, bois, moulin, auberge, atelier, archives, moulin_int: moulinInt, poste, maison_mara: maisonMara, maison_ninon: maisonNinon, maisonA, maisonB, maisonC, maisonD, maisonF, landes, brumecime, tour, tissage, maisonG, grange };
 
 export const ZONE_LABEL: Record<ZoneId, string> = {
   clairval: 'Clairval', bois: 'Bois des Murmures', moulin: 'Moulin des Trois-Eaux', auberge: "Auberge du Pot d'Étain", atelier: "Atelier de Coline", archives: 'Archives de Clairval', moulin_int: 'Intérieur du moulin',
   poste: 'La Poste', maison_mara: 'Maison de Mara', maison_ninon: 'Maison de Ninon', maisonA: 'Maison du Puits', maisonB: 'Maison aux volets rouges', maisonC: 'Maison du Tisserand', maisonD: 'Maison du Potager', maisonF: 'Maison du Verger', maisonG: 'Maison au lavoir', grange: 'La grange',
+  landes: 'Landes de Brume', brumecime: 'Brumecime', tour: 'La Tour des Vents', tissage: 'Atelier de tissage',
 };
