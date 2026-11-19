@@ -25,26 +25,27 @@
   },
   {
    "k": "négociation",
-   "msg": "accepté",
-   "squad": 50,
-   "budget": 5.526,
+   "msg": "Simon-Pierre Chauvac signe jusqu’au 30/06/2031 (56 k€/an, prime 9 k€).",
+   "squad": 49,
+   "budget": 7.587,
+   "date": "2026-09-05",
    "squadBefore": 49
   },
   {
    "k": "saison terminée",
    "season": 1,
-   "rank": 9,
+   "rank": 12,
    "played": 30,
-   "budget": 4.99,
+   "budget": 7.17,
    "injured": 3,
-   "offers": 1,
+   "offers": 0,
    "news": [
-    "Soyaux-Angoulême XV propose 0,22 M€ pour Christian James Judge",
-    "Yanis Charcosset blessé (élongation) — indisponible 4 semaine(s)",
-    "Matheo Guyon blessé (lésion musculaire) — indisponible 3 semaine(s)"
+    "Benjamin Lefranc blessé (entorse de la cheville) — indisponible 5 semaine(s)",
+    "Francisco Coria Marchetti blessé (contusion) — indisponible 3 semaine(s)",
+    "Regis Desire Omby blessé (lésion musculaire) — indisponible 5 semaine(s)"
    ],
-   "board": 54.18,
-   "secondes": 21
+   "board": 40.96,
+   "secondes": 19
   },
   {
    "k": "intersaison",
@@ -56,93 +57,57 @@
    "apres": {
     "season": 2,
     "age": 20,
-    "ovr": 67,
-    "squad": 50,
-    "real": 46,
-    "youth": 19,
+    "ovr": 68,
+    "squad": 53,
+    "real": 51,
+    "youth": 22,
     "fixtures": 240,
     "history": 1,
-    "aiSigned": 30,
+    "aiSigned": 13,
     "objective": "Terminer dans la première moitié"
    }
   },
   {
    "k": "saison terminée",
    "season": 2,
-   "rank": 6,
+   "rank": 8,
    "played": 30,
-   "budget": 3.96,
-   "injured": 1,
+   "budget": 6.22,
+   "injured": 3,
    "offers": 0,
    "news": [
-    "Matheo Guyon blessé (lésion musculaire) — indisponible 5 semaine(s)",
+    "Jamie Shillcock est rétabli et de nouveau disponible",
     "Nathan James Claassen est rétabli et de nouveau disponible",
-    "Entraînement intensif : Nathan James Claassen blessé(s)"
+    "Lewis Noon blessé (commotion (protocole)) — indisponible 5 semaine(s)"
    ],
-   "board": 69.78800000000001,
-   "secondes": 21
+   "board": 39.976,
+   "secondes": 19
   },
   {
    "k": "intersaison",
    "avant": {
     "id": "ca-brive-simon-pierre-chauvac",
     "age": 20,
-    "ovr": 69
+    "ovr": 71
    },
    "apres": {
     "season": 3,
     "age": 21,
-    "ovr": 72,
-    "squad": 51,
+    "ovr": 74,
+    "squad": 50,
     "real": 48,
-    "youth": 36,
+    "youth": 39,
     "fixtures": 240,
     "history": 2,
-    "aiSigned": 34,
-    "objective": "Qualification en phase finale (top 6)"
-   }
-  },
-  {
-   "k": "saison terminée",
-   "season": 3,
-   "rank": 7,
-   "played": 30,
-   "budget": 2.75,
-   "injured": 0,
-   "offers": 0,
-   "news": [
-    "Issa Carlo Mendy est rétabli et de nouveau disponible",
-    "Entraînement intensif : Issa Carlo Mendy blessé(s)",
-    "Benjamin Lefranc est rétabli et de nouveau disponible"
-   ],
-   "board": 83.5528,
-   "secondes": 23
-  },
-  {
-   "k": "intersaison",
-   "avant": {
-    "id": "ca-brive-simon-pierre-chauvac",
-    "age": 21,
-    "ovr": 75
-   },
-   "apres": {
-    "season": 4,
-    "age": 22,
-    "ovr": 76,
-    "squad": 47,
-    "real": 43,
-    "youth": 53,
-    "fixtures": 240,
-    "history": 3,
-    "aiSigned": 74,
-    "objective": "Qualification en phase finale (top 6)"
+    "aiSigned": 53,
+    "objective": "Terminer dans la première moitié"
    }
   },
   {
    "k": "rechargement",
    "identique": true,
-   "snap2": "{\"c\":\"ca-brive\",\"s\":4,\"b\":2.751,\"y\":53,\"h\":3}",
-   "taille_ko": 794
+   "snap2": "{\"c\":\"ca-brive\",\"s\":3,\"b\":6.217,\"y\":39,\"h\":2}",
+   "taille_ko": 707
   }
  ],
  "errors": []

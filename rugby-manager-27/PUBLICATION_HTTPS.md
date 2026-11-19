@@ -7,9 +7,9 @@ Le fichier `dist/Rugby_Manager_27_V2_0.html` est la version autonome hors connex
 
 ## 1. Protéger les sauvegardes AVANT toute mise à jour
 Les sauvegardes sont stockées dans le navigateur **par adresse de site** (origine). Changer d'adresse = repartir sans sauvegarde.
-1. Dans l’ancienne version : menu **Base de données** → **Exporter ma carrière** (fichier JSON). Faites-le sur chaque appareil.
+1. Dans l’ancienne version : menu principal → **Exporter ma carrière** (fichier JSON). Faites-le sur chaque appareil.
 2. Publiez la V2.0 **à la même adresse** que la version précédente si possible : la carrière est alors reprise automatiquement (même clé de sauvegarde), et la V2 crée elle-même une copie `…-avant-v2`.
-3. Si l'adresse change : **Base de données** → **Restaurer une carrière** avec le fichier exporté.
+3. Si l'adresse change : menu principal → **Restaurer une carrière** avec le fichier exporté.
 
 ## 2. GitHub Pages (ce dépôt)
 Le jeu est dans `rugby-manager-27/` sur la branche de travail. GitHub Pages ne le publie qu'une fois la branche **fusionnée dans la branche publiée** (`main`). Adresse : celle de GitHub Pages du dépôt suivie de `/rugby-manager-27/`. Vérifiez qu'elle s'ouvre en `https://`.

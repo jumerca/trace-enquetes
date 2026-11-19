@@ -28,18 +28,18 @@ const log=(k,v)=>{rep.steps.push({k,...v});console.log(k,JSON.stringify(v))};
  await pg.$eval('[data-rm2train="defence"]',el=>{el.value='3';el.dispatchEvent(new Event('change',{bubbles:true}))});
  await pg.$eval('[data-rm2train="intensity"]',el=>{el.value='1.2';el.dispatchEvent(new Event('change',{bubbles:true}))});
  const tb=await pg.evaluate(()=>RM2C.trainingBonus(state.clubId));log('bonus d’entraînement',tb);
- await pg.screenshot({path:path.join(__dirname,'captures','gestion_tactique_entrainement.png'),fullPage:false});
+ await pg.screenshot({path:path.join(__dirname,'captures','gestion_tactique_entrainement.jpg'),type:'jpeg',quality:80});
  // 4) négociation d'un transfert via l'interface
  await pg.evaluate(()=>{state.page='transferts';render()});await pg.waitForTimeout(100);
- await pg.screenshot({path:path.join(__dirname,'captures','gestion_marche.png')});
+ await pg.screenshot({path:path.join(__dirname,'captures','gestion_marche.jpg'),type:'jpeg',quality:80});
  const before=await pg.evaluate(()=>realPlayers(state.clubId).length);
- await pg.click('[data-rm2="buy"]');await pg.waitForTimeout(100);
- await pg.screenshot({path:path.join(__dirname,'captures','gestion_negociation.png')});
- await pg.$eval('#rm2Wage',el=>{el.value=(+el.value*1.25).toFixed(3)});
- await pg.$eval('#rm2Fee',el=>{el.value=(+el.value*1.15).toFixed(2)}).catch(()=>{});
- await pg.click('#rm2NegGo');await pg.waitForTimeout(150);
- const neg=await pg.evaluate(()=>({msg:document.getElementById('rm2NegMsg')?.textContent||'accepté',squad:realPlayers(state.clubId).length,budget:state.budget}));
- await pg.evaluate(()=>document.querySelector('.rm2-shade')?.remove());
+ // mercato fermé (sauvegarde reprise en octobre) : prolongation d'un joueur via la page de négociation
+ const pid=await pg.evaluate(()=>{const p=realPlayers(state.clubId).find(x=>x.status!=='test');RM2C.openNeg('renew',p.id);return p.id});await pg.waitForTimeout(150);
+ await pg.screenshot({path:path.join(__dirname,'captures','gestion_negociation.jpg'),type:'jpeg',quality:80});
+ await pg.$eval('[data-rm2neg="wage"]',el=>{el.value=el.max;el.dispatchEvent(new Event('input',{bubbles:true}))});
+ await pg.click('[data-rm2w="player-offer"]');await pg.waitForTimeout(150);
+ const neg=await pg.evaluate(()=>({msg:RM2C.S().neg?.result||RM2C.S().neg?.playerMsg,squad:realPlayers(state.clubId).length,budget:state.budget,date:RM2W.date()}));
+ await pg.evaluate(()=>{RM2C.S().neg=null;state.page='accueil';render()});
  log('négociation',{...neg,squadBefore:before});
  // 5) mise en vente d'un joueur
  await pg.evaluate(()=>{const p=realPlayers(state.clubId)[3];RM2C.S().listed[p.id]=state.rmSeason||1;save()});
@@ -62,8 +62,8 @@ const log=(k,v)=>{rep.steps.push({k,...v});console.log(k,JSON.stringify(v))};
  const snap2=await pg.evaluate(()=>JSON.stringify({c:state.clubId,s:state.rmSeason,b:state.budget,y:state.rm2.youth.length,h:state.rmSeasonHistory.length}));
  log('rechargement',{identique:snap===snap2,snap2,taille_ko:await pg.evaluate(()=>Math.round(localStorage.getItem('rugby-manager-27-alpha-v1').length/1024))});
  if(snap!==snap2)rep.errors.push('sauvegarde différente après rechargement');
- await pg.evaluate(()=>{state.page='effectif';render()});await pg.screenshot({path:path.join(__dirname,'captures','gestion_effectif_saison'+(SEASONS+1)+'.png')});
- await pg.evaluate(()=>{state.page='accueil';render()});await pg.screenshot({path:path.join(__dirname,'captures','gestion_accueil_saison'+(SEASONS+1)+'.png'),fullPage:true});
+ await pg.evaluate(()=>{state.page='effectif';render()});await pg.screenshot({path:path.join(__dirname,'captures','gestion_effectif_saison'+(SEASONS+1)+'.jpg'),type:'jpeg',quality:80});
+ await pg.evaluate(()=>{state.page='accueil';render()});await pg.screenshot({path:path.join(__dirname,'captures','gestion_accueil_saison'+(SEASONS+1)+'.jpg'),type:'jpeg',quality:80,fullPage:true});
  fs.writeFileSync(path.join(__dirname,'career_qa_report.json'),JSON.stringify(rep,null,1));
  console.log('erreurs :',rep.errors.length?rep.errors:'aucune');
  await b.close();

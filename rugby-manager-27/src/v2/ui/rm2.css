@@ -124,3 +124,15 @@ body.m2-live #app{display:block!important;padding:0!important;margin:0!important
 .m2-why{background:rgba(241,205,131,.08);border-left:3px solid #f1cd83;padding:6px 10px;border-radius:6px}
 .m2-wx{opacity:.9}
 @media (max-width:640px){.m2-wx{display:inline-block}.m2-plays{grid-template-columns:1fr}}
+
+.rm2-n20{font-variant-numeric:tabular-nums}.rm2-n20.hi{color:#7fe0a0}.rm2-n20.mid{color:#f1cd83}.rm2-n20.lo{color:#f0a39a}
+.rm2-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin:8px 0}.rm2-kv div{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px;font-size:12px;display:flex;flex-direction:column;gap:3px}.rm2-kv b{font-size:14px}
+.rm2-steps{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.rm2-steps span{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);font-size:12px}.rm2-steps .on{background:#2f7a43;color:#fff}.rm2-steps .done{background:#244236;color:#a6e3b8}
+.rm2-field{display:flex;flex-direction:column;gap:5px;margin:10px 0;font-size:13px}.rm2-field input[type=number],.rm2-field select{max-width:260px;padding:8px;border-radius:8px}.rm2-field b{font-variant-numeric:tabular-nums}
+.rm2-negform{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 18px}
+.rm2-sat{display:flex;align-items:center;gap:10px;margin:14px 0 4px}.rm2-satbar{flex:1;max-width:420px;height:14px;border-radius:7px;background:rgba(255,255,255,.1);overflow:hidden}.rm2-satbar i{display:block;height:100%;transition:width .2s,background .2s}.rm2-sat b{min-width:48px;font-size:16px}
+.rm2-reply{background:rgba(241,205,131,.08);border-left:3px solid #f1cd83;padding:8px 10px;border-radius:6px}
+.rm2-today{display:flex;gap:30px;flex-wrap:wrap}.rm2-today h2{margin:2px 0}
+.rm2-window{display:flex;gap:16px;flex-wrap:wrap;align-items:center}.rm2-window.open b{color:#7fe0a0}.rm2-window.closed b{color:#f3a35b}
+.rm2-next td{background:rgba(241,205,131,.07)}
+.rm2-saveops{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.launch-mini{background:transparent;border:1px solid rgba(255,255,255,.25);color:inherit;border-radius:8px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px}

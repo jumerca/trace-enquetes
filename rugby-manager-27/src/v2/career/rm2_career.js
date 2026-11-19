@@ -55,7 +55,7 @@ C.attrs=function(p,ovr){
  return a;
 };
 C.wage=function(p){const d=S().p[p.id];if(d&&Number.isFinite(d.wage))return d.wage;const o=C.ovr(p);return Math.round(clamp(.046+(o-65)*.0045+(o>=80?.032:0)+(p.status==='test'?-.008:0),.03,.26)*1000)/1000};
-C.contractEnd=function(p){const d=S().p[p.id];if(d&&Number.isFinite(d.until))return d.until;return (S().since||1)+H(p.id+'ctr')%4};
+C.contractEnd=function(p){const d=S().p[p.id];if(d&&Number.isFinite(d.until))return d.until;const h=H(p.id+'ctr')%100;return (S().since||1)+(h<10?0:h<40?1:h<75?2:3)};// fins de contrat surtout en 2028, 2029 et 2030
 C.value=function(p){const o=C.ovr(p),a=C.age(p),pot=C.pot(p);const left=Math.max(0,C.contractEnd(p)-season());
  let v=.08+Math.pow(Math.max(0,o-55),1.9)*.0016+Math.max(0,pot-o)*.012*(a<25?1:.3);v*=a>31?.6:a>29?.85:1;v*=left===0?.25:left===1?.7:1;return Math.round(v*100)/100};
 
@@ -173,7 +173,7 @@ C.board=board;
 
 /* ---------- Marché : offres des clubs IA pour vos joueurs listés ---------- */
 function offersTick(){
- const r=S();const mine=realPlayers(state.clubId);
+ const r=S();if(window.RM2W&&!RM2W.windowOpen())return;const mine=realPlayers(state.clubId);
  for(const pid of Object.keys(r.listed)){const p=mine.find(x=>x.id===pid);if(!p){delete r.listed[pid];continue}
   if(r.offers.some(o=>o.pid===pid))continue;
   const roll=rnd01(pid+'off'+season()+'-'+r.training.week);
@@ -182,7 +182,7 @@ function offersTick(){
  }
  r.offers=r.offers.filter(o=>r.training.week-o.week<=3);
 }
-function acceptOffer(i){const r=S();const o=r.offers[i];if(!o)return;const p=findPlayerV2(o.pid);if(!p)return;
+function acceptOffer(i){const r=S();const o=r.offers[i];if(!o)return;if(window.RM2W&&!RM2W.windowOpen()){toast(RM2W.windowText());return}r.salesSeason=(r.salesSeason||0)+o.fee;r.tb=(r.tb||0)+o.fee*.5;const p=findPlayerV2(o.pid);if(!p)return;
  state.changes.push({playerId:p.id,from:state.clubId,to:o.club,cost:-o.fee});
  if(typeof rmFinLedger==='function')rmFinLedger('Vente · '+p.name+' → '+club(o.club).name,o.fee,'transfer','sale:'+p.id+':'+season());else state.budget+=o.fee;
  removeFromLineup(p.id);delete r.listed[p.id];r.offers.splice(i,1);news(`${p.name} vendu à ${club(o.club).name} (${o.fee.toFixed(2).replace('.',',')} M€)`,'good');invalidate();save();render();toast('Transfert conclu')}
@@ -277,10 +277,10 @@ C.seasonRollover=function(closedSeason){
     if(cand){r.moves.push({id:cand.id,to:c.id,s:season()});D(cand.id).until=season()+1+H(cand.id+c.id)%3;aiSigned++;invalidate()}
     else makeYouth(c.id,pos,(c.power||70)-6,pos+have);
     have++}}
-  if(rnd01(c.id+'yth'+season())<.25)makeYouth(c.id,Object.keys(NEED)[H(c.id+season())%9],(c.power||70)-4,'x');
+  if(false)makeYouth(c.id,Object.keys(NEED)[H(c.id+season())%9],(c.power||70)-4,'x');
  }
  // 5) centre de formation du club dirigé
- const acad=(state.finance?.facility?.academy)||0;const nY=2+(acad>=2?1:0);const yq=(club(state.clubId).power||70)-2+acad*2.5;
+ const acad=(state.finance?.facility?.academy)||0;const nY=1+(acad>=2?1:0);const yq=(club(state.clubId).power||70)-2+acad*2.5;
  const names=[];for(let i=0;i<nY;i++){const pos=Object.keys(NEED)[H(state.clubId+season()+'y'+i)%9];names.push(makeYouth(state.clubId,pos,yq,'u'+i).name)}
  news(`Centre de formation : ${names.join(', ')} intègrent le groupe professionnel`,'good');
  // 6) bilan de la direction
@@ -378,9 +378,9 @@ document.addEventListener('click',e=>{
  const el=e.target.closest('[data-rm2]');if(!el)return;
  e.preventDefault();e.stopImmediatePropagation();
  const a=el.dataset.rm2,id=el.dataset.id;const r=S();
- if(a==='card')playerCard(id);
- else if(a==='renew')negotiate('renew',id);
- else if(a==='buy')negotiate('buy',id);
+ if(a==='card')(C.openFiche||playerCard)(id);
+ else if(a==='renew')(C.openNeg||negotiate)('renew',id);
+ else if(a==='buy')(C.openNeg||negotiate)('buy',id);
  else if(a==='list'){if(r.listed[id])delete r.listed[id];else{r.listed[id]=season();toast('Joueur placé sur la liste des transferts : les offres arrivent au fil des journées')}save();render()}
  else if(a==='accept')acceptOffer(+el.dataset.i);
  else if(a==='refuse'){r.offers.splice(+el.dataset.i,1);save();render()}

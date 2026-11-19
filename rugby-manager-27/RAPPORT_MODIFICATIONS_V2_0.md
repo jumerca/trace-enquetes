@@ -94,3 +94,17 @@ Constats sur la vidéo envoyée (téléphone, 13:29 → 13:57, chandelle du 9) :
 - **Jeu au pied** : l'équipe qui reçoit recule derrière le point de chute pour soutenir le réceptionneur (fini le paquet mélangé avec le rideau adverse) ; trois chasseurs sprintent sur les chandelles et renvois disputés ; chandelle du 9 un peu plus haute.
 - **Caméra** : anticipe le point de chute des coups de pied, vitesse de panoramique limitée, bascule verticale plus douce ; cadrage plus serré en portrait (joueurs ≈ 50 % plus grands).
 - **Mode Résumé** : n'accélère plus que les arrêts de jeu ; le jeu en mouvement garde la vitesse choisie, avec transitions de vitesse progressives.
+
+---
+
+## V2.3 — Monde de jeu : dates, mercato, négociation, fiches, staff (`src/v2/career/rm2_world.js`)
+
+- **Calendrier daté** : la partie commence le **1er juillet 2026** ; journées le samedi à partir de septembre (semaines de repos régulières, trêve de fin d'année) ; date du jour affichée partout ; les matchs se jouent **dans l'ordre** (avant votre match, tout ce qui précède est joué ; après, le reste de la journée) ; « Simuler » ne fait avancer que jusqu'à votre prochain match.
+- **Mercato du 1er juillet au 31 août** : transferts immédiats pendant la fenêtre, fermés ensuite (joueurs libres toujours recrutables) ; **budget transferts** attribué à chaque début de saison selon la compétition et le niveau du club (Toulouse : 5,6 M€), complété par les ventes.
+- **Négociation en deux temps**, sur une page dédiée : accord avec le club (indemnité, contre-propositions, 3 offres), puis avec le joueur (salaire, prime à la signature, durée, statut promis) avec **jauge de satisfaction** en direct ; signature immédiate.
+- **Contrats datés** (« 30/06/2029 ») ; durées réparties surtout jusqu'en 2028, 2029 et 2030 ; prolongations sur la même page.
+- **Fiches complètes** joueur et staff (clic sur le nom) : contrat (début, fin, salaire, prime, valeur), statistiques, **toutes les compétences notées sur 20**.
+- **Staff** : entraîneurs principaux 2026-2027 ajoutés pour les 14 clubs de Top 14 et 8 clubs de Pro D2 (Toulouse : Ugo Mola), d'après une recherche web — à vérifier.
+- **Doublons** : 14 joueurs présents dans deux effectifs supprimés (priorité à l'effectif de l'hémisphère nord) ; un joueur n'appartient qu'à un seul club à tout moment.
+- **Moins de joueurs inventés** : les clubs IA remplacent leurs départs d'abord par des joueurs libres réels ; plus d'espoirs ajoutés au hasard ; centre de formation : 1 à 2 jeunes par saison.
+- **Ergonomie** : plus de boutons en haut du tableau de bord (date du jour et prochain match dans le corps de page) ; « Base de données » et « Choisir un club » retirés du menu ; export et restauration de carrière déplacés dans le menu principal.
