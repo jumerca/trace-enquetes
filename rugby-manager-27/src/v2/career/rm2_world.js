@@ -16,6 +16,16 @@ const fmtM=v=>(Math.round(v*100)/100).toFixed(2).replace('.',',')+' M€';
 const fmtK=v=>Math.round(v*1000).toLocaleString('fr-FR')+' k€';
 
 /* =================== 1. Données =================== */
+// Effectifs 2026-2027 complétés par recherche web (fichiers src/v2/data/rosters_web_*.json, source par club)
+(function addWebRosters(){
+ const files=window.RM27_WEB_ROSTERS||[];const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,"'").replace(/\s+/g,' ').trim();
+ const known=new Set(DATA.players.map(p=>norm(p.name)));let added=0;
+ for(const f of files)for(const [cid,r] of Object.entries(f)){if(cid==='_meta'||!club(cid))continue;
+  for(const pos of ['PR','HO','LO','BR','SH','FH','CE','WI','FB'])for(const name of r[pos]||[]){const k=norm(name);if(known.has(k))continue;known.add(k);
+   const p={id:'web-'+cid+'-'+k.replace(/[^a-z0-9]+/g,'-'),clubId:cid,name,position:pos,status:'source',source:r.src,rosterSeason:'2026-2027 — effectif (recherche web, à vérifier)'};
+   DATA.players.push(p);(baseRosters[cid]=baseRosters[cid]||[]).push(p);added++}}
+ W.webPlayersAdded=added;
+})();
 // Dédoublonnage : un même joueur ne peut figurer que dans un seul effectif (priorité aux effectifs de l'hémisphère nord 2026-27).
 (function dedupe(){
  const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[’']/g,"'").replace(/\s+/g,' ').trim();

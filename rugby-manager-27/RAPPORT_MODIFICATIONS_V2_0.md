@@ -108,3 +108,12 @@ Constats sur la vidéo envoyée (téléphone, 13:29 → 13:57, chandelle du 9) :
 - **Doublons** : 14 joueurs présents dans deux effectifs supprimés (priorité à l'effectif de l'hémisphère nord) ; un joueur n'appartient qu'à un seul club à tout moment.
 - **Moins de joueurs inventés** : les clubs IA remplacent leurs départs d'abord par des joueurs libres réels ; plus d'espoirs ajoutés au hasard ; centre de formation : 1 à 2 jeunes par saison.
 - **Ergonomie** : plus de boutons en haut du tableau de bord (date du jour et prochain match dans le corps de page) ; « Base de données » et « Choisir un club » retirés du menu ; export et restauration de carrière déplacés dans le menu principal.
+
+---
+
+## V2.4 — Effectifs réels complétés par recherche web (`src/v2/data/rosters_web_*.json`)
+
+L'accès direct aux sites d'effectifs (LNR, Allrugby, Rugbyrama, Wikipédia) n'a pas pu être autorisé depuis le téléphone ; les effectifs ont été complétés à partir des résultats de recherche web (résumés des pages d'effectif 2026-2027 de RugbyPass, XV Ovalie, Allrugby, sites des clubs, feuilles de match LNR).
+- **289 joueurs réels ajoutés** : Toulon 34, Racing 92 36, Pau 35, Castres 43, Bayonne 23, Vannes 18, Montpellier 17, Perpignan 15, Lyon 10, Colomiers 25, Agen 26, Provence 7. Chaque joueur porte la source de son club.
+- Règles : un nom déjà présent dans la base n'est pas ajouté une seconde fois ; les noms qu'une même source attribuait à plusieurs clubs (Luke Tagi, Tevita Tatafu, Facundo Bosch, Vincent Giudicelli, Pascal Cotet, Martin Villar, Florent Guion…) sont écartés ; Oyonnax n'est pas complété (données incohérentes).
+- Les postes manquants restent occupés par des « Joueur test ».
