@@ -1,5 +1,441 @@
-{"_meta":{"collecte":"2026-11-19","methode":"Recherche web ; noms retenus seulement s'ils sont cohérents (feuilles de match LNR 2026-2027, communiqués des clubs). Noms attribués à plusieurs clubs écartés (Florent Guion, Mamuka Mstoiani, Martin Villar…). Oyonnax écarté : données incohérentes."},
-"colomiers-rugby":{"src":"https://prod2.lnr.fr/feuille-de-match/2026-2027/j2/12017-colomiers-provence-rugby/compositions","PR":["Eliès El Ansari","Guillaume Tartas","Atonio Ulutuipalelei"],"HO":["Pablo Dimcheff","Théo Lachaud","Thomas Larrieu"],"LO":["Maxime Granouillet","Myles Edwards","Steven Cummins","Théo Pédémons","Federico Lavanini","Jean Thomas"],"BR":["Grégoire Bazin","Malik Hamadache","Luka Plataret","Richard Hardwick","Eliott Maurel"],"SH":["Jules Danglot","Guillaume Laffont"],"FH":["Thibault Debaes"],"CE":["Martin Dulon","Baptiste Serrano"],"WI":["Alberto Carmona Molina","Viliami Fine"],"FB":["Simão Broeiro Bento"]},
-"su-agen":{"src":"https://prod2.lnr.fr/club/agen/effectif-staff","PR":["Akato Fakatika","Archil Nozadze","Eliott Yemsi","Julien Koteureu"],"HO":["Paul Mallez","Cyril Deligny"],"LO":["Thomas Vernet","Tomas Francis","Matthieu Bonnet","Javier Eissmann","William Demotte","Denis Marchois","John Madigan"],"BR":["Enzo Sérieyssol","Valentin Gayraud","Julien Lebian","Tomasi Fineangano","Taniela Matakaiongo"],"SH":["Dorian Bellot"],"FH":["Jules Soulan"],"CE":["Jérôme Dufour","Charles Laloi"],"WI":["Kolinio Ramoka","Louis Dupichot","Alessio Contigliani"],"FB":["Iban Etcheverry","Mathias Jean"]},
-"provence-rugby":{"src":"https://www.provencerugby.com/effectif-26-27-provence-rugby-sappuiera-sur-des-tauliers-du-championnat/","PR":["Andrea Pontanier"],"HO":[],"LO":["Tyler Ardron","Etonia Waqa"],"BR":["Thibaut Martel"],"SH":[],"FH":[],"CE":["Romain Trouilloud"],"WI":["Sireli Masiwini","Bobby Bissu"],"FB":["Martín Bogado"]}
+{
+"_meta": {
+"collecte": "2026-11-19",
+"methode": "Recherche web ; noms retenus seulement s'ils sont cohérents (feuilles de match LNR 2026-2027, communiqués des clubs). Noms attribués à plusieurs clubs écartés (Florent Guion, Mamuka Mstoiani, Martin Villar…). Oyonnax écarté : données incohérentes."
+},
+"colomiers-rugby": {
+"src": "https://prod2.lnr.fr/feuille-de-match/2026-2027/j2/12017-colomiers-provence-rugby/compositions",
+"PR": [
+"Eliès El Ansari",
+"Guillaume Tartas",
+"Atonio Ulutuipalelei"
+],
+"HO": [
+"Pablo Dimcheff",
+"Théo Lachaud",
+"Thomas Larrieu"
+],
+"LO": [
+"Maxime Granouillet",
+"Myles Edwards",
+"Steven Cummins",
+"Théo Pédémons",
+"Federico Lavanini",
+"Jean Thomas"
+],
+"BR": [
+"Grégoire Bazin",
+"Malik Hamadache",
+"Luka Plataret",
+"Richard Hardwick",
+"Eliott Maurel"
+],
+"SH": [
+"Jules Danglot",
+"Guillaume Laffont"
+],
+"FH": [
+"Thibault Debaes"
+],
+"CE": [
+"Martin Dulon",
+"Baptiste Serrano"
+],
+"WI": [
+"Alberto Carmona Molina",
+"Viliami Fine"
+],
+"FB": [
+"Simão Broeiro Bento"
+]
+},
+"su-agen": {
+"src": "https://prod2.lnr.fr/club/agen/effectif-staff",
+"PR": [
+"Akato Fakatika",
+"Archil Nozadze",
+"Eliott Yemsi",
+"Julien Koteureu"
+],
+"HO": [
+"Paul Mallez",
+"Cyril Deligny"
+],
+"LO": [
+"Thomas Vernet",
+"Tomas Francis",
+"Matthieu Bonnet",
+"Javier Eissmann",
+"William Demotte",
+"Denis Marchois",
+"John Madigan"
+],
+"BR": [
+"Enzo Sérieyssol",
+"Valentin Gayraud",
+"Julien Lebian",
+"Tomasi Fineangano",
+"Taniela Matakaiongo"
+],
+"SH": [
+"Dorian Bellot"
+],
+"FH": [
+"Jules Soulan"
+],
+"CE": [
+"Jérôme Dufour",
+"Charles Laloi"
+],
+"WI": [
+"Kolinio Ramoka",
+"Louis Dupichot",
+"Alessio Contigliani"
+],
+"FB": [
+"Iban Etcheverry",
+"Mathias Jean"
+]
+},
+"provence-rugby": {
+"src": "https://www.provencerugby.com/effectif-26-27-provence-rugby-sappuiera-sur-des-tauliers-du-championnat/",
+"PR": [
+"Andrea Pontanier"
+],
+"HO": [],
+"LO": [
+"Tyler Ardron",
+"Etonia Waqa"
+],
+"BR": [
+"Thibaut Martel"
+],
+"SH": [],
+"FH": [],
+"CE": [
+"Romain Trouilloud"
+],
+"WI": [
+"Sireli Masiwini",
+"Bobby Bissu"
+],
+"FB": [
+"Martín Bogado"
+]
+},
+"us-montauban": {
+"src": "https://prod2.lnr.fr/feuille-de-match/2026-2027/j1/12014-nevers-montauban/compositions",
+"PR": [],
+"HO": [],
+"LO": [],
+"BR": [],
+"SH": [
+"Hugo Zabalza"
+],
+"FH": [
+"Enzo Hervé"
+],
+"CE": [],
+"WI": [],
+"FB": []
+},
+"biarritz-olympique": {
+"src": "https://prod2.lnr.fr/club/biarritz/effectif-staff",
+"PR": [
+"Alexandre Plantier",
+"Hugo Pirlet",
+"Kakhaber Darbaidze",
+"Quentin Samaran",
+"Regi Churchward",
+"François Mur",
+"Giorgi Nutsubidze",
+"Théo Sauzaret"
+],
+"HO": [
+"Adrien Sonzogni",
+"Luka Begic",
+"Yohan Behereguray"
+],
+"LO": [
+"Alvaro Garcia Iandolino",
+"Ellande Sanderson",
+"Aston Fortuin"
+],
+"BR": [],
+"SH": [
+"Yann Lesgourgues"
+],
+"FH": [
+"Thomas Dolhagaray"
+],
+"CE": [
+"Carlo Mignot",
+"Dorian Laborde"
+],
+"WI": [
+"Nicolas Elissondo"
+],
+"FB": [
+"Kylian Jaminet"
+]
+},
+"as-b-ziers-h-rault": {
+"src": "https://www.allrugby.com/clubs/asbh/effectif",
+"PR": [
+"Julien Rasamoelina",
+"Luka Azariashvili"
+],
+"HO": [
+"Yvann Lalevée"
+],
+"LO": [
+"Cam Dodson",
+"Gillian Benoy",
+"Ian Kitwanga",
+"Shahn Eru",
+"Hans Lombard-Buret",
+"Killian Taofifénua"
+],
+"BR": [
+"Apisalome Kuruisaqila",
+"Mackenzie Martin",
+"Tanguy Jaillon"
+],
+"SH": [
+"Adrien Bau",
+"Martin Verdu"
+],
+"FH": [
+"Charly Malié",
+"Hugo Szarzewski"
+],
+"CE": [
+"Malakai Fekitoa",
+"Maxime Vacquier"
+],
+"WI": [
+"Joseph Laharrague"
+],
+"FB": [
+"Barnabé Méchentel",
+"Duran Koevort"
+]
+},
+"us-dax": {
+"src": "https://prod2.lnr.fr/feuille-de-match/2026-2027/j2/12016-aurillac-dax/compositions",
+"PR": [
+"David Lolohea",
+"Maxime Casenave",
+"Nephi Leatiga",
+"Raphaël Laboille",
+"Thibaud Dréan"
+],
+"HO": [
+"Ian Boubila",
+"Paul Laperne"
+],
+"LO": [
+"Théo Mercadier",
+"Ratu Nacika"
+],
+"BR": [
+"Malo Hannoyer",
+"Mateo Lacroix",
+"Sam Wasley",
+"Charlie Matthews",
+"Arnaud Aletti",
+"Jean-Baptiste Barrère",
+"Brice Ferrer",
+"Paul Ausset",
+"Jean-Baptiste Singer",
+"Evan Chatelain"
+],
+"SH": [
+"Paul Ravier",
+"Sylvère Réteau",
+"Xan Mariluz"
+],
+"FH": [
+"Mathys Pardies",
+"Romuald Séguy"
+],
+"CE": [
+"Bastien Daguerre",
+"Benjamin Puntous",
+"Hugo Fourquet",
+"Jope Naseara"
+],
+"WI": [
+"Naïm Ben Alla",
+"Maxime Oltmann",
+"Théo Gatelier",
+"Diogo Hasse Ferreira"
+],
+"FB": [
+"Mathys Vigeon"
+]
+},
+"stade-aurillacois": {
+"src": "https://www.sportbougnat.fr/stadet-aurillacois-effectif-2026/",
+"PR": [
+"Jean-Baptiste De Clercq",
+"Lasha Tabidze",
+"Tedo Abzhandadze"
+],
+"HO": [],
+"LO": [
+"Stephan Le Roux",
+"Guga Ganiashvili",
+"Ben Houston"
+],
+"BR": [
+"Mattéo Coustalat"
+],
+"SH": [
+"Ruben Courtiès",
+"Nathan Azaïs"
+],
+"FH": [
+"Kléo Labarbe"
+],
+"CE": [],
+"WI": [
+"Thomas Carol"
+],
+"FB": [
+"Enzo Marzocca"
+]
+},
+"rc-narbonnais": {
+"src": "https://echo-des-tribunes.com/aude-tribune/articles/pro-d2-voici-les-hommes-qui-vont-porter-le-racing-club-narbonnais-en-20262027",
+"PR": [
+"Charles-Henry Berguet",
+"Abraham Pole",
+"Loïc Varenne",
+"Facundo Pomponio",
+"Thomas Crétu",
+"Mattéo Lalanne",
+"Dan Jooste"
+],
+"HO": [
+"Thomas Barrientos",
+"Baptiste Collet",
+"Gabriel Atlan"
+],
+"LO": [
+"Ruben Schoeman",
+"Clément Bitz",
+"Victor Moreaux",
+"Morgan Maga",
+"Louis Descoux",
+"Simon Huchet"
+],
+"BR": [],
+"SH": [
+"Imanol Biscay",
+"Hugo Goyenech",
+"Tom Chauvet"
+],
+"FH": [
+"Lubabalo Dobela",
+"Théo Bévia",
+"Thibault Santoro"
+],
+"CE": [],
+"WI": [
+"Aphiwe Dyantyi",
+"Axel Bévia",
+"Victor Hannoun",
+"Kylian Destarac",
+"Morrison Mabope",
+"Gabin Pipy"
+],
+"FB": [
+"Hugo Clauzel"
+]
+},
+"nissa-rugby": {
+"src": "https://prod2.lnr.fr/feuille-de-match/2026-2027/j2/12020-nice-beziers/compositions",
+"PR": [
+"Etienne Falgoux",
+"Fabio Gonzalez",
+"Farai Mudariki",
+"Jules Martinez",
+"Nicolás Ciancio"
+],
+"HO": [
+"Pat Leafa",
+"Pierre Strippoli"
+],
+"LO": [
+"Joel Kpoku",
+"Adrian Motoc",
+"Thibaud Rey"
+],
+"BR": [
+"Arthur Vignolles",
+"Bastien Berenguel",
+"Enzo Labadie",
+"Andy Bosseray",
+"Kylian Laurans"
+],
+"SH": [
+"Guillaume Rouet"
+],
+"FH": [],
+"CE": [
+"Francis Saili"
+],
+"WI": [
+"Clément Egiziano",
+"Inoke Nalaga",
+"Vincent Rattez"
+],
+"FB": []
+},
+"soyaux-angoul-me-xv": {
+"src": "https://prod2.lnr.fr/feuille-de-match/2026-2027/j1/12008-angouleme-colomiers/compositions",
+"PR": [
+"Élias Coulibaly",
+"Paul Tailhades",
+"Sami Zouhaïr",
+"Yassin Boutemmani"
+],
+"HO": [
+"Mathieu Bonnot",
+"Patxi Bidart",
+"Mamoudou Meïté"
+],
+"LO": [
+"Giorgi Javakhia"
+],
+"BR": [
+"Hubert Texier",
+"Lucas Costa",
+"Maxence Lemardelet",
+"Clément Sentubéry",
+"Samuel Nollet"
+],
+"SH": [
+"Alexis Levron",
+"Baptiste Escoffre",
+"Gela Aprasidze"
+],
+"FH": [
+"Corentin Glénat",
+"Paul Bergès"
+],
+"CE": [
+"Arthur Proult",
+"George Tilsley"
+],
+"WI": [
+"Katende Tumba",
+"Mathis Lafon",
+"Nathan Farissier",
+"Kaminieli Rasaku",
+"Avakuki Niusalelekitoga"
+],
+"FB": []
+}
 }

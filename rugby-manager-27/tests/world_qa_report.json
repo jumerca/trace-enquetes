@@ -34,14 +34,15 @@
   "fins de contrat datées 2027–2030": {
    "ok": true,
    "detail": {
-    "2028": 7,
-    "2029": 7,
-    "2030": 9
+    "2027": 1,
+    "2028": 10,
+    "2029": 9,
+    "2030": 13
    }
   },
   "dates affichées dans l’effectif": {
    "ok": true,
-   "detail": 23
+   "detail": 33
   },
   "fiche joueur avec notes /20 et contrat": {
    "ok": true,

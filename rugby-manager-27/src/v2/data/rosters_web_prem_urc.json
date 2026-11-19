@@ -1,0 +1,344 @@
+{
+"_meta": {
+"collecte": "2026-11-19",
+"methode": "Recherche web (Northampton Chronicle, Wikipédia, RugbyPass, All.Rugby)."
+},
+"northampton-saints": {
+"src": "https://www.northamptonchron.co.uk/sport/rugby-union/in-a-really-good-place-saints-confirm-squad-for-202627-season-8935807",
+"PR": [
+"Noah Buxton",
+"Trevor Davison",
+"Jordan Els",
+"Danilo Fischetti",
+"Luke Green",
+"Emmanuel Iyogun",
+"Cleopas Kundiona",
+"Ion Neculai",
+"Aiden Reid",
+"Oliver Scola",
+"Sonny Tonga'uiha",
+"Leftheri Zigiriadis"
+],
+"HO": [
+"Ben Alexander",
+"Curtis Langdon",
+"Robbie Smith",
+"Henry Walker",
+"Craig Wright"
+],
+"LO": [
+"Alex Coles",
+"Tom Lockett",
+"Alex Mead",
+"Tom Pearson",
+"Ed Prowse",
+"JJ Van Der Mescht",
+"Aiden Ainsworth-Cave",
+"James Bennett"
+],
+"BR": [
+"Archie Benson",
+"Callum Chick",
+"Josh Kemeny",
+"Jack Lewis",
+"Chunya Munga",
+"Henry Pollock",
+"Josh Taylor",
+"George Tonga'uiha",
+"Charlie Ulcoq"
+],
+"SH": [
+"Sonny Goode",
+"Archie McParland",
+"Alex Mitchell",
+"Aidan Pugh",
+"Jonny Weimann"
+],
+"FH": [
+"Anthony Belleau",
+"Hugh Shields",
+"Fin Smith"
+],
+"CE": [
+"Fraser Dingwall",
+"Rory Hutchinson",
+"Tom Litchfield",
+"Henry Lumley",
+"Freddie St John",
+"Toby Thame"
+],
+"WI": [
+"Amena Caqusau",
+"Malik Faissal",
+"Tommy Freeman",
+"George Hendy",
+"Ollie Sleightholme",
+"Edoardo Todaro"
+],
+"FB": [
+"James Martin",
+"James Pater",
+"Thomas Rowe",
+"Charlie Tamani"
+]
+},
+"harlequins": {
+"src": "https://en.wikipedia.org/wiki/Harlequin_F.C.",
+"PR": [
+"Fin Baxter",
+"Ethan Clarke",
+"Pedro Delgado",
+"Will Hobson",
+"Harry Johnson-Holmes",
+"Titi Lamositele",
+"Sampie Swiegers",
+"Boris Wenger",
+"Harry Williams"
+],
+"HO": [
+"Jack Musk",
+"Sam Riley",
+"Jack Walker"
+],
+"LO": [
+"Harry Browne",
+"James Dun",
+"Guido Petti",
+"Kieran Treadwell"
+],
+"BR": [
+"Zach Carr",
+"James Chisholm",
+"Chandler Cunningham-South",
+"Alex Dombrandt",
+"Seb Driscoll",
+"Will Evans",
+"Jack Kenningham",
+"Lucas Schmid"
+],
+"SH": [
+"Will Porter",
+"Stu Townsend"
+],
+"FH": [
+"Josh Bellamy",
+"Marcus Smith",
+"Connor Slevin"
+],
+"CE": [
+"Oscar Beard",
+"Bryn Bradley",
+"Sean Kerr",
+"Ludo Kolade",
+"Luke Northmore",
+"Ben Waghorn"
+],
+"WI": [
+"Cassius Cleaves",
+"Nick David",
+"Rodrigo Isgró",
+"Frank McMillan",
+"Cadan Murley",
+"Edward Sigauke",
+"Cameron Anderson"
+],
+"FB": [
+"George Furbank",
+"Tyrone Green"
+]
+},
+"exeter-chiefs": {
+"src": "https://www.rugbypass.com/news/gallagher-prem-2026-27-squads-rated-exeter-chiefs/",
+"PR": [
+"Harvey Beaton"
+],
+"HO": [
+"Samson Adejimi",
+"Max Norey",
+"Kapeli Pifeleti Jr"
+],
+"LO": [
+"Lewis Pearson",
+"Andrea Zambonin",
+"Dafydd Jenkins",
+"Joe Bailey"
+],
+"BR": [
+"Greg Fisilau"
+],
+"SH": [],
+"FH": [],
+"CE": [
+"Nic Allison",
+"Ollie Batson",
+"Will Butt",
+"Nick Lilley",
+"Dallas McLeod",
+"Henry Slade",
+"Zack Wimbush"
+],
+"WI": [],
+"FB": []
+},
+"leicester-tigers": {
+"src": "https://all.rugby/club/leicester/squad",
+"PR": [
+"Tarek Haffar",
+"Beno Obano",
+"Will Hurd",
+"Joe Heyes"
+],
+"HO": [
+"Charlie Clare",
+"Jack Doorey-Palmer",
+"Jamie Blamire",
+"Marcus Southwell",
+"Sam Moli"
+],
+"LO": [
+"Ollie Chessum"
+],
+"BR": [
+"Tommy Reffell"
+],
+"SH": [
+"Jack van Poortvliet"
+],
+"FH": [],
+"CE": [],
+"WI": [
+"Ollie Hassell-Collins"
+],
+"FB": [
+"Freddie Steward"
+]
+},
+"gloucester-rugby": {
+"src": "https://uk.sports.yahoo.com/news/gloucester-rugbys-confirmed-2026-27-100537737.html",
+"PR": [
+"Marco Fepulea'i",
+"Eliot Salt",
+"Ciaran Knight",
+"Kieran Verden",
+"Mikey Summerfield"
+],
+"HO": [
+"Dewi Lake"
+],
+"LO": [
+"Jean Kleyn",
+"Joe Joyce",
+"Freddie Thomas"
+],
+"BR": [
+"Jac Morgan",
+"Oscar Churchouse"
+],
+"SH": [
+"Dan Robson",
+"Caolan Englefield"
+],
+"FH": [
+"Tom Whorrod",
+"Ross Byrne"
+],
+"CE": [
+"Phil Cokanasiga",
+"Max Llewellyn"
+],
+"WI": [
+"George Dufty"
+],
+"FB": []
+},
+"ulster-rugby": {
+"src": "https://en.wikipedia.org/wiki/2026%E2%80%9327_Ulster_Rugby_season",
+"PR": [
+"Eric O'Sullivan",
+"Tom O'Toole",
+"Blake McClean",
+"Tyrese Abolarin"
+],
+"HO": [
+"Tom Stewart",
+"Joe van Zyl"
+],
+"LO": [
+"Janko Swanepoel",
+"Cormac Izuchukwu",
+"Mahon Ronan",
+"Matthew Dalton"
+],
+"BR": [
+"David McCann",
+"Juarno Augustus",
+"James McKillop",
+"Nick Timoney",
+"James McNabney",
+"Martin Moloney",
+"Elrigh Louw",
+"Marcus Rea",
+"Bryn Ward"
+],
+"SH": [
+"Nathan Doak",
+"Matthew Devine",
+"Conor McKee"
+],
+"FH": [
+"Jack Murphy",
+"Jamie Benson",
+"Jake Flannery",
+"Charlie O'Connor"
+],
+"CE": [
+"Stuart McCloskey",
+"Daniel Hawkshaw",
+"Tom Bell"
+],
+"WI": [
+"Jacob Stockdale",
+"Robert Baloucoune",
+"Zac Ward",
+"Ben Moxham"
+],
+"FB": [
+"Chay Mullins",
+"Jed Findlay"
+]
+},
+"lions": {
+"src": "https://rugby365.com/tournaments/united-rugby-championship/new-look-lions-ready-for-urc-as-60-man-squad-is-confirmed/",
+"PR": [
+"Boan Venter"
+],
+"HO": [
+"Tiaan Lange"
+],
+"LO": [
+"Hyron Andrews",
+"JP du Preez"
+],
+"BR": [
+"Sikhumbuzo Notshe",
+"Francke Horn"
+],
+"SH": [
+"Morné van den Berg",
+"Zian Cilliers",
+"Nico Steyn"
+],
+"FH": [
+"Chris Smith"
+],
+"CE": [
+"Ethan Adams"
+],
+"WI": [
+"Daniel Kasende"
+],
+"FB": [
+"Quan Horn"
+]
+}
+}

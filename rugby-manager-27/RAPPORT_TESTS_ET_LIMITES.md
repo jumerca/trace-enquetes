@@ -129,3 +129,9 @@ Limites V2.1 : les combinaisons influencent les courses et le porteur, mais le m
 ## V2.4 — Effectifs (vérifié dans Chromium)
 
 289 joueurs ajoutés, 0 doublon entre clubs, 0 erreur JS ; contrôles V2.3 toujours au vert. **Clubs encore sans aucun joueur réel (18)** : Stade français, Oyonnax, Biarritz, Béziers, Nevers, Soyaux-Angoulême, Aurillac, Dax, Narbonne, Nice, Montauban, Exeter, Gloucester, Harlequins, Leicester, Northampton, Ulster, Lions. Les effectifs ajoutés sont partiels (Lyon 10, Provence 7) et non vérifiés ligne à ligne ; aucun espoir réel n'a pu être trouvé par recherche web. Un accès réseau à Allrugby ou à la LNR (à valider depuis un ordinateur) permettrait des effectifs complets avec espoirs, âges et fins de contrat.
+
+---
+
+## V2.5 — Tests
+
+0 doublon de nom entre les 66 clubs (contrôle Chromium) ; 17/17 contrôles V2.3 ; carrière d'une saison complète sans erreur, sauvegarde identique après rechargement. **Limites** : Oyonnax et Nevers sans joueur réel (sources incohérentes ou vides) ; Montauban (2), Bristol (4), Saracens (5), Newcastle (1), Provence (7), Lyon (10) très incomplets ; postes issus de résumés web, non vérifiés ligne à ligne.
