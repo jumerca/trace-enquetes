@@ -210,7 +210,8 @@ function loop(){
  const M=LIVE.M;
  if(!LIVE.paused&&!M.done&&!M.pending){
   let sp=LIVE.speed;
-  if(LIVE.digest){const quiet=!M.live||(M.phase==='play'&&Math.abs(RM2.R(M,M.poss<0?0:M.poss,M.ball.x)-50)<28&&!(RM2.carrier(M)?.breakFlag));if(quiet)sp=Math.max(sp,M.live?6:10)}
+  if(LIVE.digest&&!M.live)sp=Math.max(sp,8);// le Résumé ne compresse que les replacements (arrêts de jeu)
+  LIVE.cur=LIVE.cur==null?sp:LIVE.cur+(sp-LIVE.cur)*Math.min(1,dt*4);sp=LIVE.cur;
   LIVE.acc+=dt*sp;let n=0;
   while(LIVE.acc>=RM2.DT&&n<40){RM2.step(M,RM2.DT);LIVE.acc-=RM2.DT;n++;if(M.done||M.pending||(M.phase==='half'&&!LIVE.halfShown))break}
   if(n>=40)LIVE.acc=0;

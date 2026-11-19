@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><meta content="#0d1918" name="theme-color"/><meta content="Rugby Manager 27 — manager de rugby et simulation tactique 2D" name="description"/><title>Rugby Manager 27 — V2.1</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><meta name="rm27-version" content="2.1"><style>
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><meta content="#0d1918" name="theme-color"/><meta content="Rugby Manager 27 — manager de rugby et simulation tactique 2D" name="description"/><title>Rugby Manager 27 — V2.2</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><meta name="rm27-version" content="2.2"><style>
 :root{color-scheme:dark;--bg:#0b1019;--panel:#141b28;--panel2:#192232;--text:#edf1f7;--muted:#8793a5;--line:#273244;--primary:#e5b956;--green:#63cba4;--warning:#e3b77f}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.42;cursor:not-allowed}a{color:#9acddc}#app{min-height:100vh;display:flex}.sidebar{width:258px;flex:none;min-height:100vh;background:#101622;border-right:1px solid #202a3a;padding:23px 15px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}.brand{display:flex;align-items:center;gap:12px;padding:6px 10px 30px}.brand-mark{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:linear-gradient(155deg,#f4d27c,#c69536);color:#172031;font-size:22px;font-weight:900;letter-spacing:-2px;box-shadow:0 8px 25px #d8a74b26}.brand-mark span{font-size:11px;align-self:end;margin-bottom:11px;letter-spacing:0}.brand strong{display:block;font-size:12px;letter-spacing:1.3px}.brand small{color:#8695ab;font-size:9px;letter-spacing:1px}.side-label{padding:9px 14px;font-size:10px;letter-spacing:1.65px;color:#657387;font-weight:800}.current-club{padding:12px 10px;background:#1d2635;border:1px solid #304057;border-radius:12px;display:flex;align-items:center;gap:11px;margin:5px 0 25px;cursor:pointer}.mini-crest{width:37px;height:37px;display:grid;place-items:center;background:var(--c);font-weight:900;font-size:13px;border:1px solid #ffffff65;border-radius:8px}.current-club b{font-size:12px;display:block}.current-club small{color:#9ca8b6;font-size:10px}.chevron{margin-left:auto;color:#789}.nav-item{height:44px;display:flex;align-items:center;gap:11px;background:transparent;border:0;color:#9dabbd;padding:0 15px;border-radius:8px;text-align:left;width:100%;font-size:12.5px;margin:1px 0}.nav-item:hover,.nav-item.selected{background:#242e40;color:#eaf1f7}.nav-item.selected{border-left:2px solid var(--primary);font-weight:700}.nav-icon{width:21px;color:#9facbf;font-size:19px;text-align:center}.nav-item.selected .nav-icon{color:var(--primary)}.side-bottom{margin-top:auto;border-top:1px solid var(--line);padding:20px 10px 0}.save-status{color:#a5b0bf;font-size:12px;margin-bottom:14px}.status-dot,.live-dot{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 8px #50dbac66;margin-right:7px}.subtle-btn{background:transparent;border:1px solid #334053;border-radius:8px;color:#d4dfec;padding:10px 13px;width:100%}.main-column{min-width:0;flex:1;display:flex;flex-direction:column}.topbar{height:73px;border-bottom:1px solid #232d3d;display:flex;align-items:center;justify-content:space-between;padding:0 38px;background:#0c121c}.breadcrumb{color:#8793a5;font-size:11px;letter-spacing:1.2px;font-weight:800}.breadcrumb b{color:#d7e0eb}.breadcrumb span{margin:0 11px}.header-tools{display:flex;align-items:center;gap:16px}.top-date{font-size:11px;color:#8492a7;letter-spacing:1px}.date-pill{border:1px solid #334056;border-radius:5px;padding:8px 12px;font-size:11px;font-weight:800;color:#d2dce9}.top-round{border:1px solid #354052;border-radius:9px;width:34px;height:34px;color:#e5be69;background:#1b2432}.content{max-width:1520px;width:100%;margin:0 auto;padding:32px 38px 45px;flex:1}.page-head{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:26px}.eyebrow{font-size:10px;font-weight:850;letter-spacing:1.9px;color:var(--primary)}h1{font-size:31px;letter-spacing:-1.2px;line-height:1.2;margin:6px 0 8px;font-weight:820}h2{font-size:17px;letter-spacing:-.45px;line-height:1.4;margin:4px 0}p{margin:0}.page-head p,.panel p,.hero-city{color:#8998aa;font-size:12.5px}.dot{color:var(--primary)}.page-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.btn{border:1px solid #334258;padding:12px 16px;border-radius:9px;font-weight:750;font-size:12px;white-space:nowrap}.btn.primary{background:linear-gradient(135deg,#efc76e,#cf9e45);color:#151b27;border-color:#e4b85a}.btn.ghost{background:#1b2434;color:#dce5ee}.btn.full{width:100%}.dashboard-hero{min-height:208px;background:linear-gradient(115deg,#263443 0%,#1b293b 51%,#172433 100%);border:1px solid #334456;border-radius:14px;display:flex;justify-content:space-between;overflow:hidden;padding:31px 39px;position:relative;margin-bottom:21px}.hero-left{z-index:2}.hero-eyebrow{letter-spacing:1.5px;font-size:11px;color:#bfcbd8}.hero-name{font-weight:850;font-size:33px;letter-spacing:-.75px;margin-top:14px}.hero-city{color:#b0bbcb}.hero-pills{display:flex;gap:8px;margin-top:21px}.hero-pills span{font-size:10px;letter-spacing:.8px;padding:6px 11px;border:1px solid #899bae64;border-radius:30px;color:#b9c6d7;text-transform:uppercase}.hero-art{position:absolute;right:55px;top:-32px;height:270px;width:310px;display:flex;align-items:center;justify-content:center}.hero-stripes{position:absolute;inset:0;transform:skew(-22deg);background:repeating-linear-gradient(90deg,#cfdfe508 0,#cfdfe508 48px,transparent 48px,transparent 70px)}.crest{width:39px;height:39px;border-radius:11px;display:inline-grid;flex:none;place-items:center;background:linear-gradient(140deg,var(--c),#101825);box-shadow:inset 0 0 0 1px #ffffff45,0 5px 12px #0000002b;font-size:12px;color:#fff;font-weight:900;letter-spacing:-.5px;vertical-align:middle}.crest.tiny{width:27px;height:27px;border-radius:7px;font-size:10px;margin-right:6px}.crest.lg{width:56px;height:56px;border-radius:15px;font-size:17px}.crest.huge{width:167px;height:167px;border-radius:35px;font-size:49px;border:6px solid #ffffff18;filter:drop-shadow(0 20px 20px #00000055);z-index:2}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:22px 0}.stat-box{padding:21px 22px;border:1px solid #273343;background:#151e2a;border-radius:11px;min-height:128px}.stat-label{font-size:10px;font-weight:800;letter-spacing:1.3px;color:#9aa7b7}.stat-value{font-size:28px;font-weight:900;letter-spacing:-1px;margin:8px 0 3px;line-height:1.2}.stat-value small{font-size:12px;color:#b3bbca;font-weight:600}.stat-value.gold{color:var(--primary)}.stat-sub{color:#7f8da1;font-size:11px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{background:#151e2b;border:1px solid #283647;border-radius:12px;padding:22px;min-width:0}.panel-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:13px}.inline-link{background:transparent;border:0;padding:0;color:#e7bc5d;font-size:12px;white-space:nowrap;font-weight:700}.fixture-card{display:grid;grid-template-columns:1fr 95px 1fr;align-items:center;gap:10px;padding:15px 0 19px}.team-block{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;min-width:0}.team-block b{font-size:12px}.team-block small,.fixture-center small{font-size:9px;letter-spacing:1.2px;color:#7e8d9f}.fixture-center{text-align:center;display:flex;flex-direction:column;align-items:center}.fixture-center span{font-size:10px;font-weight:800;color:#eac16e}.fixture-center strong{font-size:29px;color:#ebf0f6;margin:10px 0}.standing-line{min-height:40px;display:flex;align-items:center;gap:10px;padding:4px 7px;border-bottom:1px solid #253144;color:#b2bed0;font-size:12px}.standing-line:last-child{border:0}.standing-line.active{background:#223348;border-radius:6px}.standing-line b{flex:1;color:#dae4ed;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.standing-line strong{font-size:11px;color:#e9b95b}.standing-line .rank{color:#95a1b2;min-width:16px}.footer-link{display:block;margin:15px 0 0 auto}.notice{display:flex;align-items:flex-start;gap:13px;border:1px solid #42505e;background:#192431;padding:17px 20px;border-radius:10px;margin-top:17px;color:#aebcc8}.notice>span{display:grid;place-items:center;border:1px solid #a4cdd788;color:#9bdfce;min-width:24px;height:24px;border-radius:50%;font-size:12px}.notice b{color:#eaf0f6}.notice p{color:#a5b3c2;font-size:12px;line-height:1.7;margin-top:4px}.notice .inline-link{align-self:center;margin-left:auto}.notice.warning{border-color:#755e41;background:#28251f}.notice.warning>span{color:#e8c26f}.foot{color:#67788d;font-size:10px;letter-spacing:.4px;text-align:center;padding:18px;border-top:1px solid #1c2636}.info-banner{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:11px;background:#1b2735;border:1px solid #314054;margin-bottom:17px}.info-banner p{font-size:11px;color:#9daabc}.info-banner b{font-size:13px}.roster-layout{grid-template-columns:1.2fr .8fr}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{color:#7b8da1;font-size:10px;letter-spacing:1px;font-weight:800;padding:12px 11px;background:#1b2634}td{border-bottom:1px solid #273447;padding:11px;font-size:12px;color:#bdcad6}td b{color:#e9f0f7;font-weight:700}tr:last-child td{border-bottom:0}tbody tr:hover{background:#ffffff08}.pos{display:inline-grid;place-items:center;min-width:29px;height:23px;font-size:10px;border-radius:5px;padding:0 4px;background:#263c50;color:#9dcdf0;font-weight:800;margin-right:4px}.score-text,.pts{color:#e7bf62}.quality{font-size:9px;font-weight:850;letter-spacing:.5px;border:1px solid #416e5e;padding:5px 7px;border-radius:4px;background:#204039;color:#91dec1;white-space:normal}.quality.old{color:#e8cd83;background:#3b3424;border-color:#705c30}.quality.unverified{background:#3c3641;border-color:#6c5476;color:#c9b7de}.lineup-row{min-height:35px;border-bottom:1px solid #263343;display:flex;align-items:center;gap:8px;font-size:11px}.lineup-row:last-child{border:0}.number-box{display:grid;place-items:center;background:#29394b;color:#e3ecf6;border-radius:6px;width:25px;height:25px;font-size:11px;font-weight:850}.lineup-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lineup-name small{color:#9b7e6f}.lineup-row strong{color:#e6bb65;margin-left:7px}.panel-footnote{font-size:10.5px;color:#798b9d;line-height:1.6;margin-top:14px}.threecols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.tactic-card{min-height:335px}.tactic-card h2{margin:12px 0}.tactic-card p{min-height:67px}.option-list{margin-top:15px;display:grid;gap:7px}.choice{border:1px solid #354152;background:#1a2533;color:#c9d2df;min-height:38px;text-align:left;padding:8px 12px;border-radius:7px;font-size:12px}.choice.active{border-color:#d3a64b;background:#3c3329;color:#f1cf81}.choice-radio{display:inline-block;vertical-align:middle;width:10px;height:10px;border:1.5px solid #8595a7;border-radius:50%;margin-right:11px}.choice.active .choice-radio{background:#e6b95d;border-color:#e6b95d}.league-select{display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 22px}.league-tab{border:1px solid #314155;background:#192334;border-radius:8px;color:#b8c4d3;padding:12px 14px;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:.25px}.league-tab.active{color:#f5e9c6;border-color:#c49c4d;background:#3a342c}.league-tab small{color:#8093a5}.tab-light{width:7px;height:7px;border-radius:50%}.tag{color:#e0bf76;background:#3a3029;border:1px solid #6a5737;border-radius:5px;font-size:10px;font-weight:800;letter-spacing:.5px;padding:6px 9px}.tag.big{padding:11px 15px}.rank-table .row-current{background:#293142}.rank-table .num-rank{color:#9baabc;font-weight:850}.rank-table .pts{font-size:14px}.small-action{border:1px solid #46546a;background:#293647;color:#e0c079;border-radius:5px;font-size:10px;font-weight:800;padding:7px 9px}.searchbar{margin:0 0 16px}.searchbar input{width:100%;background:#0e1823;border:1px solid #384454;padding:12px;color:#edf3f9;border-radius:8px;outline:none}.text-muted{color:#8092a5;font-size:11px}.import-panel{margin-top:16px}.import-panel p{line-height:1.7;margin-bottom:15px}.import-panel input{display:block;margin:15px 0;color:#abbccc}.import-panel .text-muted{margin-top:12px}.club-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.club-tile{display:flex;align-items:center;flex-direction:column;gap:9px;min-height:190px;padding:22px 12px;border-radius:11px;border:1px solid #2b3b50;background:#182233;color:#e5eef7}.club-tile:hover,.club-tile.current{background:#233143;border-color:#be9b53}.club-tile b{font-size:13px;text-align:center}.club-tile small{color:#8fa3b8}.club-roster-info{font-size:10px;color:#8fc3b4}.club-action{margin-top:auto;color:#e6b956;font-size:10px;font-weight:850;letter-spacing:.4px}.empty{padding:55px 20px;text-align:center;color:#8799a9}
 /* match */.match-layout{background:#0b111a;min-height:100vh;padding:28px 32px}.match-shell{max-width:1750px;margin:auto}.match-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.match-header h1{font-size:28px}.scoreboard{display:flex;align-items:center;justify-content:center;gap:45px;border:1px solid #354658;background:linear-gradient(110deg,#162436,#1a2b3e);padding:15px 18px;border-radius:12px;margin-bottom:16px;min-height:102px}.score-team{display:flex;align-items:center;gap:14px;flex:1;justify-content:flex-end}.score-team.away{justify-content:flex-start}.score-team b{font-size:15px}.live-score{font-size:40px;display:flex;align-items:center;gap:21px;white-space:nowrap;letter-spacing:-1px}.live-score .separator{font-size:20px;color:#8c99a8}.clock{border-left:1px solid #405066;min-width:115px;padding:0 0 0 22px;display:flex;flex-direction:column;align-items:flex-start;gap:3px}.clock strong{font-size:24px}.clock small{font-size:9px;color:#b6c5d2;letter-spacing:1px}.live-dot{background:#e26c73}.match-grid{display:grid;grid-template-columns:minmax(0,1fr) 335px;gap:16px}.pitch-section{min-width:0}.pitch-container{background:#172635;border:1px solid #334454;border-radius:11px;padding:10px;position:relative}.pitch-container canvas{width:100%;height:auto;display:block;border-radius:7px;background:#1a3328}.pitch-overlay{position:absolute;left:26px;right:26px;bottom:21px;display:flex;justify-content:space-between;gap:10px;pointer-events:none;color:#d9f0e2a8;font-size:9px;font-weight:850;letter-spacing:1px}.match-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#17212e;border:1px solid #344155;border-radius:9px;padding:10px 12px;margin-top:12px}.icon-control,.speed-btn{border:1px solid #465161;background:#263445;color:#e3edf8;border-radius:6px;padding:8px 11px;font-size:10px;font-weight:850}.speed-btn.active{background:#dcc16e;color:#18212d}.speed-set{display:flex;gap:5px;align-items:center}.speed-set>span{color:#7f90a5;font-size:10px;letter-spacing:1px;margin-right:8px}.icon-control.simulate{color:#f1c877}.match-event{margin-top:12px;background:#243145;border:1px solid #445068;padding:15px;border-radius:9px;color:#e1ebf4}.event-beacon{color:#e4ba63;margin-right:10px}.match-aside{display:grid;gap:11px;align-content:start}.match-aside .panel{padding:19px}.match-aside .panel-heading{margin-bottom:12px}.match-stats>div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2b384a;font-size:12px}.match-stats>div:last-child{border:0}.match-stats span{color:#98a9bb}.match-stats b{color:#e9f0f6}.game-tact label{display:block;color:#aebbc9;font-size:12px;margin:9px 0}.game-tact select{margin-top:5px;width:100%;color:#e0eaf5;border:1px solid #46556b;border-radius:6px;background:#263344;padding:9px}.game-tact .btn{margin-top:7px}.match-log-panel{max-height:260px;overflow:hidden}.event-list{overflow:auto;max-height:170px}.event-list div{display:flex;gap:10px;border-bottom:1px solid #2a3a49;padding:8px 2px;font-size:11px}.event-list span{color:#edc16b;white-space:nowrap}.event-list p{color:#afc0cc}.final-overlay{position:fixed;inset:0;background:#060b12dd;display:grid;place-items:center;z-index:20;padding:20px}.final-dialog{width:min(95vw,450px);background:#192537;border:1px solid #ad8a52;border-radius:15px;padding:36px;text-align:center;box-shadow:0 20px 90px #000}.final-dialog h2{font-size:24px}.final-score{font-size:66px;font-weight:900;margin:18px 0}.final-score span{color:#a2adbb;font-size:35px}.final-clubs{font-weight:800}.final-dialog p{margin:15px 0 24px}.final-dialog .btn{padding:16px}#toast{position:fixed;z-index:50;bottom:20px;right:22px;background:#d7ad58;color:#131d2b;padding:14px 21px;border-radius:9px;font-weight:750;box-shadow:0 12px 40px #0007;max-width:min(90vw,440px);opacity:0;transform:translateY(15px);pointer-events:none;transition:all .2s}#toast.active{opacity:1;transform:translateY(0)}@media(max-width:1200px){.sidebar{width:222px}.content{padding:27px 25px}.topbar{padding:0 25px}.club-grid{grid-template-columns:repeat(3,1fr)}.match-grid{grid-template-columns:minmax(0,1fr) 292px}}@media(max-width:960px){.sidebar{width:74px;padding:18px 7px}.brand{padding:0 7px 22px}.brand>div,.current-club>div,.current-club .chevron,.side-label,.nav-item:not(.selected){font-size:0}.brand-mark{min-width:44px}.nav-item{font-size:0;padding:0;display:grid;place-items:center}.nav-item .nav-icon{font-size:22px}.current-club{justify-content:center;padding:9px 3px}.side-bottom{font-size:0}.side-bottom .save-status,.side-bottom .subtle-btn{font-size:0}.side-bottom .subtle-btn:after{content:'⤓';font-size:18px}.twocol,.roster-layout,.threecols{grid-template-columns:1fr}.match-grid{grid-template-columns:1fr}.match-aside{grid-template-columns:repeat(3,1fr)}.match-aside .panel{min-width:0}.club-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:650px){#app{display:block}.sidebar{position:static;width:100%;height:auto;min-height:0;display:flex;flex-direction:row;gap:3px;align-items:center;padding:8px;overflow-x:auto}.brand{padding:0 5px}.brand-mark{height:38px;min-width:38px;width:38px;font-size:18px}.sidebar>.side-label,.current-club,.side-bottom{display:none}.nav-item,.nav-item:not(.selected){display:grid;width:41px;min-width:41px;height:40px;font-size:0;place-items:center}.nav-item .nav-icon{font-size:19px}.topbar{height:55px;padding:0 12px}.top-date{display:none}.content{padding:20px 14px}.page-head{align-items:flex-start;flex-direction:column}.page-head h1{font-size:25px}.dashboard-hero{padding:25px 20px;min-height:170px}.hero-name{font-size:26px;max-width:65%}.hero-art{right:-95px;transform:scale(.75)}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat-box{padding:14px;min-height:110px}.stat-value{font-size:23px}.fixture-card{grid-template-columns:1fr 60px 1fr}.club-grid{grid-template-columns:repeat(2,1fr);gap:8px}.panel{padding:15px}.match-layout{padding:15px 10px}.match-header h1{font-size:21px}.scoreboard{gap:11px;padding:10px;flex-wrap:wrap}.score-team{gap:6px}.score-team b{font-size:10px;max-width:80px}.score-team .crest{width:34px;height:34px}.live-score{font-size:25px;gap:6px}.clock{width:100%;justify-content:center;align-items:center;border:0;border-top:1px solid #344;margin:8px 0 0;padding:8px 0 0;flex-direction:row;gap:15px;min-width:0}.clock strong{font-size:18px}.match-controls{flex-wrap:wrap}.match-aside{grid-template-columns:1fr}.pitch-overlay{font-size:8px;bottom:12px;left:14px;right:14px}.speed-set>span{display:none}.league-tab{padding:9px 9px;font-size:10px}}
 /* V0.2 : compositions directement modifiables et décisions en direct */
@@ -4326,7 +4326,7 @@ function steer(M,p,dt){
  let ndx=d>1e-6?dx/d:hx,ndy=d>1e-6?dy/d:hy;
  // rotation limitée : plus on court vite, plus le virage est large
  let ang=Math.atan2(hx*ndy-hy*ndx,hx*ndx+hy*ndy);
- const yaw=(s<1.2?11:7.5/(1+.32*s))*dt;
+ const yaw=(s<1.2?6.5:5.2/(1+.3*s))*dt;
  if(s>2.5&&Math.abs(ang)>1.2)want=Math.min(want,s*.55); // freinage avant un changement de direction marqué
  const turn=clamp(ang,-yaw,yaw);
  let h=Math.atan2(hy,hx)+(s<.35?ang:turn);
@@ -4335,7 +4335,7 @@ function steer(M,p,dt){
  const dv=want-s;
  const ns=Math.max(0,s+(dv>0?Math.min(dv,accNow*dt):Math.max(dv,-7.2*dt)));
  p.vx=Math.cos(h)*ns;p.vy=Math.sin(h)*ns;
- if(ns>.35||d>.4){let fd=Math.atan2(ns>.35?p.vy:ndy,ns>.35?p.vx:ndx);let da=Math.atan2(Math.sin(fd-p.hd),Math.cos(fd-p.hd));p.hd+=clamp(da,-8*dt,8*dt)}
+ if(ns>.35||d>.4){let fd=Math.atan2(ns>.35?p.vy:ndy,ns>.35?p.vx:ndx);let da=Math.atan2(Math.sin(fd-p.hd),Math.cos(fd-p.hd));p.hd+=clamp(da,-5.5*dt,5.5*dt)}
 }
 function moveAll(M,dt){
  const P=M.P;
@@ -4379,7 +4379,16 @@ function moveAll(M,dt){
  }
 }
 RM2.setPose=(M,p,pose,hold=.45)=>{p.pose=pose;p.poseT=M.t;p.poseHold=hold};
-RM2.go=(p,x,y,urg)=>{p.tx=clamp(x,-11,111);p.ty=clamp(y,-3,73);p.urg=urg};
+/* Cible lissée : les petites corrections de placement sont filtrées (pas de piétinement ni de zigzag),
+   les actions urgentes (plaquage, réception, porteur, replacement hors-jeu) sont immédiates. */
+RM2.go=(p,x,y,urg)=>{x=clamp(x,-11,111);y=clamp(y,-3,73);
+ const dx=x-p.tx,dy=y-p.ty,move=Math.sqrt(dx*dx+dy*dy);
+ const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy),near=Math.sqrt((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y));
+ if(urg<.9){
+  if(near<.9&&sp<1.2&&move<1.4){p.urg=Math.min(p.urg,urg);return}// déjà en place : il reste immobile
+  if(move<3){const k=p.task==='ligne'||p.task==='garde du ruck'?.75:.5;x=p.tx+dx*k;y=p.ty+dy*k}
+ }
+ p.tx=x;p.ty=y;p.urg=urg};
 
 /* ---------- Ballon ---------- */
 function holdBall(M,p){const b=M.ball;b.st='held';b.owner=p.i;b.team=p.team;b.x=p.x+Math.cos(p.hd)*.25;b.y=p.y+Math.sin(p.hd)*.25;b.z=1.05;b.vx=p.vx;b.vy=p.vy;b.vz=0;M.lastTouchTeam=p.team}
@@ -4793,7 +4802,12 @@ RM2.openPlayThink=function(M,dt){
     if(pl.special&&pl.special[p.i]){const sp=pl.special[p.i];ly=c.y+pl.side*sp.l;dep=sp.dep}
     RM2.go(p,X(M,att,cr-dep+1.5),ly,.9);p.task=pl.var==='leurre'&&p.num===12?'course leurre':'appel de balle';continue;
    }
-   if(sl){const rush=c&&c.breakFlag?.95:.62;RM2.go(p,sl.x,sl.y,hyp(sl.x-p.x,sl.y-p.y)>12?.8:rush);p.task=sl.task}
+   if(sl){const rush=c&&c.breakFlag?.95:.62;
+    // devant le porteur = hors-jeu : retour immédiat derrière le ballon, en contournant par l'arrière
+    const ahead=c?R(M,att,p.x)-R(M,att,c.x):0;
+    if(ahead>1){RM2.go(p,X(M,att,R(M,att,c.x)-2.5-Math.min(4,ahead*.3)),p.y+(sl.y-p.y)*.3,.92);p.task='se replace (hors-jeu)'}
+    else RM2.go(p,sl.x,sl.y,hyp(sl.x-p.x,sl.y-p.y)>12?.8:rush);
+    if(ahead<=1)p.task=sl.task}
   }else{
    if(tset.has(p.i)&&c){
     const o=tacklers.find(z=>z.p.i===p.i);const ti=o.ti;
@@ -5218,7 +5232,16 @@ PH.ruck=function(M,dt){
   if(!RM2.active(p)||!RM2.upright(M,p)||ex.has(p.i)||(k.going||[]).includes(p.i)||p.i===k.jackalGo)continue;
   if(M.t<p.think)continue;p.think=M.t+p.react*(.8+rnd(M)*.6);
   const sl=p.team===t?M._aShape.slots.get(p.i):M._dShape.get(p.i);
-  if(sl){RM2.go(p,sl.x,sl.y,sl.urg||(hyp(sl.x-p.x,sl.y-p.y)>10?.85:.6));p.task=sl.task}
+  if(sl){
+   // hors-jeu au ruck : retour en urgence derrière la ligne (pieds du dernier joueur), sans traverser le regroupement
+   const tm=p.team===t?t:o,rel=R(M,tm,p.x)-R(M,tm,bx);
+   if(rel>-.8&&p.team===o){RM2.go(p,X(M,o,R(M,o,bx)-2.2),p.y+(sl.y-p.y)*.25,.95);p.task='revient en jeu'}
+   else if(rel>1&&p.team===t){RM2.go(p,X(M,t,R(M,t,bx)-2.5),p.y+(sl.y-p.y)*.3,.9);p.task='se replace (hors-jeu)'}
+   else{
+    // changement de côté : on contourne le ruck par l'arrière de son camp au lieu de le traverser
+    let gx=sl.x,gy=sl.y;
+    if(Math.sign(p.y-by)!==Math.sign(sl.y-by)&&Math.abs(p.y-by)<9&&Math.abs(R(M,tm,p.x)-R(M,tm,bx))<4.5){gx=X(M,tm,R(M,tm,bx)-4.5);gy=p.y+(sl.y-p.y)*.5}
+    RM2.go(p,gx,gy,sl.urg||(hyp(sl.x-p.x,sl.y-p.y)>10?.85:.6));p.task=sl.task}}
  }
  // le demi de mêlée vient derrière le ballon
  const sh=k.sh>=0?M.P[k.sh]:null;
@@ -5312,7 +5335,7 @@ RM2.kickFromPlay=function(M,c,kt){
  if(kt==='touche'){const dist=26+k*.24+rr(M,-4,4);
   if(r0<22){lr=r0+dist*.9;ly=near===0?-2.5:72.5}else{lr=r0+dist*.85;ly=near===0?rr(M,-1.5,3.5):70-rr(M,-1.5,3.5)}T=2.7}
  else if(kt==='long'){lr=r0+36+k*.12+rr(M,-5,5);ly=fb?(fb.y<35?rr(M,46,60):rr(M,10,24)):rr(M,15,55);T=3.5}
- else if(kt==='box'){lr=r0+rr(M,17,24);ly=clamp(c.y+(c.y<35?-1:1)*rr(M,2,7),5,65);T=4.1}
+ else if(kt==='box'){lr=r0+rr(M,16,22);ly=clamp(c.y+(c.y<35?-1:1)*rr(M,2,7),5,65);T=4.4}
  else if(kt==='chandelle'){lr=r0+rr(M,20,28);ly=clamp(c.y+rr(M,-6,6),6,64);T=4.4}
  else if(kt==='rasant'){lr=r0+rr(M,7,10);ly=clamp(c.y+rr(M,-4,4),4,66);T=.45;info.zEnd=0}
  else if(kt==='par-dessus'){lr=r0+rr(M,9,13);ly=clamp(c.y+rr(M,-5,5),4,66);T=1.5}
@@ -6181,6 +6204,8 @@ RM2.looseBallThink=function(M,p){
  const rank=mine.indexOf(p);
  const loose=b.st==='ground'||(b.kt==='loose');
  // ballon au sol ou très proche : les deux plus proches y vont, quelle que soit l'équipe
+ const contest=['box','chandelle','restart'].includes(b.kt)&&b.st==='air';
+ if(p.team===kickTeam&&contest&&rank<=2&&p.onside){RM2.go(p,lx,clamp(ly+(rank-1)*2.5,-.5,70.5),1);p.task='chasse la chandelle';return}
  if(rank===0||(rank===1&&(loose||hyp(p.x-lx,p.y-ly)<12))){
   if(p.team===kickTeam&&!p.onside){const pr=R(M,p.team,p.x),kr=R(M,p.team,b.kickX??b.fromX);if(pr>kr+1){RM2.go(p,p.x,p.y,.15);p.task='attend d’être remis en jeu';return}}
   RM2.go(p,lx,clamp(ly,-.5,70.5),1);p.task=p.team===kickTeam?'poursuite':'sous le ballon';return;
@@ -6200,9 +6225,13 @@ RM2.looseBallThink=function(M,p){
  // équipe receveuse : couverture du fond, soutien du receveur, ligne de replacement devant le ballon
  if([11,14,15].includes(p.num)&&rank<=4){const side=p.y<ly?-1:1;RM2.go(p,X(M,p.team,clamp(rl-4,1,99)),clamp(ly+side*14,3,67),.85);p.task='couverture du fond';return}
  if(rank===2&&p.num>=9){RM2.go(p,X(M,p.team,clamp(rl-3,1,99)),clamp(ly+(p.y<ly?-6:6),3,67),.85);p.task='soutien du receveur';return}
+ // les autres reculent derrière le point de chute pour soutenir le réceptionneur (jamais au contact du rideau adverse)
  const others=mine.slice(3);const k=others.indexOf(p);const n=Math.max(1,others.length);
- const yy=8+(n>1?k*54/(n-1):27);
- RM2.go(p,X(M,p.team,clamp(rl+10+(p.num<=8?5:0),1,96)),yy,p.num<=8?.6:.7);p.task='replacement';
+ const span=Math.min(44,n*5),y0=clamp(ly-span/2,5,65-span);
+ const yy=y0+(n>1?k*span/(n-1):span/2);
+ const back=p.num<=8?4+((k%3)*1.5):7+((k%2)*2);
+ const pr=R(M,p.team,p.x);
+ RM2.go(p,X(M,p.team,clamp(Math.min(pr,rl-back),1,96)),yy,pr>rl?.85:.6);p.task='soutien du réceptionneur';
 };
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -6295,19 +6324,20 @@ R2D.project=(r)=>makeProj(r);
 /* ---------- Caméra ---------- */
 R2D.updateCamera=function(r,M,dt,alpha=1){
  const b=M.ball;const bx=b.px!=null?b.px+(b.x-b.px)*alpha:b.x,by=b.py!=null?b.py+(b.y-b.py)*alpha:b.y;
- let tx=bx+clamp(b.vx||0,-9,9)*.55,ty=by;
+ let tx=bx+clamp(b.vx||0,-9,9)*.45,ty=by;
+ if(b.st==='air'&&b.kind==='kick'&&b.lx!=null){tx=bx*.45+b.lx*.55;ty=by*.5+b.ly*.5}
  if(M.phase==='lineout'||M.phase==='scrum'){tx=M.pd.x??bx;ty=M.pd.side!=null?(M.pd.side===0?8:62):(M.pd.y??by)}
  if(M.phase==='goalkick'){tx=(M.pd.x+RM2.X(M,M.pd.team,100))/2;ty=35}
  const m=r.mode;
- let L=(CAM[m]?.L||44)/r.zoom;
+ let L=(CAM[m]?.L||44)/r.zoom*(r.H>r.W*1.15&&m!=='full'&&m!=='tactical'?.68:1);
  if(m==='full'){tx=50;ty=35}
  if(m==='tactical'){r.camX+=(50-r.camX)*.2;r.camY+=(35-r.camY)*.2;r.zoom=clamp(r.zoom,1,2.2);if(r.zoom>1.01){r.camX=50+(tx-50)*.9*(1-1/r.zoom);r.camY=35+(ty-35)*.9*(1-1/r.zoom)}return}
  // garder le cadre à l'intérieur du stade
  const half=L/2;tx=clamp(tx,-12+half*.7,112-half*.7);
  const k=1-Math.exp(-dt*(m==='close'?3.2:2.4));
- r.camX+=(tx-r.camX)*k;
+ const step=(tx-r.camX)*k,maxPan=16*dt;r.camX+=Math.max(-maxPan,Math.min(maxPan,step));
  const fy=m==='full'?35:clamp(ty*.8+35*.2,4,68);
- r.camY+=(fy-r.camY)*(1-Math.exp(-dt*1.6));
+ r.camY+=(fy-r.camY)*(1-Math.exp(-dt*1.1));
  r.camL+=(L-r.camL)*(1-Math.exp(-dt*3));
 };
 R2D.snapCamera=function(r,M){r.camX=M.ball.x;r.camY=35;r.camL=(CAM[r.mode]?.L||44)/r.zoom};
@@ -6764,7 +6794,8 @@ function loop(){
  const M=LIVE.M;
  if(!LIVE.paused&&!M.done&&!M.pending){
   let sp=LIVE.speed;
-  if(LIVE.digest){const quiet=!M.live||(M.phase==='play'&&Math.abs(RM2.R(M,M.poss<0?0:M.poss,M.ball.x)-50)<28&&!(RM2.carrier(M)?.breakFlag));if(quiet)sp=Math.max(sp,M.live?6:10)}
+  if(LIVE.digest&&!M.live)sp=Math.max(sp,8);// le Résumé ne compresse que les replacements (arrêts de jeu)
+  LIVE.cur=LIVE.cur==null?sp:LIVE.cur+(sp-LIVE.cur)*Math.min(1,dt*4);sp=LIVE.cur;
   LIVE.acc+=dt*sp;let n=0;
   while(LIVE.acc>=RM2.DT&&n<40){RM2.step(M,RM2.DT);LIVE.acc-=RM2.DT;n++;if(M.done||M.pending||(M.phase==='half'&&!LIVE.halfShown))break}
   if(n>=40)LIVE.acc=0;
@@ -7419,7 +7450,7 @@ window.RM27_CAREER_V2=C;
 /* Rugby Manager 27 — V2.0 · Habillage : accueil JLG Creative, numéro de version, sauvegardes */
 'use strict';
 (function(){
-const V='2.1';
+const V='2.2';
 document.title='Rugby Manager 27 — V'+V;
 const oldMenu=mainMenu;
 mainMenu=function(){

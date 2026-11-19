@@ -143,7 +143,7 @@ function steer(M,p,dt){
  let ndx=d>1e-6?dx/d:hx,ndy=d>1e-6?dy/d:hy;
  // rotation limitée : plus on court vite, plus le virage est large
  let ang=Math.atan2(hx*ndy-hy*ndx,hx*ndx+hy*ndy);
- const yaw=(s<1.2?11:7.5/(1+.32*s))*dt;
+ const yaw=(s<1.2?6.5:5.2/(1+.3*s))*dt;
  if(s>2.5&&Math.abs(ang)>1.2)want=Math.min(want,s*.55); // freinage avant un changement de direction marqué
  const turn=clamp(ang,-yaw,yaw);
  let h=Math.atan2(hy,hx)+(s<.35?ang:turn);
@@ -152,7 +152,7 @@ function steer(M,p,dt){
  const dv=want-s;
  const ns=Math.max(0,s+(dv>0?Math.min(dv,accNow*dt):Math.max(dv,-7.2*dt)));
  p.vx=Math.cos(h)*ns;p.vy=Math.sin(h)*ns;
- if(ns>.35||d>.4){let fd=Math.atan2(ns>.35?p.vy:ndy,ns>.35?p.vx:ndx);let da=Math.atan2(Math.sin(fd-p.hd),Math.cos(fd-p.hd));p.hd+=clamp(da,-8*dt,8*dt)}
+ if(ns>.35||d>.4){let fd=Math.atan2(ns>.35?p.vy:ndy,ns>.35?p.vx:ndx);let da=Math.atan2(Math.sin(fd-p.hd),Math.cos(fd-p.hd));p.hd+=clamp(da,-5.5*dt,5.5*dt)}
 }
 function moveAll(M,dt){
  const P=M.P;
@@ -196,7 +196,16 @@ function moveAll(M,dt){
  }
 }
 RM2.setPose=(M,p,pose,hold=.45)=>{p.pose=pose;p.poseT=M.t;p.poseHold=hold};
-RM2.go=(p,x,y,urg)=>{p.tx=clamp(x,-11,111);p.ty=clamp(y,-3,73);p.urg=urg};
+/* Cible lissée : les petites corrections de placement sont filtrées (pas de piétinement ni de zigzag),
+   les actions urgentes (plaquage, réception, porteur, replacement hors-jeu) sont immédiates. */
+RM2.go=(p,x,y,urg)=>{x=clamp(x,-11,111);y=clamp(y,-3,73);
+ const dx=x-p.tx,dy=y-p.ty,move=Math.sqrt(dx*dx+dy*dy);
+ const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy),near=Math.sqrt((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y));
+ if(urg<.9){
+  if(near<.9&&sp<1.2&&move<1.4){p.urg=Math.min(p.urg,urg);return}// déjà en place : il reste immobile
+  if(move<3){const k=p.task==='ligne'||p.task==='garde du ruck'?.75:.5;x=p.tx+dx*k;y=p.ty+dy*k}
+ }
+ p.tx=x;p.ty=y;p.urg=urg};
 
 /* ---------- Ballon ---------- */
 function holdBall(M,p){const b=M.ball;b.st='held';b.owner=p.i;b.team=p.team;b.x=p.x+Math.cos(p.hd)*.25;b.y=p.y+Math.sin(p.hd)*.25;b.z=1.05;b.vx=p.vx;b.vy=p.vy;b.vz=0;M.lastTouchTeam=p.team}

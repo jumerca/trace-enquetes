@@ -58,19 +58,20 @@ R2D.project=(r)=>makeProj(r);
 /* ---------- Caméra ---------- */
 R2D.updateCamera=function(r,M,dt,alpha=1){
  const b=M.ball;const bx=b.px!=null?b.px+(b.x-b.px)*alpha:b.x,by=b.py!=null?b.py+(b.y-b.py)*alpha:b.y;
- let tx=bx+clamp(b.vx||0,-9,9)*.55,ty=by;
+ let tx=bx+clamp(b.vx||0,-9,9)*.45,ty=by;
+ if(b.st==='air'&&b.kind==='kick'&&b.lx!=null){tx=bx*.45+b.lx*.55;ty=by*.5+b.ly*.5}
  if(M.phase==='lineout'||M.phase==='scrum'){tx=M.pd.x??bx;ty=M.pd.side!=null?(M.pd.side===0?8:62):(M.pd.y??by)}
  if(M.phase==='goalkick'){tx=(M.pd.x+RM2.X(M,M.pd.team,100))/2;ty=35}
  const m=r.mode;
- let L=(CAM[m]?.L||44)/r.zoom;
+ let L=(CAM[m]?.L||44)/r.zoom*(r.H>r.W*1.15&&m!=='full'&&m!=='tactical'?.68:1);
  if(m==='full'){tx=50;ty=35}
  if(m==='tactical'){r.camX+=(50-r.camX)*.2;r.camY+=(35-r.camY)*.2;r.zoom=clamp(r.zoom,1,2.2);if(r.zoom>1.01){r.camX=50+(tx-50)*.9*(1-1/r.zoom);r.camY=35+(ty-35)*.9*(1-1/r.zoom)}return}
  // garder le cadre à l'intérieur du stade
  const half=L/2;tx=clamp(tx,-12+half*.7,112-half*.7);
  const k=1-Math.exp(-dt*(m==='close'?3.2:2.4));
- r.camX+=(tx-r.camX)*k;
+ const step=(tx-r.camX)*k,maxPan=16*dt;r.camX+=Math.max(-maxPan,Math.min(maxPan,step));
  const fy=m==='full'?35:clamp(ty*.8+35*.2,4,68);
- r.camY+=(fy-r.camY)*(1-Math.exp(-dt*1.6));
+ r.camY+=(fy-r.camY)*(1-Math.exp(-dt*1.1));
  r.camL+=(L-r.camL)*(1-Math.exp(-dt*3));
 };
 R2D.snapCamera=function(r,M){r.camX=M.ball.x;r.camY=35;r.camL=(CAM[r.mode]?.L||44)/r.zoom};

@@ -82,3 +82,15 @@ Constats faits en vue tactique sur la V2.0 : sur les longs coups de pied, presqu
 - **Plan de jeu** (automatique, jeu au pied, équilibré, jeu à la main, adapté au vent et à la météo) et **objectif** (automatique, bonus offensif, sécuriser le résultat, bonus défensif), modifiables à tout moment en match (bouton « Plan »).
 - **Météo** par match (ensoleillé, nuageux, pluie, vent fort) : le vent porte ou freine les coups de pied et change de sens à la mi-temps ; la pluie rend le ballon glissant (réceptions, passes, contacts).
 - **Situations de match** : le capitaine connaît la règle de bonus de sa compétition (Top 14 / Pro D2 : trois essais d'écart ; autres : quatre essais), le bonus défensif, le score et le temps restant. Près de l'en-but il joue la mêlée ou la pénalité rapide, jamais la touche ; il explique sa recommandation au manager.
+
+---
+
+## V2.2 — Fluidité et intelligence de placement (d'après l'enregistrement du manager)
+
+Constats sur la vidéo envoyée (téléphone, 13:29 → 13:57, chandelle du 9) : équipes mélangées longtemps après la chandelle, accélérations saccadées du mode Résumé, caméra qui « court » derrière le ballon, joueurs minuscules en portrait.
+
+- **Déplacements plus fluides** : rotation limitée (virages progressifs), cibles lissées pour les petits ajustements, zone morte (un joueur en place ne piétine plus). Virages brusques mesurés : 189 → 49 pour 1 000 pas de course.
+- **Discipline du hors-jeu** : un attaquant devant le porteur ou un défenseur devant la ligne de ruck revient immédiatement derrière le ballon, en contournant le regroupement par l'arrière au lieu de le traverser.
+- **Jeu au pied** : l'équipe qui reçoit recule derrière le point de chute pour soutenir le réceptionneur (fini le paquet mélangé avec le rideau adverse) ; trois chasseurs sprintent sur les chandelles et renvois disputés ; chandelle du 9 un peu plus haute.
+- **Caméra** : anticipe le point de chute des coups de pied, vitesse de panoramique limitée, bascule verticale plus douce ; cadrage plus serré en portrait (joueurs ≈ 50 % plus grands).
+- **Mode Résumé** : n'accélère plus que les arrêts de jeu ; le jeu en mouvement garde la vitesse choisie, avec transitions de vitesse progressives.
