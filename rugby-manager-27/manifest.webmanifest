@@ -1,0 +1,27 @@
+{
+  "id": "./",
+  "name": "Rugby Manager 27 — V2.0",
+  "short_name": "Rugby 27",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1019",
+  "theme_color": "#0d1918",
+  "lang": "fr",
+  "description": "Rugby Manager 27 V2.0 — JLG Creative. Gestion de club de rugby à XV et moteur de match 2D multi-agents.",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

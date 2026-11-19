@@ -1,0 +1,9 @@
+
+/* Édition 1.4 : priorité au terrain et à la lecture du jeu */
+.rmplay .rm13-viewport{background:#081723;border:1px solid #385961;border-radius:12px;box-shadow:0 12px 25px #0005;overflow:hidden}
+.rmplay #rmcanvas{display:block;object-fit:contain;aspect-ratio:1100/545;transition: none!important}
+.rmplay .rm-pitch-wrap{border-color:#416475;box-shadow:0 4px 20px #0007}
+.rmplay .rm-actions{position:relative;gap:7px}
+.rmplay .rm-actions button{font-weight:750;min-height:47px}
+.rmplay .rm-caption{background:#101e29;border-radius:0 0 10px 10px;padding:10px 12px}
+@media(max-width:600px){.rmplay .rm-score{padding:13px 9px}.rmplay .rm-pitch-wrap{padding:7px}.rmplay .rm-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.rmplay .rm-actions>button{min-width:0;white-space:normal;font-size:12px}.rmplay .rm-actions #rmExport{grid-column:span 2}.rmplay .rm-actions .spacer{display:none}.rmplay .rm-actions label{display:flex;align-items:center;justify-content:center;gap:4px}}

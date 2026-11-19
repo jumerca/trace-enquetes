@@ -1,0 +1,142 @@
+{
+ "viewports": [
+  {
+   "vp": "pc_1366",
+   "shot": "ruck",
+   "n": 2,
+   "phase": "ruck",
+   "clock": "00:08"
+  },
+  {
+   "vp": "pc_1366",
+   "shot": "melee",
+   "n": 1577,
+   "phase": "scrum",
+   "clock": "03:33"
+  },
+  {
+   "vp": "pc_1366",
+   "shot": "touche",
+   "n": 6819,
+   "phase": "lineout",
+   "clock": "24:28"
+  },
+  {
+   "vp": "pc_1366",
+   "shot": "jeu_au_pied",
+   "n": 29,
+   "phase": "play",
+   "clock": "24:31"
+  },
+  {
+   "vp": "pc_1366",
+   "shot": "plaquage",
+   "n": 147,
+   "phase": "play",
+   "clock": "25:00"
+  },
+  {
+   "vp": "pc_1366",
+   "fps": 60,
+   "canvasPx": {
+    "css": [
+     1366,
+     768
+    ],
+    "px": [
+     1366,
+     768
+    ]
+   },
+   "errors": []
+  },
+  {
+   "vp": "tablette_1024",
+   "shot": "ruck",
+   "n": 1,
+   "phase": "ruck",
+   "clock": "00:09"
+  },
+  {
+   "vp": "tablette_1024",
+   "shot": "melee",
+   "n": 1571,
+   "phase": "scrum",
+   "clock": "03:33"
+  },
+  {
+   "vp": "tablette_1024",
+   "fps": 60,
+   "canvasPx": {
+    "css": [
+     1024,
+     768
+    ],
+    "px": [
+     2048,
+     1536
+    ]
+   },
+   "errors": []
+  },
+  {
+   "vp": "mobile_852x393",
+   "shot": "ruck",
+   "n": 2,
+   "phase": "ruck",
+   "clock": "00:08"
+  },
+  {
+   "vp": "mobile_852x393",
+   "shot": "melee",
+   "n": 1576,
+   "phase": "scrum",
+   "clock": "03:33"
+  },
+  {
+   "vp": "mobile_852x393",
+   "fps": 60,
+   "canvasPx": {
+    "css": [
+     852,
+     393
+    ],
+    "px": [
+     2130,
+     983
+    ]
+   },
+   "errors": []
+  },
+  {
+   "vp": "mobile_393x852",
+   "shot": "ruck",
+   "n": 1,
+   "phase": "ruck",
+   "clock": "00:08"
+  },
+  {
+   "vp": "mobile_393x852",
+   "shot": "melee",
+   "n": 1575,
+   "phase": "scrum",
+   "clock": "03:33"
+  },
+  {
+   "vp": "mobile_393x852",
+   "fps": 60,
+   "canvasPx": {
+    "css": [
+     393,
+     852
+    ],
+    "px": [
+     983,
+     2130
+    ]
+   },
+   "errors": []
+  }
+ ],
+ "errors": []
+}

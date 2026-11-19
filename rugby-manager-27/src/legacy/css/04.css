@@ -1,0 +1,10 @@
+
+.rm25-video-button{border-color:#b99b59!important;color:#eadbb3!important}
+.rm25-replay-overlay[hidden]{display:none!important}
+.rm25-replay-overlay{position:absolute;z-index:29;inset:0;pointer-events:none;color:white;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(180deg,rgba(6,17,20,.7),transparent 33%,transparent 61%,rgba(6,17,20,.83));font-family:system-ui,sans-serif}
+.rm25-replay-top,.rm25-replay-bottom{display:flex;gap:12px;align-items:center;padding:12px 16px;pointer-events:auto}
+.rm25-replay-top{justify-content:space-between}.rm25-replay-top b{font-size:13px;letter-spacing:.12em;color:#f5d883}.rm25-replay-top button{color:white;background:#23363a;border:1px solid #7e9592;border-radius:7px;padding:8px}
+.rm25-replay-title{margin:8px 18px auto;max-width:75%;font-size:13px;opacity:.9}
+.rm25-replay-bottom{background:#0c2025cf;flex-wrap:wrap}
+.rm25-replay-bottom button{background:#254149;color:white;border:1px solid #53706d;border-radius:6px;padding:8px 12px}.rm25-replay-bottom input{flex:1;min-width:70px;accent-color:#e7bb5e}.rm25-replay-bottom span{font-size:12px}
+.rm25-report{padding:12px 14px;color:#dfe9e6}.rm25-report h3{font-size:16px;margin:2px 0 12px}.rm25-report h4{margin:14px 0 8px}.rm25-minimetrics{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.rm25-minimetrics span{padding:9px;border:1px solid #38504c;border-radius:7px;font-size:12px}.rm25-minimetrics b{float:right;color:#edc66e}.rm25-report-items{display:grid;gap:5px;max-height:300px;overflow:auto;margin-top:12px}.rm25-report-items button{display:flex;align-items:flex-start;flex-direction:column;border:1px solid #42605d;background:#14292a;color:#e2efee;text-align:left;padding:9px;border-radius:7px;gap:4px;font-size:12px}.rm25-report-items button small{color:#e9c77e}.rm25-report-items button span{font-size:12px;opacity:.85}.rm25-report p{font-size:12px;border-bottom:1px solid #324643;padding:5px 0}.rm25-inline-video{background:#374d47;color:#f5d883;border:1px solid #73817c;border-radius:6px;font-size:11px;padding:5px 9px;margin:5px}
