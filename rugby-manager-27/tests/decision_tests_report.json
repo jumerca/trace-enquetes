@@ -1,0 +1,47 @@
+[
+ {
+  "situation": "2 m de la ligne, 1 essai pour le bonus (Top 14 : +3 essais)",
+  "etat": "bonus",
+  "scrum": 19,
+  "why": "Pénalité jouée vite : les avants percutent au ras",
+  "tap": 21
+ },
+ {
+  "situation": "2 m de la ligne, début de match",
+  "etat": "normal",
+  "scrum": 19,
+  "why": "Pénalité jouée vite : les avants percutent au ras",
+  "tap": 21
+ },
+ {
+  "situation": "5 m, mené de 2 à la 78e",
+  "etat": "chase",
+  "posts": 40,
+  "why": "Trois points pour passer devant"
+ },
+ {
+  "situation": "40 m face aux poteaux, mené de 5 à la 79e",
+  "etat": "chase",
+  "touch": 40,
+  "why": "Il faut un essai : touche près de la ligne"
+ },
+ {
+  "situation": "35 m, mené de 9 à la 72e (bonus défensif)",
+  "etat": "bonusdef",
+  "posts": 40,
+  "why": "Trois points pour revenir à moins de huit (bonus défensif)"
+ },
+ {
+  "situation": "30 m en coin, match nul 50e",
+  "etat": "normal",
+  "touch": 40,
+  "why": "Pénaltouche : maul dans les 22 adverses"
+ },
+ {
+  "situation": "Propre camp (35 m de son en-but)",
+  "etat": "normal",
+  "touch": 39,
+  "why": "Dégagement en touche",
+  "tap": 1
+ }
+]

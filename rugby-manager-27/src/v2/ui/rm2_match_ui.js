@@ -22,7 +22,7 @@ function userTactics(){
  out.shape=t.shape==='2-4-2'?'2-4-2':'1-3-3-1';
  out.playbook=PLAY[t.playbook]||'auto';
  for(const k of ['width','tempo','kicking','forwards','risk','lineSpeed','contest'])if(Number.isFinite(adv[k]))out[k]=clamp(adv[k],0,1);
- for(const k of ['kickStyle','penalty','lineoutTarget','lineoutPlay','scrumPlan','subs'])if(adv[k])out[k]=adv[k];
+ for(const k of ['kickStyle','penalty','lineoutTarget','lineoutPlay','scrumPlan','subs','plan','objective','lineoutCall','scrumCall'])if(adv[k])out[k]=adv[k];
  return out;
 }
 function aiTactics(id){
@@ -65,6 +65,10 @@ function createMatch(f,opts={}){
  const cfg={seed:RM2.hash('rm27-v2-'+(state.rmSeason||1)+'-'+f.id),teams:[teamConfig(f.home,userSide===0),teamConfig(f.away,userSide===1)],userTeam:userSide,auto:!!opts.auto||state.rm2?.askPenalty===false};
  cfg.teams[0].color=K[0][0];cfg.teams[0].color2=K[0][1];cfg.teams[1].color=K[1][0];cfg.teams[1].color2=K[1][1];
  const M=RM2.create(cfg);M.fid=f.id;M.league=club(f.home).league;M.home=f.home;M.away=f.away;
+ M.bonusRule=['TOP14','PROD2'].includes(M.league)?'ecart3':'quatre';
+ M.askSet=state.rm2?.askSetPiece!==false;
+ const month=((8+Math.floor(((f.round||1)-1)*9/Math.max(1,league(M.league)?.rounds||26)))%12)+1;
+ M.weather=RM2.makeWeather(RM2.hash('meteo'+(state.rmSeason||1)+f.id),month);
  return M;
 }
 window.RM2_createMatch=createMatch;
@@ -107,7 +111,7 @@ function markup(M){
    <span class="m2-team away"><b>${esc2(a.short)}</b><i style="background:${a.color}"></i></span>
    <span class="m2-clock"><b id="m2clock">00:00</b><small id="m2half">1re MT</small></span>
   </div>
-  <span class="m2-phase" id="m2phase">Coup d'envoi</span>
+  <span class="m2-phase" id="m2phase">Coup d'envoi</span><span class="m2-phase m2-wx" id="m2wx"></span>
  </div>
  <div class="m2-ticker" id="m2tick"><span>Le match va commencer</span></div>
  <div class="m2-bar" role="toolbar" aria-label="Contrôles du match">
@@ -119,7 +123,7 @@ function markup(M){
   <button class="m2-chip" id="m2Cam" title="Changer de caméra (C)">🎥 <span id="m2CamL">TV</span></button>
   <button class="m2-icon" id="m2ZoomOut" aria-label="Dézoomer">−</button><button class="m2-icon" id="m2ZoomIn" aria-label="Zoomer">+</button>
   <span class="m2-sep"></span>
-  <button class="m2-chip" data-panel="tactics">Tactique</button>
+  <button class="m2-chip" data-panel="tactics" id="m2PlanChip">Plan</button>
   <button class="m2-chip" data-panel="stats">Stats</button>
   <button class="m2-chip" data-panel="players">Joueurs</button>
   <button class="m2-chip" data-panel="events">Actions</button>
@@ -216,7 +220,7 @@ function loop(){
  R2D.updateCamera(LIVE.r,M,dt*(LIVE.paused?0:Math.min(LIVE.speed,4)),alpha);
  R2D.draw(LIVE.r,M,alpha);
  refreshHud(false);
- if(M.pending&&!LIVE.modalPending){LIVE.modalPending=true;showPenalty()}
+ if(M.pending&&!LIVE.modalPending){LIVE.modalPending=true;if(M.pending.type==='penalty')showPenalty();else showSetPiece()}
  if(M.phase==='half'&&!LIVE.halfShown){LIVE.halfShown=true;LIVE.paused=true;showHalf()}
  if(M.done&&!LIVE.endShown){LIVE.endShown=true;LIVE.paused=true;showEnd()}
  LIVE.raf=requestAnimationFrame(loop);
@@ -238,6 +242,8 @@ function refreshHud(force){
  document.querySelectorAll('#m2Speeds [data-speed]').forEach(b=>b.classList.toggle('on',+b.dataset.speed===LIVE.speed));
  $i('m2Digest').classList.toggle('on',LIVE.digest);
  $i('m2CamL').textContent=R2D.CAM[LIVE.r.mode].label;
+ const wx=$i('m2wx');if(wx)wx.textContent=weatherText(M,true);
+ const pc=$i('m2PlanChip');if(pc&&M.userTeam>=0){const B=M.T[M.userTeam].base||M.T[M.userTeam].tactics;pc.textContent='Plan : '+({auto:'auto',pied:'au pied',equilibre:'équilibré',main:'à la main',vent:'vent'})[B.plan||'auto']}
  const e=[...M.log].reverse().find(x=>x.imp>=1||x.k==='call')||M.last;
  if(e&&e.n!==LIVE.lastEvent){LIVE.lastEvent=e.n;const el=$i('m2tick');el.innerHTML=`<b>${fmtMin(e)}</b><span class="${e.imp>=2?'hot':''}">${esc2(e.s)}</span>`;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')}
  $i('m2fps').textContent=uiSettings?.rm2fps?LIVE.r.fps+' i/s':'';
@@ -260,7 +266,11 @@ function fillPanel(name){
   title.textContent='Consignes en direct';
   if(u<0){body.innerHTML='<p>Vous observez ce match.</p>';return}
   const T=M.T[u].tactics,t=state.tactics;
-  body.innerHTML=`<p class="m2-hint">Effet immédiat sur les décisions du 9, du 10, des cellules et de la ligne défensive.</p>
+  const B=M.T[u].base||T;const need=RM2.triesForBonus(M,u);
+  body.innerHTML=`<div class="m2-plan"><span>Plan de jeu</span><div class="m2-seg">${Object.entries(RM2.PLANS).map(([k,l])=>`<button data-plan="${k}" class="${(B.plan||'auto')===k?'on':''}">${l.replace(' (capitaine)','').replace('Adapté au vent et à la météo','Vent & météo')}</button>`).join('')}</div></div>
+  ${sel('objective','Objectif',Object.entries(RM2.OBJECTIVES),B.objective||'auto')}
+  <p class="m2-hint">${weatherText(M)} · Bonus offensif : ${need===0?'acquis ✓':`encore ${need} essai${need>1?'s':''}`} · État d’esprit actuel : <b>${({normal:'normal',chase:'course au score',protect:'gestion de l’avance',bonus:'chasse au bonus',bonusdef:'bonus défensif'})[M.T[u].mind]||M.T[u].mind}</b></p>
+  <p class="m2-hint">Effet immédiat sur les décisions du 9, du 10, des cellules et de la ligne défensive.</p>
   ${sel('style','Plan offensif',Object.keys(STYLE).map(x=>[x,x]),t.style)}
   ${sel('defense','Défense',Object.keys(DEF).map(x=>[x,x]),t.defense)}
   ${sel('kick','Jeu au pied',Object.keys(KICK).map(x=>[x,x]),t.kick)}
@@ -281,12 +291,17 @@ function fillPanel(name){
   ${sel('penalty','Sur pénalité (si non demandé)',[['auto','Capitaine'],['posts','Poteaux'],['touch','Pénaltouche'],['scrum','Mêlée']],T.penalty)}
   ${sel('kickStyle','Type de jeu au pied',[['auto','Lecture'],['box','Chandelles du 9'],['chandelle','Chandelles'],['5022','Recherche du 50:22']],T.kickStyle)}
   ${sel('subs','Remplacements',[['auto','Automatiques'],['manual','Manuels']],T.subs)}
+  ${sel('lineoutCall','Combinaison de touche par défaut',[['auto','Choix du capitaine'],...RM2.LINEOUT_PLAYS.map(p=>[p.id,p.name])],B.lineoutCall||'auto')}
+  ${sel('scrumCall','Combinaison de mêlée par défaut',[['auto','Choix du capitaine'],...RM2.SCRUM_PLAYS.map(p=>[p.id,p.name])],B.scrumCall||'auto')}
+  <label class="m2-f m2-check"><input type="checkbox" id="m2AskSet" ${state.rm2?.askSetPiece!==false?'checked':''}> Me demander la combinaison à chaque touche et mêlée offensive</label>
   <label class="m2-f m2-check"><input type="checkbox" id="m2AskPen" ${state.rm2?.askPenalty!==false?'checked':''}> Me demander à chaque pénalité</label>`;
   body.querySelectorAll('[data-t]').forEach(s=>s.onchange=()=>{const k=s.dataset.t;
    if(['style','defense','kick','shape','playbook'].includes(k)){state.tactics[k]=s.value;state.rm2=state.rm2||{};state.rm2.tactics=state.rm2.tactics||{};for(const f of ['width','tempo','kicking','forwards','risk','lineSpeed','contest'])delete state.rm2.tactics[f]}
    else{state.rm2=state.rm2||{};state.rm2.tactics=state.rm2.tactics||{};state.rm2.tactics[k]=s.value}
-   M.T[u].tactics=Object.assign(M.T[u].tactics,userTactics());RM2.say(M,u,'info','Consigne : '+s.options[s.selectedIndex].text,0);save();fillPanel('tactics')});
-  body.querySelectorAll('[data-r]').forEach(s=>s.onchange=()=>{state.rm2=state.rm2||{};state.rm2.tactics=state.rm2.tactics||{};state.rm2.tactics[s.dataset.r]=+s.value/100;M.T[u].tactics=Object.assign(M.T[u].tactics,userTactics());save()});
+   RM2.setBaseTactics(M,u,userTactics());RM2.say(M,u,'info','Consigne : '+s.options[s.selectedIndex].text,0);save();fillPanel('tactics');refreshHud(true)});
+  body.querySelectorAll('[data-r]').forEach(s=>s.onchange=()=>{state.rm2=state.rm2||{};state.rm2.tactics=state.rm2.tactics||{};state.rm2.tactics[s.dataset.r]=+s.value/100;RM2.setBaseTactics(M,u,userTactics());save()});
+  body.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>{state.rm2=state.rm2||{};state.rm2.tactics=state.rm2.tactics||{};state.rm2.tactics.plan=b.dataset.plan;RM2.setBaseTactics(M,u,userTactics());RM2.say(M,u,'info','Plan de jeu : '+RM2.PLANS[b.dataset.plan],0);save();fillPanel('tactics');refreshHud(true)});
+  const as=document.getElementById('m2AskSet');as.onchange=()=>{state.rm2=state.rm2||{};state.rm2.askSetPiece=as.checked;M.askSet=as.checked;save()};
   const ap=document.getElementById('m2AskPen');ap.onchange=()=>{state.rm2=state.rm2||{};state.rm2.askPenalty=ap.checked;M.auto=!ap.checked;save()};
   return;
  }
@@ -356,6 +371,7 @@ function showIntro(){
  const u=M.userTeam;
  modal(`<span class="m2-eyebrow">${esc2(league(M.league)?.name||'Championnat')} · Saison ${state.rmSeason||1}</span><h2>${esc2(M.T[0].name)} – ${esc2(M.T[1].name)}</h2>
  <p>Plan de jeu : <b>${esc2(state.tactics.style)}</b> · défense <b>${esc2(state.tactics.defense)}</b> · jeu au pied <b>${esc2(state.tactics.kick)}</b>.</p>
+ <p>${weatherText(M)}.</p>
  <p class="m2-hint">Moteur V2 : 30 joueurs autonomes, ballon physique. ×1 = temps réel ; le mode « Résumé » accélère les temps faibles.</p>
  <div class="m2-actions"><button class="m2-btn" id="m2Go">▶ Coup d’envoi</button><button class="m2-btn ghost" id="m2GoSim">⏩ Simuler le match</button></div>`);
  document.getElementById('m2Go').onclick=()=>{closeModal();togglePause(false)};
@@ -366,8 +382,27 @@ function showPenalty(){
  const r=RM2.R(M,p.team,p.x);
  modal(`<span class="m2-eyebrow">Décision du manager · ${RM2.clockText(M)}</span><h2>${p.free?'Coup franc':'Pénalité'} pour ${esc2(M.T[p.team].short)}</h2>
  <p>${esc2(p.reason)} · à ${Math.round(100-r)} m de la ligne adverse, ${Math.round(Math.abs(p.y-35))} m de l’axe. Score ${M.score[0]}–${M.score[1]}.</p>
- <div class="m2-choices">${p.options.map(o=>`<button class="m2-choice ${o.id===p.suggest?'sug':''}" data-pen="${o.id}"><b>${esc2(o.label)}</b>${o.p!=null?`<small>Réussite estimée ${Math.round(o.p*100)} %</small>`:''}${o.id===p.suggest?'<small>Conseil du capitaine</small>':''}</button>`).join('')}</div>`);
+ ${p.why?`<p class="m2-why">🗣 Le capitaine : « ${esc2(p.why)} »</p>`:''}<div class="m2-choices">${p.options.map(o=>`<button class="m2-choice ${o.id===p.suggest?'sug':''}" data-pen="${o.id}"><b>${esc2(o.label)}</b>${o.p!=null?`<small>Réussite estimée ${Math.round(o.p*100)} %</small>`:''}${o.id===p.suggest?'<small>Conseil du capitaine</small>':''}</button>`).join('')}</div>`);
  document.querySelectorAll('[data-pen]').forEach(b=>b.onclick=()=>{RM2.penaltyChoice(M,b.dataset.pen);LIVE.modalPending=false;closeModal();LIVE.last=performance.now()});
+}
+function weatherText(M,short){const w=M.weather;if(!w)return '';const ico={clear:'☀',cloudy:'☁',rain:'🌧',wind:'💨'}[w.kind]||'';const u=M.userTeam>=0?M.userTeam:0;const wf=RM2.windFor(M,u);const kmh=Math.round(Math.abs(w.wind)*3.6);
+ const dirTxt=kmh<6?'vent faible':(wf>0?'vent dans le dos':'vent de face')+(M.userTeam<0?'':'');return short?`${ico} ${kmh} km/h ${kmh<6?'':wf>0?'↗':'↙'}`:`${ico} ${w.label}, ${kmh} km/h (${dirTxt}${M.userTeam>=0?' pour vous':''})${w.rain?' · ballon glissant':''}`}
+window.RM2_weatherText=weatherText;
+function showSetPiece(){
+ const M=LIVE.M,p=M.pending,type=p.type,list=type==='lineout'?RM2.LINEOUT_PLAYS:RM2.SCRUM_PLAYS;
+ const r=RM2.R(M,p.team,p.x);let zone=p.suggest.zone||'avant';
+ const draw=()=>{
+  const items=list.filter(pl=>type!=='lineout'||pl.zones.includes(zone));
+  modal(`<span class="m2-eyebrow">${type==='lineout'?'Touche':'Mêlée'} offensive · ${Math.round(100-r)} m de la ligne · ${RM2.clockText(M)}</span><h2>Choisissez la combinaison</h2>
+  ${type==='lineout'?`<div class="m2-seg m2-jump">${[['avant','1er sauteur'],['milieu','2e sauteur'],['fond','3e sauteur']].map(([z,l])=>`<button data-zone="${z}" class="${z===zone?'on':''}">${l}</button>`).join('')}</div>`:''}
+  <div class="m2-plays">${items.map(pl=>`<button class="m2-playbtn ${pl.id===p.suggest.id?'sug':''}" data-play="${pl.id}"><b>${list.indexOf(pl)+1}. ${esc2(pl.name)}</b><small>${esc2(pl.desc)}</small>${pl.id===p.suggest.id?'<em>Conseil du capitaine</em>':''}</button>`).join('')}</div>
+  <div class="m2-actions"><button class="m2-btn ghost" id="m2SpAuto">Laisser le capitaine décider</button><label class="m2-f m2-check"><input type="checkbox" id="m2SpStop"> Ne plus demander pendant ce match</label></div>`);
+  document.querySelectorAll('[data-zone]').forEach(b=>b.onclick=()=>{zone=b.dataset.zone;draw()});
+  const done=c=>{if(document.getElementById('m2SpStop')?.checked)M.askSet=false;RM2.setPieceChoice(M,c);LIVE.modalPending=false;closeModal();LIVE.last=performance.now()};
+  document.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>done({id:b.dataset.play,zone}));
+  document.getElementById('m2SpAuto').onclick=()=>done(p.suggest);
+ };
+ draw();
 }
 function showHalf(){
  const M=LIVE.M;

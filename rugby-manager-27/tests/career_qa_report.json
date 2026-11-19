@@ -33,18 +33,18 @@
   {
    "k": "saison terminée",
    "season": 1,
-   "rank": 10,
+   "rank": 9,
    "played": 30,
-   "budget": 4.86,
-   "injured": 0,
+   "budget": 4.99,
+   "injured": 3,
    "offers": 1,
    "news": [
     "Soyaux-Angoulême XV propose 0,22 M€ pour Christian James Judge",
-    "Matheo Guyon est rétabli et de nouveau disponible",
-    "Matheo Guyon blessé (lésion musculaire) — indisponible 2 semaine(s)"
+    "Yanis Charcosset blessé (élongation) — indisponible 4 semaine(s)",
+    "Matheo Guyon blessé (lésion musculaire) — indisponible 3 semaine(s)"
    ],
-   "board": 48.339999999999996,
-   "secondes": 19
+   "board": 54.18,
+   "secondes": 21
   },
   {
    "k": "intersaison",
@@ -69,17 +69,17 @@
   {
    "k": "saison terminée",
    "season": 2,
-   "rank": 4,
+   "rank": 6,
    "played": 30,
-   "budget": 3.89,
+   "budget": 3.96,
    "injured": 1,
    "offers": 0,
    "news": [
+    "Matheo Guyon blessé (lésion musculaire) — indisponible 5 semaine(s)",
     "Nathan James Claassen est rétabli et de nouveau disponible",
-    "Entraînement intensif : Nathan James Claassen blessé(s)",
-    "Regis Desire Omby blessé (lésion musculaire) — indisponible 4 semaine(s)"
+    "Entraînement intensif : Nathan James Claassen blessé(s)"
    ],
-   "board": 68.94399999999999,
+   "board": 69.78800000000001,
    "secondes": 21
   },
   {
@@ -87,14 +87,14 @@
    "avant": {
     "id": "ca-brive-simon-pierre-chauvac",
     "age": 20,
-    "ovr": 70
+    "ovr": 69
    },
    "apres": {
     "season": 3,
     "age": 21,
     "ovr": 72,
-    "squad": 50,
-    "real": 47,
+    "squad": 51,
+    "real": 48,
     "youth": 36,
     "fixtures": 240,
     "history": 2,
@@ -107,30 +107,30 @@
    "season": 3,
    "rank": 7,
    "played": 30,
-   "budget": 2.83,
+   "budget": 2.75,
    "injured": 0,
    "offers": 0,
    "news": [
-    "Bastien Massé est rétabli et de nouveau disponible",
     "Issa Carlo Mendy est rétabli et de nouveau disponible",
-    "Bastien Massé blessé (élongation) — indisponible 2 semaine(s)"
+    "Entraînement intensif : Issa Carlo Mendy blessé(s)",
+    "Benjamin Lefranc est rétabli et de nouveau disponible"
    ],
-   "board": 89.7264,
-   "secondes": 22
+   "board": 83.5528,
+   "secondes": 23
   },
   {
    "k": "intersaison",
    "avant": {
     "id": "ca-brive-simon-pierre-chauvac",
     "age": 21,
-    "ovr": 76
+    "ovr": 75
    },
    "apres": {
     "season": 4,
     "age": 22,
     "ovr": 76,
-    "squad": 46,
-    "real": 42,
+    "squad": 47,
+    "real": 43,
     "youth": 53,
     "fixtures": 240,
     "history": 3,
@@ -139,82 +139,10 @@
    }
   },
   {
-   "k": "saison terminée",
-   "season": 4,
-   "rank": 4,
-   "played": 30,
-   "budget": 2.15,
-   "injured": 2,
-   "offers": 0,
-   "news": [
-    "Simon-Pierre Chauvac est rétabli et de nouveau disponible",
-    "Marcel Van der Merwe blessé (élongation) — indisponible 4 semaine(s)",
-    "Simon-Pierre Chauvac blessé (commotion (protocole)) — indisponible 2 semaine(s)"
-   ],
-   "board": 89.49583999999999,
-   "secondes": 21
-  },
-  {
-   "k": "intersaison",
-   "avant": {
-    "id": "ca-brive-simon-pierre-chauvac",
-    "age": 22,
-    "ovr": 76
-   },
-   "apres": {
-    "season": 5,
-    "age": 23,
-    "ovr": 76,
-    "squad": 45,
-    "real": 41,
-    "youth": 74,
-    "fixtures": 240,
-    "history": 4,
-    "aiSigned": 107,
-    "objective": "Qualification en phase finale (top 6)"
-   }
-  },
-  {
-   "k": "saison terminée",
-   "season": 5,
-   "rank": 8,
-   "played": 30,
-   "budget": 1.41,
-   "injured": 1,
-   "offers": 0,
-   "news": [
-    "Taniela Sadrugu est rétabli et de nouveau disponible",
-    "John Cooney est rétabli et de nouveau disponible",
-    "Joueur test FH-03 blessé (commotion (protocole)) — indisponible 1 semaine(s)"
-   ],
-   "board": 88.16,
-   "secondes": 22
-  },
-  {
-   "k": "intersaison",
-   "avant": {
-    "id": "ca-brive-simon-pierre-chauvac",
-    "age": 23,
-    "ovr": 76
-   },
-   "apres": {
-    "season": 6,
-    "age": 24,
-    "ovr": 76,
-    "squad": 45,
-    "real": 41,
-    "youth": 95,
-    "fixtures": 240,
-    "history": 5,
-    "aiSigned": 94,
-    "objective": "Qualification en phase finale (top 6)"
-   }
-  },
-  {
    "k": "rechargement",
    "identique": true,
-   "snap2": "{\"c\":\"ca-brive\",\"s\":6,\"b\":1.405,\"y\":95,\"h\":5}",
-   "taille_ko": 962
+   "snap2": "{\"c\":\"ca-brive\",\"s\":4,\"b\":2.751,\"y\":53,\"h\":3}",
+   "taille_ko": 794
   }
  ],
  "errors": []

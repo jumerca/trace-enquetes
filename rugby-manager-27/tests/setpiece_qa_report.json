@@ -1,0 +1,57 @@
+{
+ "lineout": {
+  "type": "lineout",
+  "clock": "01:37",
+  "suggest": {
+   "type": "lineout",
+   "id": "top-pied10",
+   "zone": "avant",
+   "quick": false,
+   "push": false
+  }
+ },
+ "lineoutChoices": 9,
+ "lineoutApplied": {
+  "type": "lineout",
+  "id": "fond-8",
+  "zone": "fond",
+  "quick": false,
+  "push": false
+ },
+ "scrum": {
+  "type": "scrum",
+  "clock": "11:43",
+  "suggest": {
+   "type": "scrum",
+   "id": "8-ouvert",
+   "zone": null,
+   "quick": false,
+   "push": false
+  }
+ },
+ "scrumChoices": 15,
+ "scrumApplied": {
+  "type": "scrum",
+  "id": "8-ferme",
+  "zone": null,
+  "quick": false,
+  "push": false
+ },
+ "penalty": {
+  "type": "penalty",
+  "clock": "19:24",
+  "suggest": "touch"
+ },
+ "penaltyWhy": "Dégagement en touche",
+ "planApplied": {
+  "base": "pied",
+  "kicking": 0.78
+ },
+ "weather": {
+  "kind": "rain",
+  "label": "Pluie",
+  "wind": 4.8,
+  "rain": 0.51
+ },
+ "errors": []
+}
