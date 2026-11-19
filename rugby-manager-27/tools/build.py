@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 LEG = os.path.join(SRC, 'legacy')
 V2 = os.path.join(SRC, 'v2')
-VERSION = '2.3'
+VERSION = '2.4'
 
 V2_JS = ['engine/rm2_core.js', 'engine/rm2_ai.js', 'engine/rm2_phases.js', 'engine/rm2_plays.js', 'engine/rm2_quick.js',
          'render/rm2_render.js', 'ui/rm2_match_ui.js', 'career/rm2_career.js', 'career/rm2_world.js', 'ui/rm2_shell.js']
@@ -37,6 +37,9 @@ def build_html():
     css = read(os.path.join(V2, 'ui', 'rm2.css'))
     t = t.replace('</head>', '<style id="rm27-v2-css">\n%s</style></head>' % css, 1)
     js = '\n'.join('/* ==== %s ==== */\n%s' % (f, read(os.path.join(V2, f))) for f in V2_JS)
+    data_dir = os.path.join(V2, 'data')
+    web = [json.load(open(os.path.join(data_dir, f), encoding='utf8')) for f in sorted(os.listdir(data_dir)) if f.startswith('rosters_web_')]
+    js = '/* ==== effectifs web ==== */\nwindow.RM27_WEB_ROSTERS=%s;\n' % json.dumps(web, ensure_ascii=False) + js
     t = t.replace('</body></html>', '<script id="rm27-v2">\n%s\n</script></body></html>' % js.replace('</script', '<\\/script'), 1)
     return t
 
