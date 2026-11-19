@@ -366,7 +366,16 @@ PH.ruck=function(M,dt){
   if(!RM2.active(p)||!RM2.upright(M,p)||ex.has(p.i)||(k.going||[]).includes(p.i)||p.i===k.jackalGo)continue;
   if(M.t<p.think)continue;p.think=M.t+p.react*(.8+rnd(M)*.6);
   const sl=p.team===t?M._aShape.slots.get(p.i):M._dShape.get(p.i);
-  if(sl){RM2.go(p,sl.x,sl.y,sl.urg||(hyp(sl.x-p.x,sl.y-p.y)>10?.85:.6));p.task=sl.task}
+  if(sl){
+   // hors-jeu au ruck : retour en urgence derrière la ligne (pieds du dernier joueur), sans traverser le regroupement
+   const tm=p.team===t?t:o,rel=R(M,tm,p.x)-R(M,tm,bx);
+   if(rel>-.8&&p.team===o){RM2.go(p,X(M,o,R(M,o,bx)-2.2),p.y+(sl.y-p.y)*.25,.95);p.task='revient en jeu'}
+   else if(rel>1&&p.team===t){RM2.go(p,X(M,t,R(M,t,bx)-2.5),p.y+(sl.y-p.y)*.3,.9);p.task='se replace (hors-jeu)'}
+   else{
+    // changement de côté : on contourne le ruck par l'arrière de son camp au lieu de le traverser
+    let gx=sl.x,gy=sl.y;
+    if(Math.sign(p.y-by)!==Math.sign(sl.y-by)&&Math.abs(p.y-by)<9&&Math.abs(R(M,tm,p.x)-R(M,tm,bx))<4.5){gx=X(M,tm,R(M,tm,bx)-4.5);gy=p.y+(sl.y-p.y)*.5}
+    RM2.go(p,gx,gy,sl.urg||(hyp(sl.x-p.x,sl.y-p.y)>10?.85:.6));p.task=sl.task}}
  }
  // le demi de mêlée vient derrière le ballon
  const sh=k.sh>=0?M.P[k.sh]:null;
@@ -460,7 +469,7 @@ RM2.kickFromPlay=function(M,c,kt){
  if(kt==='touche'){const dist=26+k*.24+rr(M,-4,4);
   if(r0<22){lr=r0+dist*.9;ly=near===0?-2.5:72.5}else{lr=r0+dist*.85;ly=near===0?rr(M,-1.5,3.5):70-rr(M,-1.5,3.5)}T=2.7}
  else if(kt==='long'){lr=r0+36+k*.12+rr(M,-5,5);ly=fb?(fb.y<35?rr(M,46,60):rr(M,10,24)):rr(M,15,55);T=3.5}
- else if(kt==='box'){lr=r0+rr(M,17,24);ly=clamp(c.y+(c.y<35?-1:1)*rr(M,2,7),5,65);T=4.1}
+ else if(kt==='box'){lr=r0+rr(M,16,22);ly=clamp(c.y+(c.y<35?-1:1)*rr(M,2,7),5,65);T=4.4}
  else if(kt==='chandelle'){lr=r0+rr(M,20,28);ly=clamp(c.y+rr(M,-6,6),6,64);T=4.4}
  else if(kt==='rasant'){lr=r0+rr(M,7,10);ly=clamp(c.y+rr(M,-4,4),4,66);T=.45;info.zEnd=0}
  else if(kt==='par-dessus'){lr=r0+rr(M,9,13);ly=clamp(c.y+rr(M,-5,5),4,66);T=1.5}

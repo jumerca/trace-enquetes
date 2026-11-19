@@ -290,6 +290,8 @@ RM2.looseBallThink=function(M,p){
  const rank=mine.indexOf(p);
  const loose=b.st==='ground'||(b.kt==='loose');
  // ballon au sol ou très proche : les deux plus proches y vont, quelle que soit l'équipe
+ const contest=['box','chandelle','restart'].includes(b.kt)&&b.st==='air';
+ if(p.team===kickTeam&&contest&&rank<=2&&p.onside){RM2.go(p,lx,clamp(ly+(rank-1)*2.5,-.5,70.5),1);p.task='chasse la chandelle';return}
  if(rank===0||(rank===1&&(loose||hyp(p.x-lx,p.y-ly)<12))){
   if(p.team===kickTeam&&!p.onside){const pr=R(M,p.team,p.x),kr=R(M,p.team,b.kickX??b.fromX);if(pr>kr+1){RM2.go(p,p.x,p.y,.15);p.task='attend d’être remis en jeu';return}}
   RM2.go(p,lx,clamp(ly,-.5,70.5),1);p.task=p.team===kickTeam?'poursuite':'sous le ballon';return;
@@ -309,8 +311,12 @@ RM2.looseBallThink=function(M,p){
  // équipe receveuse : couverture du fond, soutien du receveur, ligne de replacement devant le ballon
  if([11,14,15].includes(p.num)&&rank<=4){const side=p.y<ly?-1:1;RM2.go(p,X(M,p.team,clamp(rl-4,1,99)),clamp(ly+side*14,3,67),.85);p.task='couverture du fond';return}
  if(rank===2&&p.num>=9){RM2.go(p,X(M,p.team,clamp(rl-3,1,99)),clamp(ly+(p.y<ly?-6:6),3,67),.85);p.task='soutien du receveur';return}
+ // les autres reculent derrière le point de chute pour soutenir le réceptionneur (jamais au contact du rideau adverse)
  const others=mine.slice(3);const k=others.indexOf(p);const n=Math.max(1,others.length);
- const yy=8+(n>1?k*54/(n-1):27);
- RM2.go(p,X(M,p.team,clamp(rl+10+(p.num<=8?5:0),1,96)),yy,p.num<=8?.6:.7);p.task='replacement';
+ const span=Math.min(44,n*5),y0=clamp(ly-span/2,5,65-span);
+ const yy=y0+(n>1?k*span/(n-1):span/2);
+ const back=p.num<=8?4+((k%3)*1.5):7+((k%2)*2);
+ const pr=R(M,p.team,p.x);
+ RM2.go(p,X(M,p.team,clamp(Math.min(pr,rl-back),1,96)),yy,pr>rl?.85:.6);p.task='soutien du réceptionneur';
 };
 })(typeof window!=='undefined'?window:globalThis);

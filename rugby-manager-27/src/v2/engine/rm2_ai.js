@@ -314,7 +314,12 @@ RM2.openPlayThink=function(M,dt){
     if(pl.special&&pl.special[p.i]){const sp=pl.special[p.i];ly=c.y+pl.side*sp.l;dep=sp.dep}
     RM2.go(p,X(M,att,cr-dep+1.5),ly,.9);p.task=pl.var==='leurre'&&p.num===12?'course leurre':'appel de balle';continue;
    }
-   if(sl){const rush=c&&c.breakFlag?.95:.62;RM2.go(p,sl.x,sl.y,hyp(sl.x-p.x,sl.y-p.y)>12?.8:rush);p.task=sl.task}
+   if(sl){const rush=c&&c.breakFlag?.95:.62;
+    // devant le porteur = hors-jeu : retour immédiat derrière le ballon, en contournant par l'arrière
+    const ahead=c?R(M,att,p.x)-R(M,att,c.x):0;
+    if(ahead>1){RM2.go(p,X(M,att,R(M,att,c.x)-2.5-Math.min(4,ahead*.3)),p.y+(sl.y-p.y)*.3,.92);p.task='se replace (hors-jeu)'}
+    else RM2.go(p,sl.x,sl.y,hyp(sl.x-p.x,sl.y-p.y)>12?.8:rush);
+    if(ahead<=1)p.task=sl.task}
   }else{
    if(tset.has(p.i)&&c){
     const o=tacklers.find(z=>z.p.i===p.i);const ti=o.ti;

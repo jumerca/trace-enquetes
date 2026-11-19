@@ -106,3 +106,12 @@ node tests/compare_v16.js
 - **Carrière, 3 saisons** (`tests/career_qa.log`) : sans erreur, sauvegarde identique après rechargement.
 
 Limites V2.1 : les combinaisons influencent les courses et le porteur, mais le moteur ne garantit pas que chaque combinaison « réussisse » visuellement comme au tableau noir (la défense réagit). L'effet du vent sur les jeux au pied est modéré (quelques mètres) et n'est pas appliqué aux tirs au but, dont la réussite reste calculée sans vent. Les rucks restent trop nombreux (≈ 245).
+
+---
+
+## V2.2 — Tests (exécutés)
+
+- `tests/fluidite_report.json` (3 matchs) : virages brusques 49 pour 1 000 pas en mouvement (V2.1 : 189) ; joueurs du mauvais côté du ballon 6,5 % des échantillons (V2.1 : 8,0 %), essentiellement des joueurs en train de se replacer dans les 2 s suivant un plaquage ou une récupération.
+- Non-régression 10 matchs (`tests/engine_tests_report.json`) : 52,4 ± 16 points, 6,7 ± 2,6 essais, 33 min de jeu effectif, 223 rucks, 260 plaquages, 26 touches, 15,7 mêlées, 11,9 franchissements ; score et chronomètre cohérents ; 1 saut de position sur 298 901 pas.
+- Navigateur : combinaisons et parcours de base sans erreur JS ; séquence au format téléphone `tests/captures/RM27_V2_1_sequence_telephone.mp4` / `.gif`.
+- Limite : après une réception de coup de pied, un regroupement assez dense se forme encore autour du premier ruck.
