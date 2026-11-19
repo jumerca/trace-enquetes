@@ -1,0 +1,2 @@
+[{"vp":"pc_1366","fps":60,"canvasPx":{"css":[1366,768],"px":[1366,768]},"errors":[]},{"vp":"tablette_1024","fps":60,"canvasPx":{"css":[1024,768],"px":[2048,1536]},"errors":[]},{"vp":"mobile_852x393","fps":60,"canvasPx":{"css":[852,393],"px":[2130,983]},"errors":[]},{"vp":"mobile_393x852","fps":60,"canvasPx":{"css":[393,852],"px":[983,2130]},"errors":[]}]
+erreurs JS : aucune

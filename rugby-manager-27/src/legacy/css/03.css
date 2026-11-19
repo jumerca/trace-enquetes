@@ -1,0 +1,35 @@
+
+/* V0.21 — Full-pitch 2D broadcast refresh */
+.v017-broadcast{background:#101b1b!important;color:#f2f5f1}
+.broadcast-header{height:74px;gap:12px}
+.broadcast-brand span{color:#d7bd7a}.broadcast-brand b{font-size:19px}
+.broadcast-score{background:#132629;border:1px solid #496259;box-shadow:0 4px 15px #0005}
+.v017-broadcast .pitch-container{border:0!important;border-radius:6px!important;background:#457a42!important;box-shadow:none!important}
+.v017-broadcast #pitch{max-height:min(74vh,840px);border-radius:5px!important}
+.broadcast-phase{top:11px;right:12px;padding:7px 12px;border-radius:7px;min-width:112px;background:#102a2bdc;border:1px solid #50736280}
+.broadcast-phase small{font-size:9px;letter-spacing:.7px}.broadcast-phase strong{font-size:15px}.broadcast-phase span{font-size:10px}
+.broadcast-ticker{height:37px;background:#152727;border-color:#38534a;margin-top:5px}
+.v017-broadcast .match-controls{background:#101f21!important;border-color:#344b46!important;min-height:53px;margin-top:5px;padding:6px 10px!important}
+.v017-broadcast .icon-control,.v017-broadcast .cam-btn{background:#172c2e;border-color:#3b5753}
+.v017-broadcast .speed-btn{padding:9px 14px}
+.v017-broadcast .speed-btn.active{background:#d4b766!important;border-color:#d4b766!important}
+.v017-broadcast .match-aside{background:#0c1d22}
+.v017-broadcast .broadcast-extra{background:#13282a}
+@media(max-width:700px){.broadcast-header{height:64px}.v017-broadcast .pitch-container{border-radius:4px!important}.broadcast-phase{top:4px;right:4px;padding:3px 5px;min-width:75px}.broadcast-phase span{display:none}.v017-broadcast .match-controls{padding:5px!important}}
+
+/* V0.24 - camera accessible in the main match HUD */
+.match-camera-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:9px 12px;margin-bottom:8px;border:1px solid #344c49;border-radius:11px;background:#111f26;color:#e8f5ed}
+.match-camera-bar label{font-size:11px;font-weight:850;letter-spacing:.7px;display:flex;gap:9px;align-items:center;color:#a8c5bc}
+.match-camera-bar select{background:#20352f;color:#f4fff9;border:1px solid #537b70;border-radius:7px;padding:9px 11px;font-weight:750;font-size:12px;max-width:210px;cursor:pointer}
+.match-camera-bar button{min-width:37px;min-height:37px;border:1px solid #49645e;background:#1d3530;color:#f5fff8;border-radius:8px;font-size:17px;font-weight:850;cursor:pointer}
+.match-camera-bar button:hover,.match-camera-bar button:focus-visible{border-color:#dbbb73;background:#315043}
+.match-camera-bar #cameraZoomLabel{color:#e9ce8b;min-width:42px;font-size:12px;text-align:center;font-weight:850;font-variant-numeric:tabular-nums}
+.match-camera-bar .cam-note{margin-left:auto;font-size:11px;color:#91aea8;max-width:360px;text-align:right}
+.match-camera-bar .cam-full{padding:0 10px;font-size:12px;width:auto}
+.match-camera-bar .cam-separator{height:23px;border-left:1px solid #3a554f;margin:0 2px}
+@media(max-width:750px){.match-camera-bar{padding:7px;gap:6px}.match-camera-bar label{font-size:10px;gap:5px}.match-camera-bar select{padding:8px 5px;font-size:11px;max-width:155px}.match-camera-bar .cam-note{display:none}.match-camera-bar .cam-full{margin-left:auto}.match-camera-bar button{min-width:34px;min-height:34px}}
+@media(max-width:420px){.match-camera-bar .cam-separator{display:none}.match-camera-bar .cam-full{font-size:11px}}
+.fullscreen-camera-tools{display:none;position:absolute;z-index:16;top:12px;left:12px;align-items:center;gap:7px}
+.pitch-container:fullscreen .fullscreen-camera-tools{display:flex}
+.fullscreen-camera-tools button{font-size:13px;font-weight:800;background:#112d25e9;border:1px solid #4b9b80;border-radius:8px;color:#f0fff5;padding:10px 12px;min-width:37px;touch-action:manipulation}
+.pitch-container:fullscreen .broadcast-phase{right:12px;top:65px}

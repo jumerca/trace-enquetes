@@ -1,0 +1,518 @@
+{
+ "matches": [
+  {
+   "seed": 101,
+   "teams": [
+    76,
+    76
+   ],
+   "score": "27-27",
+   "tries": "3-3",
+   "clockMin": 81.8,
+   "bipMin": 35.6,
+   "ms": 3123,
+   "rucks": 254,
+   "tackles": 290,
+   "missed": 22,
+   "passes": 331,
+   "offloads": 8,
+   "kicks": 63,
+   "lineouts": 26,
+   "scrums": 11,
+   "mauls": 7,
+   "penC": 28,
+   "turnovers": 17,
+   "breaks": 9,
+   "knock": 7,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 54,
+   "triesTotal": 6
+  },
+  {
+   "seed": 102,
+   "teams": [
+    78,
+    74
+   ],
+   "score": "26-23",
+   "tries": "4-3",
+   "clockMin": 83.5,
+   "bipMin": 34.7,
+   "ms": 2705,
+   "rucks": 239,
+   "tackles": 286,
+   "missed": 30,
+   "passes": 333,
+   "offloads": 13,
+   "kicks": 60,
+   "lineouts": 24,
+   "scrums": 17,
+   "mauls": 10,
+   "penC": 24,
+   "turnovers": 32,
+   "breaks": 13,
+   "knock": 13,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 49,
+   "triesTotal": 7
+  },
+  {
+   "seed": 103,
+   "teams": [
+    80,
+    72
+   ],
+   "score": "29-24",
+   "tries": "4-3",
+   "clockMin": 81.8,
+   "bipMin": 34.7,
+   "ms": 3057,
+   "rucks": 240,
+   "tackles": 289,
+   "missed": 46,
+   "passes": 302,
+   "offloads": 11,
+   "kicks": 71,
+   "lineouts": 26,
+   "scrums": 16,
+   "mauls": 6,
+   "penC": 27,
+   "turnovers": 33,
+   "breaks": 12,
+   "knock": 16,
+   "yc": 1,
+   "kick5022": 0,
+   "points": 53,
+   "triesTotal": 7
+  },
+  {
+   "seed": 104,
+   "teams": [
+    82,
+    78
+   ],
+   "score": "30-20",
+   "tries": "3-2",
+   "clockMin": 80.7,
+   "bipMin": 38.7,
+   "ms": 3285,
+   "rucks": 273,
+   "tackles": 322,
+   "missed": 30,
+   "passes": 385,
+   "offloads": 11,
+   "kicks": 65,
+   "lineouts": 22,
+   "scrums": 11,
+   "mauls": 4,
+   "penC": 19,
+   "turnovers": 25,
+   "breaks": 12,
+   "knock": 8,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 50,
+   "triesTotal": 5
+  },
+  {
+   "seed": 105,
+   "teams": [
+    74,
+    76
+   ],
+   "score": "31-33",
+   "tries": "3-5",
+   "clockMin": 80.9,
+   "bipMin": 30.1,
+   "ms": 2760,
+   "rucks": 204,
+   "tackles": 248,
+   "missed": 27,
+   "passes": 261,
+   "offloads": 9,
+   "kicks": 68,
+   "lineouts": 31,
+   "scrums": 12,
+   "mauls": 10,
+   "penC": 29,
+   "turnovers": 31,
+   "breaks": 8,
+   "knock": 11,
+   "yc": 1,
+   "kick5022": 0,
+   "points": 64,
+   "triesTotal": 8
+  },
+  {
+   "seed": 106,
+   "teams": [
+    76,
+    74
+   ],
+   "score": "13-28",
+   "tries": "1-4",
+   "clockMin": 80.1,
+   "bipMin": 35.6,
+   "ms": 2919,
+   "rucks": 252,
+   "tackles": 312,
+   "missed": 31,
+   "passes": 324,
+   "offloads": 12,
+   "kicks": 61,
+   "lineouts": 27,
+   "scrums": 17,
+   "mauls": 5,
+   "penC": 29,
+   "turnovers": 23,
+   "breaks": 15,
+   "knock": 14,
+   "yc": 3,
+   "kick5022": 0,
+   "points": 41,
+   "triesTotal": 5
+  },
+  {
+   "seed": 107,
+   "teams": [
+    78,
+    72
+   ],
+   "score": "39-3",
+   "tries": "3-0",
+   "clockMin": 80.5,
+   "bipMin": 35.1,
+   "ms": 3229,
+   "rucks": 255,
+   "tackles": 300,
+   "missed": 32,
+   "passes": 299,
+   "offloads": 7,
+   "kicks": 63,
+   "lineouts": 16,
+   "scrums": 21,
+   "mauls": 4,
+   "penC": 27,
+   "turnovers": 20,
+   "breaks": 4,
+   "knock": 18,
+   "yc": 1,
+   "kick5022": 0,
+   "points": 42,
+   "triesTotal": 3
+  },
+  {
+   "seed": 108,
+   "teams": [
+    80,
+    78
+   ],
+   "score": "37-17",
+   "tries": "4-2",
+   "clockMin": 80.9,
+   "bipMin": 37.6,
+   "ms": 2675,
+   "rucks": 255,
+   "tackles": 300,
+   "missed": 45,
+   "passes": 339,
+   "offloads": 10,
+   "kicks": 69,
+   "lineouts": 23,
+   "scrums": 13,
+   "mauls": 9,
+   "penC": 24,
+   "turnovers": 28,
+   "breaks": 15,
+   "knock": 9,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 54,
+   "triesTotal": 6
+  },
+  {
+   "seed": 109,
+   "teams": [
+    82,
+    76
+   ],
+   "score": "26-12",
+   "tries": "3-2",
+   "clockMin": 81.1,
+   "bipMin": 36.3,
+   "ms": 3044,
+   "rucks": 249,
+   "tackles": 293,
+   "missed": 40,
+   "passes": 329,
+   "offloads": 8,
+   "kicks": 65,
+   "lineouts": 27,
+   "scrums": 14,
+   "mauls": 15,
+   "penC": 28,
+   "turnovers": 37,
+   "breaks": 10,
+   "knock": 8,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 38,
+   "triesTotal": 5
+  },
+  {
+   "seed": 110,
+   "teams": [
+    74,
+    74
+   ],
+   "score": "18-44",
+   "tries": "2-6",
+   "clockMin": 80.9,
+   "bipMin": 35.8,
+   "ms": 3324,
+   "rucks": 259,
+   "tackles": 314,
+   "missed": 39,
+   "passes": 326,
+   "offloads": 11,
+   "kicks": 50,
+   "lineouts": 14,
+   "scrums": 19,
+   "mauls": 3,
+   "penC": 19,
+   "turnovers": 33,
+   "breaks": 15,
+   "knock": 17,
+   "yc": 1,
+   "kick5022": 0,
+   "points": 62,
+   "triesTotal": 8
+  },
+  {
+   "seed": 111,
+   "teams": [
+    76,
+    72
+   ],
+   "score": "20-17",
+   "tries": "2-2",
+   "clockMin": 81.5,
+   "bipMin": 38.3,
+   "ms": 3225,
+   "rucks": 280,
+   "tackles": 323,
+   "missed": 29,
+   "passes": 332,
+   "offloads": 7,
+   "kicks": 64,
+   "lineouts": 21,
+   "scrums": 15,
+   "mauls": 5,
+   "penC": 25,
+   "turnovers": 22,
+   "breaks": 12,
+   "knock": 10,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 37,
+   "triesTotal": 4
+  },
+  {
+   "seed": 112,
+   "teams": [
+    78,
+    78
+   ],
+   "score": "23-24",
+   "tries": "2-3",
+   "clockMin": 80.8,
+   "bipMin": 41.6,
+   "ms": 3692,
+   "rucks": 305,
+   "tackles": 379,
+   "missed": 39,
+   "passes": 389,
+   "offloads": 11,
+   "kicks": 66,
+   "lineouts": 22,
+   "scrums": 12,
+   "mauls": 6,
+   "penC": 23,
+   "turnovers": 42,
+   "breaks": 12,
+   "knock": 12,
+   "yc": 0,
+   "kick5022": 0,
+   "points": 47,
+   "triesTotal": 5
+  }
+ ],
+ "checks": {
+  "ticks": 367924,
+  "teleports": 2,
+  "teleportSamples": [
+   {
+    "seed": 111,
+    "clock": 2817,
+    "phase": "play",
+    "num": 1,
+    "mode": "contact",
+    "d": 1.43
+   },
+   {
+    "seed": 112,
+    "clock": 4536,
+    "phase": "play",
+    "num": 13,
+    "mode": "contact",
+    "d": 1.65
+   }
+  ],
+  "ballDetachedTicks": 0,
+  "forwardPassLaunches": 0,
+  "passesChecked": 3950,
+  "ruckSwarms": 4593,
+  "maxBoundInRuck": 5,
+  "overlapSamples": 230,
+  "scoreMismatch": 0,
+  "clockBad": 0
+ },
+ "totals": {
+  "clockMin": {
+   "mean": 81.2,
+   "sd": 0.8,
+   "min": 80.1,
+   "max": 83.5
+  },
+  "bipMin": {
+   "mean": 36.2,
+   "sd": 2.7,
+   "min": 30.1,
+   "max": 41.6
+  },
+  "ms": {
+   "mean": 3086.5,
+   "sd": 282.2,
+   "min": 2675,
+   "max": 3692
+  },
+  "rucks": {
+   "mean": 255.4,
+   "sd": 23.4,
+   "min": 204,
+   "max": 305
+  },
+  "tackles": {
+   "mean": 304.7,
+   "sd": 29.6,
+   "min": 248,
+   "max": 379
+  },
+  "missed": {
+   "mean": 34.2,
+   "sd": 7.2,
+   "min": 22,
+   "max": 46
+  },
+  "passes": {
+   "mean": 329.2,
+   "sd": 33.1,
+   "min": 261,
+   "max": 389
+  },
+  "offloads": {
+   "mean": 9.8,
+   "sd": 1.9,
+   "min": 7,
+   "max": 13
+  },
+  "kicks": {
+   "mean": 63.8,
+   "sd": 5.1,
+   "min": 50,
+   "max": 71
+  },
+  "lineouts": {
+   "mean": 23.3,
+   "sd": 4.6,
+   "min": 14,
+   "max": 31
+  },
+  "scrums": {
+   "mean": 14.8,
+   "sd": 3.1,
+   "min": 11,
+   "max": 21
+  },
+  "mauls": {
+   "mean": 7,
+   "sd": 3.3,
+   "min": 3,
+   "max": 15
+  },
+  "penC": {
+   "mean": 25.2,
+   "sd": 3.4,
+   "min": 19,
+   "max": 29
+  },
+  "turnovers": {
+   "mean": 28.6,
+   "sd": 7.1,
+   "min": 17,
+   "max": 42
+  },
+  "breaks": {
+   "mean": 11.4,
+   "sd": 3.1,
+   "min": 4,
+   "max": 15
+  },
+  "knock": {
+   "mean": 11.9,
+   "sd": 3.6,
+   "min": 7,
+   "max": 18
+  },
+  "yc": {
+   "mean": 0.6,
+   "sd": 0.9,
+   "min": 0,
+   "max": 3
+  },
+  "kick5022": {
+   "mean": 0,
+   "sd": 0,
+   "min": 0,
+   "max": 0
+  },
+  "points": {
+   "mean": 49.3,
+   "sd": 8.4,
+   "min": 37,
+   "max": 64
+  },
+  "triesTotal": {
+   "mean": 5.8,
+   "sd": 1.5,
+   "min": 3,
+   "max": 8
+  }
+ },
+ "phaseShare": {
+  "kickoff": 7,
+  "play": 33.9,
+  "ruck": 33.9,
+  "lineout": 11.4,
+  "scrum": 5.5,
+  "penalty": 2.6,
+  "maul": 1.3,
+  "try": 0.6,
+  "goalkick": 3.7,
+  "half": 0.1,
+  "dropflight": 0,
+  "end": 0
+ }
+}

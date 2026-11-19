@@ -1,0 +1,28 @@
+[
+ {
+  "ecart": 0,
+  "moteur": {
+   "points": 52.2,
+   "essais": 6.8,
+   "victoiresFavori": 0.5
+  },
+  "modeleRapide": {
+   "points": 50,
+   "essais": 6.2,
+   "victoiresFavori": 0.49
+  }
+ },
+ {
+  "ecart": 8,
+  "moteur": {
+   "points": 52.6,
+   "essais": 6.3,
+   "victoiresFavori": 1
+  },
+  "modeleRapide": {
+   "points": 55.6,
+   "essais": 7.1,
+   "victoiresFavori": 0.9
+  }
+ }
+]

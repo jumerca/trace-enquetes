@@ -1,0 +1,16 @@
+sauvegarde V1.6 créée {"club":"ca-brive","played":8,"budget":7.596}
+chargement en V2.0 {"club":"ca-brive","played":8,"budget":7.596,"backup":true,"rm2":true}
+bonus d’entraînement {"attack":-0.56,"defence":3.76,"set":-0.56,"kicking":-0.56,"fitness":-0.56,"cohesion":-0.56}
+négociation {"msg":"accepté","squad":50,"budget":5.526,"squadBefore":49}
+saison terminée {"season":1,"rank":10,"played":30,"budget":4.86,"injured":0,"offers":1,"news":["Soyaux-Angoulême XV propose 0,22 M€ pour Christian James Judge","Matheo Guyon est rétabli et de nouveau disponible","Matheo Guyon blessé (lésion musculaire) — indisponible 2 semaine(s)"],"board":48.339999999999996,"secondes":19}
+intersaison {"avant":{"id":"ca-brive-simon-pierre-chauvac","age":19,"ovr":64},"apres":{"season":2,"age":20,"ovr":67,"squad":50,"real":46,"youth":19,"fixtures":240,"history":1,"aiSigned":30,"objective":"Terminer dans la première moitié"}}
+saison terminée {"season":2,"rank":4,"played":30,"budget":3.89,"injured":1,"offers":0,"news":["Nathan James Claassen est rétabli et de nouveau disponible","Entraînement intensif : Nathan James Claassen blessé(s)","Regis Desire Omby blessé (lésion musculaire) — indisponible 4 semaine(s)"],"board":68.94399999999999,"secondes":21}
+intersaison {"avant":{"id":"ca-brive-simon-pierre-chauvac","age":20,"ovr":70},"apres":{"season":3,"age":21,"ovr":72,"squad":50,"real":47,"youth":36,"fixtures":240,"history":2,"aiSigned":34,"objective":"Qualification en phase finale (top 6)"}}
+saison terminée {"season":3,"rank":7,"played":30,"budget":2.83,"injured":0,"offers":0,"news":["Bastien Massé est rétabli et de nouveau disponible","Issa Carlo Mendy est rétabli et de nouveau disponible","Bastien Massé blessé (élongation) — indisponible 2 semaine(s)"],"board":89.7264,"secondes":22}
+intersaison {"avant":{"id":"ca-brive-simon-pierre-chauvac","age":21,"ovr":76},"apres":{"season":4,"age":22,"ovr":76,"squad":46,"real":42,"youth":53,"fixtures":240,"history":3,"aiSigned":74,"objective":"Qualification en phase finale (top 6)"}}
+saison terminée {"season":4,"rank":4,"played":30,"budget":2.15,"injured":2,"offers":0,"news":["Simon-Pierre Chauvac est rétabli et de nouveau disponible","Marcel Van der Merwe blessé (élongation) — indisponible 4 semaine(s)","Simon-Pierre Chauvac blessé (commotion (protocole)) — indisponible 2 semaine(s)"],"board":89.49583999999999,"secondes":21}
+intersaison {"avant":{"id":"ca-brive-simon-pierre-chauvac","age":22,"ovr":76},"apres":{"season":5,"age":23,"ovr":76,"squad":45,"real":41,"youth":74,"fixtures":240,"history":4,"aiSigned":107,"objective":"Qualification en phase finale (top 6)"}}
+saison terminée {"season":5,"rank":8,"played":30,"budget":1.41,"injured":1,"offers":0,"news":["Taniela Sadrugu est rétabli et de nouveau disponible","John Cooney est rétabli et de nouveau disponible","Joueur test FH-03 blessé (commotion (protocole)) — indisponible 1 semaine(s)"],"board":88.16,"secondes":22}
+intersaison {"avant":{"id":"ca-brive-simon-pierre-chauvac","age":23,"ovr":76},"apres":{"season":6,"age":24,"ovr":76,"squad":45,"real":41,"youth":95,"fixtures":240,"history":5,"aiSigned":94,"objective":"Qualification en phase finale (top 6)"}}
+rechargement {"identique":true,"snap2":"{\"c\":\"ca-brive\",\"s\":6,\"b\":1.405,\"y\":95,\"h\":5}","taille_ko":962}
+erreurs : aucune
