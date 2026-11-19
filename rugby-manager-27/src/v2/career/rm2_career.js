@@ -277,7 +277,7 @@ C.seasonRollover=function(closedSeason){
     if(cand){r.moves.push({id:cand.id,to:c.id,s:season()});D(cand.id).until=season()+1+H(cand.id+c.id)%3;aiSigned++;invalidate()}
     else makeYouth(c.id,pos,(c.power||70)-6,pos+have);
     have++}}
-  if(false)makeYouth(c.id,Object.keys(NEED)[H(c.id+season())%9],(c.power||70)-4,'x');
+  if(rnd01(c.id+'yth'+season())<.85)makeYouth(c.id,Object.keys(NEED)[H(c.id+season())%9],(c.power||70)-4,'x');
  }
  // 5) centre de formation du club dirigé
  const acad=(state.finance?.facility?.academy)||0;const nY=1+(acad>=2?1:0);const yq=(club(state.clubId).power||70)-2+acad*2.5;

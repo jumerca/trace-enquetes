@@ -26,25 +26,25 @@
   {
    "k": "négociation",
    "msg": "Simon-Pierre Chauvac signe jusqu’au 30/06/2031 (56 k€/an, prime 9 k€).",
-   "squad": 49,
+   "squad": 59,
    "budget": 7.587,
    "date": "2026-09-05",
-   "squadBefore": 49
+   "squadBefore": 59
   },
   {
    "k": "saison terminée",
    "season": 1,
-   "rank": 12,
+   "rank": 11,
    "played": 30,
-   "budget": 7.17,
-   "injured": 3,
+   "budget": 7.05,
+   "injured": 1,
    "offers": 0,
    "news": [
-    "Benjamin Lefranc blessé (entorse de la cheville) — indisponible 5 semaine(s)",
-    "Francisco Coria Marchetti blessé (contusion) — indisponible 3 semaine(s)",
-    "Regis Desire Omby blessé (lésion musculaire) — indisponible 5 semaine(s)"
+    "Entraînement intensif : Raphaël Roussel blessé(s)",
+    "Matheo Guyon est rétabli et de nouveau disponible",
+    "Lucas Oudard est rétabli et de nouveau disponible"
    ],
-   "board": 40.96,
+   "board": 62.43999999999998,
    "secondes": 19
   },
   {
@@ -57,57 +57,21 @@
    "apres": {
     "season": 2,
     "age": 20,
-    "ovr": 68,
-    "squad": 53,
-    "real": 51,
-    "youth": 22,
+    "ovr": 67,
+    "squad": 61,
+    "real": 60,
+    "youth": 55,
     "fixtures": 240,
     "history": 1,
-    "aiSigned": 13,
-    "objective": "Terminer dans la première moitié"
-   }
-  },
-  {
-   "k": "saison terminée",
-   "season": 2,
-   "rank": 8,
-   "played": 30,
-   "budget": 6.22,
-   "injured": 3,
-   "offers": 0,
-   "news": [
-    "Jamie Shillcock est rétabli et de nouveau disponible",
-    "Nathan James Claassen est rétabli et de nouveau disponible",
-    "Lewis Noon blessé (commotion (protocole)) — indisponible 5 semaine(s)"
-   ],
-   "board": 39.976,
-   "secondes": 19
-  },
-  {
-   "k": "intersaison",
-   "avant": {
-    "id": "ca-brive-simon-pierre-chauvac",
-    "age": 20,
-    "ovr": 71
-   },
-   "apres": {
-    "season": 3,
-    "age": 21,
-    "ovr": 74,
-    "squad": 50,
-    "real": 48,
-    "youth": 39,
-    "fixtures": 240,
-    "history": 2,
-    "aiSigned": 53,
+    "aiSigned": 16,
     "objective": "Terminer dans la première moitié"
    }
   },
   {
    "k": "rechargement",
    "identique": true,
-   "snap2": "{\"c\":\"ca-brive\",\"s\":3,\"b\":6.217,\"y\":39,\"h\":2}",
-   "taille_ko": 707
+   "snap2": "{\"c\":\"ca-brive\",\"s\":2,\"b\":7.053,\"y\":55,\"h\":1}",
+   "taille_ko": 462
   }
  ],
  "errors": []

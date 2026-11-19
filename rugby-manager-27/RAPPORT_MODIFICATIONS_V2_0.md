@@ -117,3 +117,11 @@ L'accès direct aux sites d'effectifs (LNR, Allrugby, Rugbyrama, Wikipédia) n'a
 - **289 joueurs réels ajoutés** : Toulon 34, Racing 92 36, Pau 35, Castres 43, Bayonne 23, Vannes 18, Montpellier 17, Perpignan 15, Lyon 10, Colomiers 25, Agen 26, Provence 7. Chaque joueur porte la source de son club.
 - Règles : un nom déjà présent dans la base n'est pas ajouté une seconde fois ; les noms qu'une même source attribuait à plusieurs clubs (Luke Tagi, Tevita Tatafu, Facundo Bosch, Vincent Giudicelli, Pascal Cotet, Martin Villar, Florent Guion…) sont écartés ; Oyonnax n'est pas complété (données incohérentes).
 - Les postes manquants restent occupés par des « Joueur test ».
+
+---
+
+## V2.5 — Effectifs étendus, espoirs et centre de formation
+
+- **Recherche web étendue** (sources par club dans `src/v2/data/rosters_web_*.json`) : 671 joueurs réels ajoutés au total, dont le Stade français, Harlequins et Northampton (effectifs presque complets), Ulster, Gloucester, Exeter, Leicester, les Lions, Biarritz, Béziers, Dax, Aurillac, Narbonne, Nice, Soyaux-Angoulême, Montauban.
+- Noms écartés quand plusieurs clubs se les disputaient dans une même source (Beau Farrance, Alex Burin, Florent Guion, Mamuka Mstoiani, Clément Martinez, Evan Olmstead, etc.).
+- **Espoirs et centre de formation dans les 66 clubs** : 10 jeunes par club (noms inventés, signalés « Espoir du club (nom fictif) »), répartis entre Espoirs et Centre de formation ; chaque club IA intègre aussi des jeunes à chaque intersaison.

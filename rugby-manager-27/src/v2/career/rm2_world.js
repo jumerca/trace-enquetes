@@ -52,6 +52,21 @@ for(const [cid,name] of Object.entries(COACHES)){
  DATA.staff.push({id:cid+'-coach-2627',clubId:cid,name,role:'Entraîneur principal',source:club(cid).league==='TOP14'?SRC_T14:SRC_PD2,season:'2026-2027',verification:'recherche web, à vérifier'});
 }
 
+// Espoirs et centre de formation : 10 jeunes par club (noms inventés, signalés comme tels), créés de façon déterministe
+(function addYouth(){
+ const FR={f:['Lucas','Hugo','Théo','Nathan','Louis','Jules','Mathis','Enzo','Tom','Noah','Maxime','Yanis','Baptiste','Antoine','Sacha','Léo','Raphaël','Adam','Paul','Gabriel','Ilan','Mattéo','Romain','Clément','Axel','Evan','Timéo','Malo','Nolan','Arthur'],
+  l:['Martin','Bernard','Durand','Lefebvre','Moreau','Garcia','Roux','Fournier','Girard','Lambert','Fontaine','Mercier','Bonnet','Blanc','Guérin','Muller','Henry','Roussel','Perrin','Morel','Mathieu','Clément','Gauthier','Robin','Caron','Lacoste','Larrieu','Etcheverry','Duprat','Castaing','Lagarde','Bordes','Marty','Laporte','Sallaberry']},
+  EN={f:['Jack','Harry','Oliver','George','Charlie','Thomas','James','Alfie','Freddie','Archie','Henry','Callum','Ewan','Rhys','Owen','Liam','Conor','Finn','Sean','Kieran','Tane','Wiremu','Lachlan','Josh','Sam','Ben','Tom','Will','Dan','Luca'],
+  l:['Smith','Jones','Taylor','Brown','Williams','Wilson','Evans','Davies','Thomas','Roberts','Walker','Wright','Hughes','Edwards','Murphy','Kelly','Byrne','Ryan','O\'Connor','Doyle','Campbell','Stewart','Robertson','Fraser','Ngata','Tuilagi','Faleolo','Botha','Pretorius','van der Merwe']};
+ const pos=['PR','PR','HO','LO','BR','BR','SH','FH','CE','WI'];
+ const have=new Set(DATA.players.map(p=>p.name.toLowerCase()));
+ for(const c of clubs){const P=['TOP14','PROD2'].includes(c.league)?FR:EN;
+  for(let k=0;k<pos.length;k++){let name,i=0;do{const h=H(c.id+'esp'+k+'-'+i);name=P.f[h%P.f.length]+' '+P.l[(h>>>7)%P.l.length];i++}while(have.has(name.toLowerCase())&&i<40);have.add(name.toLowerCase());
+   const id=`esp-${c.id}-${k}`;if(DATA.players.some(p=>p.id===id))continue;
+   const age=18+H(id+'a')%4,q=(c.power||70);
+   DATA.players.push({id,clubId:c.id,name,position:pos[k],status:'espoir',team:age<=19?'Centre de formation':'Espoirs',rosterSeason:'Espoir du club (nom fictif)',age0:age,bornSeason:1,ovr0:Math.max(42,Math.round(q-14+H(id+'o')%9)),pot0:Math.min(94,Math.round(q-2+H(id+'p')%14))})}}
+})();
+
 /* =================== 2. Temps : dates, calendrier, mercato =================== */
 const MOIS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 const JOURS=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
