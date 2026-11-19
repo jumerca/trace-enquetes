@@ -13,9 +13,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 LEG = os.path.join(SRC, 'legacy')
 V2 = os.path.join(SRC, 'v2')
-VERSION = '2.0'
+VERSION = '2.1'
 
-V2_JS = ['engine/rm2_core.js', 'engine/rm2_ai.js', 'engine/rm2_phases.js', 'engine/rm2_quick.js',
+V2_JS = ['engine/rm2_core.js', 'engine/rm2_ai.js', 'engine/rm2_phases.js', 'engine/rm2_plays.js', 'engine/rm2_quick.js',
          'render/rm2_render.js', 'ui/rm2_match_ui.js', 'career/rm2_career.js', 'ui/rm2_shell.js']
 
 

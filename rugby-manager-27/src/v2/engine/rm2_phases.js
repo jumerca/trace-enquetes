@@ -49,7 +49,7 @@ function metresGained(M,p){const r=R(M,p.team,p.x),g=Math.max(0,r-(p.startR??r))
  *  Jeu courant
  * ========================================================= */
 PH.play=function(M,dt){
- M.live=true;mindset(M);
+ M.live=true;RM2.mindset(M);
  const b=M.ball;
  if(M.tk)tackleTick(M,dt);
  if(M.phase!=='play')return;
@@ -109,7 +109,7 @@ function catchCheck(M){
     RM2.gainPossession(M,d,'interception');d.s.to++;RM2.setPose(M,d,'catch',.3);return}}
   if(r){b.tried[r.i]=1;
    const press=M.P.some(q=>q.team!==r.team&&RM2.upright(M,q)&&hyp(q.x-r.x,q.y-r.y)<1.8);
-   const pc=clamp(.955+(r.a.hnd-70)*.0025+(b.quality-.7)*.09-(press?.035:0)-(b.passKind==='offload'?.06:0)-(1-r.en)*.05,.72,.995);
+   const pc=clamp(.955+(r.a.hnd-70)*.0025+(b.quality-.7)*.09-(press?.035:0)-(b.passKind==='offload'?.06:0)-(1-r.en)*.05-(M.weather?.rain||0)*.03,.72,.995);
    if(b.forwardPass&&chance(M,.8)){b.forwardPass=false;M.st[b.team].errors++;say(M,b.team,'fwdpass',`Passe en avant de ${M.P[b.passer]?.short||''} : mêlée`,0);RM2.scrum(M,1-b.team,r.x,r.y,null);return}
    if(chance(M,pc)){RM2.gainPossession(M,r,'passe');RM2.setPose(M,r,'catch',.25);r.gotBallAt=M.t;if(M.play&&M.play.team===r.team&&!M.play.seq.includes(r.i)){M.play.aborted=true;M.play.cur=r.i}return}
    knockOn(M,r,'Passe ratée, en-avant de '+r.short);return;
@@ -124,7 +124,7 @@ function catchCheck(M){
  const all=[...near].sort((a,c)=>score(c)-score(a));
  const w=all[0];for(const p of near)b.tried[p.i]=1;
  const contested=t0.length&&t1.length;
- const pc=clamp((contested?.62:.9)+(w.a.hnd-70)*.004+(w.a.aer-70)*.003,.45,.98);
+ const pc=clamp((contested?.62:.9)+(w.a.hnd-70)*.004+(w.a.aer-70)*.003-(M.weather?.rain||0)*.06,.45,.98);
  RM2.setPose(M,w,b.z>2?'leap':'catch',.4);
  if(chance(M,pc)){
   const prevKicker=b.team;RM2.gainPossession(M,w,w.team===prevKicker?'récupération au pied':'réception');
@@ -252,7 +252,7 @@ function tackleTick(M,dt){
   const tac=M.T[c.team].tactics;
   const pOff=tk.dom>0?.005:.015+tac.risk*.05+(c.a.hnd-70)*.002+(M.T[c.team].mind==='chase'?.03:0);
   if(chance(M,clamp(pOff,0,.2))&&RM2.offload(M,c)){c.mode='ground';c.until=M.t+1;for(const i of tk.d){const d=M.P[i];d.mode='ground';d.until=M.t+.8}M.tk=null;say(M,c.team,'offload',`Offload de ${c.short} dans le contact !`,0);return}
-  if(chance(M,clamp(.018+(70-c.a.hnd)*.0007+(tk.dom>0?.015:0),.006,.05))){c.mode='run';c.slowUntil=M.t+.5;for(const i of tk.d){const d=M.P[i];d.mode='ground';d.until=M.t+.7}M.tk=null;knockOn(M,c,`Ballon échappé au contact par ${c.short}`);return}
+  if(chance(M,clamp(.018+(70-c.a.hnd)*.0007+(tk.dom>0?.015:0)+(M.weather?.rain||0)*.012,.006,.06))){c.mode='run';c.slowUntil=M.t+.5;for(const i of tk.d){const d=M.P[i];d.mode='ground';d.until=M.t+.7}M.tk=null;knockOn(M,c,`Ballon échappé au contact par ${c.short}`);return}
  }
  if(el>=tk.dur){
   M.tk=null;
@@ -293,7 +293,7 @@ RM2.startRuck=function(M,c,tacklers){
  M._shapeAt=0;
 };
 PH.ruck=function(M,dt){
- M.live=true;mindset(M);
+ M.live=true;RM2.mindset(M);
  const k=M.ruck,t=k.att,o=1-t,d=dir(M,t),el=M.t-k.t0,b=M.ball;
  const bx=b.x,by=b.y;
  // pénalité au ruck
@@ -428,12 +428,13 @@ RM2.callPlay=function(M,t,sh,at,origin='ruck'){
  return pl;
 };
 function annonce(pl){return ({pick:'pick and go',pod:pl.var,backs:'attaque des trois-quarts'+(pl.var?' ('+pl.var+')':''),snipe:'départ du 9',box:'chandelle du 9',kick10:'jeu au pied ('+pl.kt+')',drop:'tentative de drop'})[pl.kind]||pl.kind}
+RM2.addBacks=addBacks;
 function addBacks(M,t,pl,ten,side,mates,tac,r){
  const by=n=>mates.find(p=>p.num===n);
  const c12=by(12),c13=by(13),fb=by(15);
  const wings=mates.filter(p=>p.num===11||p.num===14).sort((a,b)=>side*(b.y-a.y));
  const wing=wings[0];
- let v=tac.playbook!=='auto'?tac.playbook:null;
+ let v=pl.forceVar||(tac.playbook!=='auto'?tac.playbook:null);
  if(!v){const x=rnd(M);v=x<.34?'ligne':x<.5?'sautée':x<.63?'croisée':x<.76?'redoublée':x<.88?'leurre':'arrière intercalé'}
  pl.var=v;
  const push=p=>{if(p&&!pl.seq.includes(p.i))pl.seq.push(p.i)};
@@ -442,6 +443,8 @@ function addBacks(M,t,pl,ten,side,mates,tac,r){
  else if(v==='croisée'){push(c12)}
  else if(v==='redoublée'){push(c12);push(ten);pl.loopP=ten.i;push(c13);if(chance(M,.5))push(wing)}
  else if(v==='leurre'){push(fb||c13);push(wing)}
+ else if(v==='ailier fermé'){const bw=wings[wings.length-1];if(bw&&bw!==wing){push(bw);pl.blindWing=bw.i}push(c13)}
+ else if(v==='centres'){push(c12)}
  else{push(c12);push(fb);push(wing)}
 }
 
@@ -594,7 +597,7 @@ PH.scrum=function(M,dt){
   const bound=pd.ids.filter(i=>M.P[i].mode==='bound').length;
   const ready=pd.ids.every(i=>{const p=M.P[i];const s=pd.layout.find(z=>z.i===i);return !RM2.active(p)||p.mode==='bound'||hyp(p.x-s.x,p.y-s.y)<1.0});
   if((bound>=pd.ids.length&&pd.t>3)||(ready&&pd.t>14)||pd.t>40){for(const i of pd.ids){const p=M.P[i];if(!RM2.active(p))continue;p.mode='bound';p.bind='scrum';p.vx=p.vy=0;p.hd=dir(M,p.team)>0?0:Math.PI}
-   pd.stage='engage';pd.t0=M.t;say(M,t,'scrum',`Mêlée · introduction ${nm(M,t)}`,0)}
+   pd.stage='engage';pd.t0=M.t;say(M,t,'scrum',`Mêlée · introduction ${nm(M,t)}`,0);if(RM2.setPieceCall)RM2.setPieceCall(M,'scrum',t,pd)}
   return;
  }
  const packs=[0,1].map(tm=>M.P.filter(p=>p.team===tm&&p.mode==='bound'&&p.bind==='scrum'));
@@ -604,7 +607,7 @@ PH.scrum=function(M,dt){
   if(M.t-pd.t0>1.6){
    // décision de l'issue : puissance des 8 avants (première ligne prépondérante)
    const w={1:1.45,2:1.3,3:1.5,4:1.15,5:1.15,6:.55,7:.55,8:.65};
-   const pow=tm=>packs[tm].reduce((s,p)=>s+(p.a.str*.55+p.a.set*.45)*(p.mass/110)*(w[p.num]||.5)*(.75+.25*p.en),0)*(1+M.T[tm].training.set*.012)*(M.T[tm].tactics.scrumPlan==='pression'?1.04:1);
+   const pow=tm=>packs[tm].reduce((s,p)=>s+(p.a.str*.55+p.a.set*.45)*(p.mass/110)*(w[p.num]||.5)*(.75+.25*p.en),0)*(1+M.T[tm].training.set*.012)*(M.T[tm].tactics.scrumPlan==='pression'||(tm===t&&pd.call&&pd.call.push)?1.05:1);
    const pa=pow(t),po=pow(o),diff=(pa-po)/Math.max(1,(pa+po)/2);
    pd.diff=diff+gauss(M)*.07;
    const x=rnd(M);
@@ -636,6 +639,7 @@ PH.scrum=function(M,dt){
    say(M,o,'scrum',`Ballon volé en mêlée par ${nm(M,o)} !`,1);
    RM2.gainPossession(M,nine,'mêlée');M.play=RM2.callPlay(M,o,nine,{x:pd.x,y:pd.y},'scrum');return}
   M.st[t].scrumsWon++;
+  if(pd.call&&RM2.scrumFollow){const call=pd.call,at={x:pd.x,y:pd.y};unbindAll(M,.25);M.phase='play';M.pd={t:0};M.live=true;RM2.scrumFollow(M,t,call,at);return}
   unbindAll(M,.25);M.phase='play';M.pd={t:0};M.live=true;
   const plan=M.T[t].tactics.scrumPlan;const eight=byNum(M,t,8);
   let ball=byNum(M,t,9)||goalKicker(M,t);
@@ -669,13 +673,13 @@ PH.lineout=function(M,dt){
   if(!pd.layout){pd.layout=lineoutLayout(M,pd);pd.ids=pd.layout.map(s=>s.i)}
   for(const s of pd.layout){const p=M.P[s.i];if(!RM2.active(p)||(p.mode==='ground'&&p.until>M.t))continue;if(p.mode!=='run')p.mode='run';RM2.go(p,s.x,s.y,hyp(p.x-s.x,p.y-s.y)>14?.62:.42)}
   const hk=byNum(M,T,2)||M.P.find(p=>p.team===T&&RM2.active(p));M.ball.st='held';M.ball.owner=hk.i;
-  if((pd.t>3&&allArrived(M,pd.ids,1.4))||pd.t>20){pd.stage='call';pd.t0=M.t;say(M,T,'lineout',`Touche pour ${nm(M,T)}`,0)}
+  if((pd.t>3&&allArrived(M,pd.ids,1.4))||pd.t>20){pd.stage='call';pd.t0=M.t;say(M,T,'lineout',`Touche pour ${nm(M,T)}`,0);if(RM2.setPieceCall)RM2.setPieceCall(M,'lineout',T,pd)}
   return;
  }
  const lineT=pd.layout.filter(s=>s.line&&M.P[s.i].team===T).sort((a,b)=>a.k-b.k),lineO=pd.layout.filter(s=>s.line&&M.P[s.i].team===O).sort((a,b)=>a.k-b.k);
  if(pd.stage==='call'){
-  if(M.t-pd.t0<.9)return;
-  const tac=M.T[T].tactics;let zone=tac.lineoutTarget==='auto'?(rnd(M)<.42?'avant':rnd(M)<.6?'milieu':'fond'):({court:'avant',milieu:'milieu',fond:'fond',front:'avant',middle:'milieu',back:'fond'}[tac.lineoutTarget]||'milieu');
+  if(M.t-pd.t0<(pd.call&&pd.call.quick?.3:.9))return;
+  const tac=M.T[T].tactics;let zone=pd.call&&pd.call.zone?pd.call.zone:tac.lineoutTarget==='auto'?(rnd(M)<.42?'avant':rnd(M)<.6?'milieu':'fond'):({court:'avant',milieu:'milieu',fond:'fond',front:'avant',middle:'milieu',back:'fond'}[tac.lineoutTarget]||'milieu');
   const kIdx={avant:1,milieu:3,fond:5}[zone];
   const jumper=M.P[(lineT[kIdx]||lineT[1]||lineT[0]).i];pd.jumper=jumper.i;pd.zone=zone;
   const lifters=[lineT[kIdx-1],lineT[kIdx+1]].filter(Boolean).map(s=>s.i);pd.lifters=lifters;
@@ -712,6 +716,7 @@ PH.lineout=function(M,dt){
   M.phase='play';M.pd={t:0};M.live=true;
   RM2.gainPossession(M,winner,'touche');RM2.setPose(M,winner,'catch',.4);
   const team=winner.team,r=R(M,team,winner.x);
+  if(won&&pd.call&&RM2.lineoutFollow){RM2.lineoutFollow(M,winner,pd.call,{x:winner.x,y:winner.y,e,side:pd.side});return}
   const tac=M.T[team].tactics;
   const maulWish=won&&(tac.lineoutPlay==='maul'||(tac.lineoutPlay==='auto'&&(r>72?chance(M,.6):chance(M,.18))));
   if(maulWish){RM2.startMaul(M,winner);return}
@@ -758,7 +763,8 @@ PH.maul=function(M,dt){
  if(pd.outcome==='held'&&pd.t>3){unbindAll(M,.3);M.st[t].turnovers++;say(M,o,'maul','Maul bloqué : mêlée pour la défense',1);RM2.scrum(M,o,c.x,c.y,null);return}
  if(pd.stall>=2||pd.t>pd.dur){
   unbindAll(M,.35);M.phase='play';M.pd={t:0};
-  if(nine&&RM2.upright(M,nine)){RM2.gainPossession(M,nine,'sortie de maul');M.play=RM2.callPlay(M,t,nine,{x:c.x,y:c.y},'maul');M.play.hold=.2}
+  if(pd.then&&nine&&RM2.upright(M,nine)&&RM2.maulFollow){RM2.gainPossession(M,nine,'sortie de maul');RM2.maulFollow(M,t,nine,pd.then,{x:c.x,y:c.y})}
+  else if(nine&&RM2.upright(M,nine)){RM2.gainPossession(M,nine,'sortie de maul');M.play=RM2.callPlay(M,t,nine,{x:c.x,y:c.y},'maul');M.play.hold=.2}
   else RM2.gainPossession(M,c,'maul');
  }
 };

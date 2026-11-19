@@ -67,3 +67,18 @@ rugby-manager-27/
   dist/               livrables
 ```
 Aucune fonctionnalité V1.6 n'a été retirée : les modules hérités restent chargés, la V2 surcharge uniquement les points d'entrée (match, simulation, effectif, tactique, marché, accueil, menu).
+
+---
+
+## V2.1 — Intelligence de jeu, combinaisons, plan de jeu, météo (`src/v2/engine/rm2_plays.js`)
+
+Constats faits en vue tactique sur la V2.0 : sur les longs coups de pied, presque tous les joueurs couraient en groupe vers le ballon ; en attaque, la ligne s'étirait en diagonale près du ruck au lieu d'occuper la largeur ; le côté ouvert pouvait basculer d'un instant à l'autre ; le capitaine pouvait taper en touche à deux mètres de l'en-but.
+
+- **Placement en attaque** : cellules d'avants réparties sur toute la largeur (1-3-3-1 ou 2-4-2), trois-quarts échelonnés jusqu'à l'aile, arrière en couverture profonde dans son propre camp, côté ouvert « collant » (pas de va-et-vient de toute l'équipe).
+- **Placement sur jeu au pied** : l'équipe qui tape forme un rideau de poursuite espacé sur la largeur et garde l'arrière en couverture ; l'équipe qui reçoit place un receveur, un soutien, deux joueurs du triangle arrière en couverture et une ligne de replacement devant le ballon. Fini le « troupeau ».
+- **15 combinaisons de touche** (choix du 1er, 2e ou 3e sauteur, puis combinaison compatible) : maul porté, maul + 9 côté fermé, maul + jeu au large, maul + pick and go, enroulement du 8, déviation au 9 + chandelle, ballon au 9 + ligne / croisée / passe sautée / redoublée / arrière intercalé / ailier fermé, lancer au fond + charge du 8, jeu au pied du 10 dans le dos, lancer rapide + 9 côté fermé.
+- **15 combinaisons de mêlée** : sortie classique, départs du 8 (côté ouvert, côté fermé), 8 → 9, 9 côté fermé, croisée, ailier fermé, arrière intercalé, passe sautée, redoublée, leurre, charge du 12, mêlée de pression, chandelle du 9, jeu au pied du 10.
+- En match, une fenêtre propose les combinaisons à chaque touche et mêlée offensive (avec le conseil du capitaine) ; option « laisser le capitaine » ou « ne plus demander ». Combinaisons par défaut réglables dans Tactique & entraînement.
+- **Plan de jeu** (automatique, jeu au pied, équilibré, jeu à la main, adapté au vent et à la météo) et **objectif** (automatique, bonus offensif, sécuriser le résultat, bonus défensif), modifiables à tout moment en match (bouton « Plan »).
+- **Météo** par match (ensoleillé, nuageux, pluie, vent fort) : le vent porte ou freine les coups de pied et change de sens à la mi-temps ; la pluie rend le ballon glissant (réceptions, passes, contacts).
+- **Situations de match** : le capitaine connaît la règle de bonus de sa compétition (Top 14 / Pro D2 : trois essais d'écart ; autres : quatre essais), le bonus défensif, le score et le temps restant. Près de l'en-but il joue la mêlée ou la pénalité rapide, jamais la touche ; il explique sa recommandation au manager.

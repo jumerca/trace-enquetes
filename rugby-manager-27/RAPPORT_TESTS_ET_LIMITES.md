@@ -93,3 +93,16 @@ node tests/career_qa.js 5
 node tests/record_sequence.js 150
 node tests/compare_v16.js
 ```
+
+
+---
+
+## V2.1 — Tests ajoutés (exécutés)
+
+- **Non-régression moteur, 12 matchs** (`tests/engine_tests_report.json`) : 45,4 ± 11,5 points ; 5,8 ± 1,6 essais ; 34,2 min de jeu effectif ; 245 rucks ; 285 plaquages ; 27 touches ; 15,6 mêlées ; 9,3 franchissements ; score et chronomètre toujours cohérents ; 0 passe en avant lancée ; 2 sauts de position sur 362 377 pas.
+- **Combinaisons** (`tests/setpiece_qa_report.json`, Chromium) : la fenêtre s'ouvre à la touche offensive (choix du 3e sauteur → 9 combinaisons compatibles ; « Lancer au fond, charge du n°8 » appliquée) et à la mêlée offensive (15 combinaisons ; « Départ du n°8 côté fermé » appliquée) ; la pénalité affiche l'explication du capitaine ; le plan « jeu au pied » change immédiatement les consignes effectives ; 0 erreur JS. Captures : `combinaison_touche.jpg`, `combinaison_melee.jpg`, `penalite_capitaine.jpg`, `plan_de_jeu_direct.jpg`.
+- **Décisions du capitaine** (`tests/decision_tests_report.json`) : à 2 m de l'en-but → mêlée ou pénalité jouée vite (jamais la touche), y compris quand il manque un essai pour le bonus ; mené de 2 à la 78e à 5 m → poteaux ; mené de 5 à la 79e → touche ; mené de 9 à la 72e → poteaux pour le bonus défensif.
+- **Météo et plan de jeu** (`tests/weather_tests_report.json`, 6 matchs par condition) : pluie forte → en-avant 20,3 contre 15,7, passes 252 contre 274, essais 3,5 contre 4,7 ; plan « jeu à la main » → 57,5 jeux au pied et 340 passes, contre 72,3 et 301 pour « jeu au pied ».
+- **Carrière, 3 saisons** (`tests/career_qa.log`) : sans erreur, sauvegarde identique après rechargement.
+
+Limites V2.1 : les combinaisons influencent les courses et le porteur, mais le moteur ne garantit pas que chaque combinaison « réussisse » visuellement comme au tableau noir (la défense réagit). L'effet du vent sur les jeux au pied est modéré (quelques mètres) et n'est pas appliqué aux tirs au but, dont la réussite reste calculée sans vent. Les rucks restent trop nombreux (≈ 245).

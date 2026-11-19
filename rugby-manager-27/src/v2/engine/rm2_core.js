@@ -217,6 +217,7 @@ function ballUpdate(M,dt){
  if(b.st==='held'){const p=M.P[b.owner];if(!p){b.st='ground';return}
   const off=p.mode==='ground'?0:.22;b.x=p.x+Math.cos(p.hd)*off;b.y=p.y+Math.sin(p.hd)*off;b.z=p.mode==='ground'?.15:p.mode==='lift'?3.1:1.0;b.vx=p.vx;b.vy=p.vy;return}
  if(b.st==='air'){
+  if(b.kind==='kick'&&b.z>1.5&&M.weather&&M.weather.wind)b.vx+=M.weather.wind*.09*dt;
   b.x+=b.vx*dt;b.y+=b.vy*dt;b.vz-=G*dt;b.z+=b.vz*dt;
   if(b.kind==='goal')return;
   if(b.z<=0){b.z=0;

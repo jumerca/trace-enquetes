@@ -1,0 +1,47 @@
+[
+ {
+  "condition": "Sec, sans vent",
+  "points": 36.2,
+  "essais": 4.7,
+  "enAvant": 15.7,
+  "jeuxAuPied": 68.2,
+  "passes": 274,
+  "touches": 29.3
+ },
+ {
+  "condition": "Pluie forte",
+  "points": 31.5,
+  "essais": 3.5,
+  "enAvant": 20.3,
+  "jeuxAuPied": 64.2,
+  "passes": 252.2,
+  "touches": 26.3
+ },
+ {
+  "condition": "Vent fort, plan « vent »",
+  "points": 35.2,
+  "essais": 4.7,
+  "enAvant": 13.7,
+  "jeuxAuPied": 67.8,
+  "passes": 317.3,
+  "touches": 26
+ },
+ {
+  "condition": "Sec, plan « jeu au pied »",
+  "points": 43.7,
+  "essais": 5.7,
+  "enAvant": 11.7,
+  "jeuxAuPied": 72.3,
+  "passes": 300.7,
+  "touches": 28
+ },
+ {
+  "condition": "Sec, plan « jeu à la main »",
+  "points": 42.2,
+  "essais": 5.8,
+  "enAvant": 12.7,
+  "jeuxAuPied": 57.5,
+  "passes": 340.3,
+  "touches": 25
+ }
+]

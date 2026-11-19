@@ -149,7 +149,7 @@ RM2.passBall=function(M,c,r,kind='passe'){
  // la passe ne doit jamais être en avant : on vise au plus à hauteur du passeur
  const cr=R(M,c.team,c.x),trr=R(M,c.team,tx);if(trr>cr-.3)tx=X(M,c.team,cr-.3-Math.max(0,(trr-cr))*.15);
  const press=M.P.some(p=>p.team!==c.team&&RM2.upright(M,p)&&hyp(p.x-c.x,p.y-c.y)<2.2);
- const sig=d*.03*(1.35-c.a.pas/100)*(press?1.5:1)*(kind==='sautée'?1.25:1);
+ const sig=d*.03*(1.35-c.a.pas/100)*(press?1.5:1)*(kind==='sautée'?1.25:1)*(1+(M.weather?.rain||0)*.3);
  const ex=gauss(M)*sig,ey=gauss(M)*sig;
  tx+=ex;ty+=ey;
  RM2.launch(M,c,tx,clamp(ty,-1,71),T,'pass',{tgt:r.i,quality:clamp(1-hyp(ex,ey)/1.6,0,1)});
@@ -232,7 +232,7 @@ RM2.carrierThink=function(M,c){
  }
  // 2) lecture libre
  const line=bestRunningLine(M,c);
- const breakOut=ahead.length===0||(near>8.5&&line.space>5.5);
+ const breakOut=ahead.length===0||(near>7.8&&line.space>5.2);
  if(breakOut){
   RM2.go(c,X(M,t,cr+12),line.y,1);c.task=ahead.length?'attaque l’intervalle':'percée !';
   if(!c.breakFlag&&ahead.length===0&&cr>30&&M.P.filter(p=>p.team!==t&&RM2.upright(M,p)&&R(M,t,p.x)>cr).length<=2){c.breakFlag=true;M.st[t].breaks++;c.s.br++;
@@ -309,6 +309,9 @@ RM2.openPlayThink=function(M,dt){
     if(pl.var==='croisée'&&idx===pl.k+1&&p.num===12){ly=c.y+pl.side*1.5;dep=1.6}
     if(pl.var==='leurre'&&p.num===12){dep=.6}
     if(pl.var==='redoublée'&&p.i===pl.loopP&&pl.k>=1){const q=M.P[pl.seq[pl.k]];ly=q.y+pl.side*3;dep=2.5}
+    if(pl.blindWing===p.i){ly=c.y-pl.side*1.2;dep=1.4}
+    if(pl.var==='centres'&&p.num===12){dep=.9}
+    if(pl.special&&pl.special[p.i]){const sp=pl.special[p.i];ly=c.y+pl.side*sp.l;dep=sp.dep}
     RM2.go(p,X(M,att,cr-dep+1.5),ly,.9);p.task=pl.var==='leurre'&&p.num===12?'course leurre':'appel de balle';continue;
    }
    if(sl){const rush=c&&c.breakFlag?.95:.62;RM2.go(p,sl.x,sl.y,hyp(sl.x-p.x,sl.y-p.y)>12?.8:rush);p.task=sl.task}
