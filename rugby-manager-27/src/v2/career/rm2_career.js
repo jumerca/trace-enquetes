@@ -13,7 +13,11 @@ const rnd01=s=>(H(s)%10000)/10000;
 const season=()=>Number(state.rmSeason)||1;
 const FWD=['PR','HO','LO','BR'];
 const NEED={PR:5,HO:3,LO:4,BR:6,SH:3,FH:3,CE:4,WI:4,FB:2};
-const N20=v=>(Math.round(Math.max(1,Math.min(99,v))/99*200)/10).toFixed(1).replace('.',',');
+/* Échelle /20 réaliste : 94 (meilleurs joueurs de Toulouse) ≈ 15,9 ; joueur moyen de Toulouse (88) ≈ 14,8 ; club faible de Top 14 (72) ≈ 12 ;
+   Pro D2 (≈ 66-72) ≈ 10,9-12 ; espoir ≈ 7-11. Le moteur garde son échelle interne. */
+const TO20=v=>Math.round(Math.max(1,Math.min(20,Math.max(1,Math.min(99,v))*0.175-0.6))*10)/10;
+C.to20=TO20;
+const N20=v=>TO20(v).toFixed(1).replace('.',',');
 C.N20=N20;
 const POSL={PR:'Pilier',HO:'Talonneur',LO:'2e ligne',BR:'3e ligne',SH:'Demi de mêlée',FH:'Ouvreur',CE:'Centre',WI:'Ailier',FB:'Arrière'};
 C.POSL=POSL;
@@ -41,7 +45,8 @@ C.news=news;
 function D(pid){const r=S();return r.p[pid]||(r.p[pid]={})}
 function baseAge(p){if(p.age0)return p.age0;const h=H(p.id+'age');return clamp(19+(h%7)+((h>>3)%7)+((h>>6)%4),19,35)}
 C.age=p=>baseAge(p)+(season()-1)-(p.bornSeason?p.bornSeason-1:0);
-function baseOvr(p){if(Number.isFinite(p.ovr0))return p.ovr0;try{return attr(p)}catch(e){return 65}}
+// Niveau de base : niveau du club ± 6 (au lieu de -10 / +12), profils « test » un cran en dessous
+function baseOvr(p){if(Number.isFinite(p.ovr0))return p.ovr0;const P=club(p.clubId)?.power||70;return Math.round(P-6+(H(p.id+'-ovr')%13)-(p.status==='test'?6:0))}
 C.ovr=function(p){if(!p)return 60;const d=S().p[p.id];return clamp(Math.round(baseOvr(p)+(d?.g||0)),35,97)};
 C.pot=function(p){if(Number.isFinite(p.pot0))return p.pot0;const a=baseAge(p),h=H(p.id+'pot');const room=a<=21?6+h%9:a<=24?3+h%7:a<=27?h%5:a<=30?h%2:0;return clamp(baseOvr(p)+room,40,97)};
 C.condition=pid=>{const d=S().p[pid];return d&&Number.isFinite(d.cond)?d.cond:1};
@@ -235,7 +240,7 @@ const LAST=['Martin','Bernard','Durand','Lefebvre','Moreau','Garcia','Roux','Fou
 function youthName(seed){return FIRST[H(seed+'f')%FIRST.length]+' '+LAST[H(seed+'l')%LAST.length]}
 function makeYouth(clubId,pos,quality,seed){
  const id=`espoir-${clubId}-${season()}-${seed}`;
- const p={id,clubId,name:youthName(id),position:pos,status:'espoir',rosterSeason:'Espoir formé au club (identité fictive)',age0:18+H(id)%3,bornSeason:season(),ovr0:clamp(Math.round(quality-10+H(id+'o')%8),40,80),pot0:clamp(Math.round(quality+4+H(id+'p')%12),50,94)};
+ const p={id,clubId,name:youthName(id),position:pos,status:'espoir',rosterSeason:'Espoir formé au club (identité fictive)',age0:18+H(id)%3,bornSeason:season(),ovr0:clamp(Math.round(quality-22+H(id+'o')%8),38,74),pot0:clamp(Math.round(quality-6+H(id+'p')%16),48,92)};
  S().youth.push(p);D(id).until=season()+3;D(id).wage=.035;return p;
 }
 C.seasonRollover=function(closedSeason){
