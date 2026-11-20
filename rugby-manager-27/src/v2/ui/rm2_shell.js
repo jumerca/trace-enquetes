@@ -1,7 +1,7 @@
 /* Rugby Manager 27 — V2.0 · Habillage : accueil JLG Creative, numéro de version, sauvegardes */
 'use strict';
 (function(){
-const V='2.6';
+const V='2.7';
 document.title='Rugby Manager 27 — V'+V;
 const oldMenu=mainMenu;
 mainMenu=function(){

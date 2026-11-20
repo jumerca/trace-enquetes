@@ -7,27 +7,27 @@
    "ok": true,
    "detail": {
     "played": 26,
-    "rank": 3,
+    "rank": 1,
     "barrages": [
-     "barrage:stade-toulousain-stade-fran-ais-paris",
-     "barrage:stade-rochelais-section-paloise"
+     "barrage:rc-toulon-racing-92",
+     "barrage:stade-rochelais-castres-olympique"
     ],
     "date": "2027-04-10",
-    "secondes": 16
+    "secondes": 22
    }
   },
   "classement des marqueurs alimenté": {
    "ok": true,
    "detail": {
     "essais": [
-     "Tommaso Menoncello 24",
-     "Bernardo Pucciarello 20",
-     "Arthur Retiere 19"
+     "Tommaso Menoncello 30",
+     "Damian Penaud 19",
+     "Daniel Michael Du Plessis 17"
     ],
     "points": [
-     "Matthieu Jalibert 373",
-     "Antoine Hastoy 327",
-     "Clément Mondinat 310"
+     "Hugo Reus 387",
+     "Antoine Hastoy 312",
+     "Tomas Albornoz 306"
     ]
    }
   },
@@ -36,10 +36,10 @@
    "detail": {
     "fini": true,
     "champions": [
-     "SUPER:queensland-reds 7–22",
-     "PREM:northampton-saints 56–24",
-     "URC:connacht-rugby 31–35",
-     "TOP14:union-bordeaux-b-gles 46–24"
+     "SUPER:crusaders 7–22",
+     "PREM:bath-rugby 40–28",
+     "URC:leinster-rugby 45–21",
+     "TOP14:stade-toulousain 28–21"
     ],
     "stages": [
      "barrage",
@@ -60,7 +60,7 @@
     "saison": 2,
     "descendu": "rc-vannes",
     "ligueDescendu": "PROD2",
-    "monte": "ca-brive",
+    "monte": "fc-grenoble-rugby",
     "ligueMonte": "TOP14",
     "clubsTop14": 14,
     "fixturesTop14": 182,
@@ -71,7 +71,7 @@
   "compétitions conservées après rechargement": {
    "ok": true,
    "detail": {
-    "map": "{\"rc-vannes\":\"PROD2\",\"ca-brive\":\"TOP14\"}",
+    "map": "{\"rc-vannes\":\"PROD2\",\"fc-grenoble-rugby\":\"TOP14\"}",
     "t14": 14,
     "s": 2
    }

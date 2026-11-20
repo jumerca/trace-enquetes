@@ -15,7 +15,11 @@ const nm=id=>club(id)?.name||id;
 const POWER={'stade-toulousain':88,'union-bordeaux-b-gles':86,'stade-rochelais':82,'rc-toulon':82,'racing-92':80,'asm-clermont-auvergne':79,'section-paloise':79,'aviron-bayonnais':79,
  'castres-olympique':78,'stade-fran-ais-paris':78,'montpellier-h-rault-rugby':77,'lou-rugby':76,'usa-perpignan':74,'rc-vannes':72,
  'provence-rugby':72,'ca-brive':71,'fc-grenoble-rugby':71,'oyonnax-rugby':70,'us-montauban':70,'colomiers-rugby':69,'uson-nevers':69,'biarritz-olympique':69,
- 'su-agen':68,'as-b-ziers-h-rault':68,'valence-romans-dr-me-rugby':67,'nissa-rugby':67,'soyaux-angoul-me-xv':67,'us-dax':66,'stade-aurillacois':66,'rc-narbonnais':66};
+ 'su-agen':68,'as-b-ziers-h-rault':68,'valence-romans-dr-me-rugby':67,'nissa-rugby':67,'soyaux-angoul-me-xv':67,'us-dax':66,'stade-aurillacois':66,'rc-narbonnais':66,
+ 'bath-rugby':85,'northampton-saints':84,'saracens':83,'leicester-tigers':82,'bristol-bears':82,'sale-sharks':80,'harlequins':80,'exeter-chiefs':78,'gloucester-rugby':78,'newcastle-red-bulls':72,
+ 'leinster-rugby':88,'vodacom-bulls':84,'glasgow-warriors':82,'dhl-stormers':82,'munster-rugby':80,'hollywoodbets-sharks':80,'ulster-rugby':77,'edinburgh-rugby':77,'lions':77,'connacht-rugby':76,'benetton-rugby':76,
+ 'cardiff-rugby':74,'ospreys':74,'scarlets':73,'dragons-rfc':70,'zebre-parma':70,
+ 'crusaders':85,'chiefs':85,'blues':84,'hurricanes':83,'act-brumbies':81,'queensland-reds':80,'highlanders':77,'nsw-waratahs':77,'fijian-drua':75,'western-force':74};
 for(const c of clubs)if(POWER[c.id])c.power=POWER[c.id];
 
 /* =================== Compétitions : leagues d'origine, montées / descentes =================== */

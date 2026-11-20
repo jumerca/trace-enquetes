@@ -64,7 +64,7 @@ for(const [cid,name] of Object.entries(COACHES)){
   for(let k=0;k<pos.length;k++){let name,i=0;do{const h=H(c.id+'esp'+k+'-'+i);name=P.f[h%P.f.length]+' '+P.l[(h>>>7)%P.l.length];i++}while(have.has(name.toLowerCase())&&i<40);have.add(name.toLowerCase());
    const id=`esp-${c.id}-${k}`;if(DATA.players.some(p=>p.id===id))continue;
    const age=18+H(id+'a')%4,q=(c.power||70);
-   DATA.players.push({id,clubId:c.id,name,position:pos[k],status:'espoir',team:age<=19?'Centre de formation':'Espoirs',rosterSeason:'Espoir du club (nom fictif)',age0:age,bornSeason:1,ovr0:Math.max(42,Math.round(q-14+H(id+'o')%9)),pot0:Math.min(94,Math.round(q-2+H(id+'p')%14))})}}
+   DATA.players.push({id,clubId:c.id,name,position:pos[k],status:'espoir',team:age<=19?'Centre de formation':'Espoirs',rosterSeason:'Espoir du club (nom fictif)',age0:age,bornSeason:1,ovr0:Math.max(40,Math.round(q-28+H(id+'o')%9)),pot0:Math.min(92,Math.round(q-8+H(id+'p')%16))})}}
 })();
 
 /* =================== 2. Temps : dates, calendrier, mercato =================== */
@@ -122,7 +122,7 @@ rmStartNewSeason=function(){const n=season();prevNew();if(season()>n){S().date=W
 /* =================== 3. Valeurs, contrats, notes =================== */
 W.endDate=e=>'30/06/'+(2026+e);
 W.startDate=pid=>{const d=S().p[pid];return d&&d.from?d.from:'01/07/'+(2026-((H(pid+'deb')%3)+1))};
-W.note20=v=>Math.round(clamp(v,1,99)/99*20*10)/10;
+W.note20=v=>C.to20(v);
 const n20=v=>{const x=W.note20(v);return `<b class="rm2-n20 ${x>=15?'hi':x>=11?'mid':'lo'}">${x.toFixed(1).replace('.',',')}</b>`};
 // staff : profil de compétences cohérent avec le poste (évaluation du jeu)
 const STAFF_SK=[['lead','Management et leadership'],['tac','Tactique'],['att','Attaque'],['def','Défense'],['set','Conquête (mêlée, touche)'],['kck','Jeu au pied'],['phy','Préparation physique'],['you','Formation des jeunes'],['vid','Analyse vidéo'],['med','Suivi médical']];

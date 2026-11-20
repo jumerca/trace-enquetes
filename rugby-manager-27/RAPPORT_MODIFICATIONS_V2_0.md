@@ -139,3 +139,12 @@ L'accès direct aux sites d'effectifs (LNR, Allrugby, Rugbyrama, Wikipédia) n'a
 - **Notes sur 20** partout (effectif, composition, marché, potentiels).
 - **Accueil** : l'écran de démarrage affiche enfin la bonne version et « Nouvelle partie / Charger la partie » (il était dessiné avant le chargement de la V2).
 - Correctif : une nouvelle carrière ne reprend plus les données V2 de la carrière précédente.
+
+---
+
+## V2.7 — Notes réalistes
+
+- L'ancienne note /20 était une règle de trois (note interne × 20 / 99) appliquée à des joueurs notés « niveau du club −10 à +12 » : la plupart des joueurs de Top 14 sortaient entre 16 et 19/20.
+- Nouvelle échelle : note interne ≈ niveau du club ± 6 ; conversion /20 = 0,175 × note − 0,6. Repères (moyenne du XV) : Leinster 15,6 · Toulouse 14,9 · Bordeaux-Bègles 14,8 · Bath 14,8 · Crusaders 14,7 · Zebre 12,2 · Vannes 12,1 · Dax 11,4 ; meilleurs joueurs ≈ 16 ; espoirs 6 à 11 selon le club.
+- Niveaux des clubs de Premiership, d'URC et de Super Rugby recalés sur la hiérarchie 2026-2027.
+- Le moteur de match garde son échelle interne (calibration inchangée).
