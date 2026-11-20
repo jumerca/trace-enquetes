@@ -1,0 +1,92 @@
+{
+ "checks": {
+  "menu principal à jour (version 2.x)": {
+   "ok": true
+  },
+  "saison régulière jouée et barrages créés": {
+   "ok": true,
+   "detail": {
+    "played": 26,
+    "rank": 3,
+    "barrages": [
+     "barrage:stade-toulousain-stade-fran-ais-paris",
+     "barrage:stade-rochelais-section-paloise"
+    ],
+    "date": "2027-04-10",
+    "secondes": 16
+   }
+  },
+  "classement des marqueurs alimenté": {
+   "ok": true,
+   "detail": {
+    "essais": [
+     "Tommaso Menoncello 24",
+     "Bernardo Pucciarello 20",
+     "Arthur Retiere 19"
+    ],
+    "points": [
+     "Matthieu Jalibert 373",
+     "Antoine Hastoy 327",
+     "Clément Mondinat 310"
+    ]
+   }
+  },
+  "phases finales jusqu’à la finale, champion sacré": {
+   "ok": true,
+   "detail": {
+    "fini": true,
+    "champions": [
+     "SUPER:queensland-reds 7–22",
+     "PREM:northampton-saints 56–24",
+     "URC:connacht-rugby 31–35",
+     "TOP14:union-bordeaux-b-gles 46–24"
+    ],
+    "stages": [
+     "barrage",
+     "barrage",
+     "demi",
+     "demi",
+     "finale"
+    ],
+    "date": "2027-05-01"
+   }
+  },
+  "bouton saison suivante proposé": {
+   "ok": true
+  },
+  "montée / descente appliquées à la nouvelle saison": {
+   "ok": true,
+   "detail": {
+    "saison": 2,
+    "descendu": "rc-vannes",
+    "ligueDescendu": "PROD2",
+    "monte": "ca-brive",
+    "ligueMonte": "TOP14",
+    "clubsTop14": 14,
+    "fixturesTop14": 182,
+    "date": "2027-07-01",
+    "champions": 5
+   }
+  },
+  "compétitions conservées après rechargement": {
+   "ok": true,
+   "detail": {
+    "map": "{\"rc-vannes\":\"PROD2\",\"ca-brive\":\"TOP14\"}",
+    "t14": 14,
+    "s": 2
+   }
+  },
+  "mobile : onglets en bas, pas de débordement horizontal": {
+   "ok": true,
+   "detail": {
+    "tab": "flex",
+    "side": "none",
+    "overflow": false
+   }
+  },
+  "mobile : panneau Plus mène aux pages": {
+   "ok": true
+  }
+ },
+ "errors": []
+}

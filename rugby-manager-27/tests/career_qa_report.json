@@ -25,53 +25,53 @@
   },
   {
    "k": "négociation",
-   "msg": "Simon-Pierre Chauvac signe jusqu’au 30/06/2031 (56 k€/an, prime 9 k€).",
+   "msg": "Simon-Pierre Chauvac signe jusqu’au 30/06/2031 (98 k€/an, prime 16 k€).",
    "squad": 59,
-   "budget": 7.587,
+   "budget": 7.58,
    "date": "2026-09-05",
    "squadBefore": 59
   },
   {
    "k": "saison terminée",
    "season": 1,
-   "rank": 11,
+   "rank": 1,
    "played": 30,
-   "budget": 7.05,
-   "injured": 1,
+   "budget": 6.09,
+   "injured": 2,
    "offers": 0,
    "news": [
-    "Entraînement intensif : Raphaël Roussel blessé(s)",
-    "Matheo Guyon est rétabli et de nouveau disponible",
-    "Lucas Oudard est rétabli et de nouveau disponible"
+    "🏆 FC Grenoble Rugby champion PRO D2 2026-2027 (CA Brive 22–27 FC Grenoble Rugby)",
+    "Entraînement intensif : Antoine Muller blessé(s)",
+    "Matheo Guyon blessé (lésion musculaire) — indisponible 2 semaine(s)"
    ],
-   "board": 62.43999999999998,
-   "secondes": 19
+   "board": 93.63999999999999,
+   "secondes": 17
   },
   {
    "k": "intersaison",
    "avant": {
     "id": "ca-brive-simon-pierre-chauvac",
     "age": 19,
-    "ovr": 64
+    "ovr": 71
    },
    "apres": {
     "season": 2,
     "age": 20,
-    "ovr": 67,
-    "squad": 61,
-    "real": 60,
+    "ovr": 73,
+    "squad": 60,
+    "real": 59,
     "youth": 55,
     "fixtures": 240,
     "history": 1,
     "aiSigned": 16,
-    "objective": "Terminer dans la première moitié"
+    "objective": "Viser le titre (top 2)"
    }
   },
   {
    "k": "rechargement",
    "identique": true,
-   "snap2": "{\"c\":\"ca-brive\",\"s\":2,\"b\":7.053,\"y\":55,\"h\":1}",
-   "taille_ko": 462
+   "snap2": "{\"c\":\"ca-brive\",\"s\":2,\"b\":6.094,\"y\":55,\"h\":1}",
+   "taille_ko": 550
   }
  ],
  "errors": []

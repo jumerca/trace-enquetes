@@ -13,6 +13,8 @@ const rnd01=s=>(H(s)%10000)/10000;
 const season=()=>Number(state.rmSeason)||1;
 const FWD=['PR','HO','LO','BR'];
 const NEED={PR:5,HO:3,LO:4,BR:6,SH:3,FH:3,CE:4,WI:4,FB:2};
+const N20=v=>(Math.round(Math.max(1,Math.min(99,v))/99*200)/10).toFixed(1).replace('.',',');
+C.N20=N20;
 const POSL={PR:'Pilier',HO:'Talonneur',LO:'2e ligne',BR:'3e ligne',SH:'Demi de mêlée',FH:'Ouvreur',CE:'Centre',WI:'Ailier',FB:'Arrière'};
 C.POSL=POSL;
 
@@ -197,7 +199,7 @@ function negotiate(kind,pid){
  const val=C.value(p),wageAsk=demandWage(p,buying);
  const prestigeGap=((club(state.clubId)?.power||70)-(club(fromClub)?.power||70));
  const html=`<div class="rm2-neg"><span class="eyebrow">${buying?(freeAgent?'JOUEUR LIBRE':'OFFRE DE TRANSFERT'):'PROLONGATION DE CONTRAT'}</span><h2>${esc(p.name)}</h2>
- <p>${esc(POSL[p.position]||p.position)} · ${C.age(p)} ans · note ${C.ovr(p)} · potentiel estimé ${scoutPot(p)} ${buying&&!freeAgent?`· ${esc(club(fromClub)?.name||'')} (contrat jusqu'à la saison ${C.contractEnd(p)})`:''}</p>
+ <p>${esc(POSL[p.position]||p.position)} · ${C.age(p)} ans · note ${N20(C.ovr(p))}/20 · potentiel estimé ${scoutPot(p)} ${buying&&!freeAgent?`· ${esc(club(fromClub)?.name||'')} (contrat jusqu'à la saison ${C.contractEnd(p)})`:''}</p>
  ${buying&&!freeAgent?`<label>Indemnité proposée (M€) <input type="number" step="0.05" min="0" id="rm2Fee" value="${val.toFixed(2)}"></label><small>Valeur estimée ${val.toFixed(2).replace('.',',')} M€ · trésorerie ${(+state.budget).toFixed(2).replace('.',',')} M€</small>`:''}
  <label>Salaire annuel proposé (M€) <input type="number" step="0.005" min="0.02" id="rm2Wage" value="${wageAsk.toFixed(3)}"></label><small>Exigence du joueur environ ${wageAsk.toFixed(3).replace('.',',')} M€ / an</small>
  <label>Durée <select id="rm2Years">${[1,2,3,4].map(y=>`<option value="${y}" ${y===2?'selected':''}>${y} saison${y>1?'s':''}</option>`).join('')}</select></label>
@@ -225,7 +227,7 @@ function negotiate(kind,pid){
   msg.textContent=`Refus. ${pAcc<.35?'L’écart est important':'On se rapproche'} — tentative ${rounds}/3.`;
  };
 }
-function scoutPot(p){let an=0;try{an=staffEffect(state.clubId,'Analyse')}catch(e){}const err=Math.max(0,6-an*1.5);const pot=C.pot(p);if(C.clubOf(p.id)===state.clubId)return pot;const e=Math.round(((H(p.id+'scout')%100)/100-.5)*err*2);return `${clamp(pot+e-2,40,97)}–${clamp(pot+e+2,40,99)}`}
+function scoutPot(p){let an=0;try{an=staffEffect(state.clubId,'Analyse')}catch(e){}const err=Math.max(0,6-an*1.5);const pot=C.pot(p);if(C.clubOf(p.id)===state.clubId)return N20(pot);const e=Math.round(((H(p.id+'scout')%100)/100-.5)*err*2);return `${N20(clamp(pot+e-2,40,97))}–${N20(clamp(pot+e+2,40,99))}`}
 
 /* ---------- Changement de saison ---------- */
 const FIRST=['Lucas','Hugo','Théo','Nathan','Louis','Jules','Mathis','Enzo','Tom','Noah','Maxime','Yanis','Baptiste','Antoine','Sacha','Léo','Raphaël','Adam','Paul','Gabriel','Ilan','Mattéo','Romain','Clément'];
@@ -308,13 +310,13 @@ rosterPage=function(){
  const order=Object.keys(POSL);const r=S();
  const rows=players.slice().sort((a,b)=>order.indexOf(a.position)-order.indexOf(b.position)||C.ovr(b)-C.ovr(a)).map(p=>{const d=r.p[p.id]||{};const end=C.contractEnd(p),left=end-season();const fm=C.form(p.id);
   return `<tr class="${C.injured(p.id)?'rm2-inj':''}"><td><button class="rm2-link" data-rm2="card" data-id="${esc(p.id)}">${esc(p.name)}</button>${p.status==='espoir'?pill('Espoir','y'):''}${p.status==='test'?pill('Test','t'):''}</td>
-  <td><span class="pos">${p.position}</span></td><td>${p.status==='test'?'—':C.age(p)}</td><td class="score-text">${C.ovr(p)}</td><td>${p.status==='test'?'—':scoutPot(p)}</td>
+  <td><span class="pos">${p.position}</span></td><td>${p.status==='test'?'—':C.age(p)}</td><td class="score-text">${N20(C.ovr(p))}</td><td>${p.status==='test'?'—':scoutPot(p)}</td>
   <td>${bar(Math.round(C.condition(p.id)*100))}</td><td>${bar(C.morale(p.id))}</td><td>${fm?fm.toFixed(1):'—'}</td>
   <td>${xvIds.has(p.id)?pill('XV','xv'):benchIds.has(p.id)?pill('Banc','b'):''}${C.injured(p.id)?pill('🩹 '+d.inj+' sem.','inj'):''}</td>
   <td>${p.status==='test'?'—':`${left<=0?'<b class="rm2-warn">fin de saison</b>':'S'+end}<small> · ${C.wage(p).toFixed(3).replace('.',',')} M€</small>`}</td>
   <td class="rm2-acts">${p.status==='test'?'':`<button class="rm2-mini" data-rm2="renew" data-id="${esc(p.id)}">Prolonger</button><button class="rm2-mini ${r.listed[p.id]?'on':''}" data-rm2="list" data-id="${esc(p.id)}">${r.listed[p.id]?'Listé':'Vendre'}</button>`}</td></tr>`}).join('');
  const slots=POSI.map((pos,i)=>{const cur=xv[i];const opts=players.filter(p=>p.position===pos).sort((a,b)=>C.ovr(b)-C.ovr(a));
-  return `<label class="rm2-slot"><span>${i+1}</span><select data-lineup-slot="${i}">${opts.map(p=>`<option value="${esc(p.id)}" ${cur&&cur.id===p.id?'selected':''}>${esc(p.name)} · ${C.ovr(p)}${C.injured(p.id)?' 🩹':''} · ${Math.round(C.condition(p.id)*100)}%</option>`).join('')}</select></label>`}).join('');
+  return `<label class="rm2-slot"><span>${i+1}</span><select data-lineup-slot="${i}">${opts.map(p=>`<option value="${esc(p.id)}" ${cur&&cur.id===p.id?'selected':''}>${esc(p.name)} · ${N20(C.ovr(p))}${C.injured(p.id)?' 🩹':''} · ${Math.round(C.condition(p.id)*100)}%</option>`).join('')}</select></label>`}).join('');
  const inj=players.filter(p=>C.injured(p.id)).length,exp=players.filter(p=>p.status!=='test'&&C.contractEnd(p)<=season()).length;
  return `<div class="page-head"><div><span class="eyebrow">GESTION SPORTIVE · SAISON ${season()}</span><h1>Effectif <span class="dot">&</span> composition</h1><p>${esc(c.name)} · ${players.length} joueurs · ${inj} blessé(s) · ${exp} contrat(s) en fin de saison</p></div><div class="page-actions"><button class="btn ghost" data-page="transferts">Marché →</button><button class="btn primary" data-action="play">▶ Jouer le prochain match</button></div></div>
  <section class="panel"><div class="panel-heading"><div><span class="eyebrow">XV DE DÉPART</span><h2>Composition</h2></div><span class="tag">Les blessés sont écartés automatiquement</span></div><div class="rm2-slots">${slots}</div></section>
@@ -358,7 +360,7 @@ transfersPage=function(){
  return `<div class="page-head"><div><span class="eyebrow">RECRUTEMENT · SAISON ${season()}</span><h1>Marché des transferts<span class="dot">.</span></h1><p>Trésorerie ${(+state.budget).toFixed(2).replace('.',',')} M€ · masse salariale ${typeof rmFinPlayerPayroll==='function'?rmFinPlayerPayroll().toFixed(2).replace('.',','):'—'} M€ / an</p></div></div>
  ${offers?`<section class="panel"><div class="panel-heading"><div><span class="eyebrow">OFFRES REÇUES</span><h2>Vos joueurs listés</h2></div></div>${offers}</section>`:''}
  <section class="panel"><div class="rm2-filters"><input id="rm2Q" placeholder="Nom ou club" value="${esc(r.mq||'')}"><select id="rm2Pos"><option value="">Tous postes</option>${Object.entries(POSL).map(([k,v])=>`<option value="${k}" ${pos===k?'selected':''}>${v}</option>`).join('')}</select><select id="rm2Max"><option value="99">Toutes valeurs</option>${[.3,.6,1,1.5].map(v=>`<option value="${v}" ${maxv===v?'selected':''}>≤ ${String(v).replace('.',',')} M€</option>`).join('')}</select></div>
- <div class="table-wrap rm2-table"><table><thead><tr><th>Joueur</th><th>Club</th><th>Poste</th><th>Âge</th><th>Note</th><th>Potentiel</th><th>Contrat</th><th>Valeur</th><th></th></tr></thead><tbody>${list.map(p=>{const cl=C.clubOf(p.id);return `<tr><td><button class="rm2-link" data-rm2="card" data-id="${esc(p.id)}">${esc(p.name)}</button>${p.status==='espoir'?pill('Espoir','y'):''}</td><td>${cl==='__fa'?pill('Libre','free'):esc(club(cl)?.name||'')}</td><td>${p.position}</td><td>${C.age(p)}</td><td class="score-text">${C.ovr(p)}</td><td>${scoutPot(p)}</td><td>S${C.contractEnd(p)}</td><td>${cl==='__fa'?'0':C.value(p).toFixed(2).replace('.',',')} M€</td><td><button class="rm2-mini" data-rm2="buy" data-id="${esc(p.id)}">${cl==='__fa'?'Proposer un contrat':'Faire une offre'}</button></td></tr>`}).join('')}</tbody></table></div>
+ <div class="table-wrap rm2-table"><table><thead><tr><th>Joueur</th><th>Club</th><th>Poste</th><th>Âge</th><th>Note</th><th>Potentiel</th><th>Contrat</th><th>Valeur</th><th></th></tr></thead><tbody>${list.map(p=>{const cl=C.clubOf(p.id);return `<tr><td><button class="rm2-link" data-rm2="card" data-id="${esc(p.id)}">${esc(p.name)}</button>${p.status==='espoir'?pill('Espoir','y'):''}</td><td>${cl==='__fa'?pill('Libre','free'):esc(club(cl)?.name||'')}</td><td>${p.position}</td><td>${C.age(p)}</td><td class="score-text">${N20(C.ovr(p))}</td><td>${scoutPot(p)}</td><td>S${C.contractEnd(p)}</td><td>${cl==='__fa'?'0':C.value(p).toFixed(2).replace('.',',')} M€</td><td><button class="rm2-mini" data-rm2="buy" data-id="${esc(p.id)}">${cl==='__fa'?'Proposer un contrat':'Faire une offre'}</button></td></tr>`}).join('')}</tbody></table></div>
  <p class="text-muted">Les joueurs comparent votre offre, la durée, le prestige du club et leur situation. Trois tentatives maximum par négociation. Les clubs IA recrutent aussi à chaque intersaison.</p></section>`;
 };
 const oldHome=homePage;

@@ -135,3 +135,11 @@ Limites V2.1 : les combinaisons influencent les courses et le porteur, mais le m
 ## V2.5 — Tests
 
 0 doublon de nom entre les 66 clubs (contrôle Chromium) ; 17/17 contrôles V2.3 ; carrière d'une saison complète sans erreur, sauvegarde identique après rechargement. **Limites** : Oyonnax et Nevers sans joueur réel (sources incohérentes ou vides) ; Montauban (2), Bristol (4), Saracens (5), Newcastle (1), Provence (7), Lyon (10) très incomplets ; postes issus de résumés web, non vérifiés ligne à ligne.
+
+---
+
+## V2.6 — Tests (`tests/season_qa_report.json`, Chromium)
+
+9/9 : menu principal à jour ; saison régulière de Top 14 jouée (26 journées, 16 s) et barrages créés ; classement des marqueurs alimenté ; phases finales jusqu'à la finale et champion sacré dans les 5 compétitions ; bouton « saison suivante » ; montée de Brive et descente de Vannes appliquées au nouveau calendrier (14 clubs, 182 matchs) ; compétitions conservées après rechargement ; mobile : onglets en bas, panneau Plus, aucune page qui déborde. Non-régression : 17/17 (V2.3), carrière V1.6 → V2 sur une saison sans erreur.
+
+Limites : les clubs les plus forts, joués par le moteur complet, produisent des marqueurs un peu au-dessus des records réels (≈ 24 essais en une saison) ; une seule montée / descente directe (pas de barrage d'accession) ; formats des phases finales simplifiés.
