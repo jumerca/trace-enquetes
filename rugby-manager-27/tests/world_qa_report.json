@@ -21,7 +21,7 @@
    "ok": true,
    "detail": {
     "date": "2026-07-01",
-    "budget": 5.64
+    "budget": 6.2
    }
   },
   "aucun doublon de joueur entre clubs": {
@@ -49,7 +49,7 @@
    "detail": {
     "page": "fiche",
     "notes": 14,
-    "txt": "ClubStade ToulousainDébut01/07/2025Fin de contrat30/06/2030Salaire annuel177 k€Prime à la signature—Valeur estimée1,25 M€Moral65 / 100Condition100 %"
+    "txt": "ClubStade ToulousainDébut01/07/2025Fin de contrat30/06/2030Salaire annuel195 k€Prime à la signature—Valeur estimée1,54 M€Moral65 / 100Condition100 %"
    }
   },
   "Toulouse a son entraîneur (Ugo Mola)": {
@@ -78,7 +78,7 @@
   "la jauge de satisfaction réagit au salaire": {
    "ok": true,
    "detail": {
-    "avant": "46 %",
+    "avant": "50 %",
     "apres": "100 %"
    }
   },
@@ -86,7 +86,7 @@
    "ok": true,
    "detail": {
     "stage": "done",
-    "result": "Mathéo Frisach signe jusqu’au 30/06/2029 (193 k€/an, prime 31 k€).",
+    "result": "Mathéo Frisach signe jusqu’au 30/06/2029 (186 k€/an, prime 30 k€).",
     "club": true
    }
   },

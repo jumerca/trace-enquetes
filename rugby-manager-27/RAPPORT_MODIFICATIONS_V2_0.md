@@ -125,3 +125,17 @@ L'accès direct aux sites d'effectifs (LNR, Allrugby, Rugbyrama, Wikipédia) n'a
 - **Recherche web étendue** (sources par club dans `src/v2/data/rosters_web_*.json`) : 671 joueurs réels ajoutés au total, dont le Stade français, Harlequins et Northampton (effectifs presque complets), Ulster, Gloucester, Exeter, Leicester, les Lions, Biarritz, Béziers, Dax, Aurillac, Narbonne, Nice, Soyaux-Angoulême, Montauban.
 - Noms écartés quand plusieurs clubs se les disputaient dans une même source (Beau Farrance, Alex Burin, Florent Guion, Mamuka Mstoiani, Clément Martinez, Evan Olmstead, etc.).
 - **Espoirs et centre de formation dans les 66 clubs** : 10 jeunes par club (noms inventés, signalés « Espoir du club (nom fictif) »), répartis entre Espoirs et Centre de formation ; chaque club IA intègre aussi des jeunes à chaque intersaison.
+
+---
+
+## V2.6 — Ergonomie, design et contenu (`src/v2/ui/rm2_hub.js`)
+
+- **Tableau de bord repensé** : carte « prochain match » (date, météo prévue, adversaire, classement, forme sur 5 matchs, note moyenne des deux XV, boutons Jouer / Simuler / Composition / Tactique, rappel du mercato), puis classement autour du club, direction, alertes du vestiaire (blessés, contrats, offres, joueurs en forme), matchs à venir, actualités. En fin de saison : champion et bouton « saison suivante ».
+- **Mobile** : barre d'onglets en bas (Accueil, Effectif, Matchs, Mercato, Plus) et panneau « Plus » (Tactique, Championnats, Staff, Finances, Sauvegarder, Menu principal) ; calendrier en cartes ; tableaux défilants sans débordement de page.
+- **Phases finales** dans les cinq compétitions (Top 14, Pro D2, Super Rugby : barrages, demies, finale ; Premiership : demies, finale ; URC : quarts, demies, finale), jouables en direct ou simulées ; **champion**, **palmarès** de chaque compétition, actualités.
+- **Montée / descente** : le dernier du Top 14 descend, le champion de Pro D2 monte ; conservé dans la sauvegarde.
+- **Meilleurs marqueurs** (essais, points) de chaque compétition, alimentés par tous les matchs (moteur complet pour vos matchs, répartition réaliste par poste pour les autres).
+- **Niveaux des clubs recalés** sur la hiérarchie 2026-2027 (les données d'origine plaçaient Vannes au niveau de Toulouse et Toulon parmi les plus faibles).
+- **Notes sur 20** partout (effectif, composition, marché, potentiels).
+- **Accueil** : l'écran de démarrage affiche enfin la bonne version et « Nouvelle partie / Charger la partie » (il était dessiné avant le chargement de la V2).
+- Correctif : une nouvelle carrière ne reprend plus les données V2 de la carrière précédente.
