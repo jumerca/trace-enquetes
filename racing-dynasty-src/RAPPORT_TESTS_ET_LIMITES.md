@@ -1,6 +1,17 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.5 (dernière version) — refonte graphique
+## V0.6 (dernière version)
+
+* `npm test` : **42/42** (nouveau : drapeaux jaunes signalés et levés, aucun dépassement dans une zone neutralisée).
+* Stratégies (voitures identiques, seules en piste, 5 circuits, 12 tours) : Tendre→Médium, Médium→Dur et
+  Tendre→Tendre→Médium à moins de 1 s / 3 s les unes des autres. En course (trafic), deux arrêts restent environ 5 s
+  derrière en moyenne mais battent Médium→Dur sur Valbrune et Kharam (forte usure).
+* Dépassements par course (12 tours, sec) : 12 à 37 selon le circuit (contre 9 à 41 en V0.5).
+* E2E Chromium : PC (saison complète de 8 GP, qualifications animées, podium), Android paysage et portrait : réussi.
+* Contrôles visuels : brouillard (Brumevent), crépuscule (Kharam), flaques sous la pluie, commentateur, podium,
+  portraits, briefing, graphique des essais.
+
+## V0.5 — refonte graphique
 
 * `npm test` : 41/41 (aucune régression de la simulation ou de la gestion).
 * Contrôle visuel par captures sur les 8 circuits (vue grille, course, zoom, circuit) : aucune erreur console.

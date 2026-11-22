@@ -861,3 +861,210 @@ export function paintMarshal(S = 10): { cv: HTMLCanvasElement; w: number; h: num
   g.fillRect(2.68, 0.1, 0.5, 0.35);
   return { cv: c, w, h };
 }
+
+// ================================================================ Portraits de pilotes
+
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Portrait BD d'un pilote (buste en combinaison aux couleurs de l'écurie), unique et stable pour un identifiant.
+ * `size` = côté du canevas en pixels.
+ */
+export function paintPortrait(id: string, color: string, color2: string, size = 128): HTMLCanvasElement {
+  const rnd = prng(hashStr(id));
+  const [c, g] = canvas(size, size);
+  const k = size / 100;
+  g.scale(k, k);
+  const skins = ['#ffdbac', '#f1c27d', '#e0ac69', '#c68642', '#a0663c', '#8d5524', '#5c3a21'];
+  const hairs = ['#16130f', '#3b2a1e', '#6b4423', '#a56b2f', '#d9a441', '#e8d3a3', '#8a3324', '#5a5a5a'];
+  const skin = skins[Math.floor(rnd() * skins.length)];
+  const hair = hairs[Math.floor(rnd() * hairs.length)];
+  const style = Math.floor(rnd() * 5);
+  // fond : disque aux couleurs de l'écurie avec trame de points
+  const bg = g.createRadialGradient(50, 40, 10, 50, 50, 60);
+  bg.addColorStop(0, shadeHex(color2, 1.1));
+  bg.addColorStop(1, shadeHex(color2, 0.75));
+  g.fillStyle = bg;
+  g.fillRect(0, 0, 100, 100);
+  g.fillStyle = 'rgba(0,0,0,0.08)';
+  for (let y = 4; y < 100; y += 6) for (let x = (y % 12) / 2; x < 100; x += 6) {
+    g.beginPath();
+    g.arc(x, y, 1.1, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.lineJoin = 'round';
+  g.lineWidth = 2.2;
+  g.strokeStyle = INK_CSS;
+  // épaules : combinaison
+  g.beginPath();
+  g.moveTo(8, 100);
+  g.quadraticCurveTo(12, 74, 34, 70);
+  g.lineTo(66, 70);
+  g.quadraticCurveTo(88, 74, 92, 100);
+  g.closePath();
+  const suit = g.createLinearGradient(0, 70, 0, 100);
+  suit.addColorStop(0, shadeHex(color, 1.15));
+  suit.addColorStop(1, shadeHex(color, 0.8));
+  g.fillStyle = suit;
+  g.fill();
+  g.stroke();
+  // col et bande
+  g.fillStyle = color2;
+  g.fillRect(40, 70, 20, 7);
+  g.strokeRect(40, 70, 20, 7);
+  g.fillStyle = shadeHex(color2, 0.9);
+  g.fillRect(18, 84, 64, 4);
+  // cou
+  g.fillStyle = shadeHex(skin, 0.88);
+  g.fillRect(43, 60, 14, 11);
+  g.strokeRect(43, 60, 14, 11);
+  // visage
+  const faceW = 20 + rnd() * 3, faceH = 24 + rnd() * 3;
+  g.beginPath();
+  g.ellipse(50, 42, faceW, faceH, 0, 0, Math.PI * 2);
+  const fg = g.createRadialGradient(44, 36, 4, 50, 42, faceH);
+  fg.addColorStop(0, shadeHex(skin, 1.08));
+  fg.addColorStop(1, shadeHex(skin, 0.88));
+  g.fillStyle = fg;
+  g.fill();
+  g.stroke();
+  // oreilles
+  for (const sx of [-1, 1]) {
+    g.beginPath();
+    g.ellipse(50 + sx * faceW, 44, 3.5, 6, 0, 0, Math.PI * 2);
+    g.fillStyle = shadeHex(skin, 0.92);
+    g.fill();
+    g.stroke();
+  }
+  // cheveux
+  g.fillStyle = hair;
+  g.beginPath();
+  if (style === 0) {
+    // court
+    g.ellipse(50, 26, faceW + 1, 12, 0, Math.PI, Math.PI * 2);
+  } else if (style === 1) {
+    // mèche
+    g.moveTo(28, 34);
+    g.quadraticCurveTo(30, 12, 52, 14);
+    g.quadraticCurveTo(74, 14, 72, 34);
+    g.quadraticCurveTo(58, 22, 40, 30);
+  } else if (style === 2) {
+    // long
+    g.moveTo(27, 60);
+    g.quadraticCurveTo(22, 14, 50, 14);
+    g.quadraticCurveTo(78, 14, 73, 60);
+    g.lineTo(68, 60);
+    g.quadraticCurveTo(70, 30, 50, 26);
+    g.quadraticCurveTo(30, 30, 32, 60);
+  } else if (style === 3) {
+    // boucles
+    for (let a = Math.PI; a <= Math.PI * 2.01; a += Math.PI / 6) {
+      g.moveTo(50 + Math.cos(a) * 21 + 5, 30 + Math.sin(a) * 15);
+      g.arc(50 + Math.cos(a) * 21, 30 + Math.sin(a) * 15, 5, 0, Math.PI * 2);
+    }
+  } else {
+    // rasé sur les côtés
+    g.ellipse(50, 22, 14, 9, 0, Math.PI, Math.PI * 2);
+  }
+  g.fill();
+  g.lineWidth = 1.6;
+  g.stroke();
+  // sourcils, yeux, nez, bouche
+  const eyeY = 42;
+  g.strokeStyle = INK_CSS;
+  g.lineWidth = 2;
+  const brow = rnd() < 0.5 ? -1 : 1;
+  for (const sx of [-1, 1]) {
+    g.beginPath();
+    g.moveTo(50 + sx * 6, eyeY - 7 + (brow > 0 ? 0 : 1));
+    g.lineTo(50 + sx * 14, eyeY - 8 - (brow > 0 ? 1 : 0));
+    g.stroke();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.ellipse(50 + sx * 9, eyeY, 3.6, 2.6, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = rnd() < 0.5 ? '#3b2a1e' : '#2f5d8a';
+    g.beginPath();
+    g.arc(50 + sx * 9 + 0.6, eyeY + 0.3, 1.7, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.lineWidth = 1.6;
+  g.beginPath();
+  g.moveTo(50, eyeY + 2);
+  g.lineTo(48, eyeY + 10);
+  g.lineTo(51.5, eyeY + 10.5);
+  g.stroke();
+  const smile = rnd();
+  g.beginPath();
+  if (smile < 0.6) {
+    g.moveTo(43, eyeY + 16);
+    g.quadraticCurveTo(50, eyeY + 21, 57, eyeY + 16);
+  } else {
+    g.moveTo(44, eyeY + 17);
+    g.lineTo(56, eyeY + 16);
+  }
+  g.stroke();
+  // barbe ou lunettes à l'occasion
+  const extra = rnd();
+  if (extra < 0.18) {
+    g.fillStyle = hair;
+    g.globalAlpha = 0.7;
+    g.beginPath();
+    g.moveTo(32, 48);
+    g.quadraticCurveTo(50, 78, 68, 48);
+    g.quadraticCurveTo(50, 66, 32, 48);
+    g.fill();
+    g.globalAlpha = 1;
+  } else if (extra < 0.3) {
+    g.lineWidth = 1.6;
+    for (const sx of [-1, 1]) {
+      g.beginPath();
+      g.arc(50 + sx * 9, eyeY, 5.5, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.beginPath();
+    g.moveTo(46, eyeY);
+    g.lineTo(54, eyeY);
+    g.stroke();
+  }
+  // reflet BD
+  g.fillStyle = 'rgba(255,255,255,0.35)';
+  g.beginPath();
+  g.ellipse(40, 30, 5, 3, -0.5, 0, Math.PI * 2);
+  g.fill();
+  return c;
+}
+
+/** Nappes de brouillard (blanches, douces). */
+export function paintFog(size = 256): HTMLCanvasElement {
+  const [c, g] = canvas(size, size);
+  const rnd = prng(2024);
+  for (let k = 0; k < 7; k++) {
+    const x = size * (0.2 + rnd() * 0.6), y = size * (0.3 + rnd() * 0.4), r = size * (0.18 + rnd() * 0.18);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(235,240,245,0.75)');
+    gr.addColorStop(1, 'rgba(235,240,245,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, size, size);
+  }
+  return c;
+}
+
+/** Lumière de fin de journée : ciel chaud en haut de l'écran, voile doré. */
+export function paintSunset(w = 64, h = 256): HTMLCanvasElement {
+  const [c, g] = canvas(w, h);
+  const gr = g.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0, 'rgba(255,120,40,0.42)');
+  gr.addColorStop(0.35, 'rgba(255,150,70,0.18)');
+  gr.addColorStop(1, 'rgba(120,40,120,0.12)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, w, h);
+  return c;
+}

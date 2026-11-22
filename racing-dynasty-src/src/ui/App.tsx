@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Career } from '../game/career';
 import { SaveStore, requestPersistence } from '../game/save';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
@@ -24,6 +24,9 @@ export interface GameApi {
   settings: Settings;
   setSettings: (s: Settings) => void;
 }
+
+/** Carrière en cours, accessible aux composants d'affichage (portraits, couleurs d'écurie). */
+export const CareerCtx = createContext<Career | null>(null);
 
 export const store = new SaveStore(typeof localStorage !== 'undefined' ? localStorage : null, APP_VERSION);
 
@@ -120,6 +123,7 @@ export function App() {
   );
 
   return (
+    <CareerCtx.Provider value={career}>
     <div className="app">
       {screen === 'home' && (
         <Home
@@ -138,5 +142,6 @@ export function App() {
       {screen === 'credits' && <Credits onBack={() => setScreen(career ? 'hub' : 'home')} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
+    </CareerCtx.Provider>
   );
 }

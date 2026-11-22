@@ -122,6 +122,8 @@ export interface Weekend {
   forecast?: string;
   /** Pilote forfait remplacé pour ce Grand Prix. */
   standIn?: { injured: string; sub: string; temp: boolean };
+  /** La séance de qualifications animée a été vue (ou passée). */
+  qualiSeen?: boolean;
 }
 
 export interface LedgerLine {

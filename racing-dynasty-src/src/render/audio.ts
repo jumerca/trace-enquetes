@@ -10,6 +10,8 @@ export class RaceAudio {
   private filter: BiquadFilterNode | null = null;
   private crowdGain: GainNode | null = null;
   private lastLit = 0;
+  private seen = 0;
+  private cheerUntil = 0;
   private started = false;
   enabled: boolean;
 
@@ -115,7 +117,37 @@ export class RaceAudio {
     this.filter.frequency.setTargetAtTime(500 + rpm * 2200, now, 0.05);
     const vol = speed === 0 || !car ? 0 : 0.08 + 0.12 * Math.min(1, v / 80);
     this.engGain.gain.setTargetAtTime(vol, now, 0.08);
-    this.crowdGain?.gain.setTargetAtTime(speed === 0 ? 0.01 : sim.flag ? 0.16 : 0.04, now, 0.3);
+    // la foule réagit aux temps forts : clameur qui monte puis retombe
+    for (; this.seen < sim.events.length; this.seen++) {
+      const k = sim.events[this.seen].kind;
+      if (k === 'depassement' || k === 'contact' || k === 'tete-a-queue' || k === 'drapeau' || k === 'depart') {
+        this.cheerUntil = now + (k === 'drapeau' ? 6 : k === 'depart' ? 3 : 1.6);
+        if (k !== 'depassement') this.whistle(k === 'contact' || k === 'tete-a-queue');
+      }
+    }
+    const cheering = now < this.cheerUntil;
+    this.crowdGain?.gain.setTargetAtTime(speed === 0 ? 0.01 : cheering ? 0.24 : sim.flag ? 0.16 : 0.05, now, cheering ? 0.08 : 0.5);
+  }
+
+  /** Exclamation de la foule (« ooh ! ») : bruit filtré glissant vers l'aigu, ou vers le grave si accident. */
+  private whistle(down: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const len = Math.floor(ctx.sampleRate * 0.9);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 3;
+    bp.frequency.setValueAtTime(down ? 900 : 500, ctx.currentTime);
+    bp.frequency.exponentialRampToValueAtTime(down ? 350 : 1100, ctx.currentTime + 0.8);
+    const g = ctx.createGain();
+    g.gain.value = 0.35;
+    src.connect(bp).connect(g).connect(this.master);
+    src.start();
   }
 
   destroy(): void {

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { CareerCtx } from '../App';
+import { DriverPortrait } from '../Visuals';
 import type { GameApi } from '../App';
 import {
   canRace, driverById, driverStandings, forecastFor, playerTeam,
@@ -126,10 +128,15 @@ function Dashboard({ api, setTab }: { api: GameApi; setTab: (t: Tab) => void }) 
 }
 
 export function DriverCard({ d, compact, children }: { d: Driver; compact?: boolean; children?: React.ReactNode }) {
+  const career = useContext(CareerCtx);
+  const team = d.teamId ? career?.teams.find((t) => t.id === d.teamId) : undefined;
   return (
     <div className="driver-card">
       <header>
-        <span className="num">{d.number}</span>
+        <div className="portrait-wrap">
+          <DriverPortrait id={d.id} color={team?.color ?? '#8a8f99'} color2={team?.color2 ?? '#f4f1ea'} size={54} />
+          <span className="num">{d.number}</span>
+        </div>
         <div><b>{d.first} {d.last}</b><small>{NAT_LABEL[d.nat] ?? d.nat} · {d.age} ans · note {driverRating(d.stats).toFixed(1)}</small></div>
       </header>
       {!compact && STAT_LABELS.map(([k, l]) => <StatBar key={k} label={l} value={d.stats[k]} />)}

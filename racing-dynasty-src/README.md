@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.5 (JLG Creative)
+# Racing Dynasty — V0.6 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -14,6 +14,17 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libres et jeunes espoirs, 8 circuits originaux
 (Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.6
+* Week-end : séance de qualifications animée (chronos en direct, tour lancé de vos pilotes sur la carte, mêmes
+  temps que le moteur), graphique des relais d'essais, briefing de l'ingénieur (météo, profil du circuit, rivaux,
+  stratégie conseillée).
+* Course : drapeaux jaunes locaux (ralentissement et dépassements interdits dans la zone), caméra embarquée,
+  commentateur en bulles BD, podium animé (portraits, monoplaces, champagne), arrêts au stand animés.
+* Stratégie : pneus tendres plus performants mais plus fragiles, arrêts moins coûteux, attaques facilitées avec des
+  pneus nettement plus frais — deux arrêts deviennent une option sur les circuits à forte usure.
+* Ambiance : portraits dessinés de chaque pilote, brouillard à Brumevent, crépuscule à Kharam, flaques et reflets
+  sur piste mouillée, clameurs de la foule sur les temps forts.
 
 ### Nouveautés V0.5 — refonte graphique
 * Atelier de peinture procédurale (`src/render/art.ts`, Canvas 2D) : tous les éléments sont peints une fois au
