@@ -1,6 +1,6 @@
 # Racing Dynasty — Feuille de route
 
-État au 22/11/2026 : V0.3 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
+État au 22/11/2026 : V0.4 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
 Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 
 ## 0. À vérifier sur le téléphone du joueur (bloquant)
@@ -29,23 +29,23 @@ Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 - [ ] Valbrune et Kharam : ~35-45 dépassements en 12 tours, peut-être encore un peu élevé.
 - [ ] Drapeaux jaunes locaux (sans voiture de sécurité) non simulés.
 
-## 3. Rendu et ambiance
-- [ ] Phase de tour de formation et voitures qui se placent sur la grille.
-- [ ] Ralenti / rediffusion des dépassements (la simulation déterministe le permet).
-- [ ] Traces de pneus, étincelles, plus d'animations du public et des drapeaux de commissaires.
-- [ ] Course de nuit (un circuit éclairé) et variantes jour/crépuscule.
-- [ ] Livrées plus détaillées (numéro sur la voiture, logo du sponsor principal).
-- [ ] Musique de menu et habillage sonore des écrans de gestion.
+## 3. Rendu et ambiance — fait en V0.4
+- [x] Phase de tour de formation et voitures qui se placent sur la grille.
+- [x] Ralenti / rediffusion des dépassements (la simulation déterministe le permet).
+- [x] Traces de pneus, étincelles, plus d'animations du public et des drapeaux de commissaires.
+- [x] Course de nuit (un circuit éclairé) et variantes jour/crépuscule.
+- [x] Livrées plus détaillées (numéro sur la voiture, logo du sponsor principal).
+- [x] Musique de menu et habillage sonore des écrans de gestion.
 
-## 4. Gestion (développer le jeu)
-- [ ] Marché des transferts vivant : les écuries IA recrutent et libèrent des pilotes à l'intersaison.
-- [ ] Centre de développement : projets de R&D sur plusieurs courses au lieu d'évolutions instantanées.
-- [ ] Personnel : ingénieur de course, chef mécanicien, directeur technique (qualité des arrêts, des réglages).
-- [ ] Moral et forme des pilotes, relation avec le directeur, demandes de revalorisation.
-- [ ] Jeunes pilotes / académie, pilote de réserve en cas de blessure.
-- [ ] Sponsors : négociation, objectifs par course, renouvellement en fin de saison.
-- [ ] Calendrier plus long (8 à 10 GP) et nouveaux circuits.
-- [ ] Statistiques et palmarès détaillés (records, victoires, pole positions par pilote et par écurie).
+## 4. Gestion — fait en V0.4
+- [x] Marché des transferts vivant : les écuries IA recrutent et libèrent des pilotes à l'intersaison.
+- [x] Centre de développement : projets de R&D sur plusieurs courses au lieu d'évolutions instantanées.
+- [x] Personnel : ingénieur de course, chef mécanicien, directeur technique (qualité des arrêts, des réglages).
+- [x] Moral et forme des pilotes, relation avec le directeur, demandes de revalorisation.
+- [x] Jeunes pilotes / académie, pilote de réserve en cas de blessure.
+- [x] Sponsors : négociation, objectifs par course, renouvellement en fin de saison.
+- [x] Calendrier plus long (8 à 10 GP) et nouveaux circuits.
+- [x] Statistiques et palmarès détaillés (records, victoires, pole positions par pilote et par écurie).
 
 ## 5. Technique
 - [ ] Synchronisation optionnelle des sauvegardes entre appareils (export/import en un geste via un fichier partagé).

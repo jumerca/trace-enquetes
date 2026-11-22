@@ -42,8 +42,22 @@ const log = (...a) => console.log('•', ...a);
     await shot('03-pilotes');
     // Sponsor
     await p.locator('.tabs button', { hasText: 'Sponsors' }).click();
-    await p.locator('.sponsor button', { hasText: 'Signer' }).first().click();
+    await p.locator('.sponsor button', { hasText: 'Négocier' }).first().click();
+    await p.locator('.modal input[type=range]').evaluate((el) => { const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; s.call(el, '1.05'); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await p.locator('.modal .chip', { hasText: '2 saisons' }).click();
+    await shot('04a-negociation');
+    await p.getByText('Faire l’offre').click();
+    if (await p.locator('.modal').count()) { log('sponsor refuse :', await p.locator('.modal .warn').textContent()); await p.locator('.modal button[aria-label=Fermer]').click(); await p.locator('.sponsor button', { hasText: 'Négocier' }).first().click(); await p.getByText('Faire l’offre').click(); }
     await shot('04-sponsors');
+    // Académie : signer un espoir
+    await p.locator('.tabs button', { hasText: 'Pilotes' }).click();
+    await p.locator('.seg button', { hasText: 'Espoirs' }).click();
+    await p.locator('.driver-card button', { hasText: 'Signer' }).first().click();
+    await shot('04b-academie');
+    // Usine : lancer un projet de R&D
+    await p.locator('.tabs button', { hasText: 'Usine' }).click();
+    await p.locator('.rnd button', { hasText: 'Lancer' }).first().click();
+    await shot('04c-usine');
     await p.locator('.tabs button', { hasText: 'QG' }).click();
     const budget = await p.locator('.budget b').textContent();
     log(name, 'budget après recrutement', budget);
@@ -60,10 +74,21 @@ const log = (...a) => console.log('•', ...a);
     await p.getByText('Départ du Grand Prix').click();
     await p.waitForSelector('.race-canvas canvas', { timeout: 15000 });
     await p.waitForTimeout(2500);
+    await shot('07a-formation');
+    await p.getByRole('button', { name: 'Passer ⏭' }).click();
+    await p.waitForTimeout(2500);
     await shot('07-depart');
     await p.locator('.sim-controls button', { hasText: '×4' }).click();
     await p.waitForTimeout(6000);
     await shot('08-course-x4');
+    const rb = p.locator('.replay-btn');
+    if (await rb.count()) {
+      await rb.first().click();
+      await p.waitForTimeout(2500);
+      await shot('08d-ralenti');
+      log(name, 'ralenti lancé :', (await p.locator('.sc-banner.replay').count()) > 0);
+      await p.getByRole('button', { name: 'Direct' }).click().catch(() => {});
+    } else log(name, 'pas d’action à revoir à cet instant');
     // consigne joueur
     await p.locator('.dc .seg button', { hasText: 'Attaque' }).first().click();
     await p.locator('.sim-controls button', { hasText: 'TV' }).click();
@@ -116,13 +141,15 @@ const log = (...a) => console.log('•', ...a);
     if (leader !== leader2) errors.push('classement perdu après rechargement');
     if (name === 'pc') {
       // Fin de saison : Grands Prix 2 et 3 (Valbrune, Kharam)
-      for (const gp of ['lac-argent', 'valbrune', 'montclair', 'kharam']) {
+      for (const gp of ['lac-argent', 'brumevent', 'valbrune', 'montclair', 'rocheval', 'lumen', 'kharam']) {
         await p.locator('.tabs button', { hasText: 'QG' }).click();
         await p.getByText('Aller au week-end de course').click();
         await p.getByText('Passer aux qualifications').click();
         await p.getByText('Lancer les qualifications').click();
         await p.getByText('Départ du Grand Prix').click();
         await p.waitForSelector('.race-canvas canvas', { timeout: 15000 });
+        await p.waitForTimeout(1500);
+        await p.getByRole('button', { name: 'Passer ⏭' }).click();
         await p.waitForTimeout(2500);
         await shot('13-depart-' + gp);
         await p.locator('.sim-controls button', { hasText: '×4' }).click();
@@ -138,8 +165,13 @@ const log = (...a) => console.log('•', ...a);
       }
       await p.waitForSelector('text=Saison 1 terminée');
       await shot('15-fin-saison');
+      await p.locator('.tabs button', { hasText: 'Palmarès' }).click();
+      await shot('16-palmares');
+      await p.locator('.tabs button', { hasText: 'QG' }).click();
       await p.getByText('Lancer la saison 2').click();
-      log(name, 'saison complète (5 GP) jouée, saison 2 lancée');
+      await p.locator('.tabs button', { hasText: 'Pilotes' }).click();
+      await shot('17-saison2-pilotes');
+      log(name, 'saison complète (8 GP) jouée, saison 2 lancée');
     }
     await ctx.close();
   }

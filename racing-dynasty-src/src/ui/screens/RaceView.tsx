@@ -5,6 +5,7 @@ import { isLowEndDevice } from '../../game/settings';
 import { DT, RaceSim, fmtLap, type SimCar } from '../../engine/race';
 import { RaceRenderer, type CameraMode } from '../../render/RaceRenderer';
 import { RaceAudio } from '../../render/audio';
+import { menuMusic } from '../music';
 import { SPONSOR_SEEDS } from '../../game/data';
 import type { Compound, DriveMode, RaceEvent, TeamOrder } from '../../engine/types';
 import { TyreChip } from '../common';
@@ -44,6 +45,7 @@ interface Hud {
   flag: boolean;
   finished: boolean;
   sc: boolean;
+  formation: boolean;
   scIn: boolean;
   restart: boolean;
   wet: number;
@@ -66,6 +68,7 @@ function snapshot(sim: RaceSim): Hud {
     flag: sim.flag,
     finished: sim.finished,
     sc: !!sim.sc,
+    formation: sim.formation,
     scIn: sim.sc?.phase === 'rentre',
     restart: !sim.sc && Math.max(...sim.cars.map((x) => x.laps)) < sim.restartLap,
     wet: sim.wet,
@@ -111,6 +114,8 @@ export function RaceView({ api }: { api: GameApi }) {
   const pinch = useRef<{ d: number; moved: boolean }>({ d: 0, moved: false });
   const [camMode, setCamMode] = useState<CameraMode>('suivre');
   const [sound, setSound] = useState(api.settings.sound);
+  const [replaying, setReplaying] = useState(false);
+  const speedBeforeReplay = useRef<Speed>(1);
   const speedRef = useRef<Speed>(1);
   const accRef = useRef(0);
   const [speed, setSpeedState] = useState<Speed>(1);
@@ -152,7 +157,15 @@ export function RaceView({ api }: { api: GameApi }) {
     (window as unknown as { __raceSim?: RaceSim }).__raceSim = sim; // accès de test (E2E)
     const quality = api.settings.quality === 'auto' ? (isLowEndDevice() ? 'economie' : 'haute') : api.settings.quality;
     const banners = [...c.sponsors.map((x) => ({ name: x.name, color: x.color })), ...SPONSOR_SEEDS.map((x) => ({ name: x.name, color: x.color }))];
-    const r = new RaceRenderer(sim, { quality, fpsCap: api.settings.fpsCap, names: api.settings.names, focusTeamId: c.playerTeamId, banners });
+    const main = c.sponsors.find((x) => x.slot === 'principal') ?? c.sponsors[0];
+    const liveries = main ? { [c.playerTeamId]: { sponsor: main.name, color: main.color } } : undefined;
+    const r = new RaceRenderer(sim, { quality, fpsCap: api.settings.fpsCap, names: api.settings.names, focusTeamId: c.playerTeamId, banners, liveries });
+    r.onReplayEnd = () => {
+      setReplaying(false);
+      speedRef.current = speedBeforeReplay.current;
+      setSpeedState(speedBeforeReplay.current);
+    };
+    menuMusic.stop();
     const audio = new RaceAudio(api.settings.sound);
     audio.start();
     audioRef.current = audio;
@@ -169,6 +182,7 @@ export function RaceView({ api }: { api: GameApi }) {
           let n = 0;
           while (accRef.current >= DT && n < 60) {
             sim.step();
+            r.recordFrame();
             accRef.current -= DT;
             n++;
           }
@@ -216,6 +230,27 @@ export function RaceView({ api }: { api: GameApi }) {
     setHud(snapshot(sim));
   };
 
+  const skipFormation = () => {
+    if (!sim) return;
+    while (sim.formation) sim.step();
+    setHud(snapshot(sim));
+  };
+
+  const replay = (e: RaceEvent) => {
+    const r = rendRef.current;
+    if (!r || r.replaying) return;
+    speedBeforeReplay.current = speedRef.current || 1;
+    speedRef.current = 0;
+    setSpeedState(0);
+    if (r.startReplay(e.t, e.carId)) {
+      setReplaying(true);
+      setCamMode('suivre');
+    } else {
+      speedRef.current = speedBeforeReplay.current;
+      setSpeedState(speedBeforeReplay.current);
+    }
+  };
+
   const skipToEnd = () => {
     if (!sim || skipping) return;
     if (!confirm('Simuler instantanément la fin de la course ? Vos consignes actuelles seront conservées.')) return;
@@ -233,7 +268,7 @@ export function RaceView({ api }: { api: GameApi }) {
     if (!sim) return;
     api.act((cc) => {
       recordRaceProgress(cc, sim.commands, sim.tick);
-      finishRace(cc, sim.results(), sim.fastest);
+      finishRace(cc, sim.results(), sim.fastest, sim.events);
     });
   };
 
@@ -311,6 +346,8 @@ export function RaceView({ api }: { api: GameApi }) {
         <div className="lapbox"><small>Tour</small><b>{hud ? Math.min(hud.lap, sim?.cfg.laps ?? 0) : 1}/{sim?.cfg.laps}</b></div>
         <span className={'weather' + (hud && hud.wet > 0.3 ? ' pluie' : '')}>{hud ? weatherLabel(hud.wet, hud.raining) : ''}</span>
         {hud?.flag && <span className="flag">🏁</span>}
+        {hud?.formation && <><span className="sc-banner green">Tour de formation</span><button className="btn small" onClick={skipFormation}>Passer ⏭</button></>}
+        {replaying && <><span className="sc-banner replay">🎬 RALENTI</span><button className="btn small" onClick={() => rendRef.current?.stopReplay()}>Direct</button></>}
         {hud?.sc && <span className="sc-banner">{hud.scIn ? 'SC rentre' : 'VOITURE DE SÉCURITÉ'}</span>}
         {hud?.restart && <span className="sc-banner green">Reprise</span>}
         <button className="btn small icon-btn" onClick={toggleSound} aria-label={sound ? 'Couper le son' : 'Activer le son'}>{sound ? '🔊' : '🔇'}</button>
@@ -338,7 +375,14 @@ export function RaceView({ api }: { api: GameApi }) {
       </aside>
 
       <div className="race-feed">
-        {hud?.events.slice(0, 3).map((e, i) => <div key={e.t + e.text} className={'ev ' + e.kind} style={{ opacity: 1 - i * 0.25 }}>T{e.lap} · {e.text}</div>)}
+        {hud?.events.slice(0, 3).map((e, i) => (
+          <div key={e.t + e.text} className={'ev ' + e.kind} style={{ opacity: 1 - i * 0.25 }}>
+            T{e.lap} · {e.text}
+            {['depassement', 'contact', 'tete-a-queue', 'sortie'].includes(e.kind) && rendRef.current?.canReplay(e.t) && !replaying && (
+              <button className="replay-btn" onClick={() => replay(e)} aria-label="Revoir au ralenti">🎬</button>
+            )}
+          </div>
+        ))}
       </div>
 
       <div className="race-bottom">

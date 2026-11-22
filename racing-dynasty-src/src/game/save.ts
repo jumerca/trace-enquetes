@@ -1,8 +1,9 @@
 // Sauvegardes persistantes : schéma versionné + migrations, copie de secours, export/import.
 // Les clés de stockage ne changent jamais d'une version du jeu à l'autre : une mise à jour ne perd pas les parties.
 import { computeObjective, type Career } from './career';
+import { upgradeCareerV3 } from './management';
 
-export const SAVE_SCHEMA = 2;
+export const SAVE_SCHEMA = 3;
 export const SLOT_COUNT = 3;
 const PREFIX = 'racing-dynasty/save/';
 const LAST = 'racing-dynasty/last-slot';
@@ -38,6 +39,12 @@ const MIGRATIONS: Record<number, (f: any) => any> = {
   1: (f) => {
     f.career.objective = { season: f.career.season, target: computeObjective(f.career) };
     f.schema = 2;
+    return f;
+  },
+  // V0.3 → V0.4 : personnel, R&D, académie, moral, statistiques, sponsors pluriannuels.
+  2: (f) => {
+    upgradeCareerV3(f.career);
+    f.schema = 3;
     return f;
   },
 };

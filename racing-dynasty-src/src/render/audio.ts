@@ -99,7 +99,7 @@ export class RaceAudio {
     const ctx = this.ctx;
     if (!ctx || !this.enabled || !this.engA || !this.engB || !this.engGain || !this.filter) return;
     const now = ctx.currentTime;
-    const lit = sim.t >= sim.lightsOut ? 0 : Math.min(5, Math.floor(sim.t / LIGHTS_ON) + 1);
+    const lit = sim.formation || sim.t >= sim.lightsOut || sim.t < sim.lightsStart ? 0 : Math.min(5, Math.floor((sim.t - sim.lightsStart) / LIGHTS_ON) + 1);
     if (lit > this.lastLit) this.beep(660, 0.18);
     if (lit === 0 && this.lastLit > 0) this.beep(990, 0.45);
     this.lastLit = lit;

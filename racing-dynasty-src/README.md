@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.3 (JLG Creative)
+# Racing Dynasty — V0.4 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -11,9 +11,20 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 (pause, ×1, ×2, ×4, fin directe, consignes éco/normal/attaque, appel au stand) → résultats (points, primes, réputation)
 → GP suivant → fin de saison → saison suivante.
 
-Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires + 10 agents libres, 5 circuits originaux
-(Port-Azur urbain, Lac d'Argent, Valbrune rapide, Montclair en montagne, Kharam désertique),
+Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libres et jeunes espoirs, 8 circuits originaux
+(Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.4
+* Ambiance : tour de formation (bouton « Passer »), ralenti des dépassements / contacts / sorties (🎬 dans le fil),
+  traces de pneus (blocages, sorties, envol), étincelles, course de nuit à Lumen (projecteurs, halos), numéros de
+  course et sponsor principal sur les voitures, musique des menus synthétisée (coupable).
+* Gestion : saison de 8 Grands Prix ; marché des transferts IA à l'intersaison (retraites, non-prolongations,
+  recrutements) ; R&D en projets étalés sur plusieurs GP (coût, durée, chance de réussite, percées) ;
+  personnel clé (ingénieur de course, chef mécanicien, directeur technique) avec marché et effets en jeu ; moral des
+  pilotes (influence le rythme et les erreurs, les prolongations) ; académie de jeunes espoirs, pilote de réserve,
+  forfaits pour maladie ; sponsors négociés (montants, durée 1–3 saisons, renouvellement) ; statistiques et palmarès.
+* Sauvegardes : schéma 3, migration automatique des parties précédentes.
 
 ### Nouveautés V0.3
 * Équilibrage : plus de dépassements (zones élargies, aspiration plus forte, pneus usés plus pénalisants),

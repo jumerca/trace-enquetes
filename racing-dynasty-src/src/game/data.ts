@@ -36,6 +36,62 @@ export interface Driver {
   teamId: string | null;
   contract: Contract | null;
   askSalary: number; // M€ / saison demandés
+  /** Rôle dans l'écurie : titulaire (défaut), réserve ou académie. */
+  role?: 'titulaire' | 'reserve' | 'academie';
+  /** Moral 0..100 (65 = neutre). */
+  morale?: number;
+  /** Plafond de progression (note visée) pour les jeunes. */
+  potential?: number;
+  retired?: boolean;
+}
+
+export type StaffRole = 'ingenieur' | 'mecanicien' | 'directeur';
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  role: StaffRole;
+  rating: number; // 1..20
+  salary: number; // M€ / saison
+}
+
+export const STAFF_LABEL: Record<StaffRole, { title: string; effect: string }> = {
+  ingenieur: { title: 'Ingénieur de course', effect: 'Essais plus efficaces, retours pilote plus fiables, meilleures stratégies.' },
+  mecanicien: { title: 'Chef mécanicien', effect: 'Arrêts aux stands plus rapides, voiture plus fiable.' },
+  directeur: { title: 'Directeur technique', effect: 'Projets de R&D plus courts et plus souvent réussis.' },
+};
+
+const STAFF_FIRST = ['Claire', 'Marco', 'Yusuf', 'Hanna', 'Pierre', 'Ines', 'Rafael', 'Greta', 'Tomás', 'Aiko', 'Oliver', 'Nadia', 'Sven', 'Léa', 'Bruno', 'Maya'];
+const STAFF_LAST = ['Delorme', 'Castelli', 'Arslan', 'Lindgren', 'Moreau', 'Benali', 'Quintero', 'Hoffmann', 'Vidal', 'Tanaka', 'Price', 'Haddad', 'Nyberg', 'Garnier', 'Rocha', 'Ishii'];
+
+export function makeStaff(rng: Rng, role: StaffRole, level: number, id: string): StaffMember {
+  const rating = clamp(level + rng.normal(0, 1.5));
+  return {
+    id, role, rating,
+    name: `${rng.pick(STAFF_FIRST)} ${rng.pick(STAFF_LAST)}`,
+    salary: Math.round((0.25 + Math.max(0, rating - 6) * 0.09) * 10) / 10,
+  };
+}
+
+const YOUTH_FIRST = ['Hugo', 'Lina', 'Mateo', 'Nora', 'Kai', 'Zoé', 'Elio', 'Ayla', 'Sami', 'Iris', 'Malo', 'Yara', 'Teo', 'Lou', 'Ravi', 'Emma'];
+const YOUTH_LAST = ['Fontaine', 'Okoye', 'Brenner', 'Silva', 'Nakamura', 'Duval', 'Kowalski', 'Romero', 'Lindahl', 'Haas', 'Mbappé-Diallo', 'Costa', 'Reyes', 'Varga', 'Petit', 'Moreno'];
+const YOUTH_NAT = ['FRA', 'GHA', 'GER', 'BRA', 'JPN', 'FRA', 'POR', 'ESP', 'SWE', 'AUT', 'BEL', 'ITA', 'MEX', 'HUN', 'CAN', 'ARG'];
+
+/** Jeune espoir (17-19 ans) : note modeste, fort potentiel. */
+export function makeYouth(rng: Rng, idx: number, usedIds: Set<string>): Driver {
+  const k = rng.int(0, YOUTH_FIRST.length - 1);
+  const first = YOUTH_FIRST[k];
+  const last = YOUTH_LAST[rng.int(0, YOUTH_LAST.length - 1)];
+  let id = 'drv-' + last.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '') + '-' + first.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  while (usedIds.has(id)) id += idx;
+  usedIds.add(id);
+  const level = rng.range(7, 9.5);
+  const stats = makeDriverStats(level, rng);
+  return {
+    id, first, last, nat: YOUTH_NAT[k], age: rng.int(17, 19), number: 40 + ((idx * 13) % 59),
+    short: last.normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(), stats, teamId: null, contract: null,
+    askSalary: 0.2, potential: Math.round(rng.range(13, 18.5) * 10) / 10, morale: 70,
+  };
 }
 
 export interface SponsorOffer {
@@ -48,6 +104,8 @@ export interface SponsorOffer {
   objective: 'arrivee' | 'points' | 'top5' | 'podium';
   bonus: number; // M€ par Grand Prix si objectif atteint
   minReputation: number;
+  /** Durée proposée (saisons) ; les offres renégociées gardent leurs conditions. */
+  years?: number;
 }
 
 export const OBJECTIVE_LABEL: Record<SponsorOffer['objective'], string> = {
@@ -89,7 +147,7 @@ const DRIVER_SEEDS: [string, string, string, number, number][] = [
   ['Kofi', 'Mensah', 'GHA', 24, 12], ['Elias', 'Novak', 'CZE', 28, 11.5],
   ['Sofia', 'Bergström', 'FIN', 21, 11], ['Jack', 'Moreau', 'BEL', 30, 11],
   ['Ravi', 'Chandran', 'MAS', 20, 10], ['Ilya', 'Petrenko', 'UKR', 26, 9.5],
-  ['Noah', 'Vidal', 'MON', 19, 9.5], ['Lena', 'Fischer', 'GER', 23, 9],
+  ['Noah', 'Vidal', 'MON', 20, 9.5], ['Lena', 'Fischer', 'GER', 23, 9],
 ];
 
 export const SPONSOR_SEEDS: Omit<SponsorOffer, 'id'>[] = [
@@ -134,6 +192,13 @@ export function salaryFor(rating: number, age: number): number {
   return Math.round(base * (age < 23 ? 0.8 : 1) * 10) / 10;
 }
 
+/** Espoirs disponibles au départ (pas encore en F1). */
+export function buildYouthPool(seed: number, count: number, existing: Driver[]): Driver[] {
+  const rng = new Rng(seed);
+  const used = new Set(existing.map((d) => d.id));
+  return Array.from({ length: count }, (_, i) => makeYouth(rng, i + existing.length, used));
+}
+
 export function buildWorld(seed: number): { teams: Team[]; drivers: Driver[] } {
   const rng = new Rng(seed);
   const teams: Team[] = AI_TEAMS.map((t, i) => ({
@@ -164,6 +229,8 @@ export function buildWorld(seed: number): { teams: Team[]; drivers: Driver[] } {
       short: last.normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(),
       contract: teamId ? { salary: ask, years: 1 + (i % 3) } : null,
       askSalary: ask,
+      morale: 65,
+      potential: Math.max(level, 12) + (age < 24 ? 1.5 : 0),
     };
   });
   return { teams, drivers };

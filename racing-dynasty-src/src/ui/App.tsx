@@ -7,6 +7,7 @@ import { NewCareer } from './screens/NewCareer';
 import { Hub } from './screens/Hub';
 import { WeekendScreen } from './screens/Weekend';
 import { SettingsScreen, Credits } from './screens/Settings';
+import { menuMusic } from './music';
 
 declare const __APP_VERSION__: string;
 export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -66,6 +67,16 @@ export function App() {
   useEffect(() => {
     void requestPersistence();
   }, []);
+
+  // Musique des menus : démarre au premier geste, jamais pendant une course.
+  useEffect(() => {
+    menuMusic.setEnabled(settings.music);
+    const onGesture = () => {
+      if (!document.querySelector('.race')) menuMusic.play();
+    };
+    window.addEventListener('pointerdown', onGesture);
+    return () => window.removeEventListener('pointerdown', onGesture);
+  }, [settings.music]);
 
   // Le bouton « retour » d'Android ramène au QG plutôt que de quitter.
   useEffect(() => {

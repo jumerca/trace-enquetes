@@ -49,6 +49,8 @@ export interface CarEntry {
   startCompound: Compound;
   pitPlan: PitPlan[];
   isPlayer: boolean;
+  /** Forme du moment (moral) : multiplicateur de rythme ≈ 0,99–1,01. */
+  form?: number;
 }
 
 /** Changement de météo pendant la course : à partir du tour `lap` (fraction possible), il pleut ou non. */
@@ -64,6 +66,8 @@ export interface RaceConfig {
   laps: number;
   weather: Weather; // météo au départ
   weatherPlan?: WeatherChange[];
+  /** Tour de formation avant le départ (absent des courses sauvegardées avant la V0.4). */
+  formation?: boolean;
   seed: number;
   entries: CarEntry[]; // dans l'ordre de la grille
 }
