@@ -1,0 +1,40 @@
+name: Racing Dynasty — tests
+
+on:
+  pull_request:
+    paths:
+      - 'racing-dynasty-src/**'
+      - '.github/workflows/racing-dynasty.yml'
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: racing-dynasty-src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: racing-dynasty-src/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Playwright (Chromium)
+        run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - name: Parcours E2E (Android portrait et paysage)
+        run: |
+          npx vite preview --port 4173 &
+          for i in $(seq 60); do curl -sf http://localhost:4173/ >/dev/null && break; sleep 1; done
+          ONLY=android-portrait,android-paysage OUT=e2e-shots node scripts/e2e.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: captures-e2e
+          path: racing-dynasty-src/e2e-shots
+          if-no-files-found: ignore

@@ -31,7 +31,7 @@ interface ReplayFrame {
   out: Uint8Array;
 }
 
-export type CameraMode = 'suivre' | 'embarquee' | 'tv' | 'circuit' | 'cockpit';
+export type CameraMode = 'suivre' | 'embarquee' | 'tv' | 'circuit' | 'cockpit' | 'bord' | 'helico';
 
 interface CarView {
   root: Container;
@@ -178,7 +178,7 @@ export class RaceRenderer {
   setMode(m: CameraMode, carId?: string): void {
     this.mode = m;
     // en vue cockpit, la scène 2,5D n'est plus dessinée (la vue pseudo-3D la recouvre) : économie de GPU
-    if (this.ready) this.app.stage.visible = m !== 'cockpit';
+    if (this.ready) this.app.stage.visible = m !== 'cockpit' && m !== 'bord';
     if (m === 'circuit') this.follow = null;
     else if (carId) this.follow = carId;
     else if (!this.follow) this.follow = this.sim.cars.find((c) => c.e.teamId === this.opts.focusTeamId)?.id ?? this.sim.cars[0].id;
@@ -1151,7 +1151,7 @@ export class RaceRenderer {
       const fc = this.sim.car(this.follow);
       if (fc) {
         this.carPos(fc, this.tmp);
-        const k = Math.min(1, dtMs / (this.mode === 'tv' ? 420 : this.mode === 'embarquee' ? 90 : 180));
+        const k = Math.min(1, dtMs / (this.mode === 'tv' ? 420 : this.mode === 'embarquee' ? 90 : this.mode === 'helico' ? 300 : 180));
         let tx = this.tmp.x, ty = this.tmp.y;
         if (this.mode === 'embarquee') {
           // caméra serrée qui regarde devant la voiture, légères vibrations à haute vitesse
@@ -1166,7 +1166,7 @@ export class RaceRenderer {
         this.cam.x += (tx - this.cam.x) * k;
         this.cam.y += (ty - this.cam.y) * k;
         // zoom dynamique : on recule un peu à haute vitesse
-        const base = this.defaultZoom() * (this.mode === 'tv' ? 1.15 : this.mode === 'embarquee' ? 2.1 : 1) * this.userZoom;
+        const base = this.defaultZoom() * (this.mode === 'tv' ? 1.15 : this.mode === 'embarquee' ? 2.1 : this.mode === 'helico' ? 0.42 : 1) * this.userZoom;
         tz = base * (1.12 - 0.22 * Math.min(1, fc.v / 85));
         this.cam.z += (tz - this.cam.z) * Math.min(1, dtMs / 600);
       }

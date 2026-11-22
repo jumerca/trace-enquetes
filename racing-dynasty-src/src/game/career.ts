@@ -19,7 +19,7 @@ import {
   recordRaceStats, recordTitles, refreshStaffMarket, reliabilityBonus, renewSponsors, restoreStandIn, seasonTransfers,
   staffSalaries, updateMorale, type CareerStats, type RndProject, type Staff,
   facilityUpkeep, progressFacilities, updateRivalries, rivalryMorale, writeArticle, updateConfidence,
-  directorSeasonReview, director, type Facilities, type Article, type Director,
+  directorSeasonReview, director, makeConference, type Facilities, type Article, type Director, type PressConference,
 } from './management';
 import type { RaceEvent } from '../engine/types';
 
@@ -167,6 +167,7 @@ export interface Career {
   press?: Article[];
   rivalries?: Record<string, number>;
   director?: Director;
+  conference?: PressConference;
 }
 
 export const PRACTICE_RUNS = 4;
@@ -277,6 +278,7 @@ export function signingFee(salary: number): number {
 
 export function canRace(c: Career): string | null {
   if (c.director?.fired) return 'Vous avez été limogé : choisissez une nouvelle écurie.';
+  if (c.director?.renewal) return 'Décidez d’abord de la prolongation de votre contrat de directeur (QG).';
   if (teamDrivers(c, c.playerTeamId).length < 2) return 'Recrutez deux pilotes pour pouvoir disputer un Grand Prix.';
   if (c.round >= c.calendar.length) return 'La saison est terminée.';
   return null;
@@ -665,6 +667,7 @@ export function finishRace(
   rivalryMorale(c, res);
   recordRaceStats(c, res, w.quali?.[0]?.driverId ?? null);
   writeArticle(c, res, events, getTrack(w.trackId).def.gp);
+  c.conference = makeConference(c, res);
   const tsNow = teamStandings(c);
   updateConfidence(c, res, tsNow.findIndex((t) => t.teamId === c.playerTeamId) + 1);
   const win = driverById(c, entries[0].driverId);

@@ -40,6 +40,9 @@ export default defineConfig({
   base: './',
   define: { __APP_VERSION__: JSON.stringify(pkg.version), __APP_BUILD__: JSON.stringify(BUILD) },
   plugins: [react(), pwa()],
-  build: { outDir: 'dist', target: 'es2020', sourcemap: false, chunkSizeWarningLimit: 1500, assetsInlineLimit: 0 },
+  build: {
+    outDir: 'dist', target: 'es2020', sourcemap: false, chunkSizeWarningLimit: 1500, assetsInlineLimit: 0,
+    rollupOptions: { output: { manualChunks: (id) => (id.includes('node_modules/react') || id.includes('node_modules/scheduler') ? 'react' : undefined) } },
+  },
   test: { environment: 'node', globals: true, include: ['tests/**/*.test.ts'] },
 });

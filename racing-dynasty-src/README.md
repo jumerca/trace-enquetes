@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.7 (JLG Creative)
+# Racing Dynasty — V0.8 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -14,6 +14,22 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libres et jeunes espoirs, 8 circuits originaux
 (Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.8
+* Vues de course : « Bord » (caméra de télévision au bord de la piste, au téléobjectif, qui voit arriver la voiture
+  de face, la suit de profil puis de dos avant de passer à la caméra suivante) et « Hélico » (vue large qui suit la
+  voiture de haut), en plus de Suivre, Embarquée, Cockpit, TV et Circuit.
+* Conférence de presse après chaque GP : une question selon la course (rivalité, abandons, podium, contre-performance),
+  trois réponses aux effets différents (moral des pilotes, confiance des actionnaires, réputation, rivalité). Votre
+  réponse est citée dans l'article de la Gazette.
+* Contrat du directeur : salaire personnel et prime d'objectif, gains de carrière cumulés ; en fin de contrat, trois
+  propositions de prolongation (1, 2 ou 3 saisons) à signer, ou à négocier (« Exiger plus » : refus possible).
+* Chargement plus rapide : le moteur de course (PixiJS) n'est téléchargé qu'au premier départ (≈110 Ko compressés
+  au lieu de ≈200 Ko pour ouvrir le jeu) ; il reste mis en cache pour le hors-ligne.
+* Sauvegardes : bouton « Partager » (Android : Drive, e-mail, messagerie…) pour reprendre la partie sur un autre
+  appareil via « Importer ».
+* Tests automatiques sur GitHub (`.github/workflows/racing-dynasty.yml`) : typecheck, tests unitaires, build et
+  parcours E2E Android à chaque pull request touchant le jeu.
 
 ### Nouveautés V0.7 — la gestion sur le long terme
 * Installations : soufflerie, simulateur et usine (niveaux 1 à 5), agrandies par chantiers de plusieurs GP avec

@@ -25,6 +25,19 @@ export function SettingsScreen({ settings, onChange, onBack, toast, onQuit, hasC
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
+  // Partage en un geste (Android : Drive, e-mail, messagerie…) pour reprendre la partie sur un autre appareil.
+  const canShare = typeof navigator !== 'undefined' && !!navigator.canShare;
+  const shareSlot = async (slot: number) => {
+    const txt = store.exportText(slot);
+    if (!txt) return;
+    const file = new File([txt], `racing-dynasty-emplacement${slot + 1}.json`, { type: 'application/json' });
+    try {
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'Sauvegarde Racing Dynasty' });
+      else exportSlot(slot);
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') toast('Partage impossible : ' + (e as Error).message);
+    }
+  };
   const importSlot = (slot: number) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -79,12 +92,13 @@ export function SettingsScreen({ settings, onChange, onBack, toast, onQuit, hasC
         </section>
         <section className="panel">
           <h2>Sauvegardes</h2>
-          <p className="muted">Sauvegarde automatique après chaque action et toutes les 15 s en course. Stockage protégé : {persisted === null ? 'inconnu' : persisted ? 'oui' : 'non garanti (exportez régulièrement)'}.</p>
+          <p className="muted">Sauvegarde automatique après chaque action et toutes les 15 s en course. Pour changer d’appareil : « Partager » (ou « Exporter ») ici, puis « Importer » le fichier sur l’autre appareil. Stockage protégé : {persisted === null ? 'inconnu' : persisted ? 'oui' : 'non garanti (exportez régulièrement)'}.</p>
           {slots.map((s) => (
             <div key={s.slot} className="slotrow">
               <div><b>Emplacement {s.slot + 1}</b><small>{s.empty ? 'vide' : s.corrupted ? 'illisible' : `${s.teamName} · saison ${s.season}`}</small></div>
               <div className="row">
                 <button className="btn small" disabled={s.empty} onClick={() => exportSlot(s.slot)}>Exporter</button>
+                {canShare && <button className="btn small" disabled={s.empty} onClick={() => shareSlot(s.slot)}>Partager</button>}
                 <button className="btn small" onClick={() => importSlot(s.slot)}>Importer</button>
                 <button className="btn small danger" disabled={s.empty} onClick={() => { if (confirm('Supprimer définitivement cette partie ?')) { store.remove(s.slot); setSlots(store.list()); } }}>Suppr.</button>
               </div>

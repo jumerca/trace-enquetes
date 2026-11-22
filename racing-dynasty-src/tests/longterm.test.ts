@@ -4,7 +4,7 @@ import {
 } from '../src/game/career';
 import {
   facilities, startFacilityUpgrade, maxProjects, projectTerms, director, directorSeasonReview, switchTeam, declineOffers,
-  updateRivalries, mainRival, facilityUpkeep,
+  updateRivalries, mainRival, facilityUpkeep, answerConference, signRenewal,
 } from '../src/game/management';
 import { RaceSim } from '../src/engine/race';
 import { SaveStore, MemoryKV, SAVE_SCHEMA } from '../src/game/save';
@@ -103,6 +103,38 @@ describe('carrière sur le long terme', () => {
     expect(dir.confidence).toBeGreaterThan(conf);
   });
 
+  it('conférence de presse : une question par GP, la réponse change moral / confiance et figure dans l’article', () => {
+    const c = ready();
+    playRound(c);
+    const pc = c.conference!;
+    expect(pc.answers).toHaveLength(3);
+    const conf = director(c).confidence;
+    const morale = teamDrivers(c, c.playerTeamId).map((d) => d.morale!);
+    const k = pc.answers.findIndex((a) => a.confidence !== 0 || a.morale !== 0);
+    expect(answerConference(c, k)).toBeNull();
+    const a = pc.answers[k];
+    expect(director(c).confidence).toBe(Math.max(0, Math.min(100, conf + a.confidence)));
+    if (a.morale) expect(teamDrivers(c, c.playerTeamId)[0].morale).not.toBe(morale[0]);
+    expect(c.press![0].director).toBe(a.text);
+    expect(answerConference(c, 0)).toMatch(/Aucune/); // une seule réponse
+  }, 60000);
+
+  it('contrat du directeur : prolongation à choisir en fin de contrat, bloque la course tant qu’elle n’est pas signée', () => {
+    const c = ready();
+    const dir = director(c);
+    dir.contractYears = 1;
+    dir.confidence = 55;
+    directorSeasonReview(c, c.objective.target);
+    expect(dir.renewal).toHaveLength(3);
+    expect(canRace(c)).toMatch(/prolongation/);
+    const earnings = dir.earnings!;
+    expect(earnings).toBeGreaterThan(0);
+    expect(signRenewal(c, 2)).toBeNull();
+    expect(dir.contractYears).toBe(3);
+    expect(dir.renewal).toBeUndefined();
+    expect(canRace(c)).toBeNull();
+  });
+
   it('migration : une carrière V0.6 (schéma 3) reçoit installations, directeur et presse', () => {
     const kv = new MemoryKV();
     const c = createCareer(opts) as any;
@@ -112,6 +144,7 @@ describe('carrière sur le long terme', () => {
     expect(SAVE_SCHEMA).toBe(4);
     expect(loaded.facilities).toEqual({ soufflerie: 2, simulateur: 2, usine: 2 });
     expect(loaded.director?.confidence).toBe(60);
+    expect(loaded.director?.salary).toBeGreaterThan(0);
     expect(loaded.press).toEqual([]);
   });
 });

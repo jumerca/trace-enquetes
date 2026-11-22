@@ -3,7 +3,7 @@ import type { GameApi } from '../App';
 import { driverById, playerTeam, teamById } from '../../game/career';
 import {
   declineOffers, director, facilities, facilityCost, facilityDuration, facilityUpkeep, FACILITY_INFO, mainRival, MAX_FACILITY,
-  maxProjects, startFacilityUpgrade, switchTeam, type Article, type FacilityKind,
+  maxProjects, startFacilityUpgrade, switchTeam, answerConference, signRenewal, type Article, type FacilityKind,
 } from '../../game/management';
 import { carRating } from '../../game/data';
 import type { Career } from '../../game/career';
@@ -62,6 +62,12 @@ export function ArticleCard({ c, a, compact }: { c: Career; a: Article; compact?
           </div>
         );
       })()}
+      {a.director && (
+        <div className="quote">
+          <div className="dir-badge">DIR.</div>
+          <blockquote>« {a.director} »<cite>— le directeur de {team.name}</cite></blockquote>
+        </div>
+      )}
       {a.rivalQuote && (() => {
         const d = driverById(c, a.rivalQuote.driverId);
         const t = d.teamId ? teamById(c, d.teamId) : null;
@@ -118,7 +124,19 @@ export function DirectorPanel({ api }: { api: GameApi }) {
         <span className={'conf-bar ' + cls}><i style={{ width: dir.confidence + '%' }} /></span>
         <b>{dir.confidence}/100</b>
       </div>
-      <p className="muted">Contrat : {dir.contractYears} saison(s) restante(s). {dir.confidence < 30 ? '⚠ Votre poste est menacé : des résultats, vite !' : dir.confidence >= 70 ? 'Les grandes écuries vous observent…' : ''}</p>
+      <p className="muted">Contrat : {dir.contractYears} saison(s) restante(s) · salaire {money(dir.salary ?? 0)}/saison + prime {money(dir.bonus ?? 0)} si l’objectif est atteint · gains de carrière {money(dir.earnings ?? 0)}. {dir.confidence < 30 ? '⚠ Votre poste est menacé : des résultats, vite !' : dir.confidence >= 70 ? 'Les grandes écuries vous observent…' : ''}</p>
+      {!dir.fired && dir.renewal && (
+        <div className="renewal">
+          <b>Prolongation proposée par les actionnaires</b>
+          {dir.renewal.map((o, i) => (
+            <div key={i} className="renew-opt">
+              <span>{o.label}<small>{o.years} saison(s) · {money(o.salary)}/saison · prime {money(o.bonus)}</small></span>
+              <button className="btn small primary" onClick={() => api.act((cc) => signRenewal(cc, i))}>Signer</button>
+              <button className="btn small" title="Tenter d’obtenir davantage (refus possible)" onClick={() => api.act((cc) => signRenewal(cc, i, true))}>Exiger plus</button>
+            </div>
+          ))}
+        </div>
+      )}
       {!dir.fired && dir.offers.length > 0 && !c.weekend && (
         <div className="offers">
           {dir.offers.map((o) => <OfferCard key={o.teamId} api={api} teamId={o.teamId} reason={o.reason} />)}
@@ -171,5 +189,28 @@ export function FiredOverlay({ api }: { api: GameApi }) {
         <button className="btn" onClick={() => api.go('home')}>Retour à l’accueil</button>
       </div>
     </div>
+  );
+}
+
+/** Conférence de presse d'après-course : une question, trois réponses aux effets différents. */
+export function ConferenceCard({ api }: { api: GameApi }) {
+  const c = api.career;
+  const pc = c.conference;
+  if (!pc) return null;
+  const fx = (n: number, label: string) => (n ? `${label} ${n > 0 ? '+' : ''}${n}` : '');
+  return (
+    <section className="panel conference">
+      <h2>🎤 Conférence de presse</h2>
+      <p className="question">« {pc.question} »</p>
+      <div className="answers">
+        {pc.answers.map((a, i) => (
+          <button key={i} className={'btn' + (pc.answered === i ? ' primary' : '')} disabled={pc.answered !== undefined}
+            onClick={() => api.act((cc) => answerConference(cc, i))}>
+            {a.text}
+            {pc.answered !== undefined && <small>{[fx(a.morale, 'moral'), fx(a.confidence, 'confiance'), fx(a.reputation, 'réputation'), a.rivalry ? (a.rivalry > 0 ? 'rivalité attisée' : 'rivalité apaisée') : ''].filter(Boolean).join(' · ') || 'sans effet'}</small>}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }

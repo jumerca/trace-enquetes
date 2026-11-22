@@ -1,6 +1,20 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.7 (dernière version)
+## V0.8 (dernière version)
+
+* `npm test` : **49/49**. Nouveaux tests : conférence de presse (une question par GP, effets de la réponse sur le
+  moral et la confiance, réponse citée dans l'article, réponse unique), prolongation du contrat du directeur (3
+  propositions, course bloquée tant qu'elle n'est pas signée, gains de carrière), migration avec salaire du directeur.
+* E2E Chromium (PC avec saison complète, Android paysage et portrait, tablette) : vues Bord et Hélico, réponse à la
+  conférence de presse en plus du parcours V0.7.
+* Bundle : ouverture du jeu ≈110 Ko compressés (React 45 + jeu 64) au lieu de ≈200 Ko ; course chargée à la demande
+  (≈96 Ko + PixiJS).
+* Le workflow GitHub Actions n'a pas pu être lancé depuis ici ; il s'exécutera sur la prochaine pull request.
+* Le bouton « Partager » dépend du navigateur (Web Share avec fichiers : Chrome Android oui ; ailleurs, il
+  télécharge le fichier comme « Exporter »). Non testé sur téléphone réel.
+* Vue Bord : décor proche de la caméra masqué volontairement au téléobjectif ; voitures de profil dessinées en 2D.
+
+## V0.7
 
 * `npm test` : **47/47**. Nouveau fichier `tests/longterm.test.ts` :
   * chantier d'usine sur plusieurs GP, puis projets en parallèle et entretien plus élevés ;
