@@ -600,6 +600,7 @@ export interface Article {
   body: string;
   quote?: { driverId: string; text: string };
   rivalQuote?: { driverId: string; text: string };
+  director?: string; // réponse du directeur en conférence de presse
 }
 
 const pickS = <T,>(arr: T[], rng: Rng): T => arr[rng.int(0, arr.length - 1)];
@@ -710,10 +711,61 @@ export interface Director {
   fired: boolean;
   offers: DirectorOffer[];
   teams: { season: number; teamName: string; pos: number }[];
+  salary?: number; // salaire personnel du directeur (M€/saison, versé par les actionnaires, hors budget de l'écurie)
+  bonus?: number; // prime personnelle si l'objectif est atteint
+  earnings?: number; // gains cumulés de votre carrière
+  renewal?: RenewalOption[]; // proposition de prolongation à arbitrer
+}
+
+export interface RenewalOption {
+  years: number;
+  salary: number;
+  bonus: number;
+  label: string;
 }
 
 export function director(c: Career): Director {
-  return (c.director ??= { confidence: 60, contractYears: 2, fired: false, offers: [], teams: [] });
+  const d = (c.director ??= { confidence: 60, contractYears: 2, fired: false, offers: [], teams: [] });
+  d.salary ??= 0.8;
+  d.bonus ??= 0.3;
+  d.earnings ??= 0;
+  return d;
+}
+
+/** Propositions de prolongation, plus généreuses quand les actionnaires sont satisfaits. */
+export function renewalOptions(c: Career): RenewalOption[] {
+  const dir = director(c);
+  const base = dir.salary! * (0.85 + dir.confidence / 200);
+  const r = (x: number) => Math.round(x * 100) / 100;
+  return [
+    { years: 1, salary: r(base * 1.2), bonus: r(dir.bonus! * 1.5), label: 'Une saison, salaire élevé : vous restez libre' },
+    { years: 2, salary: r(base * 1.05), bonus: r(dir.bonus! * 1.2), label: 'Deux saisons, équilibré' },
+    { years: 3, salary: r(base * 0.92), bonus: r(dir.bonus!), label: 'Trois saisons : la sécurité de l’emploi' },
+  ];
+}
+
+/** Choisir une option de prolongation (ou tenter d'exiger plus : refus possible si la confiance est faible). */
+export function signRenewal(c: Career, idx: number, demandMore = false): string | null {
+  const dir = director(c);
+  const opt = dir.renewal?.[idx];
+  if (!opt) return 'Aucune proposition en cours.';
+  if (demandMore) {
+    const rng = new Rng(hashSeed(c.seed, c.season, 'exigence'));
+    if (!rng.chance(Math.max(0.1, Math.min(0.9, (dir.confidence - 30) / 60)))) {
+      dir.confidence = Math.max(0, dir.confidence - 8);
+      dir.renewal = renewalOptions(c).map((o) => ({ ...o, salary: Math.round(o.salary * 90) / 100 }));
+      addNews(c, 'Les actionnaires jugent vos exigences déplacées : leur nouvelle offre est revue à la baisse.');
+      return null;
+    }
+    opt.salary = Math.round(opt.salary * 125) / 100;
+    opt.bonus = Math.round(opt.bonus * 150) / 100;
+  }
+  dir.contractYears = opt.years;
+  dir.salary = opt.salary;
+  dir.bonus = opt.bonus;
+  dir.renewal = undefined;
+  addNews(c, `Contrat de directeur prolongé : ${opt.years} saison(s), ${opt.salary.toFixed(2)} M€/saison + prime ${opt.bonus.toFixed(2)} M€.`);
+  return null;
 }
 
 /** Confiance des actionnaires après une course : classement par rapport à l'objectif, résultats, finances. */
@@ -753,6 +805,7 @@ export function directorSeasonReview(c: Career, pos: number): void {
   const dir = director(c);
   dir.teams.push({ season: c.season, teamName: playerTeam(c).name, pos });
   if (dir.fired) return;
+  dir.earnings = Math.round((dir.earnings! + dir.salary! + (pos <= c.objective.target ? dir.bonus! : 0)) * 100) / 100;
   const lenient = c.difficulty === 'facile' ? 0.5 : c.difficulty === 'normale' ? 0.75 : 1;
   const miss = pos - c.objective.target;
   dir.confidence = Math.round(Math.max(0, Math.min(100, dir.confidence + (miss <= 0 ? 12 - miss * 3 : miss === 1 ? -3 * lenient : -miss * 6 * lenient))));
@@ -763,8 +816,8 @@ export function directorSeasonReview(c: Career, pos: number): void {
   }
   if (dir.contractYears <= 0) {
     if (dir.confidence >= 30) {
-      dir.contractYears = 2;
-      addNews(c, `Les actionnaires prolongent votre contrat de directeur pour 2 saisons.`);
+      dir.renewal = renewalOptions(c);
+      addNews(c, 'Votre contrat arrive à échéance : les actionnaires vous proposent une prolongation (QG).');
     } else {
       fireDirector(c, 'Votre contrat n’est pas renouvelé.');
       return;
@@ -814,6 +867,9 @@ export function switchTeam(c: Career, teamId: string): string | null {
   c.objective = { season: c.season, target: Math.max(1, Math.min(10, Math.round(11 - next.reputation / 9))) };
   dir.confidence = 60;
   dir.contractYears = 2;
+  dir.salary = Math.round((0.5 + next.reputation / 80) * 100) / 100;
+  dir.bonus = Math.round(dir.salary * 40) / 100;
+  dir.renewal = undefined;
   dir.fired = false;
   dir.offers = [];
   c.rivalries = {};
@@ -830,4 +886,110 @@ export function declineOffers(c: Career): void {
     addNews(c, 'Vous restez fidèle à votre écurie : les actionnaires saluent votre engagement.');
   }
   dir.offers = [];
+}
+
+// ================================================================ Conférence de presse
+
+export interface PressAnswer {
+  text: string;
+  morale: number; // effet sur le moral de vos pilotes
+  confidence: number; // effet sur la confiance des actionnaires
+  reputation: number;
+  rivalry?: number; // effet sur la rivalité citée
+}
+
+export interface PressConference {
+  season: number;
+  round: number;
+  question: string;
+  answers: PressAnswer[];
+  rivalKey?: string;
+  answered?: number;
+}
+
+/** Question posée au directeur après le Grand Prix, selon ce qui s'est passé. */
+export function makeConference(c: Career, res: RoundResult): PressConference {
+  const mine = res.entries.filter((e) => e.teamId === c.playerTeamId);
+  const best = mine.reduce((a, e) => (e.status === 'arrivé' && e.position < a ? e.position : a), 99);
+  const base = { season: c.season, round: res.round + 1 };
+  let rivalKey: string | undefined;
+  let rivalLevel = 0;
+  for (const d of mine) {
+    const r = mainRival(c, d.driverId);
+    if (r && r.level >= 45 && r.level > rivalLevel) { rivalKey = d.driverId + '|' + r.id; rivalLevel = r.level; }
+  }
+  if (rivalKey) {
+    const [me, other] = rivalKey.split('|');
+    return {
+      ...base, rivalKey,
+      question: `La tension monte entre ${driverById(c, me).last} et ${driverById(c, other).last}. Quelle est votre position ?`,
+      answers: [
+        { text: 'Mon pilote a eu raison de ne rien lâcher.', morale: 5, confidence: 0, reputation: -1, rivalry: 15 },
+        { text: 'J’appelle tout le monde au calme.', morale: -2, confidence: 2, reputation: 1, rivalry: -30 },
+        { text: 'Pas de commentaire.', morale: 0, confidence: 0, reputation: 0 },
+      ],
+    };
+  }
+  if (mine.length && mine.every((e) => e.status === 'abandon')) {
+    return {
+      ...base,
+      question: 'Double abandon : votre écurie a-t-elle un problème de fiabilité ?',
+      answers: [
+        { text: 'Nous allons investir massivement dans l’usine.', morale: 1, confidence: 3, reputation: 0 },
+        { text: 'C’est la course, ça arrive.', morale: 2, confidence: -1, reputation: 0 },
+        { text: 'Nos fournisseurs doivent rendre des comptes.', morale: 0, confidence: 1, reputation: -2 },
+      ],
+    };
+  }
+  if (best <= 3) {
+    return {
+      ...base,
+      question: 'Superbe résultat ! Peut-on désormais parler de titre ?',
+      answers: [
+        { text: 'Le titre, rien de moins !', morale: -2, confidence: 4, reputation: 2 },
+        { text: 'On reste humbles, course après course.', morale: 3, confidence: 1, reputation: 0 },
+        { text: 'Tout le mérite revient aux mécaniciens.', morale: 4, confidence: 0, reputation: 1 },
+      ],
+    };
+  }
+  if (best > 10) {
+    return {
+      ...base,
+      question: 'Encore aucun point. Les actionnaires s’impatientent : votre poste est-il menacé ?',
+      answers: [
+        { text: 'J’assume, c’est ma responsabilité.', morale: 2, confidence: 2, reputation: 0 },
+        { text: 'Les pilotes doivent faire beaucoup mieux.', morale: -6, confidence: 3, reputation: -1 },
+        { text: 'La voiture va progresser, patience.', morale: 3, confidence: -2, reputation: 0 },
+      ],
+    };
+  }
+  return {
+    ...base,
+    question: 'Des points aujourd’hui. Êtes-vous satisfait ?',
+    answers: [
+      { text: 'Oui, l’équipe progresse.', morale: 3, confidence: 1, reputation: 0 },
+      { text: 'Non, nous visons beaucoup plus haut.', morale: -2, confidence: 3, reputation: 1 },
+      { text: 'Bravo à nos pilotes, ils ont été parfaits.', morale: 4, confidence: 0, reputation: 0 },
+    ],
+  };
+}
+
+export function answerConference(c: Career, idx: number): string | null {
+  const pc = c.conference;
+  if (!pc || pc.answered !== undefined) return 'Aucune question en attente.';
+  const a = pc.answers[idx];
+  if (!a) return 'Réponse inconnue.';
+  pc.answered = idx;
+  for (const d of c.drivers.filter((x) => x.teamId === c.playerTeamId)) d.morale = Math.max(5, Math.min(100, moraleOf(d) + a.morale));
+  const dir = director(c);
+  dir.confidence = Math.max(0, Math.min(100, dir.confidence + a.confidence));
+  const t = playerTeam(c);
+  t.reputation = Math.max(0, Math.min(100, t.reputation + a.reputation));
+  if (pc.rivalKey && a.rivalry) {
+    const riv = (c.rivalries ??= {});
+    riv[pc.rivalKey] = Math.max(0, Math.min(100, (riv[pc.rivalKey] ?? 0) + a.rivalry));
+  }
+  const art = c.press?.[0];
+  if (art && art.season === pc.season && art.round === pc.round) art.director = a.text;
+  return null;
 }

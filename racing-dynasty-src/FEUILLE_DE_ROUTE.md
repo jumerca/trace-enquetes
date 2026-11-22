@@ -1,6 +1,6 @@
 # Racing Dynasty — Feuille de route
 
-État au 22/11/2026 : V0.4 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
+État au 22/11/2026 : V0.8 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
 Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 
 ## 0. À vérifier sur le téléphone du joueur (bloquant)
@@ -27,7 +27,7 @@ Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 ### Constats restants après la V0.3
 - [ ] Deux arrêts restent rarement rentables sur 6 à 12 tours (réaliste pour des courses courtes).
 - [ ] Valbrune et Kharam : ~35-45 dépassements en 12 tours, peut-être encore un peu élevé.
-- [ ] Drapeaux jaunes locaux (sans voiture de sécurité) non simulés.
+- [x] Drapeaux jaunes locaux (fait en V0.6).
 
 ## 3. Rendu et ambiance — fait en V0.4
 - [x] Phase de tour de formation et voitures qui se placent sur la grille.
@@ -54,13 +54,14 @@ Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 - [x] Économie rééquilibrée pour 8 GP (simulation de 2 saisons par difficulté et profil de budget).
 - [x] Vue cockpit pseudo-3D.
 - [ ] À affiner avec une vraie saison jouée par vous : niveau de sévérité des actionnaires, prix des installations.
-- [ ] Idées suivantes : négociation de contrat du directeur (salaire, bonus), conférences de presse à choix
-      multiples, offres de constructeurs moteur, vue hélicoptère.
+- [x] Négociation du contrat du directeur (salaire, prime), conférences de presse à choix multiples (V0.8).
+- [x] Vues hélicoptère et bord de piste (V0.8).
+- [ ] Idée suivante : offres de motoristes (moteur client ou partenariat d'usine).
 
 ## 5. Technique
-- [ ] Synchronisation optionnelle des sauvegardes entre appareils (export/import en un geste via un fichier partagé).
-- [ ] Tests E2E dans la CI GitHub (Playwright) à chaque pull request.
-- [ ] Séparer le bundle (React / PixiJS) pour accélérer le premier chargement mobile.
+- [x] Partage de la sauvegarde en un geste (bouton « Partager ») puis import sur l'autre appareil (V0.8).
+- [x] Tests (typecheck, unitaires, build, E2E Android) dans la CI GitHub à chaque pull request (V0.8).
+- [x] Bundle séparé : PixiJS chargé seulement pour la course (V0.8).
 - [ ] Traduction anglaise.
 - [ ] Préparer les autres disciplines automobiles (endurance, rallye) : le moteur « tracé + décalage latéral » est
       réutilisable ; à isoler en module générique.

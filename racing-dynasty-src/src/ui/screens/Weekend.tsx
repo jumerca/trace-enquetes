@@ -1,5 +1,5 @@
-import { ArticleCard } from './HubCareer';
-import { useEffect, useState } from 'react';
+import { ArticleCard, ConferenceCard } from './HubCareer';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { GameApi } from '../App';
 import {
   closeWeekend, driverById, expectedWearPerLap, playerTeam, practiceRun, raceLaps, runQualifying, setSetup, setStrategy,
@@ -10,7 +10,8 @@ import { fmtLap } from '../../engine/race';
 import { COMPOUNDS } from '../../engine/physics';
 import type { CarSetup, Compound } from '../../engine/types';
 import { TyreChip, Weather, money } from '../common';
-import { RaceView } from './RaceView';
+// La course (PixiJS, rendu) est chargée à la demande : les menus s'ouvrent plus vite sur mobile.
+const RaceView = lazy(() => import('./RaceView').then((m) => ({ default: m.RaceView })));
 import { PracticeChart, QualiSession } from '../Visuals';
 import { teamStandings } from '../../game/career';
 
@@ -25,7 +26,7 @@ export function WeekendScreen({ api }: { api: GameApi }) {
   if (!w) return null;
   const tr = getTrack(w.trackId).def;
   const phaseIdx = PHASES.findIndex(([p]) => p === w.phase);
-  if (w.phase === 'course') return <RaceView api={api} />;
+  if (w.phase === 'course') return <Suspense fallback={<div className="page loading"><p>Chargement de la course…</p></div>}><RaceView api={api} /></Suspense>;
   return (
     <div className="page weekend">
       <header className="pagehead">
@@ -311,6 +312,7 @@ function Results({ api }: { api: GameApi }) {
         <p>Budget : <b>{money(c.budget)}</b> · Réputation : <b>{team.reputation}</b> · Confiance des actionnaires : <b>{c.director?.confidence ?? '—'}/100</b></p>
         <button className="btn primary big" onClick={() => { api.act((cc) => closeWeekend(cc)); api.go('hub'); }}>Retour au QG →</button>
       </section>
+      {c.conference && c.conference.round === res.round + 1 && c.conference.season === c.season && <ConferenceCard api={api} />}
       {c.press?.[0] && c.press[0].round === res.round + 1 && c.press[0].season === c.season && (
         <section className="panel"><ArticleCard c={c} a={c.press[0]} /></section>
       )}

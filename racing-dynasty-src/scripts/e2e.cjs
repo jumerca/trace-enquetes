@@ -108,6 +108,13 @@ const log = (...a) => console.log('•', ...a);
     await p.waitForTimeout(2500);
     await shot('08b2-cockpit');
     if (!(await p.locator('.cockpit-canvas').isVisible())) errors.push('vue cockpit non affichée');
+    await p.locator('.sim-controls button', { hasText: 'Bord' }).click();
+    await p.waitForTimeout(2500);
+    await shot('08b3-bord-de-piste');
+    await p.locator('.sim-controls button', { hasText: 'Hélico' }).click();
+    await p.waitForTimeout(2000);
+    await shot('08b4-helico');
+    if (await p.locator('.cockpit-canvas').isVisible()) errors.push('vue pseudo-3D restée affichée en vue hélico');
     // Voiture de sécurité + averse forcées (accès de test) pour contrôler le rendu et l'interface.
     await p.evaluate(() => {
       const sim = window.__raceSim;
@@ -141,6 +148,11 @@ const log = (...a) => console.log('•', ...a);
     await p.getByText('Voir les résultats').click();
     await p.waitForSelector('text=Bilan de');
     await shot('11-resultats');
+    if (!(await p.locator('.conference').count())) errors.push('conférence de presse absente');
+    else {
+      await p.locator('.conference .answers button').first().click();
+      log(name, 'conférence de presse : réponse donnée —', (await p.locator('.conference .answers button.primary small').textContent()).trim());
+    }
     if (!(await p.locator('.gazette').count())) errors.push('article de presse absent des résultats');
     else log(name, 'article de presse :', (await p.locator('.gazette h3').first().textContent()).trim());
     const myRows = await p.locator('.table tr.me').allTextContents();

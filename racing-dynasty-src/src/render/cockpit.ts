@@ -2,7 +2,7 @@
 // Lecture seule de l'état du moteur, comme le rendu 2,5D : la piste réelle (tracé, largeur, stands) est projetée
 // devant le pilote, les autres monoplaces sont dessinées de dos à leur vraie position.
 import type { RaceSim, SimCar } from '../engine/race';
-import { locate, worldPos, type Track } from '../engine/track';
+import { forwardDist, locate, worldPos, type Track } from '../engine/track';
 
 const CAM_H = 0.95; // hauteur de l'œil (m)
 const NEAR = 1.2;
@@ -42,6 +42,10 @@ export class CockpitView {
   private wheelAngle = 0;
   private drops: { x: number; y: number; r: number; life: number }[] = [];
   private tread = 0;
+  private camS: number | null = null;
+  private camSide = 1;
+  private camCar = '';
+  camNo = 1;
 
   constructor(private canvas: HTMLCanvasElement, private sim: RaceSim, private low: boolean) {
     this.ctx = canvas.getContext('2d')!;
@@ -68,37 +72,72 @@ export class CockpitView {
     this.dpr = dpr;
   }
 
-  /** Dessine une image de la vue cockpit pour la voiture `carId`. `alpha` : interpolation entre deux pas. */
-  draw(carId: string | null, alpha: number, dtMs: number): void {
+  /**
+   * Dessine une image pour la voiture `carId` : vue du baquet (`cockpit`) ou caméra de télévision au bord de la piste
+   * (`bord`), placée devant la voiture et qui la suit au téléobjectif. `alpha` : interpolation entre deux pas.
+   */
+  draw(carId: string | null, alpha: number, dtMs: number, mode: 'cockpit' | 'bord' = 'cockpit'): void {
     this.resize();
     const { ctx, w, h, track: t, sim } = this;
     const car = (carId && sim.car(carId)) || sim.cars.find((c) => c.e.isPlayer) || sim.cars[0];
     const s = car.prevS + (car.s - car.prevS) * alpha;
     const lat = car.prevLat + (car.lat - car.prevLat) * alpha;
     worldPos(t, s, lat, this.tmp);
-    const px = this.tmp.x, py = this.tmp.y;
-    // cap de la caméra : tangente lissée un peu devant (le pilote regarde vers la sortie du virage)
+    const carX = this.tmp.x, carY = this.tmp.y;
+    let px = carX, py = carY;
     const { i } = locate(t, s);
-    const look = (i + 3) % t.n;
-    let hd = Math.atan2(t.y[look] - py, t.x[look] - px);
-    if (car.errKind === 3) hd += Math.sin(sim.t * 9) * 0.8; // tête-à-queue
+    const pitSide = t.def.pitSide;
+    const pitLane = (kk: number) => {
+      const ss = kk * t.ds;
+      return ss >= t.pitEntry || ss <= t.pitExit;
+    };
+    const bord = mode === 'bord';
+    let hd: number;
+    let zoom = 1;
+    let camH = CAM_H;
+    if (bord) {
+      const L = t.length;
+      const ahead = this.camS === null ? 0 : forwardDist(t, s, this.camS);
+      const behind = this.camS === null ? 0 : forwardDist(t, this.camS, s);
+      if (this.camS === null || this.camCar !== car.id || (behind > 35 && behind < L * 0.5) || ahead > 260) {
+        this.camS = (s + 150) % L;
+        this.camCar = car.id;
+        this.camSide = -this.camSide;
+        const ck = locate(t, this.camS).i;
+        if (pitLane(ck) && this.camSide === pitSide) this.camSide = -pitSide;
+        this.heading = NaN;
+        this.camNo = (this.camNo % 9) + 1;
+      }
+      worldPos(t, this.camS, this.camSide * (t.half + 9), this.tmp);
+      px = this.tmp.x;
+      py = this.tmp.y;
+      hd = Math.atan2(carY - py, carX - px);
+      const dist = Math.hypot(carX - px, carY - py);
+      zoom = Math.max(1.2, Math.min(12, dist / 10)); // téléobjectif : la voiture garde une taille lisible
+      camH = 2.4;
+    } else {
+      // cap de la caméra : tangente lissée un peu devant (le pilote regarde vers la sortie du virage)
+      const look = (i + 3) % t.n;
+      hd = Math.atan2(t.y[look] - py, t.x[look] - px);
+      if (car.errKind === 3) hd += Math.sin(sim.t * 9) * 0.8; // tête-à-queue
+    }
     if (!Number.isFinite(this.heading)) this.heading = hd;
     let dh = hd - this.heading;
     while (dh > Math.PI) dh -= 2 * Math.PI;
     while (dh < -Math.PI) dh += 2 * Math.PI;
-    this.heading += dh * Math.min(1, dtMs / 70);
+    this.heading += dh * Math.min(1, dtMs / (bord ? 45 : 70));
     const fx = Math.cos(this.heading), fy = Math.sin(this.heading);
     const rx = -fy, ry = fx; // vecteur droit (repère y vers le bas)
-    const F = Math.max(w * 0.62, h * 0.5); // en portrait, champ de vision resserré pour garder une piste lisible
+    const F = Math.max(w * 0.62, h * 0.5) * zoom; // en portrait, champ de vision resserré pour garder une piste lisible
     const v = car.v;
-    const shake = (this.low ? 0 : 1) * (Math.sin(sim.t * 47) * 0.6 + Math.sin(sim.t * 31) * 0.4) * Math.min(1, v / 60) * this.dpr * 1.6;
-    const horizon = h * (h > w ? 0.36 : 0.4) + shake;
+    const shake = (this.low || bord ? 0 : 1) * (Math.sin(sim.t * 47) * 0.6 + Math.sin(sim.t * 31) * 0.4) * Math.min(1, v / 60) * this.dpr * 1.6;
+    const horizon = h * (bord ? 0.42 : h > w ? 0.36 : 0.4) + shake;
     const cx = w / 2;
     const proj = (wx: number, wy: number, height = 0): Pt => {
       const dx = wx - px, dy = wy - py;
       const z = dx * fx + dy * fy;
       const x = dx * rx + dy * ry;
-      return { x: cx + (x * F) / Math.max(z, 0.01), y: horizon + ((CAM_H - height) * F) / Math.max(z, 0.01), z };
+      return { x: cx + (x * F) / Math.max(z, 0.01), y: horizon + ((camH - height) * F) / Math.max(z, 0.01), z };
     };
 
     // ---- ciel et horizon
@@ -146,20 +185,27 @@ export class CockpitView {
     // ---- échantillons de piste devant la voiture
     const pts: { k: number; d: number }[] = [];
     let d = 0;
-    let k = i;
-    while (d < FAR) {
-      pts.push({ k, d });
-      const step = d < 50 ? 1 : d < 140 ? 2 : 4;
-      k = (k + step) % t.n;
-      d += step * t.ds;
+    if (bord) {
+      // de 200 m avant la caméra à 130 m après : la voiture arrive, passe, s'éloigne
+      let k = locate(t, (this.camS! - 200 + t.length) % t.length).i;
+      while (d < 330) {
+        pts.push({ k, d });
+        const step = Math.abs(d - 200) < 70 ? 1 : 2;
+        k = (k + step) % t.n;
+        d += step * t.ds;
+      }
+    } else {
+      let k = i;
+      while (d < FAR) {
+        pts.push({ k, d });
+        const step = d < 50 ? 1 : d < 140 ? 2 : 4;
+        k = (k + step) % t.n;
+        d += step * t.ds;
+      }
     }
-    const pitSide = t.def.pitSide;
-    const pitLane = (kk: number) => {
-      const ss = kk * t.ds;
-      return ss >= t.pitEntry || ss <= t.pitExit;
-    };
     const edge = (kk: number, l: number, height = 0) => proj(t.x[kk] + t.nx[kk] * l, t.y[kk] + t.ny[kk] * l, height);
     const quad = (a: Pt, b: Pt, c2: Pt, d2: Pt) => {
+      if (a.z < NEAR || b.z < NEAR || c2.z < NEAR || d2.z < NEAR) return; // derrière la caméra
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -171,17 +217,26 @@ export class CockpitView {
     const half = t.half;
     // visible = jusqu'au premier point qui repasse derrière la caméra (épingle)
     let last = pts.length - 1;
-    for (let n = 1; n < pts.length; n++) {
-      const kk = pts[n].k;
-      const zc = (t.x[kk] - px) * fx + (t.y[kk] - py) * fy;
-      if (zc < NEAR && pts[n].d > 8) { last = n - 1; break; }
+    if (!bord) {
+      for (let n = 1; n < pts.length; n++) {
+        const kk = pts[n].k;
+        const zc = (t.x[kk] - px) * fx + (t.y[kk] - py) * fy;
+        if (zc < NEAR && pts[n].d > 8) { last = n - 1; break; }
+      }
     }
-    // du plus loin au plus proche
-    for (let n = last; n > 0; n--) {
+    // tronçons triés du plus loin au plus proche (algorithme du peintre)
+    const segs: { n: number; z: number }[] = [];
+    for (let n = 1; n <= last; n++) {
+      const kk = pts[n].k;
+      const z = (t.x[kk] - px) * fx + (t.y[kk] - py) * fy;
+      if (z > -30) segs.push({ n, z });
+    }
+    segs.sort((a, b) => b.z - a.z);
+    for (const sg of segs) {
+      const n = sg.n;
       const k0 = pts[n - 1].k, k1 = pts[n].k;
       const a0 = edge(k0, half + 14), a1 = edge(k1, half + 14);
       const b0 = edge(k0, -half - 14), b1 = edge(k1, -half - 14);
-      if (a0.z < NEAR * 0.5 && b0.z < NEAR * 0.5) continue;
       const band = Math.floor((k1 * t.ds) / 12) % 2 === 0;
       // bandes d'herbe tondue (sensation de vitesse)
       ctx.fillStyle = band ? this.sky.grass : this.sky.grass2;
@@ -218,9 +273,9 @@ export class CockpitView {
         quad(edge(k0, lo + 1.1), edge(k1, lo + 1.1), edge(k1, lo - 1.1), edge(k0, lo - 1.1));
       }
       // encrage BD des bords de piste
-      if (pts[n].d < 160) {
+      if (sg.z < 160 && sg.z > NEAR + 2) {
         ctx.strokeStyle = 'rgba(22,19,15,0.75)';
-        ctx.lineWidth = Math.max(1, (1.6 * this.dpr * 30) / Math.max(30, pts[n].d));
+        ctx.lineWidth = Math.max(1, (1.6 * this.dpr * 30 * zoom) / Math.max(30, sg.z));
         const e0 = edge(k0, half + kerbW), e1 = edge(k1, half + kerbW);
         const f0 = edge(k0, -half - kerbW), f1 = edge(k1, -half - kerbW);
         ctx.beginPath();
@@ -237,19 +292,19 @@ export class CockpitView {
     const bills: Bill[] = [];
     for (let n = last; n > 0; n -= this.low ? 4 : 2) {
       const kk = pts[n].k;
-      if (pts[n].d > 220) continue;
       const hsh = hash(kk);
       if (hsh > 0.5) continue;
       const side = hash(kk + 7) > 0.5 ? 1 : -1;
       if (pitLane(kk) && side === pitSide) {
         // garages et panneaux sur le muret des stands
         const p = edge(kk, t.pitLat + pitSide * 7, 0);
-        if (p.z > NEAR) bills.push({ z: p.z, draw: () => this.box(p, F, 6, 4.5, '#e9e4d8', '#16130f') });
+        if (p.z > NEAR + (bord ? 30 : 0) && !(bord && F / p.z > w * 0.05)) bills.push({ z: p.z, draw: () => this.box(p, F, 6, 4.5, '#e9e4d8', '#16130f') });
         continue;
       }
       const l = side * (half + 6 + hash(kk + 3) * 16);
       const p = edge(kk, l);
-      if (p.z < NEAR) continue;
+      if (p.z < NEAR + (bord ? 30 : 0) || p.z > 220 * zoom) continue;
+      if (bord && F / p.z > w * 0.05) continue; // au téléobjectif, un décor trop proche masquerait l'action
       const kind = hash(kk + 11);
       if (kind < 0.18) bills.push({ z: p.z, draw: () => this.banner(p, F, kk) });
       else bills.push({ z: p.z, draw: () => this.tree(p, F, kk) });
@@ -259,12 +314,18 @@ export class CockpitView {
       const cl = c.prevLat + (c.lat - c.prevLat) * alpha;
       worldPos(t, cs, cl, this.tmp);
       const p = proj(this.tmp.x, this.tmp.y);
-      if (p.z < 2.2 || p.z > 240) return;
+      if (p.z < 2.2 || p.z > 240 * zoom) return;
       if (p.x < -w * 0.5 || p.x > w * 1.5) return;
-      bills.push({ z: p.z, draw: () => this.carRear(p, F, color, color2, num, key, isSc, sim.wet) });
+      // orientation de la voiture par rapport au regard : de dos, de face ou de profil
+      const ci = locate(t, cs).i;
+      const rel = t.heading[ci] - Math.atan2(this.tmp.y - py, this.tmp.x - px);
+      const cr = Math.cos(rel);
+      const view: 'dos' | 'face' | 'profil' = isSc || cr > 0.45 ? 'dos' : cr < -0.45 ? 'face' : 'profil';
+      const dir = Math.sin(rel) > 0 ? 1 : -1;
+      bills.push({ z: p.z, draw: () => (view === 'dos' ? this.carRear(p, F, color, color2, num, key, isSc, sim.wet) : this.carOther(p, F, color, color2, num, view, dir, sim.wet)) });
     };
     for (const c of sim.cars) {
-      if (c === car || c.status === 'dnf') continue;
+      if ((c === car && !bord) || c.status === 'dnf') continue;
       drawCar(c, c.e.color, c.e.color2, String(c.e.number), c.e.teamId);
     }
     if (sim.sc) drawCar(sim.sc, '#f2c14e', '#16130f', 'SC', 'sc', true);
@@ -286,6 +347,16 @@ export class CockpitView {
       lg.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = lg;
       ctx.fillRect(0, horizon, w, h - horizon);
+    }
+
+    if (bord) {
+      // habillage télévision : vignettage léger + bandeau de caméra
+      const vg = ctx.createRadialGradient(cx, h / 2, Math.min(w, h) * 0.5, cx, h / 2, Math.max(w, h) * 0.8);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, w, h);
+      return;
     }
 
     // ---- traits de vitesse BD
@@ -499,6 +570,117 @@ export class CockpitView {
     g.fillText(num, W / 2, 62);
     this.rearCache.set(id, cv);
     return cv;
+  }
+
+  /** Monoplace vue de face ou de profil (caméra de bord de piste). */
+  private carOther(p: Pt, F: number, color: string, color2: string, num: string, view: 'face' | 'profil', dir: number, wet: number): void {
+    const { ctx } = this;
+    const lw = Math.max(1, (0.06 * F) / p.z);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#16130f';
+    ctx.lineWidth = lw;
+    if (wet > 0.3) {
+      ctx.fillStyle = `rgba(210,220,230,${Math.min(0.5, wet * 0.45)})`;
+      ctx.beginPath();
+      ctx.ellipse(p.x - dir * (view === 'profil' ? (3 * F) / p.z : 0), p.y - (0.4 * F) / p.z, (2 * F) / p.z, (0.8 * F) / p.z, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const u = F / p.z; // pixels par mètre
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, (view === 'profil' ? 2.7 : 1.1) * u, 0.15 * u, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (view === 'face') {
+      // pneus avant, aileron avant large, nez, halo et casque
+      ctx.fillStyle = '#1d1d22';
+      ctx.beginPath();
+      ctx.roundRect(p.x - 1.0 * u, p.y - 0.66 * u, 0.36 * u, 0.66 * u, 0.08 * u);
+      ctx.roundRect(p.x + 0.64 * u, p.y - 0.66 * u, 0.36 * u, 0.66 * u, 0.08 * u);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 0.35 * u, p.y - 0.25 * u);
+      ctx.lineTo(p.x - 0.2 * u, p.y - 0.85 * u);
+      ctx.lineTo(p.x + 0.2 * u, p.y - 0.85 * u);
+      ctx.lineTo(p.x + 0.35 * u, p.y - 0.25 * u);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd400';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - 0.95 * u, 0.13 * u, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = '#1b1c22';
+      ctx.lineWidth = Math.max(1, 0.07 * u);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - 0.95 * u, 0.24 * u, Math.PI, 0);
+      ctx.stroke();
+      ctx.fillStyle = color2;
+      ctx.strokeStyle = '#16130f';
+      ctx.lineWidth = lw;
+      ctx.fillRect(p.x - 0.95 * u, p.y - 0.2 * u, 1.9 * u, 0.14 * u);
+      ctx.strokeRect(p.x - 0.95 * u, p.y - 0.2 * u, 1.9 * u, 0.14 * u);
+      if (u > 18) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.round(0.28 * u)}px Bangers, Impact, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(num, p.x, p.y - 0.5 * u);
+      }
+      return;
+    }
+    // profil : la voiture file vers la droite (dir = 1) ou la gauche (dir = -1)
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(dir, 1);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-2.4 * u, -0.25 * u);
+    ctx.lineTo(-2.2 * u, -0.75 * u);
+    ctx.lineTo(-0.9 * u, -0.85 * u);
+    ctx.lineTo(-0.3 * u, -1.0 * u);
+    ctx.lineTo(0.2 * u, -0.7 * u);
+    ctx.lineTo(2.5 * u, -0.35 * u);
+    ctx.lineTo(2.55 * u, -0.2 * u);
+    ctx.lineTo(-2.4 * u, -0.2 * u);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // casque et halo
+    ctx.fillStyle = '#ffd400';
+    ctx.beginPath();
+    ctx.arc(-0.45 * u, -0.95 * u, 0.13 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // aileron arrière et avant
+    ctx.fillStyle = color2;
+    ctx.fillRect(-2.6 * u, -1.0 * u, 0.5 * u, 0.18 * u);
+    ctx.strokeRect(-2.6 * u, -1.0 * u, 0.5 * u, 0.18 * u);
+    ctx.fillRect(2.2 * u, -0.22 * u, 0.55 * u, 0.1 * u);
+    // roues
+    ctx.fillStyle = '#1d1d22';
+    for (const wx of [-1.75, 1.6]) {
+      ctx.beginPath();
+      ctx.arc(wx * u, -0.33 * u, 0.33 * u, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#8a8d94';
+      ctx.beginPath();
+      ctx.arc(wx * u, -0.33 * u, 0.13 * u, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1d1d22';
+    }
+    if (u > 14) {
+      ctx.scale(dir, 1); // numéro lisible quel que soit le sens
+      ctx.fillStyle = '#fff';
+      ctx.font = `${Math.round(0.34 * u)}px Bangers, Impact, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(num, dir * 0.6 * u, -0.5 * u);
+    }
+    ctx.restore();
   }
 
   private carRear(p: Pt, F: number, color: string, color2: string, num: string, key: string, isSc: boolean, wet: number): void {
