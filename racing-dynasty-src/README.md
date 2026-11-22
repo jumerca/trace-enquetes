@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.4 (JLG Creative)
+# Racing Dynasty — V0.5 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -14,6 +14,19 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libres et jeunes espoirs, 8 circuits originaux
 (Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.5 — refonte graphique
+* Atelier de peinture procédurale (`src/render/art.ts`, Canvas 2D) : tous les éléments sont peints une fois au
+  chargement (dégradés, encrage BD, reflets) puis affichés en sprites — plus beau et moins coûteux pour le GPU.
+* Monoplaces détaillées : pneus, suspensions, pontons sculptés, capot, airbox, halo, rétroviseurs, ailerons
+  multi-éléments, numéro, sponsor ; flanc visible (épaisseur 2,5D) et ombre douce.
+* Piste : grain d'asphalte, gomme sur la trajectoire, ombrage des bords, vibreurs en relief, bacs à gravier à
+  l'extérieur des virages, grillages, murs de pneus colorés, postes de commissaires, spectateurs.
+* Décor : sols peints (herbe tondue, sable ridé, dalles, alpage), arbres / sapins / palmiers / cactus / rochers
+  ombrés, immeubles (fenêtres éclairées la nuit), mer et lac animés, yachts, garages et tribune peints.
+* Ambiance : ombres de nuages qui dérivent, vignettage, traits de vitesse façon BD, caméra plus proche.
+* Interface de course compacte (le rendu occupe l'essentiel de l'écran) ; accueil illustré avec monoplaces
+  animées ; aperçu de livrée peint à la création d'écurie.
 
 ### Nouveautés V0.4
 * Ambiance : tour de formation (bouton « Passer »), ralenti des dépassements / contacts / sorties (🎬 dans le fil),

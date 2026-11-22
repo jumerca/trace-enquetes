@@ -3,7 +3,8 @@ import {
   BUDGET_INFO, DIFFICULTY_INFO, RACE_LAPS, createCareer, type BudgetProfile, type Career, type Difficulty, type RaceLength,
 } from '../../game/career';
 import type { Emblem } from '../../game/data';
-import { CarLivery, EmblemIcon, money } from '../common';
+import { EmblemIcon, money } from '../common';
+import { PaintedCar } from '../PaintedCar';
 import { store } from '../App';
 
 const PALETTE = ['#d62828', '#ff7a00', '#ffd400', '#06d6a0', '#1f9e89', '#3a86ff', '#1d3557', '#7b2cbf', '#ff5d8f', '#f4f1ea', '#8a8f99', '#232323'];
@@ -60,7 +61,7 @@ export function NewCareer({ onCancel, onCreate }: { onCancel: () => void; onCrea
           </section>
           <section className="panel">
             <h2>Livrée</h2>
-            <div className="livery-preview"><CarLivery color={color} color2={color2} width={300} /></div>
+            <div className="livery-preview"><PaintedCar livery={{ color, color2, number: 7, short }} width={320} /></div>
             <h3>Couleur principale</h3>
             <div className="choices swatches">
               {PALETTE.map((p) => <button key={p} className={'swatch' + (p === color ? ' on' : '')} style={{ background: p }} onClick={() => setColor(p)} aria-label={p} />)}
@@ -121,7 +122,7 @@ export function NewCareer({ onCancel, onCreate }: { onCancel: () => void; onCrea
                 <p>{(short || name.slice(0, 3)).toUpperCase()} · {base || 'Atelier sans nom'} · {principal || 'Directeur'}</p>
               </div>
             </div>
-            <CarLivery color={color} color2={color2} width={280} />
+            <div className="livery-preview"><PaintedCar livery={{ color, color2, number: 7 }} width={300} /></div>
             <ul className="facts">
               <li>Difficulté : <b>{DIFFICULTY_INFO[difficulty].label}</b></li>
               <li>Budget : <b>{money(BUDGET_INFO[budget].amount * DIFFICULTY_INFO[difficulty].budget)}</b></li>

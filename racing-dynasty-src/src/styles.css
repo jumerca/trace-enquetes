@@ -385,3 +385,49 @@ label.check { flex-direction: row; align-items: center; font-weight: 500; }
 .records { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 14px; }
 .records h2 { grid-column: 1 / -1; }
 .record ol { margin: 0; padding-left: 20px; }
+
+/* V0.5 : interface de course compacte partout, pour laisser la place au rendu */
+@media (min-width: 521px) {
+  .race-bottom { background: linear-gradient(transparent, rgba(22, 19, 15, 0.55) 45%); }
+  .driver-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+  .dc { flex-direction: row; align-items: center; gap: 8px; padding: 4px 8px; border-width: 2px; background: rgba(255, 253, 247, 0.92); }
+  .dc header { flex: 0 0 auto; }
+  .dc header b { font-size: 1.1rem; }
+  .dc header small, .dc .fullname, .pitsel > span { display: none; }
+  .dc .shortname { display: inline; font-weight: 700; }
+  .dc .wear { flex: 1 1 60px; min-width: 50px; grid-template-columns: auto minmax(0, 1fr) auto; }
+  .dc .row { flex-wrap: nowrap; gap: 6px; }
+  .dc .seg > button { padding: 3px 8px; min-height: 32px; font-size: 0.85rem; }
+  .team-orders { grid-column: auto; flex-wrap: nowrap; padding: 3px 6px; border-width: 2px; background: rgba(255, 253, 247, 0.92); }
+  .team-orders > span { display: none; }
+  .team-orders .seg { flex-direction: column; }
+  .team-orders .seg > button + button { border-left: none; border-top: 2px solid var(--ink); }
+  .team-orders .seg > button { min-height: 0; padding: 1px 8px; font-size: 0.72rem; }
+  .race-standings { background: rgba(255, 253, 247, 0.88); }
+  .radio-bubble { position: absolute; transform: translateY(-120%); max-width: 40vw; }
+  .dc { position: relative; }
+}
+
+/* Accueil : bande de piste illustrée et monoplaces peintes */
+.home { isolation: isolate; }
+.home-track { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.home-lane { position: absolute; left: -20%; right: -20%; bottom: 4%; height: 300px; transform: rotate(-10deg); transform-origin: center; }
+.home-road { position: absolute; inset: 40px 0; background:
+  repeating-linear-gradient(90deg, #d62828 0 40px, #f4f1ea 40px 80px) top / 100% 10px no-repeat,
+  repeating-linear-gradient(90deg, #d62828 0 40px, #f4f1ea 40px 80px) bottom / 100% 10px no-repeat,
+  linear-gradient(#4c4e55, #3c3e44); border-top: 5px solid #16130f; border-bottom: 5px solid #16130f; box-shadow: 0 30px 60px rgba(0,0,0,0.45); }
+.home-road::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 4px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.7) 0 50px, transparent 50px 110px); }
+.home-car { position: absolute; left: 0; filter: drop-shadow(0 6px 0 rgba(0,0,0,0.25)); animation: homecar 8s linear infinite; }
+.home-car.c1 { top: 70px; }
+.home-car.c2 { top: 20px; animation-delay: -2.7s; animation-duration: 9s; }
+.home-car.c3 { top: 120px; animation-delay: -5.5s; animation-duration: 10s; }
+@keyframes homecar { from { transform: translateX(-30vw); } to { transform: translateX(150vw); } }
+@media (prefers-reduced-motion: reduce) { .home-car { animation: none; transform: translateX(30vw); } }
+.livery-preview canvas { max-width: 100%; height: auto !important; }
+@media (max-height: 520px) and (orientation: landscape) {
+  .dc { gap: 5px; padding: 3px 6px; }
+  .dc .wear { grid-template-columns: minmax(0, 1fr); min-width: 30px; }
+  .dc .wear small, .dc .wear .tyre { display: none; }
+  .dc .seg > button { padding: 2px 6px; min-height: 30px; font-size: 0.8rem; }
+  .dc .pitsel > button { padding: 1px 2px !important; }
+}
