@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.2 (JLG Creative)
+# Racing Dynasty — V0.3 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -14,6 +14,19 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires + 10 agents libres, 5 circuits originaux
 (Port-Azur urbain, Lac d'Argent, Valbrune rapide, Montclair en montagne, Kharam désertique),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.3
+* Équilibrage : plus de dépassements (zones élargies, aspiration plus forte, pneus usés plus pénalisants),
+  départs animés (qualité d'envol, premier tour plus agressif), règle des deux gommes sèches (20 s de pénalité),
+  effet des réglages ramené à 0,2–0,6 % du temps au tour (contre 2,5–3 % d'écart entre voitures).
+* Voiture de sécurité après un accident (ou une voiture arrêtée) : peloton regroupé, dépassements interdits,
+  arrêts aux stands « gratuits », reprise au passage de la ligne.
+* Météo évolutive : averses et séchage pendant la course, humidité de piste progressive, choix du bon moment pour
+  passer en pneus pluie ou revenir aux slicks ; prévision approximative affichée pendant le week-end.
+* Contacts lors des attaques ratées : aileron endommagé, crevaison, enquête et pénalité de 5 s.
+* Consignes d'équipe : libre / tenir les positions / inverser.
+* Radio de l'ingénieur : pneus, météo, voiture de sécurité, dégâts, pénalités, écarts avec les rivaux.
+* Reprise instantanée d'une course sauvegardée (instantané complet de l'état, compatible avec les anciennes parties).
 
 ### Nouveautés V0.2
 * Départ arrêté avec feux rouges (portique au-dessus de la ligne + panneau à l'écran, bips sonores).

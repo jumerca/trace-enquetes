@@ -39,6 +39,9 @@ export class Rng {
   get state(): number {
     return this.s;
   }
+  set state(v: number) {
+    this.s = v >>> 0;
+  }
 }
 
 /** Hash de chaîne → graine 32 bits (FNV-1a). */

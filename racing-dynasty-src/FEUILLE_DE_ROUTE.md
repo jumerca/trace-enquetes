@@ -1,4 +1,4 @@
-# Racing Dynasty — Feuille de route (après V0.2)
+# Racing Dynasty — Feuille de route
 
 État au 22/11/2026 : V0.2 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
 Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
@@ -9,20 +9,25 @@ Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 - [ ] Installation PWA et passage V0.1 → V0.2 sans perte de sauvegarde.
 - [ ] Lisibilité en portrait (taille des voitures, panneau classement qui masque la piste).
 
-## 1. Équilibrage de la course (priorité haute)
-- [ ] Trop peu de dépassements à Port-Azur et sous la pluie (1 à 3 par course) : élargir les zones, différencier
+## 1. Équilibrage de la course — fait en V0.3 (à affiner avec vos retours)
+- [x] Trop peu de dépassements à Port-Azur et sous la pluie (1 à 3 par course) : élargir les zones, différencier
       davantage le rythme pneus neufs / usés.
-- [ ] Départ : premier virage trop « sage » ; ajouter des gains/pertes de places selon le mental et l'envol.
-- [ ] Vérifier l'écart d'usure entre Tendre / Médium / Dur pour que plusieurs stratégies soient viables.
-- [ ] Gain des réglages (≈1 s/tour) peut-être trop fort par rapport à l'écart des voitures.
+- [x] Départ : premier virage trop « sage » ; ajouter des gains/pertes de places selon le mental et l'envol.
+- [x] Vérifier l'écart d'usure entre Tendre / Médium / Dur pour que plusieurs stratégies soient viables.
+- [x] Gain des réglages (≈1 s/tour) peut-être trop fort par rapport à l'écart des voitures.
 
-## 2. Course : profondeur de simulation
-- [ ] Voiture de sécurité / drapeaux jaunes après accident (regroupement du peloton).
-- [ ] Météo évolutive pendant la course (pluie qui arrive, piste qui sèche) avec choix des pneus au bon moment.
-- [ ] Contacts légers et dégâts (aileron cassé → arrêt forcé), pénalités.
-- [ ] Consignes d'équipe : « laisser passer le coéquipier », « défendre la position ».
-- [ ] Radio de l'ingénieur : messages contextuels (pneus en fin de vie, écart avec le rival, météo).
-- [ ] Reprise d'une course sauvegardée plus rapide (instantané d'état au lieu de tout recalculer).
+## 2. Course : profondeur de simulation — fait en V0.3
+- [x] Voiture de sécurité / drapeaux jaunes après accident (regroupement du peloton).
+- [x] Météo évolutive pendant la course (pluie qui arrive, piste qui sèche) avec choix des pneus au bon moment.
+- [x] Contacts légers et dégâts (aileron cassé → arrêt forcé), pénalités.
+- [x] Consignes d'équipe : « laisser passer le coéquipier », « défendre la position ».
+- [x] Radio de l'ingénieur : messages contextuels (pneus en fin de vie, écart avec le rival, météo).
+- [x] Reprise d'une course sauvegardée plus rapide (instantané d'état au lieu de tout recalculer).
+
+### Constats restants après la V0.3
+- [ ] Deux arrêts restent rarement rentables sur 6 à 12 tours (réaliste pour des courses courtes).
+- [ ] Valbrune et Kharam : ~35-45 dépassements en 12 tours, peut-être encore un peu élevé.
+- [ ] Drapeaux jaunes locaux (sans voiture de sécurité) non simulés.
 
 ## 3. Rendu et ambiance
 - [ ] Phase de tour de formation et voitures qui se placent sur la grille.

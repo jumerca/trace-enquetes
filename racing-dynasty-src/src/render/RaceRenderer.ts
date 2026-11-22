@@ -110,12 +110,12 @@ export class RaceRenderer {
     this.world.addChild(this.carsLayer, this.fxLayer);
     this.buildCars();
     this.buildMinimap();
-    if (this.sim.cfg.weather === 'pluie') {
-      this.rain = new Graphics();
-      this.overlay.addChild(this.rain);
-      const r = new Rng(3);
-      for (let i = 0; i < (eco ? 40 : 110); i++) this.rainDrops.push({ x: r.next(), y: r.next(), v: 0.6 + r.next() * 0.6 });
-    }
+    // La météo peut changer en course : la pluie est toujours prête, son intensité suit l'humidité.
+    this.rain = new Graphics();
+    this.overlay.addChild(this.rain);
+    const r = new Rng(3);
+    for (let i = 0; i < (eco ? 40 : 110); i++) this.rainDrops.push({ x: r.next(), y: r.next(), v: 0.6 + r.next() * 0.6 });
+    this.buildSafetyCar();
     const focus = this.sim.cars.find((c) => c.e.teamId === this.opts.focusTeamId);
     this.follow = focus?.id ?? null;
     const c0 = focus ?? this.sim.cars[0];
@@ -606,6 +606,70 @@ export class RaceRenderer {
 
   // ------------------------------------------------------------ voitures
 
+  private scView: { root: Container; body: Sprite; bar: Graphics; label: Text; dot: Sprite } | null = null;
+
+  /** Voiture de sécurité : berline blanche à bandes orange, rampe lumineuse clignotante. */
+  private buildSafetyCar(): void {
+    const S = CAR_PX;
+    const g = new Graphics();
+    g.roundRect(-2.4 * S, -0.95 * S, 4.8 * S, 1.9 * S, 0.5 * S).fill(0xf4f1ea).stroke({ width: 0.14 * S, color: INK });
+    g.rect(-2.3 * S, -0.25 * S, 4.6 * S, 0.5 * S).fill(0xff7a00);
+    g.roundRect(-0.9 * S, -0.75 * S, 1.9 * S, 1.5 * S, 0.3 * S).fill(0x2b3a4a);
+    const tex = this.app.renderer.generateTexture({ target: g, resolution: 1, antialias: true });
+    g.destroy();
+    const root = new Container();
+    const shadow = new Graphics().roundRect(-2.5, -1.05, 5, 2.1, 0.8).fill({ color: 0x000000, alpha: 0.32 });
+    shadow.position.set(0.5, 0.7 / TILT);
+    const body = new Sprite(tex);
+    body.anchor.set(0.5);
+    body.scale.set(1 / CAR_PX);
+    body.position.set(0, -0.35 / TILT);
+    const bar = new Graphics();
+    root.addChild(shadow, body, bar);
+    root.visible = false;
+    this.carsLayer.addChild(root);
+    const label = new Text({ text: 'SC', style: { fontFamily: 'Bangers, Impact, sans-serif', fontSize: 15, fill: 0xffd400, stroke: { color: INK, width: 4 } } });
+    label.anchor.set(0.5, 1);
+    label.visible = false;
+    this.overlay.addChild(label);
+    const dot = new Sprite(this.dotTex!);
+    dot.anchor.set(0.5);
+    dot.tint = 0xffd400;
+    dot.visible = false;
+    this.overlay.addChild(dot);
+    this.scView = { root, body, bar, label, dot };
+  }
+
+  private updateSafetyCar(sw: number, sh: number, z: number, detailed: boolean): void {
+    const v = this.scView, sc = this.sim.sc;
+    if (!v) return;
+    if (!sc) {
+      v.root.visible = v.label.visible = v.dot.visible = false;
+      return;
+    }
+    const t = this.track;
+    const s = sc.prevS + (sc.s - sc.prevS) * this.alpha;
+    const lat = sc.prevLat + (sc.lat - sc.prevLat) * this.alpha;
+    worldPos(t, s, lat, this.tmp);
+    const { i } = locate(t, s);
+    const ds = sc.s - sc.prevS;
+    let head = t.heading[i];
+    if (ds > 0.05) head -= Math.atan2(sc.lat - sc.prevLat, ds);
+    v.root.visible = detailed;
+    v.root.position.set(this.tmp.x, this.tmp.y);
+    v.root.zIndex = 999;
+    v.body.rotation = head;
+    const on = Math.floor(performance.now() / 250) % 2 === 0;
+    v.bar.clear();
+    v.bar.circle(Math.cos(head + 1.57) * 0.45, Math.sin(head + 1.57) * 0.45 - 0.9 / TILT, 0.35).fill(on ? 0xffb000 : 0x6a4a00);
+    v.bar.circle(Math.cos(head - 1.57) * 0.45, Math.sin(head - 1.57) * 0.45 - 0.9 / TILT, 0.35).fill(on ? 0x6a4a00 : 0xffb000);
+    const sx = (this.tmp.x - this.cam.x) * z + sw / 2, sy = (this.tmp.y - this.cam.y) * z * TILT + sh / 2;
+    v.label.visible = sx > -40 && sx < sw + 40 && sy > -40 && sy < sh + 40;
+    v.label.position.set(sx, sy - (detailed ? 2.2 * z + 4 : 9));
+    v.dot.visible = !detailed;
+    v.dot.position.set(sx, sy);
+  }
+
   private carTexture(e: SimCar['e']): Texture {
     const c1 = hex(e.color), c2 = hex(e.color2);
     const g = new Graphics();
@@ -799,7 +863,10 @@ export class RaceRenderer {
       // fumée / poussière lors des erreurs et des freinages bloqués
       const onScreen = sx > -60 && sx < sw + 60 && sy > -60 && sy < sh + 60;
       if (detailed && onScreen && c.errKind > 0 && c.errTimer > 0 && Math.random() < (eco ? 0.2 : 0.5)) this.puff(p.x, p.y, Math.abs(c.lat) > t.half ? 0xd8b98a : 0xdddddd, 0.9);
-      const wet = this.sim.cfg.weather === 'pluie';
+      const wet = this.sim.wet > 0.3;
+      if (detailed && onScreen && c.damage && Math.random() < (c.damage === 2 ? 0.5 : 0.15)) {
+        this.puff(p.x - Math.cos(head) * 2, p.y - Math.sin(head) * 2, c.damage === 2 ? 0xffb000 : 0x555555, 0.5);
+      }
       v.rearLight.visible = detailed && wet && c.status !== 'dnf' && Math.floor(this.sim.t * 4) % 2 === 0;
       if (v.rearLight.visible) v.rearLight.position.set(-Math.cos(head) * 2.7, -Math.sin(head) * 2.7 - 0.5 / TILT);
       if (wet && detailed && onScreen && !eco && c.v > 25 && Math.random() < 0.35) {
@@ -807,6 +874,7 @@ export class RaceRenderer {
       }
     });
     this.carsLayer.sortableChildren = true;
+    this.updateSafetyCar(sw, sh, z, detailed);
     this.updatePuffs(dtMs);
     this.updateCrews();
     this.updateLights(sw);
@@ -828,14 +896,17 @@ export class RaceRenderer {
     if (this.rain) {
       const r = this.rain;
       r.clear();
-      r.rect(0, 0, sw, sh).fill({ color: 0x1d3557, alpha: 0.16 });
-      for (const d of this.rainDrops) {
+      const wetv = this.sim.wet;
+      const drops = this.sim.raining ? Math.ceil(this.rainDrops.length * Math.min(1, 0.3 + wetv)) : 0;
+      if (wetv > 0.03) r.rect(0, 0, sw, sh).fill({ color: 0x1d3557, alpha: 0.18 * wetv });
+      for (let k = 0; k < drops; k++) {
+        const d = this.rainDrops[k];
         d.y += (dtMs / 1000) * d.v * 1.6;
         if (d.y > 1) d.y -= 1;
         const x = d.x * sw, y = d.y * sh;
         r.moveTo(x, y).lineTo(x - 4, y + 14);
       }
-      r.stroke({ width: 1.2, color: 0xcfe3f5, alpha: 0.55 });
+      if (drops) r.stroke({ width: 1.2, color: 0xcfe3f5, alpha: 0.55 });
     }
   }
 

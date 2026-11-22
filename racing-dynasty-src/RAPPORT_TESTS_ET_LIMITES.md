@@ -1,6 +1,33 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.2 (dernière version)
+## V0.3 (dernière version)
+
+* `npm test` : **29/29**. Nouveaux tests (`tests/race-depth.test.ts`) : reprise par instantané identique au déroulé
+  continu (avec averse et consignes), voiture de sécurité sans chevauchement ni dépassement pendant la
+  neutralisation, averse (la piste se mouille, l'IA passe en pneus pluie, radio météo), règle des deux gommes
+  (pénalité de 20 s reflétée au classement), consignes « tenir » (0 dépassement entre équipiers sur 6 courses) et
+  « inverser » (échange effectué), contacts.
+* Bancs d'équilibrage (graines fixes, 12 tours, champ réel de la carrière) — moyennes par course :
+
+  | Circuit | Dépassements (sec) | Dépassements (averse) | Voitures de sécurité | Contacts | Chevauchements |
+  |---|---|---|---|---|---|
+  | Port-Azur | 9 | 18 | 0,3–0,8 | 2–4 | 0 |
+  | Lac d'Argent | 26 | 45 | 0–0,3 | 2–3 | 0 |
+  | Valbrune | 41 | 74 | 0–0,7 | 3–5 | 0 |
+  | Montclair | 7 | 10 | 0,5–1 | 2–4 | 0 |
+  | Kharam | 37 | 51 | 0,3 | 3–5 | 0 |
+
+  Avant la V0.3 : 1 à 3 dépassements à Port-Azur et sous la pluie. Changements de place au premier tour : 25 à 45
+  places cumulées sur 20 voitures.
+* Stratégies (20 voitures identiques, 5 stratégies réparties au hasard, 10 graines × 5 circuits, 12 tours) :
+  position moyenne Tendre→Médium 5,8 · Médium→Dur 7,2 · Dur→Tendre 8,9 · deux arrêts 14 · Dur sans arrêt 15,8
+  (pénalité des deux gommes). Avant : « Dur sans arrêt » gagnait (3,8) et rendait les autres stratégies inutiles.
+* Réglages : passer du réglage par défaut à l'optimal = 0,2 à 0,65 % ; un réglage très mauvais = 1 à 2,8 %.
+* E2E Chromium (PC, Android paysage et portrait, tablette) : parcours complet réussi, voiture de sécurité et averse
+  forcées en course (bandeau, voiture SC, pluie à l'écran vérifiés sur capture), aucune erreur console.
+* Non vérifiable ici : rendu et fluidité sur téléphone réel, son.
+
+## V0.2
 
 * `npm test` : **22/22** (ajouts : 5 circuits, course complète sans chevauchement sur Lac d'Argent et Montclair,
   aucune voiture ne bouge avant l'extinction des feux, évolution des voitures IA sur une saison de 5 GP, objectif des

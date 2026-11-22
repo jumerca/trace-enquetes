@@ -16,10 +16,10 @@ export function physicsFor(e: Pick<CarEntry, 'driver' | 'car' | 'setup'>, track:
   const suspDev = Math.abs(st.suspension - track.def.suspOpt) / 100;
   const wet = weather === 'pluie';
   return {
-    aMech: 10.5 * (1 + 0.0022 * (c.chassis - 10)) * (1 + 0.0018 * (d.vitesse - 10)) * (1 - 0.06 * suspDev) * (wet ? 0.74 : 1),
-    cAero: 0.0034 * (1 + 0.007 * (c.aero - 10)) * (1 + 0.24 * (aero - 0.5) - 0.3 * (aero - 0.5) * (aero - 0.5)) * (1 + 0.0014 * (d.vitesse - 10)) * (wet ? 0.8 : 1),
-    vTop: 88 * (1 + 0.0024 * (c.moteur - 10)) * (1 - 0.07 * (aero - 0.5)) * (1 + 0.07 * (gear - 0.5)),
-    aAcc: 13 * (1 + 0.005 * (c.moteur - 10)) * (1 - 0.06 * (gear - 0.5) - 0.12 * (gear - 0.5) * (gear - 0.5)) * (1 - 0.08 * (aero - 0.5)) * (wet ? 0.85 : 1),
+    aMech: 10.5 * (1 + 0.0022 * (c.chassis - 10)) * (1 + 0.0018 * (d.vitesse - 10)) * (1 - 0.035 * suspDev) * (wet ? 0.74 : 1),
+    cAero: 0.0034 * (1 + 0.007 * (c.aero - 10)) * (1 + 0.17 * (aero - 0.5) - 0.22 * (aero - 0.5) * (aero - 0.5)) * (1 + 0.0014 * (d.vitesse - 10)) * (wet ? 0.8 : 1),
+    vTop: 88 * (1 + 0.0024 * (c.moteur - 10)) * (1 - 0.05 * (aero - 0.5)) * (1 + 0.05 * (gear - 0.5)),
+    aAcc: 13 * (1 + 0.005 * (c.moteur - 10)) * (1 - 0.045 * (gear - 0.5) - 0.09 * (gear - 0.5) * (gear - 0.5)) * (1 - 0.06 * (aero - 0.5)) * (wet ? 0.85 : 1),
     brake: 15.5 * (1 + 0.002 * (c.chassis - 10)) * (wet ? 0.8 : 1),
   };
 }
@@ -63,24 +63,35 @@ export function profileLapTime(track: Track, prof: Float32Array): number {
 }
 
 export const COMPOUNDS: Record<Compound, { name: string; color: string; grip: number; wear: number }> = {
-  T: { name: 'Tendre', color: '#e5383b', grip: 1.0065, wear: 1.55 },
+  T: { name: 'Tendre', color: '#e5383b', grip: 1.009, wear: 1.6 },
   M: { name: 'Médium', color: '#f2c14e', grip: 1.0, wear: 1.0 },
-  D: { name: 'Dur', color: '#f4f1ea', grip: 0.9945, wear: 0.68 },
+  D: { name: 'Dur', color: '#f4f1ea', grip: 0.9935, wear: 0.62 },
   P: { name: 'Pluie', color: '#3a86ff', grip: 0.985, wear: 0.9 },
 };
 
-/** Facteur de rythme lié aux pneus (compound, usure, météo). */
-export function tyreFactor(c: Compound, wear: number, weather: Weather): number {
-  let g = COMPOUNDS[c].grip;
-  if (weather === 'pluie') g = c === 'P' ? 1.0 : 0.87;
-  else if (c === 'P') g = 0.955;
-  g *= 1 - 0.00012 * wear - Math.max(0, wear - 65) * 0.0011 - Math.max(0, wear - 95) * 0.01;
+/** Humidité de la piste : 0 = sèche, 1 = détrempée. Accepte aussi l'ancienne météo « sec » / « pluie ». */
+export function wetness(w: Weather | number): number {
+  return typeof w === 'number' ? Math.max(0, Math.min(1, w)) : w === 'pluie' ? 1 : 0;
+}
+
+/**
+ * Facteur de rythme lié aux pneus (gomme, usure, humidité).
+ * Slicks : perdent ~14 % sur piste détrempée. Pluie : idéaux dès que la piste est bien humide,
+ * mais surchauffent sur le sec. Le croisement se situe vers 20-25 % d'humidité.
+ */
+export function tyreFactor(c: Compound, wear: number, weather: Weather | number): number {
+  const w = wetness(weather);
+  let g: number;
+  if (c === 'P') g = 0.955 + 0.045 * Math.min(1, w * 1.6);
+  else g = COMPOUNDS[c].grip * (1 - 0.14 * w);
+  g *= 1 - 0.0006 * wear - Math.max(0, wear - 55) * 0.0012 - Math.max(0, wear - 95) * 0.01;
   return g;
 }
 
-export function tyreWearRate(c: Compound, weather: Weather): number {
-  if (c === 'P') return weather === 'pluie' ? 0.9 : 2.6;
-  return COMPOUNDS[c].wear * (weather === 'pluie' ? 0.75 : 1);
+export function tyreWearRate(c: Compound, weather: Weather | number): number {
+  const w = wetness(weather);
+  if (c === 'P') return 0.9 + 1.7 * Math.max(0, 1 - w * 2.5);
+  return COMPOUNDS[c].wear * (1 - 0.25 * w);
 }
 
 export const MODE_PACE: Record<DriveMode, number> = { attaque: 1.004, normal: 1, eco: 0.993 };

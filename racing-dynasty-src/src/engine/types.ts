@@ -51,10 +51,19 @@ export interface CarEntry {
   isPlayer: boolean;
 }
 
+/** Changement de météo pendant la course : à partir du tour `lap` (fraction possible), il pleut ou non. */
+export interface WeatherChange {
+  lap: number;
+  rain: boolean;
+}
+
+export type TeamOrder = 'libre' | 'tenir' | 'inverser';
+
 export interface RaceConfig {
   trackId: string;
   laps: number;
-  weather: Weather;
+  weather: Weather; // météo au départ
+  weatherPlan?: WeatherChange[];
   seed: number;
   entries: CarEntry[]; // dans l'ordre de la grille
 }
@@ -62,7 +71,8 @@ export interface RaceConfig {
 export type RaceCommand =
   | { tick: number; carId: string; type: 'mode'; mode: DriveMode }
   | { tick: number; carId: string; type: 'pit'; compound: Compound }
-  | { tick: number; carId: string; type: 'cancelPit' };
+  | { tick: number; carId: string; type: 'cancelPit' }
+  | { tick: number; carId: string; type: 'teamOrder'; order: TeamOrder };
 
 /** Consigne sans numéro de pas (il est fixé au moment de l'émission). */
 export type RaceCommandInput = RaceCommand extends infer T ? (T extends RaceCommand ? Omit<T, 'tick'> : never) : never;
@@ -70,7 +80,9 @@ export type RaceCommandInput = RaceCommand extends infer T ? (T extends RaceComm
 export interface RaceEvent {
   t: number;
   lap: number;
-  kind: 'depart' | 'depassement' | 'erreur' | 'sortie' | 'tete-a-queue' | 'abandon' | 'stand' | 'meilleur-tour' | 'drapeau';
+  kind:
+    | 'depart' | 'depassement' | 'erreur' | 'sortie' | 'tete-a-queue' | 'abandon' | 'stand' | 'meilleur-tour' | 'drapeau'
+    | 'securite' | 'meteo' | 'contact' | 'penalite' | 'radio' | 'consigne';
   carId?: string;
   otherId?: string;
   text: string;
@@ -87,4 +99,5 @@ export interface ClassifiedResult {
   status: 'arrivé' | 'abandon';
   reason?: string;
   gridPosition: number;
+  penalty: number; // secondes de pénalité ajoutées au temps final
 }
