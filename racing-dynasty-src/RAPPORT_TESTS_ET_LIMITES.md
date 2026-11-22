@@ -1,4 +1,22 @@
-# Racing Dynasty V0.1 — Tests réellement effectués et limites constatées
+# Racing Dynasty — Tests réellement effectués et limites constatées
+
+## V0.2 (dernière version)
+
+* `npm test` : **22/22** (ajouts : 5 circuits, course complète sans chevauchement sur Lac d'Argent et Montclair,
+  aucune voiture ne bouge avant l'extinction des feux, évolution des voitures IA sur une saison de 5 GP, objectif des
+  actionnaires évalué en fin de saison, **migration d'une sauvegarde V0.1 (schéma 1) vers le schéma 2** sans perte).
+* E2E Chromium sur PC, Android paysage, Android portrait et tablette : parcours complet réussi, saison entière de
+  5 GP jouée sur PC (5 circuits rendus et capturés, caméra TV testée), aucune erreur console.
+* PWA : service worker actif, hors ligne OK, sauvegarde intacte.
+* Images/s en 800×360, Chromium headless **sans GPU** (indicatif seulement, pas un téléphone) : qualité Économie
+  31 (Suivre) / 28 (Circuit) contre ~25 avant le découpage du décor en tronçons ; qualité Haute 14, dont l'essentiel
+  est le coût de l'antialiasing en rendu logiciel (25 sans antialiasing). Portrait 360×740 Économie : 46 / 37.
+  **Toujours à valider sur un Android 4 Go réel** (compteur i/s dans Paramètres).
+* Son : synthétisé en WebAudio, non vérifiable à l'oreille dans ce conteneur (testé uniquement : pas d'erreur).
+
+---
+
+# V0.1
 
 Environnement de test : conteneur Linux (Node 22), Chromium headless (rendu WebGL logiciel, sans GPU).
 **Aucun test sur appareil Android réel n'a pu être fait depuis cet environnement.**

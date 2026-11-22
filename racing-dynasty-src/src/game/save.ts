@@ -1,8 +1,8 @@
 // Sauvegardes persistantes : schéma versionné + migrations, copie de secours, export/import.
 // Les clés de stockage ne changent jamais d'une version du jeu à l'autre : une mise à jour ne perd pas les parties.
-import type { Career } from './career';
+import { computeObjective, type Career } from './career';
 
-export const SAVE_SCHEMA = 1;
+export const SAVE_SCHEMA = 2;
 export const SLOT_COUNT = 3;
 const PREFIX = 'racing-dynasty/save/';
 const LAST = 'racing-dynasty/last-slot';
@@ -21,6 +21,7 @@ export interface SlotInfo {
   teamName?: string;
   season?: number;
   round?: number;
+  rounds?: number;
   savedAt?: string;
   corrupted?: boolean;
 }
@@ -33,7 +34,12 @@ export interface KV {
 
 /** Migrations successives : MIGRATIONS[n] transforme un fichier du schéma n en schéma n + 1. */
 const MIGRATIONS: Record<number, (f: any) => any> = {
-  // 1: (f) => { f.career.nouveauChamp = valeurParDéfaut; f.schema = 2; return f; },
+  // V0.1 → V0.2 : objectif des actionnaires (le calendrier à 5 GP s'applique à la saison suivante).
+  1: (f) => {
+    f.career.objective = { season: f.career.season, target: computeObjective(f.career) };
+    f.schema = 2;
+    return f;
+  },
 };
 
 export function migrate(raw: any): SaveFile {
@@ -95,7 +101,7 @@ export class SaveStore {
     try {
       const f = migrate(JSON.parse(raw));
       const team = f.career.teams.find((t) => t.id === f.career.playerTeamId);
-      return { slot, empty: false, teamName: team?.name, season: f.career.season, round: f.career.round, savedAt: f.savedAt };
+      return { slot, empty: false, teamName: team?.name, season: f.career.season, round: f.career.round, rounds: f.career.calendar.length, savedAt: f.savedAt };
     } catch {
       return { slot, empty: false, corrupted: true };
     }

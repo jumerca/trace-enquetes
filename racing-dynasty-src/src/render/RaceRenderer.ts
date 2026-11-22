@@ -1,7 +1,7 @@
 // Rendu 2,5D de la course avec PixiJS : lecture seule de l'état du moteur.
 // Caméra inclinée (écrasement vertical), ombres portées, volumes extrudés, encrage façon bande dessinée.
-import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { CAR_LEN, type RaceSim, type SimCar } from '../engine/race';
+import { Application, Container, Culler, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
+import { CAR_LEN, LIGHTS_ON, type RaceSim, type SimCar } from '../engine/race';
 import { locate, worldPos, type Track } from '../engine/track';
 import { Rng } from '../engine/rng';
 
@@ -14,7 +14,10 @@ export interface RenderOptions {
   fpsCap: 30 | 60;
   names: boolean;
   focusTeamId: string;
+  banners: { name: string; color: string }[];
 }
+
+export type CameraMode = 'suivre' | 'tv' | 'circuit';
 
 interface CarView {
   root: Container;
@@ -24,12 +27,15 @@ interface CarView {
   label: Text;
   dot: Sprite;
   marker: Sprite;
+  rearLight: Graphics;
 }
 
 const THEMES = {
   port: { ground: 0xcdbf9f, ground2: 0xbfae8a, runoff: 0xd9d2c2, accent: 0x2a6f97, bg: '#2a6f97' },
   foret: { ground: 0x6a9a45, ground2: 0x5b8a3a, runoff: 0xd8cfa8, accent: 0x2f5d2a, bg: '#40692e' },
   desert: { ground: 0xe2b56a, ground2: 0xd6a659, runoff: 0xefd7a6, accent: 0xb9783f, bg: '#c9934d' },
+  lac: { ground: 0x7aa651, ground2: 0x6b9645, runoff: 0xdcd3ae, accent: 0x3f88c5, bg: '#557f3a' },
+  montagne: { ground: 0x9aa47f, ground2: 0xb9bfa6, runoff: 0xd7d2c4, accent: 0x6c7a89, bg: '#7d8768' },
 };
 
 function hex(c: string): number {
@@ -59,12 +65,20 @@ export class RaceRenderer {
   private cam = { x: 0, y: 0, z: 3 };
   private rain: Graphics | null = null;
   private rainDrops: { x: number; y: number; v: number }[] = [];
-  private puffs: { g: Sprite; life: number }[] = [];
+  private puffs: { g: Sprite; life: number; size: number }[] = [];
   private puffTex: Texture | null = null;
   private dotTex: Texture | null = null;
   private tmp = { x: 0, y: 0 };
   private ready = false;
   follow: string | null = null; // id de la voiture suivie, null = vue d'ensemble
+  mode: CameraMode = 'suivre';
+  private tvTimer = 0;
+  private userZoom = 1;
+  private lights: Graphics | null = null;
+  private gantry: Graphics | null = null;
+  private crews = new Map<number, Graphics[]>();
+  private puffPool: Sprite[] = [];
+  private screenRect = new Rectangle(0, 0, 1, 1);
   /** Fraction (0..1) du pas de simulation écoulée, pour interpoler les positions. */
   alpha = 0;
   fps = 0;
@@ -118,12 +132,21 @@ export class RaceRenderer {
   }
 
   defaultZoom(): number {
-    const w = this.app.screen.width;
-    return Math.max(2.2, Math.min(6, w / 210));
+    const w = this.app.screen.width, h = this.app.screen.height;
+    // en portrait, on se base aussi sur la hauteur pour garder des voitures lisibles
+    return Math.max(2.2, Math.min(6, Math.max(w, h * 0.8) / 210));
   }
 
   zoomBy(f: number): void {
-    this.cam.z = Math.max(0.05, Math.min(9, this.cam.z * f));
+    this.userZoom = Math.max(0.35, Math.min(3, this.userZoom * f));
+  }
+
+  setMode(m: CameraMode, carId?: string): void {
+    this.mode = m;
+    if (m === 'circuit') this.follow = null;
+    else if (carId) this.follow = carId;
+    else if (!this.follow) this.follow = this.sim.cars.find((c) => c.e.teamId === this.opts.focusTeamId)?.id ?? this.sim.cars[0].id;
+    this.tvTimer = 0;
   }
 
   overviewZoom(): number {
@@ -144,9 +167,28 @@ export class RaceRenderer {
     return pts;
   }
 
+  /**
+   * Découpe un dessin le long du circuit en tronçons de ~300 m (« cullables ») :
+   * en vue rapprochée, seuls les tronçons visibles sont dessinés.
+   */
+  private segments(draw: (g: Graphics, i0: number, i1: number) => void): Container {
+    const layer = new Container();
+    const n = this.track.n, seg = Math.max(40, Math.round(300 / this.track.ds));
+    for (let i0 = 0; i0 < n; i0 += seg) {
+      const g = new Graphics();
+      draw(g, i0, Math.min(n, i0 + seg));
+      g.cullable = true;
+      layer.addChild(g);
+    }
+    this.world.addChild(layer);
+    return layer;
+  }
+
   /** Bande de largeur constante centrée sur l'axe (trait épais : robuste, rayon mini > demi-largeur). */
-  private band(g: Graphics, halfWidth: number, color: number): void {
-    g.poly(this.edge(0, 0, this.track.n, 2), true).stroke({ width: halfWidth * 2, color, join: 'round' });
+  private band(halfWidth: number, color: number): void {
+    this.segments((g, i0, i1) => {
+      g.poly(this.edge(0, i0, i1 + 2, 2), false).stroke({ width: halfWidth * 2, color, join: 'round', cap: 'round' });
+    });
   }
 
   private buildScenery(): void {
@@ -172,6 +214,35 @@ export class RaceRenderer {
         ground.moveTo(x, y).lineTo(x + rng.range(20, 60), y).stroke({ width: 1.6, color: 0xbfe1f0, alpha: 0.7 });
       }
     }
+    if (def.theme === 'lac') {
+      // Lac au cœur du circuit (rayon limité par la distance à la piste).
+      const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+      const r = Math.max(30, this.distToTrack(cx, cy) - t.half - 40);
+      const pts: number[] = [];
+      for (let k = 0; k < 36; k++) {
+        const a = (k / 36) * Math.PI * 2, rr = r * (0.82 + 0.18 * Math.sin(a * 3 + 1));
+        pts.push(cx + Math.cos(a) * rr * 1.25, cy + Math.sin(a) * rr * 0.8);
+      }
+      ground.poly(pts, true).fill(0x3f88c5).stroke({ width: 2.5, color: INK });
+      for (let k = 0; k < 14; k++) {
+        const x = cx + rng.range(-r * 0.8, r * 0.8), y = cy + rng.range(-r * 0.45, r * 0.45);
+        ground.moveTo(x, y).lineTo(x + rng.range(12, 30), y).stroke({ width: 1.4, color: 0xcfe8f7, alpha: 0.75 });
+      }
+    }
+    if (def.theme === 'montagne') {
+      // Sommets enneigés à l'horizon (au nord), plaques de neige.
+      for (let k = 0; k < 9; k++) {
+        const x = b.minX - 300 + k * ((b.maxX - b.minX + 600) / 8), w = rng.range(200, 320), h = rng.range(260, 420);
+        const y = b.minY - 160;
+        ground.poly([x - w, y, x, y - h, x + w, y]).fill(0x6c7a89).stroke({ width: 2.5, color: INK });
+        ground.poly([x - w * 0.32, y - h * 0.68, x, y - h, x + w * 0.32, y - h * 0.68, x + w * 0.1, y - h * 0.6, x - w * 0.05, y - h * 0.7]).fill(0xf4f7fb);
+      }
+      for (let i = 0; i < 30; i++) {
+        const x = rng.range(b.minX - 300, b.maxX + 300), y = rng.range(b.minY - 150, b.maxY + 300);
+        if (this.distToTrack(x, y) < 40) continue;
+        ground.ellipse(x, y, rng.range(15, 45), rng.range(6, 16)).fill({ color: 0xf4f7fb, alpha: 0.8 });
+      }
+    }
     if (def.theme === 'desert') {
       for (let i = 0; i < 40; i++) {
         const x = rng.range(b.minX - 400, b.maxX + 400), y = rng.range(b.minY - 400, b.maxY + 400);
@@ -182,36 +253,36 @@ export class RaceRenderer {
     }
     this.world.addChild(ground);
 
-    const g = new Graphics();
     // Dégagements, encre extérieure, asphalte.
-    this.band(g, t.half + 9, theme.runoff);
-    this.band(g, t.half + 1.2, INK);
-    this.band(g, t.half, 0x55575c);
+    this.band(t.half + 9, theme.runoff);
+    this.band(t.half + 1.2, INK);
+    this.band(t.half, 0x55575c);
+    // Lignes blanches de bord et vibreurs rouges et blancs dans les virages.
+    const kerbStep = Math.max(1, Math.round(3 / t.ds));
+    this.segments((g, i0, i1) => {
+      g.poly(this.edge(t.half - 0.35, i0, i1 + 2, 2), false).stroke({ width: 0.3, color: 0xf4f1ea });
+      g.poly(this.edge(-(t.half - 0.35), i0, i1 + 2, 2), false).stroke({ width: 0.3, color: 0xf4f1ea });
+      for (let i = i0 - (i0 % kerbStep); i < i1; i += kerbStep) {
+        if (t.corner[i] < 0.28) continue;
+        const j = (i + kerbStep) % t.n;
+        const col = (i / kerbStep) % 2 ? 0xf4f1ea : 0xd62828;
+        for (const side of [1, -1]) {
+          const a = t.half - 0.9, c = t.half + 0.5;
+          g.poly([
+            t.x[i] + t.nx[i] * a * side, t.y[i] + t.ny[i] * a * side,
+            t.x[j] + t.nx[j] * a * side, t.y[j] + t.ny[j] * a * side,
+            t.x[j] + t.nx[j] * c * side, t.y[j] + t.ny[j] * c * side,
+            t.x[i] + t.nx[i] * c * side, t.y[i] + t.ny[i] * c * side,
+          ]).fill(col);
+        }
+      }
+    });
+    const g = new Graphics();
     // Voie des stands.
     const pit = this.pitPolys();
     g.poly(pit.lane, true).fill(0x5d5f64);
     g.poly(pit.lane, true).stroke({ width: 0.8, color: INK });
     g.poly(pit.wall, true).fill(0xe9e4d8).stroke({ width: 0.6, color: INK });
-    // Lignes blanches de bord.
-    g.poly(this.edge(t.half - 0.35, 0, t.n, 2), true).stroke({ width: 0.3, color: 0xf4f1ea });
-    g.poly(this.edge(-(t.half - 0.35), 0, t.n, 2), true).stroke({ width: 0.3, color: 0xf4f1ea });
-    // Vibreurs rouges et blancs dans les virages.
-    const kerbStep = Math.max(1, Math.round(3 / t.ds));
-    let stripe = 0;
-    for (let i = 0; i < t.n; i += kerbStep) {
-      if (t.corner[i] < 0.28) continue;
-      const j = (i + kerbStep) % t.n;
-      const col = stripe++ % 2 ? 0xf4f1ea : 0xd62828;
-      for (const side of [1, -1]) {
-        const a = t.half - 0.9, c = t.half + 0.5;
-        g.poly([
-          t.x[i] + t.nx[i] * a * side, t.y[i] + t.ny[i] * a * side,
-          t.x[j] + t.nx[j] * a * side, t.y[j] + t.ny[j] * a * side,
-          t.x[j] + t.nx[j] * c * side, t.y[j] + t.ny[j] * c * side,
-          t.x[i] + t.nx[i] * c * side, t.y[i] + t.ny[i] * c * side,
-        ]).fill(col);
-      }
-    }
     // Ligne de départ en damier + emplacements de grille.
     const sq = t.def.width / 8;
     for (let r = 0; r < 2; r++)
@@ -231,6 +302,7 @@ export class RaceRenderer {
       g.moveTo(a.x, a.y).lineTo(c.x, c.y).stroke({ width: 0.35, color: 0xffffff, alpha: 0.85 });
     }
     this.world.addChild(g);
+    this.drawBarriers(eco);
 
     // Volumes 2,5D : stands, tribunes, arbres / immeubles.
     const vol = new Graphics();
@@ -238,6 +310,124 @@ export class RaceRenderer {
     this.drawGrandstand(vol);
     this.world.addChild(vol);
     this.drawProps(rng, eco);
+    this.drawBanners();
+    this.drawGantry();
+    this.buildCrews();
+  }
+
+  /** Rails de sécurité le long des dégagements et murs de pneus à l'extérieur des virages. */
+  private drawBarriers(eco: boolean): void {
+    const t = this.track;
+    const lat = t.half + 9.6;
+    const pitS0 = t.pitEntry - t.length - 30, pitS1 = t.pitExit + 30;
+    this.segments((g, i0, i1) => {
+    for (const side of [1, -1]) {
+      // rail interrompu le long de la voie des stands
+      let pts: number[] = [];
+      const flush = () => {
+        if (pts.length > 4) {
+          g.poly(pts, false).stroke({ width: 0.9, color: INK });
+          g.poly(pts.map((v, k) => (k % 2 ? v - 0.7 / TILT : v)), false).stroke({ width: 0.5, color: 0xc9ccd1 });
+        }
+        pts = [];
+      };
+      for (let i = i0 - (i0 % 3); i <= i1 + 3; i += 3) {
+        const s = (i % t.n) * t.ds;
+        const inPit = side === t.def.pitSide && (s > t.pitEntry - 30 || s < pitS1);
+        void pitS0;
+        if (inPit) { flush(); continue; }
+        const k = i % t.n;
+        pts.push(t.x[k] + t.nx[k] * lat * side, t.y[k] + t.ny[k] * lat * side);
+      }
+      flush();
+    }
+    // murs de pneus
+    const step = Math.max(1, Math.round(2.4 / t.ds));
+    for (let i = i0 - (i0 % step); i < i1; i += step) {
+      if (t.corner[i] < 0.38) continue;
+      const out = -Math.sign(t.curv[i]);
+      const s = i * t.ds;
+      if (out === t.def.pitSide && (s > t.pitEntry - 30 || s < t.pitExit + 30)) continue;
+      const x = t.x[i] + t.nx[i] * (lat + 0.6) * out, y = t.y[i] + t.ny[i] * (lat + 0.6) * out;
+      const rows = eco ? 1 : 2;
+      for (let r = 0; r < rows; r++) {
+        g.circle(x, y - (r * 0.55) / TILT, 0.62).fill(0x1d1d1d).stroke({ width: 0.18, color: INK });
+        if (r === rows - 1 && (i / step) % 4 < 1) g.circle(x, y - (r * 0.55) / TILT, 0.62).fill({ color: 0xd62828, alpha: 0.8 });
+      }
+    }
+    });
+  }
+
+  /** Panneaux publicitaires 2,5D le long de la ligne droite et dans les grands virages. */
+  private drawBanners(): void {
+    const t = this.track;
+    if (!this.opts.banners.length) return;
+    const layer = new Container();
+    const g = new Graphics();
+    layer.addChild(g);
+    const side = -t.def.pitSide;
+    const lat = t.half + 9.9;
+    const h = 1.3 / TILT;
+    const spots: number[] = [];
+    for (let s = -220; s <= 220; s += 36) spots.push(s);
+    for (let i = 0; i < t.n; i += Math.round(250 / t.ds)) if (t.corner[i] < 0.1 && t.zone[i]) spots.push(i * t.ds);
+    spots.forEach((s, k) => {
+      const sp = this.opts.banners[k % this.opts.banners.length];
+      const a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
+      worldPos(t, s - 12, side * lat, a);
+      worldPos(t, s + 12, side * lat, b);
+      g.poly([a.x, a.y, b.x, b.y, b.x, b.y - h, a.x, a.y - h]).fill(hex(sp.color)).stroke({ width: 0.35, color: INK });
+      const txt = new Text({ text: sp.name.toUpperCase(), style: { fontFamily: 'Bangers, Impact, sans-serif', fontSize: 40, fill: 0xffffff, stroke: { color: INK, width: 6 }, letterSpacing: 2 } });
+      txt.anchor.set(0.5);
+      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const sc = Math.min(1.1 / 40, 21 / Math.max(1, txt.width));
+      txt.scale.set(sc, sc / TILT);
+      txt.rotation = ang;
+      txt.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 - h / 2);
+      txt.cullable = true;
+      layer.addChild(txt);
+    });
+    this.world.addChild(layer);
+  }
+
+  /** Portique des feux de départ au-dessus de la ligne. */
+  private drawGantry(): void {
+    const t = this.track;
+    const g = new Graphics();
+    const a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
+    worldPos(t, 6, t.half + 2, a);
+    worldPos(t, 6, -(t.half + 2), b);
+    const h = 7 / TILT;
+    g.rect(a.x - 0.4, a.y - h, 0.8, h).fill(0x5d5f64).stroke({ width: 0.3, color: INK });
+    g.rect(b.x - 0.4, b.y - h, 0.8, h).fill(0x5d5f64).stroke({ width: 0.3, color: INK });
+    const top = Math.min(a.y, b.y) - h;
+    g.rect(a.x - 1, top - 1.2 / TILT, 2, Math.abs(a.y - b.y) + 1.2 / TILT).fill(0x2b2b2b).stroke({ width: 0.35, color: INK });
+    this.world.addChild(g);
+    this.gantry = new Graphics();
+    this.gantry.position.set(a.x, top);
+    this.world.addChild(this.gantry);
+    this.lights = new Graphics();
+    this.overlay.addChild(this.lights);
+  }
+
+  /** Mécaniciens : 6 silhouettes par écurie, au garage ou autour de la voiture lors d'un arrêt. */
+  private buildCrews(): void {
+    const teams: number[] = [];
+    for (const c of this.sim.cars) {
+      if (teams.includes(c.teamIdx)) continue;
+      teams.push(c.teamIdx);
+      const col = hex(c.e.color);
+      const list: Graphics[] = [];
+      for (let k = 0; k < 6; k++) {
+        const m = new Graphics();
+        m.ellipse(0, 0.35, 0.45, 0.25).fill({ color: 0x000000, alpha: 0.25 });
+        m.roundRect(-0.32, -1.5 / TILT, 0.64, 1.3 / TILT, 0.2).fill(col).stroke({ width: 0.12, color: INK });
+        m.circle(0, -1.75 / TILT, 0.26).fill(0xf4f1ea).stroke({ width: 0.1, color: INK });
+        this.carsLayer.addChild(m);
+        list.push(m);
+      }
+      this.crews.set(c.teamIdx, list);
+    }
   }
 
   private pitPolys(): { lane: number[]; wall: number[] } {
@@ -339,6 +529,12 @@ export class RaceRenderer {
     while (props.length < count && guard++ < count * 8) {
       const x = rng.range(b.minX - 260, b.maxX + 260), y = rng.range(b.minY - 260, b.maxY + 260);
       if (theme === 'port' && y > b.maxY + 60) continue;
+      if (theme === 'montagne' && y < b.minY - 150) continue;
+      if (theme === 'lac') {
+        const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+        const rr = Math.max(30, this.distToTrack(cx, cy) - t.half - 40);
+        if (((x - cx) / (rr * 1.3)) ** 2 + ((y - cy) / (rr * 0.85)) ** 2 < 1.1) continue;
+      }
       const d = this.distToTrack(x, y);
       if (d < t.half + 22) continue;
       // garder dégagées les zones des stands / tribunes
@@ -346,13 +542,24 @@ export class RaceRenderer {
       props.push({ x, y, kind: rng.int(0, 2), s: rng.range(0.8, 1.35) });
     }
     props.sort((a, b2) => a.y - b2.y); // ordre de profondeur
-    const g = new Graphics();
+    // Regroupement par bandes horizontales de 200 m (respecte l'ordre de profondeur, permet le culling).
+    const layer = new Container();
+    const bands = new Map<number, Graphics>();
     for (const p of props) {
-      if (theme === 'foret') this.tree(g, p.x, p.y, p.s, p.kind);
+      const key = Math.floor(p.y / 200);
+      let g = bands.get(key);
+      if (!g) {
+        g = new Graphics();
+        g.cullable = true;
+        bands.set(key, g);
+        layer.addChild(g);
+      }
+      if (theme === 'foret' || theme === 'lac') this.tree(g, p.x, p.y, p.s, theme === 'lac' && p.kind === 2 ? 0 : p.kind);
+      else if (theme === 'montagne') (p.kind === 0 ? this.rock(g, p.x, p.y, p.s, 0x7d7f86) : this.tree(g, p.x, p.y, p.s * 0.9, 2));
       else if (theme === 'port') (p.kind === 0 ? this.palm(g, p.x, p.y, p.s) : this.building(g, p.x, p.y, p.s, rng));
       else (p.kind === 0 ? this.palm(g, p.x, p.y, p.s) : this.rock(g, p.x, p.y, p.s));
     }
-    this.world.addChild(g);
+    this.world.addChild(layer);
   }
 
   private tree(g: Graphics, x: number, y: number, s: number, kind: number): void {
@@ -390,11 +597,11 @@ export class RaceRenderer {
     g.rect(x - w / 2, y - d / 2 - h, w, d * 0.25).fill(0xb5452f);
   }
 
-  private rock(g: Graphics, x: number, y: number, s: number): void {
+  private rock(g: Graphics, x: number, y: number, s: number, color = 0xa9643a): void {
     const r = 5 * s;
     g.ellipse(x + 2, y + 1, r * 1.3, r * 0.5).fill({ color: 0x000000, alpha: 0.18 });
     g.poly([x - r, y, x - r * 0.6, y - r * 1.2 / TILT * 0.6, x + r * 0.3, y - r * 1.4 / TILT * 0.6, x + r, y - r * 0.4, x + r * 0.9, y])
-      .fill(0xa9643a).stroke({ width: 0.6, color: INK });
+      .fill(color).stroke({ width: 0.6, color: INK });
   }
 
   // ------------------------------------------------------------ voitures
@@ -438,6 +645,13 @@ export class RaceRenderer {
     this.puffTex = this.app.renderer.generateTexture({ target: puffG, resolution: 1 });
     const markG = new Graphics().poly([0, 0, -7, -10, 7, -10]).fill(0xffd400).stroke({ width: 2, color: INK });
     const markTex = this.app.renderer.generateTexture({ target: markG, resolution: 2 });
+    for (let k = 0; k < 90; k++) {
+      const sp = new Sprite(this.puffTex);
+      sp.anchor.set(0.5);
+      sp.visible = false;
+      this.fxLayer.addChild(sp);
+      this.puffPool.push(sp);
+    }
     for (const c of this.sim.cars) {
       let tex = texCache.get(c.e.teamId);
       if (!tex) {
@@ -451,7 +665,9 @@ export class RaceRenderer {
       const body = new Sprite(tex);
       body.anchor.set(0.5);
       body.scale.set(1 / CAR_PX);
-      root.addChild(ring, shadow, body);
+      const rearLight = new Graphics().circle(0, 0, 0.28).fill(0xff2a2a);
+      rearLight.visible = false;
+      root.addChild(ring, shadow, body, rearLight);
       this.carsLayer.addChild(root);
       const label = new Text({
         text: c.e.short,
@@ -467,7 +683,7 @@ export class RaceRenderer {
       marker.anchor.set(0.5, 1);
       marker.visible = false;
       this.overlay.addChild(marker);
-      this.views.set(c.id, { root, shadow, body, ring, label, dot, marker });
+      this.views.set(c.id, { root, shadow, body, ring, label, dot, marker, rearLight });
     }
   }
 
@@ -510,13 +726,18 @@ export class RaceRenderer {
     this.fps = this.fps * 0.9 + (1000 / Math.max(1, dtMs)) * 0.1;
     // Caméra
     let tz = this.cam.z;
-    if (this.follow) {
+    if (this.mode === 'tv') this.tvDirector(dtMs);
+    if (this.follow && this.mode !== 'circuit') {
       const fc = this.sim.car(this.follow);
       if (fc) {
         this.carPos(fc, this.tmp);
-        const k = Math.min(1, dtMs / 180);
+        const k = Math.min(1, dtMs / (this.mode === 'tv' ? 420 : 180));
         this.cam.x += (this.tmp.x - this.cam.x) * k;
         this.cam.y += (this.tmp.y - this.cam.y) * k;
+        // zoom dynamique : on recule un peu à haute vitesse
+        const base = this.defaultZoom() * (this.mode === 'tv' ? 1.15 : 1) * this.userZoom;
+        tz = base * (1.12 - 0.22 * Math.min(1, fc.v / 85));
+        this.cam.z += (tz - this.cam.z) * Math.min(1, dtMs / 600);
       }
     } else {
       const b = t.bounds;
@@ -529,6 +750,9 @@ export class RaceRenderer {
     const z = this.cam.z;
     this.world.scale.set(z, z * TILT);
     this.world.position.set(sw / 2 - this.cam.x * z, sh / 2 - this.cam.y * z * TILT);
+    this.screenRect.width = sw;
+    this.screenRect.height = sh;
+    Culler.shared.cull(this.world, this.screenRect, false);
     const detailed = z >= 1.6; // assez proche pour afficher les voitures à l'échelle réelle
     const eco = this.opts.quality === 'economie';
 
@@ -573,10 +797,19 @@ export class RaceRenderer {
       v.marker.visible = this.follow === c.id;
       v.marker.position.set(sx, sy - (detailed ? 2.2 * z + 20 : 24));
       // fumée / poussière lors des erreurs et des freinages bloqués
-      if (detailed && !eco && c.errKind > 0 && c.errTimer > 0 && Math.random() < 0.5) this.puff(p.x, p.y, Math.abs(c.lat) > t.half ? 0xd8b98a : 0xdddddd);
+      const onScreen = sx > -60 && sx < sw + 60 && sy > -60 && sy < sh + 60;
+      if (detailed && onScreen && c.errKind > 0 && c.errTimer > 0 && Math.random() < (eco ? 0.2 : 0.5)) this.puff(p.x, p.y, Math.abs(c.lat) > t.half ? 0xd8b98a : 0xdddddd, 0.9);
+      const wet = this.sim.cfg.weather === 'pluie';
+      v.rearLight.visible = detailed && wet && c.status !== 'dnf' && Math.floor(this.sim.t * 4) % 2 === 0;
+      if (v.rearLight.visible) v.rearLight.position.set(-Math.cos(head) * 2.7, -Math.sin(head) * 2.7 - 0.5 / TILT);
+      if (wet && detailed && onScreen && !eco && c.v > 25 && Math.random() < 0.35) {
+        this.puff(p.x - Math.cos(head) * 3.5, p.y - Math.sin(head) * 3.5, 0xe3ebf2, 0.6 + c.v / 160);
+      }
     });
     this.carsLayer.sortableChildren = true;
     this.updatePuffs(dtMs);
+    this.updateCrews();
+    this.updateLights(sw);
 
     // Minicarte
     this.mini.visible = this.follow !== null || sw < 700;
@@ -606,16 +839,81 @@ export class RaceRenderer {
     }
   }
 
-  private puff(x: number, y: number, color: number): void {
-    if (!this.puffTex || this.puffs.length > 40) return;
-    const g = new Sprite(this.puffTex);
-    g.anchor.set(0.5);
+  private puff(x: number, y: number, color: number, size = 1): void {
+    const g = this.puffPool.pop();
+    if (!g) return;
+    g.visible = true;
     g.tint = color;
     g.position.set(x + (Math.random() - 0.5) * 2, y + (Math.random() - 0.5) * 2);
-    g.scale.set(0.08);
+    g.scale.set(0.08 * size);
     g.alpha = 0.7;
-    this.fxLayer.addChild(g);
-    this.puffs.push({ g, life: 1 });
+    this.puffs.push({ g, life: 1, size });
+  }
+
+  /** Réalisateur TV : suit la bagarre la plus serrée, change de plan toutes les ~7 s. */
+  private tvDirector(dtMs: number): void {
+    this.tvTimer -= dtMs / 1000;
+    const cur = this.follow ? this.sim.car(this.follow) : null;
+    if (this.tvTimer > 0 && cur && cur.status === 'run') return;
+    const st = this.sim.standings().filter((c) => c.status === 'run' && c.pit === 0);
+    let best = st[0], bestGap = Infinity;
+    for (let k = 1; k < st.length; k++) {
+      const gap = st[k].interval;
+      const weight = gap + k * 0.04; // à écart égal, on préfère l'avant de la course
+      if (gap > 0 && weight < bestGap) { bestGap = weight; best = st[k]; }
+    }
+    if (bestGap > 2.5 && Math.random() < 0.3) best = st[Math.floor(Math.random() * Math.min(st.length, 6))] ?? best;
+    if (best) this.follow = best.id;
+    this.tvTimer = 7;
+  }
+
+  private updateCrews(): void {
+    const t = this.track, side = t.def.pitSide;
+    for (const [teamIdx, list] of this.crews) {
+      const boxS = t.length - 150 + teamIdx * 30;
+      const car = this.sim.cars.find((c) => c.teamIdx === teamIdx && c.pit === 2);
+      const busy = !!car;
+      list.forEach((m, k) => {
+        let s: number, lat: number;
+        if (busy) {
+          // autour des 4 roues + avant/arrière
+          const spots = [[-2, -1.6], [-2, 1.6], [2, -1.6], [2, 1.6], [3.6, 0], [-3.6, 0]];
+          s = boxS + spots[k][0];
+          lat = t.boxLat + spots[k][1] * side;
+        } else {
+          s = boxS - 5 + k * 2;
+          lat = side * (t.half + 15.5);
+        }
+        worldPos(t, s, lat, this.tmp);
+        m.position.set(this.tmp.x, this.tmp.y);
+        m.zIndex = 1000 + this.tmp.y;
+      });
+    }
+  }
+
+  private updateLights(sw: number): void {
+    const t = this.sim.t, out = this.sim.lightsOut;
+    const lit = t >= out ? 0 : Math.min(5, Math.floor(t / LIGHTS_ON) + 1);
+    if (this.gantry) {
+      const g = this.gantry;
+      g.clear();
+      const w = this.track.def.width + 4;
+      for (let k = 0; k < 5; k++) {
+        const y = (-w / 2 + 2 + k * ((w - 4) / 4)) * (this.track.nx[0] === 0 ? 1 : 1);
+        g.circle(0, y + w / 2 - 0.5, 0.55).fill(k < lit ? 0xff2020 : 0x3a1010);
+      }
+    }
+    if (!this.lights) return;
+    const L = this.lights;
+    L.clear();
+    if (t > out + 1.5) {
+      L.visible = false;
+      return;
+    }
+    L.visible = true;
+    const r = Math.min(22, sw / 22), gap = r * 2.6, x0 = sw / 2 - gap * 2, y0 = 70;
+    L.roundRect(x0 - r * 1.6, y0 - r * 1.6, gap * 4 + r * 3.2, r * 3.2, 10).fill({ color: 0x16130f, alpha: 0.9 }).stroke({ width: 3, color: 0xf4f1ea });
+    for (let k = 0; k < 5; k++) L.circle(x0 + k * gap, y0, r).fill(k < lit ? 0xff2020 : 0x3a1010).stroke({ width: 2, color: 0x000000 });
   }
 
   private updatePuffs(dtMs: number): void {
@@ -623,9 +921,10 @@ export class RaceRenderer {
       const p = this.puffs[k];
       p.life -= dtMs / 900;
       p.g.alpha = Math.max(0, p.life * 0.6);
-      p.g.scale.set(0.08 + (1 - p.life) * 0.2);
+      p.g.scale.set((0.08 + (1 - p.life) * 0.2) * p.size);
       if (p.life <= 0) {
-        p.g.destroy();
+        p.g.visible = false;
+        this.puffPool.push(p.g);
         this.puffs.splice(k, 1);
       }
     }

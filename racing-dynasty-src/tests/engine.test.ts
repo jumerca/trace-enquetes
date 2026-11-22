@@ -22,7 +22,7 @@ const cfg = (trackId: string, seed: number, weather: 'sec' | 'pluie' = 'sec'): R
 
 describe('circuits', () => {
   it('trois circuits fermés de longueur réaliste', () => {
-    expect(TRACK_DEFS).toHaveLength(3);
+    expect(TRACK_DEFS).toHaveLength(5);
     for (const d of TRACK_DEFS) {
       const t = getTrack(d.id);
       expect(t.length).toBeGreaterThan(2500);
@@ -110,6 +110,17 @@ describe('simulation de course', () => {
     sim.runToEnd();
     expect(sim.finished).toBe(true);
     expect(sim.results()[0].status).toBe('arrivé');
+  });
+
+  it('aucune voiture ne bouge avant l’extinction des feux', () => {
+    const sim = new RaceSim(cfg('valbrune', 4));
+    const s0 = sim.cars.map((c) => c.s);
+    while (sim.t < sim.lightsOut - 0.05) sim.step();
+    expect(sim.cars.map((c) => c.s)).toEqual(s0);
+    expect(sim.lightsOut).toBeGreaterThan(4);
+    for (let k = 0; k < 30; k++) sim.step();
+    expect(sim.cars.some((c, i) => c.s > s0[i])).toBe(true);
+    expect(sim.events.some((e) => e.kind === 'depart')).toBe(true);
   });
 
   it('les consignes modifient le comportement (attaque use plus les pneus)', () => {

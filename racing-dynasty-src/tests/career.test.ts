@@ -39,12 +39,14 @@ function playRound(c: Career): void {
 }
 
 describe('création de carrière', () => {
-  it('crée 10 écuries, 28 pilotes dont 10 libres, 3 Grands Prix', () => {
+  it('crée 10 écuries, 28 pilotes dont 10 libres, 5 Grands Prix', () => {
     const c = createCareer(opts);
     expect(c.teams).toHaveLength(10);
     expect(c.drivers.filter((d) => d.teamId)).toHaveLength(18);
     expect(freeAgents(c)).toHaveLength(10);
-    expect(c.calendar).toHaveLength(3);
+    expect(c.calendar).toHaveLength(5);
+    expect(c.objective.target).toBeGreaterThanOrEqual(1);
+    expect(c.objective.target).toBeLessThanOrEqual(10);
     expect(playerTeam(c).name).toBe('Écurie Test');
     expect(c.budget).toBe(30);
     expect(canRace(c)).not.toBeNull();
@@ -90,8 +92,12 @@ describe('boucle complète', () => {
     const c = createCareer(opts);
     hireTwo(c);
     signSponsor(c, availableSponsors(c).find((s) => s.minReputation === 0)!.id);
-    for (let r = 0; r < 3; r++) playRound(c);
-    expect(c.results).toHaveLength(3);
+    const carsBefore = JSON.stringify(c.teams.filter((t) => !t.isPlayer).map((t) => t.car));
+    for (let r = 0; r < 5; r++) playRound(c);
+    expect(c.results).toHaveLength(5);
+    expect(JSON.stringify(c.teams.filter((t) => !t.isPlayer).map((t) => t.car))).not.toBe(carsBefore); // les IA évoluent
+    expect(c.history[0].objective).toBeDefined();
+    expect(c.ledger.some((l) => /actionnaires/.test(l.label)) || c.news.some((n) => /Objectif manqué/.test(n.text))).toBe(true);
     expect(seasonOver(c)).toBe(true);
     const ds = driverStandings(c);
     const total = ds.reduce((a, s) => a + s.points, 0);
@@ -157,6 +163,17 @@ describe('sauvegardes', () => {
     expect(store.load(1)!.budget).toBe(30);
     expect(store.list()[1].corrupted).toBe(true);
     expect(store.list()[0].empty).toBe(true);
+  });
+
+  it('migration : une sauvegarde V0.1 (schéma 1, 3 GP, sans objectif) se charge et reçoit un objectif', () => {
+    const kv = new MemoryKV();
+    const c = createCareer(opts) as any;
+    delete c.objective;
+    c.calendar = c.calendar.slice(0, 3);
+    kv.setItem('racing-dynasty/save/0', JSON.stringify({ app: 'racing-dynasty', schema: 1, gameVersion: '0.1.0', savedAt: new Date().toISOString(), career: c }));
+    const loaded = new SaveStore(kv).load(0)!;
+    expect(loaded.objective.target).toBeGreaterThanOrEqual(1);
+    expect(loaded.calendar).toHaveLength(3); // la saison en cours n'est pas modifiée
   });
 
   it('export / import et refus d’un fichier étranger', () => {

@@ -13,6 +13,7 @@ const log = (...a) => console.log('•', ...a);
   const errors = [];
   async function run(name, viewport, opts = {}) {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, ...opts });
+    await ctx.addInitScript(() => { try { localStorage.setItem('racing-dynasty/settings', JSON.stringify({ quality: 'haute', fpsCap: 60, showFps: true, names: true, sound: false })); } catch (e) {} });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errors.push(`[${name}] ${e.message}`));
     p.on('console', (m) => { if (m.type() === 'error') errors.push(`[${name}] console: ${m.text()}`); });
@@ -65,6 +66,9 @@ const log = (...a) => console.log('•', ...a);
     await shot('08-course-x4');
     // consigne joueur
     await p.locator('.dc .seg button', { hasText: 'Attaque' }).first().click();
+    await p.locator('.sim-controls button', { hasText: 'TV' }).click();
+    await p.waitForTimeout(2500);
+    await shot('08b-camera-tv');
     await p.locator('.sim-controls button', { hasText: 'Circuit' }).click();
     await p.waitForTimeout(1500);
     await shot('09-vue-circuit');
@@ -99,7 +103,7 @@ const log = (...a) => console.log('•', ...a);
     if (leader !== leader2) errors.push('classement perdu après rechargement');
     if (name === 'pc') {
       // Fin de saison : Grands Prix 2 et 3 (Valbrune, Kharam)
-      for (const gp of ['valbrune', 'kharam']) {
+      for (const gp of ['lac-argent', 'valbrune', 'montclair', 'kharam']) {
         await p.locator('.tabs button', { hasText: 'QG' }).click();
         await p.getByText('Aller au week-end de course').click();
         await p.getByText('Passer aux qualifications').click();
@@ -111,6 +115,9 @@ const log = (...a) => console.log('•', ...a);
         await p.locator('.sim-controls button', { hasText: '×4' }).click();
         await p.waitForTimeout(5000);
         await shot('14-course-' + gp);
+        await p.locator('.sim-controls button', { hasText: 'TV' }).click();
+        await p.waitForTimeout(3000);
+        await shot('14b-tv-' + gp);
         await p.getByText('Fin directe').click();
         await p.waitForSelector('.finish-overlay', { timeout: 60000 });
         await p.getByText('Voir les résultats').click();
@@ -119,7 +126,7 @@ const log = (...a) => console.log('•', ...a);
       await p.waitForSelector('text=Saison 1 terminée');
       await shot('15-fin-saison');
       await p.getByText('Lancer la saison 2').click();
-      log(name, 'saison complète (3 GP) jouée, saison 2 lancée');
+      log(name, 'saison complète (5 GP) jouée, saison 2 lancée');
     }
     await ctx.close();
   }

@@ -73,7 +73,8 @@ function Dashboard({ api, setTab }: { api: GameApi; setTab: (t: Tab) => void }) 
         <section className="panel hero-card">
           <h2>Saison {c.season} terminée</h2>
           {c.history.slice(-1).map((h) => (
-            <p key={h.season}>Champion : <b>{h.driverChampion}</b> · Constructeurs : <b>{h.teamChampion}</b> · Votre écurie : <b>{h.playerTeamPos}ᵉ</b></p>
+            <p key={h.season}>Champion : <b>{h.driverChampion}</b> · Constructeurs : <b>{h.teamChampion}</b> · Votre écurie : <b>{h.playerTeamPos}ᵉ</b>
+              {h.objective ? (h.playerTeamPos <= h.objective ? ` · objectif (${h.objective}ᵉ) atteint ✔` : ` · objectif (${h.objective}ᵉ) manqué ✘`) : ''}</p>
           ))}
           <button className="btn primary big" onClick={() => api.act((cc) => startNextSeason(cc))}>Lancer la saison {c.season + 1}</button>
         </section>
@@ -109,6 +110,10 @@ function Dashboard({ api, setTab }: { api: GameApi; setTab: (t: Tab) => void }) 
       <section className="panel">
         <h3>Championnat constructeurs</h3>
         <p>Position actuelle : <b>{c.results.length ? pos + 'ᵉ' : '—'}</b> · Voiture : note <b>{carRating(playerTeam(c).car).toFixed(1)}</b>/20</p>
+        <p className={'objective ' + (c.results.length ? (pos <= c.objective.target ? 'ok' : 'ko') : '')}>
+          🎯 Objectif des actionnaires : <b>{c.objective.target}ᵉ</b> au championnat constructeurs
+          {c.results.length ? (pos <= c.objective.target ? ' — en bonne voie' : ' — en retard') : ''}
+        </p>
       </section>
       <section className="panel news">
         <h3>Actualités</h3>
@@ -295,7 +300,7 @@ function Standings({ api }: { api: GameApi }) {
       <section className="panel">
         <h2>Pilotes</h2>
         <table className="table">
-          <thead><tr><th>#</th><th>Pilote</th>{c.calendar.map((r) => <th key={r.round}>{getTrack(r.trackId).def.gp.split(' ').pop()!.slice(0, 3).toUpperCase()}</th>)}<th>Pts</th></tr></thead>
+          <thead><tr><th>#</th><th>Pilote</th>{c.calendar.map((r) => <th key={r.round} title={getTrack(r.trackId).def.gp}>{r.trackId.slice(0, 3).toUpperCase()}</th>)}<th>Pts</th></tr></thead>
           <tbody>
             {ds.map((s, i) => {
               const d = driverById(c, s.driverId);

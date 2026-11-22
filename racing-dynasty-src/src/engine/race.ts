@@ -13,6 +13,7 @@ import type { CarEntry, ClassifiedResult, Compound, DriveMode, RaceCommand, Race
 export const DT = 0.1;
 export const CAR_LEN = 5.2;
 export const CAR_W = 1.9;
+export const LIGHTS_ON = 0.8; // intervalle d'allumage des feux de départ (s)
 const LAT_CLEAR = CAR_W + 0.3; // séparation latérale minimale entre deux voitures côte à côte
 const PIT_SPEED = 22; // 80 km/h
 const CP = 50; // pas des points de chronométrage (m)
@@ -87,6 +88,8 @@ export class RaceSim {
   flag = false; // drapeau à damier agité
   finished = false;
   fastest: { carId: string; time: number } | null = null;
+  /** Instant d'extinction des feux (s) : 5 feux rouges s'allument un par un puis s'éteignent après un délai aléatoire. */
+  readonly lightsOut: number;
 
   constructor(cfg: RaceConfig, commands: RaceCommand[] = []) {
     this.cfg = cfg;
@@ -119,7 +122,8 @@ export class RaceSim {
     for (const c of this.cars) c.teamIdx = teams.indexOf(c.e.teamId);
     // Fiabilité : probabilité d'abandon mécanique sur la course, répartie par mètre parcouru.
     this.failHazard = this.cars.map((c) => (0.0045 * (21 - c.e.car.fiabilite)) / (cfg.laps * tr.length));
-    this.log('depart', 'Feux éteints ! Départ du ' + tr.def.gp + '.');
+    this.lightsOut = LIGHTS_ON * 5 + 0.4 + this.rng.next() * 1.2;
+    for (const c of this.cars) c.lapStartT = this.lightsOut;
   }
 
   /** Ajoute une consigne joueur à appliquer au prochain pas (enregistrée pour la reproductibilité). */
@@ -153,6 +157,7 @@ export class RaceSim {
   step(): void {
     if (this.finished) return;
     this.applyCommands();
+    if (this.t < this.lightsOut && this.t + DT >= this.lightsOut) this.log('depart', 'Feux éteints ! Départ du ' + this.track.def.gp + '.');
     const tr = this.track, L = tr.length, rng = this.rng;
     const order = this.cars.filter((c) => c.status !== 'dnf').sort((a, b) => b.s - a.s);
     for (const c of this.cars) {
@@ -176,7 +181,7 @@ export class RaceSim {
       if (this.cfg.weather === 'pluie') pace *= 1 + (e.driver.pluie - 10) * 0.0009;
       if (c.status === 'done') pace *= 0.8;
       let vt = c.prof[idx] * pace;
-      if (this.t < c.startDelay) vt = 0;
+      if (this.t < this.lightsOut + c.startDelay) vt = 0;
       if (c.status === 'retiring') vt = 0;
       // Hors trajectoire en virage : perte de vitesse.
       vt *= 1 - 0.006 * Math.min(6, Math.abs(c.lat - rl)) * corner;
@@ -190,7 +195,7 @@ export class RaceSim {
         vt = Math.min(vt, c.errCap);
         if (c.errKind >= 2) latTarget = c.errLat;
         if (c.errTimer <= 0) c.errKind = 0;
-      } else if (racing && c.pit === 0 && this.t > 4 && corner > 0.15) {
+      } else if (racing && c.pit === 0 && this.t > this.lightsOut + 4 && corner > 0.15) {
         this.maybeError(c, corner, order);
       }
 
@@ -619,11 +624,11 @@ export class RaceSim {
       const done = c.status === 'done';
       let gap = '';
       if (!done) gap = c.reason ?? 'Abandon';
-      else if (c === winner) gap = fmtTime(c.finishT);
+      else if (c === winner) gap = fmtTime(c.finishT - this.lightsOut);
       else if (c.laps < winner.laps) gap = `+${winner.laps - c.laps} tour${winner.laps - c.laps > 1 ? 's' : ''}`;
       else gap = '+' + (c.finishT - winner.finishT).toFixed(3) + ' s';
       return {
-        carId: c.id, position: c.position, laps: c.laps, time: done ? c.finishT : 0, gap,
+        carId: c.id, position: c.position, laps: c.laps, time: done ? c.finishT - this.lightsOut : 0, gap,
         bestLap: c.bestLap, stops: c.stops, status: done ? 'arrivé' : 'abandon', reason: c.reason, gridPosition: c.gridPos,
       };
     });
