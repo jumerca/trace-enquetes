@@ -1,6 +1,29 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.6 (dernière version)
+## V0.7 (dernière version)
+
+* `npm test` : **47/47**. Nouveau fichier `tests/longterm.test.ts` :
+  * chantier d'usine sur plusieurs GP, puis projets en parallèle et entretien plus élevés ;
+  * un article de presse par GP, rivalité née de contacts ;
+  * limogeage après une saison catastrophique, puis reprise d'une autre écurie et course jouée avec elle ;
+  * offre de débauchage après une saison réussie, refus qui rassure les actionnaires ;
+  * migration d'une sauvegarde V0.6 (schéma 3 → 4).
+* Économie : 2 saisons complètes de 8 GP simulées pour chaque difficulté × profil de budget (2 pilotes, 2 sponsors,
+  aucun investissement). Avant : le budget gagnait de +15 à +26 M€ par saison (par exemple 30 → 45 → 59 en
+  normale/équilibré). Après : à peu près stable (30 → 28 → 26 en normale/équilibré, 15 → 13 en difficile/serré).
+  Le budget de départ sert désormais vraiment à investir (R&D, installations, personnel).
+* Actionnaires : dans ces simulations passives (sans aucun investissement), le directeur est remercié au bout de
+  2 saisons dans 2 cas sur 9. C'est voulu (objectif jamais atteint), mais c'est à juger en jouant.
+* E2E Chromium (PC avec saison complète de 8 GP, Android paysage et portrait, tablette) : réussi, avec en plus un
+  chantier d'installation, la vue cockpit, l'article de presse aux résultats et l'onglet Presse.
+* Vue cockpit : même ordre de vitesse que la vue Suivre en rendu logiciel headless (environ 9 contre 10 i/s à
+  1000×560 sur cette machine chargée). Elle n'a pas été mesurée sur un téléphone réel.
+* Limites :
+  * la vue cockpit est une projection pseudo-3D d'un circuit plat (pas de relief) ;
+  * les adversaires sont vus de dos uniquement ;
+  * la voie des stands est simplifiée.
+
+## V0.6
 
 * `npm test` : **42/42** (nouveau : drapeaux jaunes signalés et levés, aucun dépassement dans une zone neutralisée).
 * Stratégies (voitures identiques, seules en piste, 5 circuits, 12 tours) : Tendre→Médium, Médium→Dur et

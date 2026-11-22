@@ -47,6 +47,16 @@ Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 - [x] Calendrier plus long (8 à 10 GP) et nouveaux circuits.
 - [x] Statistiques et palmarès détaillés (records, victoires, pole positions par pilote et par écurie).
 
+## 4 bis. Gestion sur le long terme — fait en V0.7
+- [x] Installations (soufflerie, simulateur, usine) : chantiers, entretien, plus de projets et meilleures chances.
+- [x] Presse BD après chaque GP, déclarations des pilotes, rivalités qui influencent le moral.
+- [x] Contrat du directeur, confiance des actionnaires, limogeage, débauchage par une plus grande écurie.
+- [x] Économie rééquilibrée pour 8 GP (simulation de 2 saisons par difficulté et profil de budget).
+- [x] Vue cockpit pseudo-3D.
+- [ ] À affiner avec une vraie saison jouée par vous : niveau de sévérité des actionnaires, prix des installations.
+- [ ] Idées suivantes : négociation de contrat du directeur (salaire, bonus), conférences de presse à choix
+      multiples, offres de constructeurs moteur, vue hélicoptère.
+
 ## 5. Technique
 - [ ] Synchronisation optionnelle des sauvegardes entre appareils (export/import en un geste via un fichier partagé).
 - [ ] Tests E2E dans la CI GitHub (Playwright) à chaque pull request.

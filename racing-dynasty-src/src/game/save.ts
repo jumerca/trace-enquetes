@@ -3,7 +3,7 @@
 import { computeObjective, type Career } from './career';
 import { upgradeCareerV3 } from './management';
 
-export const SAVE_SCHEMA = 3;
+export const SAVE_SCHEMA = 4;
 export const SLOT_COUNT = 3;
 const PREFIX = 'racing-dynasty/save/';
 const LAST = 'racing-dynasty/last-slot';
@@ -45,6 +45,12 @@ const MIGRATIONS: Record<number, (f: any) => any> = {
   2: (f) => {
     upgradeCareerV3(f.career);
     f.schema = 3;
+    return f;
+  },
+  // V0.6 → V0.7 : installations, presse, rivalités, carrière du directeur (complétés par upgradeCareerV3).
+  3: (f) => {
+    upgradeCareerV3(f.career);
+    f.schema = 4;
     return f;
   },
 };

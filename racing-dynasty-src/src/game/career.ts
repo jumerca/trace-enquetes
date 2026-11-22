@@ -18,6 +18,8 @@ import {
   applyStaffEffects, checkInjuries, developYouth, engineerFactor, formFactor, initialStaff, negotiateSponsor, progressProjects,
   recordRaceStats, recordTitles, refreshStaffMarket, reliabilityBonus, renewSponsors, restoreStandIn, seasonTransfers,
   staffSalaries, updateMorale, type CareerStats, type RndProject, type Staff,
+  facilityUpkeep, progressFacilities, updateRivalries, rivalryMorale, writeArticle, updateConfidence,
+  directorSeasonReview, director, type Facilities, type Article, type Director,
 } from './management';
 import type { RaceEvent } from '../engine/types';
 
@@ -161,6 +163,10 @@ export interface Career {
   projects?: RndProject[];
   stats?: CareerStats;
   sponsorTalks?: Record<string, number>;
+  facilities?: Facilities;
+  press?: Article[];
+  rivalries?: Record<string, number>;
+  director?: Director;
 }
 
 export const PRACTICE_RUNS = 4;
@@ -215,6 +221,11 @@ export function createCareer(o: CareerOptions): Career {
   refreshStaffMarket(c);
   c.projects = [];
   c.stats = { drivers: {}, teams: {} };
+  const fl = o.difficulty === 'facile' ? 3 : o.difficulty === 'normale' ? 2 : 1;
+  c.facilities = { soufflerie: fl, simulateur: Math.max(2, fl), usine: Math.max(2, fl) };
+  director(c);
+  c.press = [];
+  c.rivalries = {};
   c.sponsorTalks = {};
   addLedger(c, 'Budget initial', c.budget, true);
   addNews(c, `${player.name} rejoint le championnat ! Objectif : recruter deux pilotes avant le premier Grand Prix.`);
@@ -265,6 +276,7 @@ export function signingFee(salary: number): number {
 }
 
 export function canRace(c: Career): string | null {
+  if (c.director?.fired) return 'Vous avez été limogé : choisissez une nouvelle écurie.';
   if (teamDrivers(c, c.playerTeamId).length < 2) return 'Recrutez deux pilotes pour pouvoir disputer un Grand Prix.';
   if (c.round >= c.calendar.length) return 'La saison est terminée.';
   return null;
@@ -616,8 +628,8 @@ export function finishRace(
   const earnings: { label: string; amount: number }[] = [];
   const mine = entries.filter((e) => e.teamId === c.playerTeamId);
   const pts = mine.reduce((a, e) => a + e.points, 0);
-  earnings.push({ label: 'Prime de participation', amount: 0.5 });
-  if (pts) earnings.push({ label: `Prix au championnat (${pts} pts)`, amount: round1(pts * 0.12) });
+  earnings.push({ label: 'Prime de participation', amount: 0.4 });
+  if (pts) earnings.push({ label: `Prix au championnat (${pts} pts)`, amount: round1(pts * 0.1) });
   for (const s of c.sponsors) {
     earnings.push({ label: `${s.name} — versement`, amount: s.perRace });
     const ok =
@@ -631,7 +643,9 @@ export function finishRace(
   earnings.push({ label: 'Salaires des pilotes (titulaires, réserve, académie)', amount: -round1(salaries) });
   const staffPay = staffSalaries(c) / c.calendar.length;
   if (staffPay) earnings.push({ label: 'Salaires du personnel clé', amount: -round1(staffPay) });
-  earnings.push({ label: 'Logistique et personnel', amount: -1.4 });
+  earnings.push({ label: 'Logistique et personnel', amount: -1.6 });
+  const upkeep = facilityUpkeep(c);
+  if (upkeep) earnings.push({ label: 'Entretien des installations', amount: -upkeep });
   for (const e of earnings) addLedger(c, `${getTrack(w.trackId).def.gp} — ${e.label}`, e.amount);
 
   // Réputation : résultat comparé au niveau attendu.
@@ -647,7 +661,12 @@ export function finishRace(
   w.phase = 'resultats';
   c.results.push(res);
   updateMorale(c, res, events);
+  updateRivalries(c, events);
+  rivalryMorale(c, res);
   recordRaceStats(c, res, w.quali?.[0]?.driverId ?? null);
+  writeArticle(c, res, events, getTrack(w.trackId).def.gp);
+  const tsNow = teamStandings(c);
+  updateConfidence(c, res, tsNow.findIndex((t) => t.teamId === c.playerTeamId) + 1);
   const win = driverById(c, entries[0].driverId);
   addNews(c, `${getTrack(w.trackId).def.gp} : victoire de ${win.first} ${win.last} (${teamById(c, win.teamId!).name}).`);
   return res;
@@ -660,6 +679,7 @@ export function closeWeekend(c: Career): void {
   c.weekend = null;
   aiDevelopment(c);
   progressProjects(c);
+  progressFacilities(c);
   developYouth(c);
   c.round++;
   if (c.round >= c.calendar.length) {
@@ -676,6 +696,7 @@ export function closeWeekend(c: Career): void {
     });
     addNews(c, `${champ.first} ${champ.last} est sacré champion ! ${teamById(c, ts[0].teamId).name} remporte le titre constructeurs.`);
     recordTitles(c, champ.id, ts[0].teamId);
+    directorSeasonReview(c, pos);
     const team = playerTeam(c);
     if (pos <= c.objective.target) {
       const bonus = 3 + (c.objective.target - pos) * 0.8;

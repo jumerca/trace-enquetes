@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.6 (JLG Creative)
+# Racing Dynasty — V0.7 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -14,6 +14,25 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libres et jeunes espoirs, 8 circuits originaux
 (Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.7 — la gestion sur le long terme
+* Installations : soufflerie, simulateur et usine (niveaux 1 à 5), agrandies par chantiers de plusieurs GP avec
+  entretien par course. L'usine débloque des projets de R&D en parallèle (1 à 3) et fiabilise moteur / châssis /
+  fiabilité ; la soufflerie fiabilise et accélère l'aéro ; le simulateur accélère la mise au point aux essais et la
+  progression des jeunes.
+* Presse : « La Gazette des Paddocks » publie un article BD après chaque Grand Prix (titre, compte rendu, déclaration
+  d'un de vos pilotes, réplique d'un rival). Nouvel onglet Presse et « À la une » au QG.
+* Rivalités : les dépassements, contacts et pénalités entre vos pilotes et un adversaire créent une rivalité ; battre
+  son rival remonte le moral, être battu l'entame.
+* Carrière du directeur : contrat de 2 saisons, confiance des actionnaires mise à jour à chaque course ; limogeage si
+  elle s'effondre (avec offres d'écuries modestes pour rebondir) ; débauchage par une écurie plus forte après une
+  saison réussie (accepter ou rester fidèle).
+* Économie rééquilibrée pour 8 GP : sponsors ×0,55 par course, primes un peu réduites, logistique et entretien des
+  installations — une saison passive est désormais proche de l'équilibre (simulation de 2 saisons complètes pour
+  chaque difficulté et chaque profil de budget).
+* Course : vue Cockpit (perspective pseudo-3D depuis le baquet : halo, nez et roues avant, rétroviseurs, volant avec
+  vitesse et rapport, adversaires vus de dos, gouttes sur la visière, ciel de nuit ou de crépuscule, brouillard).
+* Sauvegardes : schéma 4, migration automatique des parties V0.6.
 
 ### Nouveautés V0.6
 * Week-end : séance de qualifications animée (chronos en direct, tour lancé de vos pilotes sur la carte, mêmes
@@ -96,7 +115,7 @@ src/engine/   moteur de course pur (aucun DOM) : rng, géométrie de circuit, ph
 src/game/     données de gestion : monde fictif, carrière, finances, classements, sauvegardes, préférences
 src/render/   rendu PixiJS 2,5D en lecture seule de l'état du moteur
 src/ui/       interface React (écrans, contrôles de simulation)
-tests/        tests Vitest (moteur, carrière, sauvegardes)
+tests/        tests Vitest (moteur, carrière, gestion, long terme, sauvegardes)
 scripts/      E2E Playwright, génération des icônes
 ```
 

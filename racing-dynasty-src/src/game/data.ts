@@ -151,14 +151,14 @@ const DRIVER_SEEDS: [string, string, string, number, number][] = [
 ];
 
 export const SPONSOR_SEEDS: Omit<SponsorOffer, 'id'>[] = [
-  { name: 'Helix Énergie', sector: 'Énergie', color: '#ff9f1c', perRace: 1.6, signing: 1.5, objective: 'points', bonus: 0.8, minReputation: 0 },
-  { name: 'Corvane Montres', sector: 'Horlogerie', color: '#c9a227', perRace: 2.4, signing: 2, objective: 'top5', bonus: 1.4, minReputation: 45 },
-  { name: 'Nimbus Cloud', sector: 'Informatique', color: '#4cc9f0', perRace: 1.2, signing: 1, objective: 'arrivee', bonus: 0.5, minReputation: 0 },
-  { name: 'Brasserie Haute-Combe', sector: 'Boissons', color: '#9d4edd', perRace: 0.9, signing: 0.6, objective: 'arrivee', bonus: 0.4, minReputation: 0 },
-  { name: 'Orbis Télécom', sector: 'Télécoms', color: '#3a86ff', perRace: 2, signing: 1.5, objective: 'points', bonus: 1, minReputation: 30 },
-  { name: 'Valtek Pneumatique', sector: 'Industrie', color: '#8ac926', perRace: 1.1, signing: 0.8, objective: 'points', bonus: 0.6, minReputation: 0 },
-  { name: 'Aster Banque Privée', sector: 'Finance', color: '#1b263b', perRace: 3, signing: 3, objective: 'podium', bonus: 2.5, minReputation: 60 },
-  { name: 'Kairo Mobilité', sector: 'Automobile', color: '#e63946', perRace: 1.4, signing: 1, objective: 'arrivee', bonus: 0.7, minReputation: 15 },
+  { name: 'Helix Énergie', sector: 'Énergie', color: '#ff9f1c', perRace: 0.88, signing: 1.5, objective: 'points', bonus: 0.48, minReputation: 0 },
+  { name: 'Corvane Montres', sector: 'Horlogerie', color: '#c9a227', perRace: 1.32, signing: 2.0, objective: 'top5', bonus: 0.84, minReputation: 45 },
+  { name: 'Nimbus Cloud', sector: 'Informatique', color: '#4cc9f0', perRace: 0.66, signing: 1.0, objective: 'arrivee', bonus: 0.3, minReputation: 0 },
+  { name: 'Brasserie Haute-Combe', sector: 'Boissons', color: '#9d4edd', perRace: 0.5, signing: 0.6, objective: 'arrivee', bonus: 0.24, minReputation: 0 },
+  { name: 'Orbis Télécom', sector: 'Télécoms', color: '#3a86ff', perRace: 1.1, signing: 1.5, objective: 'points', bonus: 0.6, minReputation: 30 },
+  { name: 'Valtek Pneumatique', sector: 'Industrie', color: '#8ac926', perRace: 0.61, signing: 0.8, objective: 'points', bonus: 0.36, minReputation: 0 },
+  { name: 'Aster Banque Privée', sector: 'Finance', color: '#1b263b', perRace: 1.65, signing: 3.0, objective: 'podium', bonus: 1.5, minReputation: 60 },
+  { name: 'Kairo Mobilité', sector: 'Automobile', color: '#e63946', perRace: 0.77, signing: 1.0, objective: 'arrivee', bonus: 0.42, minReputation: 15 },
 ];
 
 function clamp(v: number, a = 1, b = 20): number {

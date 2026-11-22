@@ -82,7 +82,7 @@ export function reliabilityBonus(c: Career): number {
 
 /** Multiplicateur de progression du réglage aux essais (ingénieur de course). */
 export function engineerFactor(c: Career): number {
-  return 0.6 + staffRating(c, 'ingenieur') / 25;
+  return (0.6 + staffRating(c, 'ingenieur') / 25) * (1 + (facilities(c).simulateur - 2) * 0.08);
 }
 
 // ================================================================ Recherche & développement
@@ -102,16 +102,18 @@ export const MAX_PROJECTS = 2;
 export function projectTerms(c: Career, stat: keyof CarStats): { cost: number; duration: number; chance: number } {
   const level = playerTeam(c).car[stat];
   const dir = staffRating(c, 'directeur');
+  const f = facilities(c);
+  const fac = stat === 'aero' ? f.soufflerie : f.usine; // l'aéro dépend de la soufflerie, le reste de l'usine
   return {
     cost: round1(upgradeCost(level) * 1.1),
-    duration: clamp(Math.round(3.2 - (dir - 10) / 5 + (level >= 16 ? 1 : 0)), 1, 5),
-    chance: clamp(0.62 + (dir - 10) * 0.025 - (level - 12) * 0.02, 0.35, 0.95),
+    duration: clamp(Math.round(3.2 - (dir - 10) / 5 + (level >= 16 ? 1 : 0) - (fac >= 4 ? 1 : 0)), 1, 5),
+    chance: clamp(0.62 + (dir - 10) * 0.025 - (level - 12) * 0.02 + (fac - 2) * 0.035, 0.3, 0.95),
   };
 }
 
 export function startProject(c: Career, stat: keyof CarStats): string | null {
   const projects = (c.projects ??= []);
-  if (projects.length >= MAX_PROJECTS) return `L'usine mène déjà ${MAX_PROJECTS} projets de front.`;
+  if (projects.length >= maxProjects(c)) return `L'usine mène déjà ${maxProjects(c)} projet(s) de front (agrandissez-la pour en mener plus).`;
   if (projects.some((p) => p.stat === stat)) return 'Un projet est déjà en cours sur cet élément.';
   if (playerTeam(c).car[stat] >= 20) return 'Niveau maximal atteint.';
   const t = projectTerms(c, stat);
@@ -287,7 +289,7 @@ export function setDriverRole(c: Career, id: string, role: 'titulaire' | 'reserv
 /** Progression des jeunes de l'académie (et du réserviste) après chaque Grand Prix. */
 export function developYouth(c: Career): void {
   const rng = new Rng(hashSeed(c.seed, c.season, c.round, 'academie'));
-  const coach = 0.8 + staffRating(c, 'ingenieur') / 50;
+  const coach = 0.8 + staffRating(c, 'ingenieur') / 50 + (facilities(c).simulateur - 2) * 0.05;
   for (const d of c.drivers) {
     if (d.teamId !== c.playerTeamId || (d.role !== 'academie' && d.role !== 'reserve')) continue;
     const pot = d.potential ?? driverRating(d.stats) + 1;
@@ -517,5 +519,315 @@ export function upgradeCareerV3(c: Career): void {
     c.stats = { drivers: {}, teams: {} };
     for (const r of c.results) recordRaceStats(c, r, null);
   }
+  facilities(c);
+  director(c);
+  c.press ??= [];
+  c.rivalries ??= {};
   void teamById;
+}
+
+// ================================================================ Installations (soufflerie, simulateur, usine)
+
+export type FacilityKind = 'soufflerie' | 'simulateur' | 'usine';
+export interface Facilities {
+  soufflerie: number;
+  simulateur: number;
+  usine: number;
+  building?: { kind: FacilityKind; left: number }; // agrandissement en cours (GP restants)
+}
+
+export const FACILITY_INFO: Record<FacilityKind, { title: string; effect: string }> = {
+  soufflerie: { title: 'Soufflerie', effect: 'Projets aérodynamiques plus sûrs et plus courts.' },
+  simulateur: { title: 'Simulateur', effect: 'Réglages trouvés plus vite aux essais, jeunes pilotes qui progressent plus vite.' },
+  usine: { title: 'Usine', effect: 'Projets moteur / châssis / fiabilité plus sûrs ; davantage de projets en parallèle.' },
+};
+
+export const MAX_FACILITY = 5;
+
+export function facilities(c: Career): Facilities {
+  return (c.facilities ??= { soufflerie: 2, simulateur: 2, usine: 2 });
+}
+
+export function facilityCost(level: number): number {
+  return round1(3 + level * 2.5);
+}
+
+export function facilityDuration(level: number): number {
+  return 1 + level;
+}
+
+/** Coût d'entretien par Grand Prix (M€). */
+export function facilityUpkeep(c: Career): number {
+  const f = facilities(c);
+  return round1((f.soufflerie + f.simulateur + f.usine) * 0.06);
+}
+
+export function maxProjects(c: Career): number {
+  const u = facilities(c).usine;
+  return 1 + (u >= 2 ? 1 : 0) + (u >= 4 ? 1 : 0);
+}
+
+export function startFacilityUpgrade(c: Career, kind: FacilityKind): string | null {
+  const f = facilities(c);
+  if (c.weekend) return 'Les travaux se lancent entre deux Grands Prix.';
+  if (f.building) return 'Un chantier est déjà en cours.';
+  if (f[kind] >= MAX_FACILITY) return 'Niveau maximal atteint.';
+  const cost = facilityCost(f[kind]);
+  if (c.budget < cost) return 'Budget insuffisant.';
+  addLedger(c, `Agrandissement ${FACILITY_INFO[kind].title.toLowerCase()} (niveau ${f[kind] + 1})`, -cost);
+  f.building = { kind, left: facilityDuration(f[kind]) };
+  addNews(c, `Début des travaux : ${FACILITY_INFO[kind].title.toLowerCase()} niveau ${f[kind] + 1} (${f.building.left} GP).`);
+  return null;
+}
+
+export function progressFacilities(c: Career): void {
+  const f = facilities(c);
+  if (!f.building) return;
+  f.building.left--;
+  if (f.building.left <= 0) {
+    f[f.building.kind]++;
+    addNews(c, `Inauguration : ${FACILITY_INFO[f.building.kind].title.toLowerCase()} niveau ${f[f.building.kind]} !`);
+    f.building = undefined;
+  }
+}
+
+// ================================================================ Presse et rivalités
+
+export interface Article {
+  season: number;
+  round: number;
+  title: string;
+  body: string;
+  quote?: { driverId: string; text: string };
+  rivalQuote?: { driverId: string; text: string };
+}
+
+const pickS = <T,>(arr: T[], rng: Rng): T => arr[rng.int(0, arr.length - 1)];
+
+/** Intensité des rivalités entre vos pilotes et leurs adversaires (0..100), alimentée par les duels en piste. */
+export function updateRivalries(c: Career, events: RaceEvent[]): void {
+  const riv = (c.rivalries ??= {});
+  for (const k of Object.keys(riv)) {
+    riv[k] = Math.round(riv[k] * 0.85);
+    if (riv[k] < 5) delete riv[k];
+  }
+  const mine = new Set(c.drivers.filter((d) => d.teamId === c.playerTeamId).map((d) => d.id));
+  for (const e of events) {
+    if (!e.carId || !e.otherId) continue;
+    const a = e.carId, b = e.otherId;
+    if (mine.has(a) === mine.has(b)) continue; // duel entre un pilote à vous et un adversaire uniquement
+    const me = mine.has(a) ? a : b, other = mine.has(a) ? b : a;
+    const k = me + '|' + other;
+    const gain = e.kind === 'contact' ? 25 : e.kind === 'penalite' ? 12 : e.kind === 'depassement' ? 8 : 0;
+    if (gain) riv[k] = Math.min(100, (riv[k] ?? 0) + gain);
+  }
+}
+
+/** Principale rivalité d'un pilote (identifiant de l'adversaire et intensité). */
+export function mainRival(c: Career, driverId: string): { id: string; level: number } | null {
+  let best: { id: string; level: number } | null = null;
+  for (const [k, v] of Object.entries(c.rivalries ?? {})) {
+    const [me, other] = k.split('|');
+    if (me === driverId && v >= 25 && (!best || v > best.level)) best = { id: other, level: v };
+  }
+  return best;
+}
+
+/** Effet des rivalités sur le moral : battre son rival galvanise, être battu agace. */
+export function rivalryMorale(c: Career, res: RoundResult): void {
+  const pos = new Map(res.entries.map((e) => [e.driverId, e.status === 'arrivé' ? e.position : 99]));
+  for (const d of c.drivers.filter((x) => x.teamId === c.playerTeamId)) {
+    const r = mainRival(c, d.id);
+    if (!r || !pos.has(d.id) || !pos.has(r.id)) continue;
+    const delta = pos.get(d.id)! < pos.get(r.id)! ? 4 : -4;
+    d.morale = Math.max(5, Math.min(100, moraleOf(d) + delta * (r.level >= 60 ? 1.5 : 1)));
+  }
+}
+
+/** Article de « La Gazette des Paddocks » après chaque Grand Prix. */
+export function writeArticle(c: Career, res: RoundResult, events: RaceEvent[], gp: string): Article {
+  const rng = new Rng(hashSeed(c.seed, c.season, res.round, 'presse'));
+  const win = driverById(c, res.entries[0].driverId);
+  const winTeam = teamById(c, win.teamId!);
+  const team = playerTeam(c);
+  const mine = res.entries.filter((e) => e.teamId === c.playerTeamId);
+  const best = mine.reduce<typeof mine[number] | null>((a, e) => (e.status === 'arrivé' && (!a || e.position < a.position) ? e : a), null);
+  const sc = events.some((e) => e.kind === 'securite');
+  const rain = events.some((e) => e.kind === 'meteo');
+  let title: string;
+  let body: string;
+  if (win.teamId === c.playerTeamId) {
+    title = pickS([`TRIOMPHE ! ${win.last.toUpperCase()} OFFRE LA VICTOIRE À ${team.name.toUpperCase()}`, `${team.name.toUpperCase()} AU SOMMET À ${gp.replace('Grand Prix de ', '').toUpperCase()}`], rng);
+    body = `Personne ne les attendait si haut : ${win.first} ${win.last} s'impose et fait exploser de joie tout le garage de ${team.name}.`;
+  } else if (best && best.position <= 3) {
+    title = pickS([`PODIUM HISTORIQUE POUR ${team.name.toUpperCase()}`, `${team.name.toUpperCase()} S'INVITE SUR LE PODIUM`], rng);
+    body = `${winTeam.name} gagne avec ${win.first} ${win.last}, mais tous les regards sont tournés vers la ${best.position}ᵉ place de ${driverById(c, best.driverId).last}.`;
+  } else if (mine.length && mine.every((e) => e.status === 'abandon')) {
+    title = pickS([`CAUCHEMAR POUR ${team.name.toUpperCase()}`, `DOUBLE ABANDON : ${team.name.toUpperCase()} DANS LA TOURMENTE`], rng);
+    body = `Pendant que ${win.first} ${win.last} (${winTeam.name}) l'emporte, ${team.name} repart avec zéro point et beaucoup de questions.`;
+  } else {
+    title = pickS([`${win.last.toUpperCase()} S'IMPOSE`, `${winTeam.name.toUpperCase()} INTOUCHABLE`, `VICTOIRE DE ${win.last.toUpperCase()} À ${gp.replace('Grand Prix de ', '').replace('Grand Prix du ', '').toUpperCase()}`], rng);
+    body = `${win.first} ${win.last} remporte le ${gp} pour ${winTeam.name}.` + (best ? ` Chez ${team.name}, meilleur résultat : ${best.position}ᵉ.` : '');
+  }
+  if (sc) body += ' La voiture de sécurité a rebattu les cartes.';
+  if (rain) body += ' La météo capricieuse a piégé plus d’un pilote.';
+  // déclaration d'un de vos pilotes
+  let quote: Article['quote'];
+  let rivalQuote: Article['rivalQuote'];
+  const speaker = mine.length ? mine[rng.int(0, mine.length - 1)] : null;
+  if (speaker) {
+    const d = driverById(c, speaker.driverId);
+    const m = moraleOf(d);
+    const rival = mainRival(c, d.id);
+    let text: string;
+    if (speaker.status === 'abandon') text = pickS(['Frustrant. On avait le rythme, il faut comprendre ce qui s’est passé.', 'Ça arrive en course, on reviendra plus forts.'], rng);
+    else if (speaker.position <= 3) text = pickS(['Incroyable ! L’équipe a fait un travail fantastique.', 'Je rêvais de ce moment depuis des années !'], rng);
+    else if (speaker.points > 0) text = pickS(['De bons points, c’est encourageant pour la suite.', 'On progresse course après course.'], rng);
+    else text = m < 45 ? pickS(['Je ne suis pas satisfait, la voiture n’est pas au niveau.', 'Il va falloir des changements.'], rng) : pickS(['Course difficile, mais on garde le moral.', 'On a beaucoup appris aujourd’hui.'], rng);
+    if (rival && rival.level >= 40) {
+      const r = driverById(c, rival.id);
+      text += ' ' + pickS([`Quant à ${r.last}… il sait ce qu’il a fait.`, `${r.last} ? Je l’attends au prochain virage.`], rng);
+      rivalQuote = { driverId: r.id, text: pickS([`${d.last} devrait regarder ses rétroviseurs avant de parler.`, `Je n’ai aucun problème avec ${d.last}. C’est la course.`], rng) };
+    }
+    quote = { driverId: d.id, text };
+  }
+  const art: Article = { season: c.season, round: res.round + 1, title, body, quote, rivalQuote };
+  (c.press ??= []).unshift(art);
+  if (c.press.length > 24) c.press.length = 24;
+  return art;
+}
+
+// ================================================================ Carrière du directeur
+
+export interface DirectorOffer {
+  teamId: string;
+  reason: string;
+}
+
+export interface Director {
+  confidence: number; // confiance des actionnaires 0..100
+  contractYears: number;
+  fired: boolean;
+  offers: DirectorOffer[];
+  teams: { season: number; teamName: string; pos: number }[];
+}
+
+export function director(c: Career): Director {
+  return (c.director ??= { confidence: 60, contractYears: 2, fired: false, offers: [], teams: [] });
+}
+
+/** Confiance des actionnaires après une course : classement par rapport à l'objectif, résultats, finances. */
+export function updateConfidence(c: Career, res: RoundResult, pos: number): void {
+  const dir = director(c);
+  const mine = res.entries.filter((e) => e.teamId === c.playerTeamId);
+  const lenient = c.difficulty === 'facile' ? 0.5 : c.difficulty === 'normale' ? 0.75 : 1;
+  // Une place d'écart avec l'objectif est tolérée.
+  const gap = c.objective.target - pos;
+  let d = gap >= 0 ? Math.min(2.5, 0.5 + gap * 0.5) : gap === -1 ? -0.5 * lenient : Math.max(-3, gap * 0.8) * lenient;
+  if (mine.some((e) => e.status === 'arrivé' && e.position <= 3)) d += 4;
+  else if (mine.some((e) => e.points > 0)) d += 1;
+  if (mine.length && mine.every((e) => e.status === 'abandon')) d -= 2 * lenient;
+  if (c.budget < 0) d -= 3;
+  dir.confidence = Math.round(Math.max(0, Math.min(100, dir.confidence + d)));
+  if (dir.confidence <= 5 && c.round >= 4 && !dir.fired) fireDirector(c, 'Les actionnaires ont perdu toute confiance.');
+}
+
+function fireDirector(c: Career, why: string): void {
+  const dir = director(c);
+  dir.fired = true;
+  dir.offers = rescueOffers(c);
+  addNews(c, `LIMOGEAGE : ${why} Vous quittez ${playerTeam(c).name}.`);
+}
+
+/** Petites écuries prêtes à vous donner une seconde chance. */
+function rescueOffers(c: Career): DirectorOffer[] {
+  return c.teams
+    .filter((t) => !t.isPlayer)
+    .sort((a, b) => a.reputation - b.reputation)
+    .slice(0, 2)
+    .map((t) => ({ teamId: t.id, reason: `${t.name} cherche un directeur pour se relancer.` }));
+}
+
+/** Bilan de fin de saison : prolongation, limogeage, offres des grandes écuries. */
+export function directorSeasonReview(c: Career, pos: number): void {
+  const dir = director(c);
+  dir.teams.push({ season: c.season, teamName: playerTeam(c).name, pos });
+  if (dir.fired) return;
+  const lenient = c.difficulty === 'facile' ? 0.5 : c.difficulty === 'normale' ? 0.75 : 1;
+  const miss = pos - c.objective.target;
+  dir.confidence = Math.round(Math.max(0, Math.min(100, dir.confidence + (miss <= 0 ? 12 - miss * 3 : miss === 1 ? -3 * lenient : -miss * 6 * lenient))));
+  dir.contractYears--;
+  if (dir.confidence < 15) {
+    fireDirector(c, `Saison jugée insuffisante (${pos}ᵉ pour un objectif de ${c.objective.target}ᵉ).`);
+    return;
+  }
+  if (dir.contractYears <= 0) {
+    if (dir.confidence >= 30) {
+      dir.contractYears = 2;
+      addNews(c, `Les actionnaires prolongent votre contrat de directeur pour 2 saisons.`);
+    } else {
+      fireDirector(c, 'Votre contrat n’est pas renouvelé.');
+      return;
+    }
+  }
+  // Débauchage : une écurie plus forte vous veut si vous avez dépassé les attentes.
+  dir.offers = [];
+  if (dir.confidence >= 70 && pos <= c.objective.target) {
+    const mine = playerTeam(c);
+    const better = c.teams
+      .filter((t) => !t.isPlayer && carRatingOf(t) > carRatingOf(mine))
+      .sort((a, b) => carRatingOf(b) - carRatingOf(a));
+    const pick = better[Math.min(better.length - 1, Math.max(0, better.length - 2))];
+    if (pick) {
+      dir.offers.push({ teamId: pick.id, reason: `${pick.name} veut vous confier son écurie (voiture plus rapide, attentes plus élevées).` });
+      addNews(c, `Rumeur : ${pick.name} courtise le directeur de ${mine.name} !`);
+    }
+  }
+}
+
+function carRatingOf(t: { car: CarStats }): number {
+  return t.car.moteur * 0.32 + t.car.aero * 0.34 + t.car.chassis * 0.24 + t.car.fiabilite * 0.1;
+}
+
+/** Prendre la direction d'une autre écurie (offre acceptée ou reconversion après limogeage). */
+export function switchTeam(c: Career, teamId: string): string | null {
+  const dir = director(c);
+  if (c.weekend) return 'Impossible pendant un week-end de course.';
+  if (!dir.offers.some((o) => o.teamId === teamId)) return 'Aucune offre de cette écurie.';
+  const old = playerTeam(c);
+  const next = teamById(c, teamId);
+  old.isPlayer = false;
+  next.isPlayer = true;
+  c.playerTeamId = next.id;
+  // les jeunes et le réserviste restent dans l'ancienne écurie
+  for (const d of c.drivers) if (d.teamId === old.id && d.role && d.role !== 'titulaire') { d.teamId = null; d.contract = null; d.role = undefined; }
+  c.sponsors = [];
+  renewSponsors(c);
+  c.projects = [];
+  const lvl = Math.max(1, Math.min(5, Math.round(next.reputation / 22)));
+  c.facilities = { soufflerie: lvl, simulateur: lvl, usine: lvl };
+  c.staff = initialStaff({ seed: hashSeed(c.seed, next.id), budgetProfile: c.budgetProfile, difficulty: 'facile' });
+  for (const r of STAFF_ROLES) c.staff[r].rating = Math.max(6, Math.min(18, Math.round(next.pitCrew + (r === 'mecanicien' ? 0 : -1))));
+  applyStaffEffects(c);
+  c.budget = round1(Math.max(c.budget * 0.4, 12 + next.reputation / 5));
+  addLedger(c, `Budget de ${next.name} à votre arrivée`, 0, true);
+  c.objective = { season: c.season, target: Math.max(1, Math.min(10, Math.round(11 - next.reputation / 9))) };
+  dir.confidence = 60;
+  dir.contractYears = 2;
+  dir.fired = false;
+  dir.offers = [];
+  c.rivalries = {};
+  addNews(c, `Vous prenez la direction de ${next.name} ! Objectif fixé : ${c.objective.target}ᵉ au championnat constructeurs.`);
+  return null;
+}
+
+/** Refuser une offre de débauchage : les actionnaires apprécient la fidélité. */
+export function declineOffers(c: Career): void {
+  const dir = director(c);
+  if (dir.fired) return;
+  if (dir.offers.length) {
+    dir.confidence = Math.min(100, dir.confidence + 5);
+    addNews(c, 'Vous restez fidèle à votre écurie : les actionnaires saluent votre engagement.');
+  }
+  dir.offers = [];
 }
