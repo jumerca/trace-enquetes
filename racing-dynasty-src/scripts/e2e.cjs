@@ -93,7 +93,8 @@ const log = (...a) => console.log('•', ...a);
     await shot('08-course-x4');
     const rb = p.locator('.replay-btn');
     if (await rb.count()) {
-      await rb.first().click({ force: true });
+      // le fil d'événements se rafraîchit 4 fois par seconde : clic par événement DOM, sans attendre la visibilité
+      await rb.first().dispatchEvent('click', {}, { timeout: 3000 }).catch(() => log(name, 'bouton ralenti remplacé entre-temps'));
       await p.waitForTimeout(2500);
       await shot('08d-ralenti');
       log(name, 'ralenti lancé :', (await p.locator('.sc-banner.replay').count()) > 0);

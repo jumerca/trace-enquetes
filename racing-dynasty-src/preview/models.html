@@ -1,0 +1,13 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#9bbf73}canvas{display:block;margin:4px}</style></head>
+<body><script type="module">
+import { buildF1, buildSafetyCar, bakeAtlas, VIEW_25D, VIEW_LOW, bakeCockpit } from '/src/render/models3d.ts';
+const a = await bakeAtlas(buildF1({ color: '#2a6fdb', color2: '#ffd400', sponsor: 'HELIX', sponsorColor: '#ff9f1c', short: 'DYN' }), VIEW_25D(16, 200));
+document.body.appendChild(a.canvas);
+const b = await bakeAtlas(buildF1({ color: '#d62828', color2: '#f4f1ea', sponsor: 'CORVANE', short: 'RED' }), VIEW_LOW(8, 260));
+document.body.appendChild(b.canvas);
+const s = await bakeAtlas(buildSafetyCar(), VIEW_25D(8, 160));
+document.body.appendChild(s.canvas);
+const c = bakeCockpit({ color: '#2a6fdb', color2: '#ffd400' }, 800, 450, 800*0.62, 450*0.4, 0.82);
+c.style.background = '#6a8fb5'; document.body.appendChild(c);
+window.done = true;
+</script></body></html>

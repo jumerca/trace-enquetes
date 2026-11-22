@@ -1,6 +1,6 @@
 # Racing Dynasty — Feuille de route
 
-État au 22/11/2026 : V0.8 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
+État au 22/11/2026 : V0.9 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
 Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 
 ## 0. À vérifier sur le téléphone du joueur (bloquant)
@@ -57,6 +57,11 @@ Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 - [x] Négociation du contrat du directeur (salaire, prime), conférences de presse à choix multiples (V0.8).
 - [x] Vues hélicoptère et bord de piste (V0.8).
 - [ ] Idée suivante : offres de motoristes (moteur client ou partenariat d'usine).
+
+## 4 ter. Modèles 3D — fait en V0.9
+- [x] Monoplaces, voiture de sécurité, cockpit, végétation, rochers et immeubles en 3D cel-shading encré.
+- [ ] Tribune, garages, portique de départ et public en 3D.
+- [ ] Numéro propre à chaque voiture sur le modèle, roues animées, dégâts visibles (aileron arraché).
 
 ## 5. Technique
 - [x] Partage de la sauvegarde en un geste (bouton « Partager ») puis import sur l'autre appareil (V0.8).

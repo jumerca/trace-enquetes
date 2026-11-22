@@ -133,6 +133,7 @@ export function RaceView({ api }: { api: GameApi }) {
   const [skipping, setSkipping] = useState(false);
   const [fps, setFps] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const setSpeed = (s: Speed) => {
     speedRef.current = s;
@@ -180,6 +181,7 @@ export function RaceView({ api }: { api: GameApi }) {
     let alive = true;
     r.init(host.current!).then(() => {
       if (!alive) return r.destroy();
+      setLoading(false);
       setFollow(r.follow);
       r.app.ticker.add((tk) => {
         const dtMs = Math.min(250, tk.deltaMS);
@@ -198,7 +200,7 @@ export function RaceView({ api }: { api: GameApi }) {
         r.alpha = sim.finished ? 1 : Math.min(1, accRef.current / DT);
         r.render(dtMs);
         if ((r.mode === 'cockpit' || r.mode === 'bord') && cockpitCanvas.current) {
-          if (!cockpitRef.current) cockpitRef.current = new CockpitView(cockpitCanvas.current, sim, quality === 'economie');
+          if (!cockpitRef.current) cockpitRef.current = new CockpitView(cockpitCanvas.current, sim, quality === 'economie', liveries);
           cockpitRef.current.draw(r.follow, r.alpha, dtMs, r.mode);
         }
         audio.update(sim, r.follow, sim.finished ? 0 : speedRef.current);
@@ -364,6 +366,7 @@ export function RaceView({ api }: { api: GameApi }) {
       <div className="race-canvas" ref={host} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
         onWheel={(e) => rendRef.current?.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12)} />
       <canvas ref={cockpitCanvas} className="cockpit-canvas" style={{ display: camMode === 'cockpit' || camMode === 'bord' ? 'block' : 'none' }} aria-hidden="true" />
+      {loading && !error && <div className="race-loading"><div className="panel"><b>Préparation des monoplaces 3D…</b><small>Modélisation, éclairage et encrage de chaque livrée</small></div></div>}
       {error && <div className="panel error-box">{error}<button className="btn" onClick={() => api.go('hub')}>Retour au QG</button></div>}
 
       <div className="race-top">
