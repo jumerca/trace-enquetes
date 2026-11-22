@@ -1,13 +1,17 @@
 // Rendu 2,5D de la course avec PixiJS : lecture seule de l'état du moteur.
 // Caméra inclinée (écrasement vertical), ombres portées, volumes extrudés, encrage façon bande dessinée.
-import { Application, Container, Culler, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
+import { Application, Container, Culler, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
+import {
+  paintAsphalt, paintBoat, paintBuilding, paintCar, paintCloudShadow, paintGarage, paintGrandstand, paintGravel, paintGround,
+  paintRock, paintSilhouette, paintSoftShadow, paintTree, paintVignette, paintWater, paintCrowd, paintMarshal, type GroundKind,
+} from './art';
 import { CAR_LEN, LIGHTS_ON, type RaceSim, type SimCar } from '../engine/race';
 import { locate, worldPos, type Track } from '../engine/track';
 import { Rng } from '../engine/rng';
 
 export const TILT = 0.64; // écrasement vertical de la caméra
 const INK = 0x16130f;
-const CAR_PX = 16; // résolution des textures de voiture (px par mètre)
+const CAR_PX = 24; // résolution des textures de voiture (px par mètre)
 
 export interface RenderOptions {
   quality: 'haute' | 'economie';
@@ -31,7 +35,8 @@ export type CameraMode = 'suivre' | 'tv' | 'circuit';
 
 interface CarView {
   root: Container;
-  shadow: Graphics;
+  shadow: Sprite;
+  side: Sprite;
   body: Sprite;
   ring: Graphics;
   label: Text;
@@ -40,23 +45,25 @@ interface CarView {
   rearLight: Graphics;
 }
 
-const THEMES = {
-  port: { ground: 0xcdbf9f, ground2: 0xbfae8a, runoff: 0xd9d2c2, accent: 0x2a6f97, bg: '#2a6f97' },
-  foret: { ground: 0x6a9a45, ground2: 0x5b8a3a, runoff: 0xd8cfa8, accent: 0x2f5d2a, bg: '#40692e' },
-  desert: { ground: 0xe2b56a, ground2: 0xd6a659, runoff: 0xefd7a6, accent: 0xb9783f, bg: '#c9934d' },
-  lac: { ground: 0x7aa651, ground2: 0x6b9645, runoff: 0xdcd3ae, accent: 0x3f88c5, bg: '#557f3a' },
-  montagne: { ground: 0x9aa47f, ground2: 0xb9bfa6, runoff: 0xd7d2c4, accent: 0x6c7a89, bg: '#7d8768' },
+interface Theme {
+  groundKind: GroundKind;
+  groundCss: string;
+  ground2: number;
+  runoff: number;
+  bg: string;
+  leaves: [string, string, string];
+}
+
+const THEMES: Record<string, Theme> = {
+  port: { groundKind: 'paves', groundCss: '#cdbf9f', ground2: 0x9c8f73, runoff: 0xb8b6ae, bg: '#2a6f97', leaves: ['#2f6b2c', '#4b8f3c', '#8cc35a'] },
+  foret: { groundKind: 'herbe', groundCss: '#6a9a45', ground2: 0x3f6f2a, runoff: 0xb5b4ab, bg: '#40692e', leaves: ['#24572a', '#3d7f35', '#7cb64e'] },
+  desert: { groundKind: 'sable', groundCss: '#e2b56a', ground2: 0xc48a45, runoff: 0xd9c9a0, bg: '#c9934d', leaves: ['#4d6b2a', '#6f8f3a', '#a8c25a'] },
+  lac: { groundKind: 'herbe', groundCss: '#7aa651', ground2: 0x4f8040, runoff: 0xb8b7ae, bg: '#557f3a', leaves: ['#2a6030', '#45883a', '#8fc85e'] },
+  montagne: { groundKind: 'alpage', groundCss: '#9aa47f', ground2: 0x6f7a5a, runoff: 0xb9b8b0, bg: '#7d8768', leaves: ['#2f5a33', '#4a7d44', '#8bb070'] },
 };
 
 function hex(c: string): number {
   return parseInt(c.replace('#', ''), 16);
-}
-
-function shade(c: number, f: number): number {
-  const r = Math.min(255, Math.max(0, Math.round(((c >> 16) & 255) * f)));
-  const g = Math.min(255, Math.max(0, Math.round(((c >> 8) & 255) * f)));
-  const b = Math.min(255, Math.max(0, Math.round((c & 255) * f)));
-  return (r << 16) | (g << 8) | b;
 }
 
 export class RaceRenderer {
@@ -139,6 +146,7 @@ export class RaceRenderer {
     const r = new Rng(3);
     for (let i = 0; i < (eco ? 40 : 110); i++) this.rainDrops.push({ x: r.next(), y: r.next(), v: 0.6 + r.next() * 0.6 });
     this.buildSafetyCar();
+    this.buildAmbience(eco);
     const focus = this.sim.cars.find((c) => c.e.teamId === this.opts.focusTeamId);
     this.follow = focus?.id ?? null;
     const c0 = focus ?? this.sim.cars[0];
@@ -157,7 +165,7 @@ export class RaceRenderer {
   defaultZoom(): number {
     const w = this.app.screen.width, h = this.app.screen.height;
     // en portrait, on se base aussi sur la hauteur pour garder des voitures lisibles
-    return Math.max(2.2, Math.min(6, Math.max(w, h * 0.8) / 210));
+    return Math.max(3, Math.min(8.5, Math.max(w, h * 0.8) / 150));
   }
 
   zoomBy(f: number): void {
@@ -214,73 +222,154 @@ export class RaceRenderer {
     });
   }
 
+  // ------------------------------------------------------------ textures peintes (art.ts)
+
+  private texCache = new Map<string, Texture>();
+
+  /** Texture issue d'un canevas peint, mise en cache ; `repeat` pour les motifs de sol. */
+  private tex(key: string, paint: () => HTMLCanvasElement, repeat = false): Texture {
+    let t = this.texCache.get(key);
+    if (!t) {
+      t = Texture.from(paint());
+      if (repeat) t.source.style.addressMode = 'repeat';
+      t.source.style.update?.();
+      this.texCache.set(key, t);
+    }
+    return t;
+  }
+
+  /** Grand motif répété couvrant une zone du monde (sol, eau, gravier). `tileM` = mètres par tuile. */
+  private tiling(texture: Texture, x: number, y: number, w: number, h: number, tileM: number): TilingSprite {
+    const ts = new TilingSprite({ texture, width: w, height: h });
+    ts.position.set(x, y);
+    const k = tileM / texture.width;
+    ts.tileScale.set(k, k);
+    return ts;
+  }
+
   private buildScenery(): void {
     const t = this.track, def = t.def, theme = THEMES[def.theme], eco = this.opts.quality === 'economie';
     const b = t.bounds;
     const rng = new Rng(def.id.length * 7919);
-    const ground = new Graphics();
     const pad = 900;
-    ground.rect(b.minX - pad, b.minY - pad, b.maxX - b.minX + 2 * pad, b.maxY - b.minY + 2 * pad).fill(theme.ground);
-    // Taches de texture (herbe, sable, pavés) façon trame BD.
-    for (let i = 0; i < (eco ? 90 : 260); i++) {
+    const gx = b.minX - pad, gy = b.minY - pad, gw = b.maxX - b.minX + 2 * pad, gh = b.maxY - b.minY + 2 * pad;
+    // --- sol peint (herbe tondue, sable ridé, pavés)
+    const kind = theme.groundKind;
+    const groundTex = this.tex('sol-' + def.theme, () => paintGround(kind, theme.groundCss, eco ? 128 : 256), true);
+    this.world.addChild(this.tiling(groundTex, gx, gy, gw, gh, kind === 'paves' ? 12 : 48));
+    // grandes nappes de couleur (variations naturelles)
+    const patches = new Graphics();
+    for (let i = 0; i < (eco ? 25 : 60); i++) {
       const x = rng.range(b.minX - 400, b.maxX + 400), y = rng.range(b.minY - 400, b.maxY + 400);
-      ground.ellipse(x, y, rng.range(20, 90), rng.range(10, 40)).fill({ color: theme.ground2, alpha: 0.55 });
+      patches.ellipse(x, y, rng.range(60, 180), rng.range(30, 90)).fill({ color: theme.ground2, alpha: 0.18 });
     }
+    this.world.addChild(patches);
     if (def.theme === 'port') {
-      // La mer au sud, avec un quai encré.
+      // la mer au sud : eau animée, quai encré
       const seaY = b.maxY + 70;
-      ground.rect(b.minX - pad, seaY, b.maxX - b.minX + 2 * pad, pad).fill(0x2a6f97);
-      ground.rect(b.minX - pad, seaY - 6, b.maxX - b.minX + 2 * pad, 6).fill(0x8d8778);
-      ground.moveTo(b.minX - pad, seaY).lineTo(b.maxX + pad, seaY).stroke({ width: 2, color: INK });
-      for (let i = 0; i < 26; i++) {
-        const x = rng.range(b.minX - 300, b.maxX + 300), y = seaY + rng.range(30, 400);
-        ground.moveTo(x, y).lineTo(x + rng.range(20, 60), y).stroke({ width: 1.6, color: 0xbfe1f0, alpha: 0.7 });
-      }
+      this.water = this.tiling(this.tex('eau', () => paintWater(eco ? 128 : 256)), gx, seaY, gw, pad, 60);
+      this.water.texture.source.style.addressMode = 'repeat';
+      this.world.addChild(this.water);
+      const quay = new Graphics();
+      quay.rect(gx, seaY - 7, gw, 7).fill(0x9a9384);
+      quay.rect(gx, seaY - 1.5, gw, 1.5).fill(0x6f6a60);
+      quay.moveTo(gx, seaY).lineTo(gx + gw, seaY).stroke({ width: 1.2, color: INK });
+      for (let x = gx; x < gx + gw; x += 18) quay.circle(x, seaY - 3.5, 0.9).fill(0x3a3a3a);
+      this.world.addChild(quay);
     }
     if (def.theme === 'lac') {
-      // Lac au cœur du circuit (rayon limité par la distance à la piste).
       const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
       const r = Math.max(30, this.distToTrack(cx, cy) - t.half - 40);
       const pts: number[] = [];
-      for (let k = 0; k < 36; k++) {
-        const a = (k / 36) * Math.PI * 2, rr = r * (0.82 + 0.18 * Math.sin(a * 3 + 1));
+      for (let k = 0; k < 48; k++) {
+        const a = (k / 48) * Math.PI * 2, rr = r * (0.82 + 0.18 * Math.sin(a * 3 + 1));
         pts.push(cx + Math.cos(a) * rr * 1.25, cy + Math.sin(a) * rr * 0.8);
       }
-      ground.poly(pts, true).fill(0x3f88c5).stroke({ width: 2.5, color: INK });
-      for (let k = 0; k < 14; k++) {
-        const x = cx + rng.range(-r * 0.8, r * 0.8), y = cy + rng.range(-r * 0.45, r * 0.45);
-        ground.moveTo(x, y).lineTo(x + rng.range(12, 30), y).stroke({ width: 1.4, color: 0xcfe8f7, alpha: 0.75 });
-      }
+      const shore = new Graphics().poly(pts, true).fill(0xd9cfa4).stroke({ width: 6, color: 0xd9cfa4 });
+      this.world.addChild(shore);
+      const mask = new Graphics().poly(pts, true).fill(0xffffff);
+      this.water = this.tiling(this.tex('eau-lac', () => paintWater(eco ? 128 : 256, '#2f78b5', '#d8f0fb')), cx - r * 1.4, cy - r, r * 2.8, r * 2, 50);
+      this.water.texture.source.style.addressMode = 'repeat';
+      this.water.mask = mask;
+      this.world.addChild(this.water, mask);
+      this.world.addChild(new Graphics().poly(pts, true).stroke({ width: 2.2, color: INK }));
     }
     if (def.theme === 'montagne') {
-      // Sommets enneigés à l'horizon (au nord), plaques de neige.
-      for (let k = 0; k < 9; k++) {
-        const x = b.minX - 300 + k * ((b.maxX - b.minX + 600) / 8), w = rng.range(200, 320), h = rng.range(260, 420);
+      // massif à l'horizon : faces éclairées / à l'ombre, neiges éternelles
+      const m = new Graphics();
+      for (let k = 0; k < 10; k++) {
+        const x = b.minX - 350 + k * ((b.maxX - b.minX + 700) / 9) + rng.range(-40, 40), w = rng.range(200, 330), h = rng.range(280, 460);
         const y = b.minY - 160;
-        ground.poly([x - w, y, x, y - h, x + w, y]).fill(0x6c7a89).stroke({ width: 2.5, color: INK });
-        ground.poly([x - w * 0.32, y - h * 0.68, x, y - h, x + w * 0.32, y - h * 0.68, x + w * 0.1, y - h * 0.6, x - w * 0.05, y - h * 0.7]).fill(0xf4f7fb);
+        m.poly([x - w, y, x, y - h, x, y]).fill(0x7d8a99);
+        m.poly([x, y - h, x + w, y, x, y]).fill(0x5d6878);
+        m.poly([x - w * 0.3, y - h * 0.7, x, y - h, x + w * 0.3, y - h * 0.7, x + w * 0.12, y - h * 0.62, x - w * 0.04, y - h * 0.72, x - w * 0.16, y - h * 0.62]).fill(0xf4f7fb);
+        m.poly([x - w, y, x, y - h, x + w, y]).stroke({ width: 2.2, color: INK });
       }
       for (let i = 0; i < 30; i++) {
         const x = rng.range(b.minX - 300, b.maxX + 300), y = rng.range(b.minY - 150, b.maxY + 300);
         if (this.distToTrack(x, y) < 40) continue;
-        ground.ellipse(x, y, rng.range(15, 45), rng.range(6, 16)).fill({ color: 0xf4f7fb, alpha: 0.8 });
+        m.ellipse(x, y, rng.range(15, 45), rng.range(6, 16)).fill({ color: 0xf4f7fb, alpha: 0.85 });
       }
+      this.world.addChild(m);
     }
     if (def.theme === 'desert') {
+      const d = new Graphics();
       for (let i = 0; i < 40; i++) {
         const x = rng.range(b.minX - 400, b.maxX + 400), y = rng.range(b.minY - 400, b.maxY + 400);
         if (this.distToTrack(x, y) < 60) continue;
         const w = rng.range(40, 110);
-        ground.moveTo(x - w, y).quadraticCurveTo(x, y - w * 0.35, x + w, y).stroke({ width: 2.2, color: 0xb9783f, alpha: 0.6 });
+        d.moveTo(x - w, y).quadraticCurveTo(x, y - w * 0.35, x + w, y).lineTo(x - w, y).fill({ color: 0xf0c98a, alpha: 0.5 });
+        d.moveTo(x - w, y).quadraticCurveTo(x, y - w * 0.35, x + w, y).stroke({ width: 1.8, color: 0xb9783f, alpha: 0.55 });
       }
+      this.world.addChild(d);
     }
-    this.world.addChild(ground);
 
-    // Dégagements, encre extérieure, asphalte.
+    // --- dégagements : bitume clair sur les lignes droites, gravier à l'extérieur des virages
     this.band(t.half + 9, theme.runoff);
+    if (!eco) {
+      const gMask = new Graphics();
+      let run: number[] = [];
+      const flush = () => {
+        if (run.length > 6) gMask.poly(run, false).stroke({ width: 8, color: 0xffffff, cap: 'round', join: 'round' });
+        run = [];
+      };
+      let side = 0;
+      for (let i = 0; i <= t.n; i += 2) {
+        const k = i % t.n;
+        const out = t.corner[k] > 0.32 ? -Math.sign(t.curv[k]) : 0;
+        if (out === 0 || (side !== 0 && out !== side)) { flush(); side = out; if (!out) continue; }
+        side = out;
+        run.push(t.x[k] + t.nx[k] * (t.half + 5.2) * out, t.y[k] + t.ny[k] * (t.half + 5.2) * out);
+      }
+      flush();
+      const gravel = this.tiling(this.tex('gravier', () => paintGravel(128)), gx, gy, gw, gh, 10);
+      gravel.texture.source.style.addressMode = 'repeat';
+      gravel.mask = gMask;
+      this.world.addChild(gravel, gMask);
+    }
+    // --- encre, asphalte, grain, gomme, ombrage des bords
     this.band(t.half + 1.2, INK);
-    this.band(t.half, 0x55575c);
-    // Lignes blanches de bord et vibreurs rouges et blancs dans les virages.
+    this.band(t.half, 0x56585e);
+    if (!eco) {
+      const aMask = new Graphics().poly(this.edge(0, 0, t.n, 2), true).stroke({ width: (t.half + 9) * 2, color: 0xffffff, join: 'round' });
+      const grain = this.tiling(this.tex('asphalte', () => paintAsphalt(128)), gx, gy, gw, gh, 14);
+      grain.texture.source.style.addressMode = 'repeat';
+      grain.mask = aMask;
+      this.world.addChild(grain, aMask);
+    }
+    this.segments((g, i0, i1) => {
+      // gomme déposée sur la trajectoire idéale
+      const line: number[] = [];
+      for (let i = i0; i < i1 + 2; i += 2) {
+        const k = i % t.n;
+        line.push(t.x[k] + t.nx[k] * t.line[k], t.y[k] + t.ny[k] * t.line[k]);
+      }
+      g.poly(line, false).stroke({ width: 2.6, color: 0x1b1b1f, alpha: 0.22, join: 'round' });
+      // assombrissement le long des bords (occlusion)
+      g.poly(this.edge(t.half - 0.7, i0, i1 + 2, 2), false).stroke({ width: 1.4, color: 0x000000, alpha: 0.14 });
+      g.poly(this.edge(-(t.half - 0.7), i0, i1 + 2, 2), false).stroke({ width: 1.4, color: 0x000000, alpha: 0.14 });
+    });
+    // --- lignes blanches de bord et vibreurs en relief
     const kerbStep = Math.max(1, Math.round(3 / t.ds));
     this.segments((g, i0, i1) => {
       g.poly(this.edge(t.half - 0.35, i0, i1 + 2, 2), false).stroke({ width: 0.3, color: 0xf4f1ea });
@@ -290,20 +379,18 @@ export class RaceRenderer {
         const j = (i + kerbStep) % t.n;
         const col = (i / kerbStep) % 2 ? 0xf4f1ea : 0xd62828;
         for (const side of [1, -1]) {
-          const a = t.half - 0.9, c = t.half + 0.5;
-          g.poly([
-            t.x[i] + t.nx[i] * a * side, t.y[i] + t.ny[i] * a * side,
-            t.x[j] + t.nx[j] * a * side, t.y[j] + t.ny[j] * a * side,
-            t.x[j] + t.nx[j] * c * side, t.y[j] + t.ny[j] * c * side,
-            t.x[i] + t.nx[i] * c * side, t.y[i] + t.ny[i] * c * side,
-          ]).fill(col);
+          const a = t.half - 0.9, c = t.half + 0.5, m = t.half - 0.2;
+          const P = (k: number, l: number) => [t.x[k] + t.nx[k] * l * side, t.y[k] + t.ny[k] * l * side];
+          g.poly([...P(i, a), ...P(j, a), ...P(j, c), ...P(i, c)]).fill(col);
+          g.poly([...P(i, a), ...P(j, a), ...P(j, m), ...P(i, m)]).fill({ color: 0xffffff, alpha: 0.18 });
+          g.poly([...P(i, c), ...P(j, c)], false).stroke({ width: 0.12, color: INK, alpha: 0.7 });
         }
       }
     });
     const g = new Graphics();
     // Voie des stands.
     const pit = this.pitPolys();
-    g.poly(pit.lane, true).fill(0x5d5f64);
+    g.poly(pit.lane, true).fill(0x5f6168);
     g.poly(pit.lane, true).stroke({ width: 0.8, color: INK });
     g.poly(pit.wall, true).fill(0xe9e4d8).stroke({ width: 0.6, color: INK });
     // Ligne de départ en damier + emplacements de grille.
@@ -319,65 +406,70 @@ export class RaceRenderer {
       const side = i % 2 === 0 ? 1 : -1;
       const s = -(8 + i * 8) + CAR_LEN / 2 + 0.8;
       const lat = side * Math.min(2.6, t.half - 1.6);
-      const a = { x: 0, y: 0 }, c = { x: 0, y: 0 };
+      const a = { x: 0, y: 0 }, c = { x: 0, y: 0 }, d = { x: 0, y: 0 };
       worldPos(t, s, lat - 1.3, a);
       worldPos(t, s, lat + 1.3, c);
       g.moveTo(a.x, a.y).lineTo(c.x, c.y).stroke({ width: 0.35, color: 0xffffff, alpha: 0.85 });
+      worldPos(t, s - 1.6, lat - 1.3, d);
+      g.moveTo(a.x, a.y).lineTo(d.x, d.y).stroke({ width: 0.3, color: 0xffffff, alpha: 0.7 });
     }
     this.world.addChild(g);
     this.drawBarriers(eco);
 
-    // Volumes 2,5D : stands, tribunes, arbres / immeubles.
-    const vol = new Graphics();
-    this.drawGarages(vol);
-    this.drawGrandstand(vol);
-    this.world.addChild(vol);
+    // Volumes 2,5D peints : stands, tribune, décor.
+    this.drawGarages();
+    this.drawGrandstand();
+    this.drawTrackside(eco);
     this.drawProps(rng, eco);
     this.drawBanners();
     this.drawGantry();
     this.buildCrews();
   }
 
-  /** Rails de sécurité le long des dégagements et murs de pneus à l'extérieur des virages. */
+  /** Rails de sécurité, grillages anti-débris et murs de pneus à l'extérieur des virages. */
   private drawBarriers(eco: boolean): void {
     const t = this.track;
     const lat = t.half + 9.6;
-    const pitS0 = t.pitEntry - t.length - 30, pitS1 = t.pitExit + 30;
+    const pitS1 = t.pitExit + 30;
     this.segments((g, i0, i1) => {
-    for (const side of [1, -1]) {
-      // rail interrompu le long de la voie des stands
-      let pts: number[] = [];
-      const flush = () => {
-        if (pts.length > 4) {
-          g.poly(pts, false).stroke({ width: 0.9, color: INK });
-          g.poly(pts.map((v, k) => (k % 2 ? v - 0.7 / TILT : v)), false).stroke({ width: 0.5, color: 0xc9ccd1 });
+      for (const side of [1, -1]) {
+        let pts: number[] = [];
+        const flush = () => {
+          if (pts.length > 4) {
+            g.poly(pts, false).stroke({ width: 0.9, color: INK });
+            g.poly(pts.map((v, k) => (k % 2 ? v - 0.7 / TILT : v)), false).stroke({ width: 0.5, color: 0xd5d8dd });
+            if (!eco) {
+              // grillage : poteaux + filin
+              g.poly(pts.map((v, k) => (k % 2 ? v - 3.2 / TILT : v)), false).stroke({ width: 0.12, color: 0x555a62, alpha: 0.8 });
+              for (let k = 0; k < pts.length; k += 10) g.moveTo(pts[k], pts[k + 1]).lineTo(pts[k], pts[k + 1] - 3.2 / TILT).stroke({ width: 0.18, color: 0x3a3f47 });
+            }
+          }
+          pts = [];
+        };
+        for (let i = i0 - (i0 % 3); i <= i1 + 3; i += 3) {
+          const s = (i % t.n) * t.ds;
+          const inPit = side === t.def.pitSide && (s > t.pitEntry - 30 || s < pitS1);
+          if (inPit) { flush(); continue; }
+          const k = i % t.n;
+          pts.push(t.x[k] + t.nx[k] * lat * side, t.y[k] + t.ny[k] * lat * side);
         }
-        pts = [];
-      };
-      for (let i = i0 - (i0 % 3); i <= i1 + 3; i += 3) {
-        const s = (i % t.n) * t.ds;
-        const inPit = side === t.def.pitSide && (s > t.pitEntry - 30 || s < pitS1);
-        void pitS0;
-        if (inPit) { flush(); continue; }
-        const k = i % t.n;
-        pts.push(t.x[k] + t.nx[k] * lat * side, t.y[k] + t.ny[k] * lat * side);
+        flush();
       }
-      flush();
-    }
-    // murs de pneus
-    const step = Math.max(1, Math.round(2.4 / t.ds));
-    for (let i = i0 - (i0 % step); i < i1; i += step) {
-      if (t.corner[i] < 0.38) continue;
-      const out = -Math.sign(t.curv[i]);
-      const s = i * t.ds;
-      if (out === t.def.pitSide && (s > t.pitEntry - 30 || s < t.pitExit + 30)) continue;
-      const x = t.x[i] + t.nx[i] * (lat + 0.6) * out, y = t.y[i] + t.ny[i] * (lat + 0.6) * out;
-      const rows = eco ? 1 : 2;
-      for (let r = 0; r < rows; r++) {
-        g.circle(x, y - (r * 0.55) / TILT, 0.62).fill(0x1d1d1d).stroke({ width: 0.18, color: INK });
-        if (r === rows - 1 && (i / step) % 4 < 1) g.circle(x, y - (r * 0.55) / TILT, 0.62).fill({ color: 0xd62828, alpha: 0.8 });
+      // murs de pneus (piles colorées)
+      const step = Math.max(1, Math.round(2.4 / t.ds));
+      for (let i = i0 - (i0 % step); i < i1; i += step) {
+        if (t.corner[i] < 0.38) continue;
+        const out = -Math.sign(t.curv[i]);
+        const s = i * t.ds;
+        if (out === t.def.pitSide && (s > t.pitEntry - 30 || s < t.pitExit + 30)) continue;
+        const x = t.x[i] + t.nx[i] * (lat + 0.6) * out, y = t.y[i] + t.ny[i] * (lat + 0.6) * out;
+        const rows = eco ? 1 : 3;
+        const band = (i / step) % 6 < 3 ? 0xd62828 : 0xf4f1ea;
+        for (let r = 0; r < rows; r++) {
+          g.circle(x, y - (r * 0.5) / TILT, 0.62).fill(0x1d1d1d).stroke({ width: 0.16, color: INK });
+          if (r === rows - 1) g.circle(x, y - (r * 0.5) / TILT, 0.36).fill({ color: band, alpha: 0.9 });
+        }
       }
-    }
     });
   }
 
@@ -399,7 +491,9 @@ export class RaceRenderer {
       const a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
       worldPos(t, s - 12, side * lat, a);
       worldPos(t, s + 12, side * lat, b);
+      g.poly([a.x + 0.8, a.y + 0.6, b.x + 0.8, b.y + 0.6, b.x + 0.8, b.y + 0.6 - h * 0.25, a.x + 0.8, a.y + 0.6 - h * 0.25]).fill({ color: 0x000000, alpha: 0.18 });
       g.poly([a.x, a.y, b.x, b.y, b.x, b.y - h, a.x, a.y - h]).fill(hex(sp.color)).stroke({ width: 0.35, color: INK });
+      g.poly([a.x, a.y - h, b.x, b.y - h, b.x, b.y - h * 0.85, a.x, a.y - h * 0.85]).fill({ color: 0xffffff, alpha: 0.25 });
       const txt = new Text({ text: sp.name.toUpperCase(), style: { fontFamily: 'Bangers, Impact, sans-serif', fontSize: 40, fill: 0xffffff, stroke: { color: INK, width: 6 }, letterSpacing: 2 } });
       txt.anchor.set(0.5);
       const ang = Math.atan2(b.y - a.y, b.x - a.x);
@@ -421,10 +515,13 @@ export class RaceRenderer {
     worldPos(t, 6, t.half + 2, a);
     worldPos(t, 6, -(t.half + 2), b);
     const h = 7 / TILT;
-    g.rect(a.x - 0.4, a.y - h, 0.8, h).fill(0x5d5f64).stroke({ width: 0.3, color: INK });
-    g.rect(b.x - 0.4, b.y - h, 0.8, h).fill(0x5d5f64).stroke({ width: 0.3, color: INK });
+    for (const p of [a, b]) {
+      g.rect(p.x - 0.45, p.y - h, 0.9, h).fill(0x6a6f78).stroke({ width: 0.3, color: INK });
+      g.rect(p.x - 0.45, p.y - h, 0.3, h).fill({ color: 0xffffff, alpha: 0.25 });
+    }
     const top = Math.min(a.y, b.y) - h;
-    g.rect(a.x - 1, top - 1.2 / TILT, 2, Math.abs(a.y - b.y) + 1.2 / TILT).fill(0x2b2b2b).stroke({ width: 0.35, color: INK });
+    g.rect(a.x - 1.1, top - 1.4 / TILT, 2.2, Math.abs(a.y - b.y) + 1.4 / TILT).fill(0x26272b).stroke({ width: 0.35, color: INK });
+    g.rect(a.x - 1.1, top - 1.4 / TILT, 2.2, 0.8).fill(0xd62828);
     this.world.addChild(g);
     this.gantry = new Graphics();
     this.gantry.position.set(a.x, top);
@@ -443,9 +540,10 @@ export class RaceRenderer {
       const list: Graphics[] = [];
       for (let k = 0; k < 6; k++) {
         const m = new Graphics();
-        m.ellipse(0, 0.35, 0.45, 0.25).fill({ color: 0x000000, alpha: 0.25 });
+        m.ellipse(0.25, 0.35, 0.5, 0.25).fill({ color: 0x000000, alpha: 0.28 });
         m.roundRect(-0.32, -1.5 / TILT, 0.64, 1.3 / TILT, 0.2).fill(col).stroke({ width: 0.12, color: INK });
-        m.circle(0, -1.75 / TILT, 0.26).fill(0xf4f1ea).stroke({ width: 0.1, color: INK });
+        m.rect(-0.32, -1.0 / TILT, 0.64, 0.12 / TILT).fill(0xf4f1ea);
+        m.circle(0, -1.75 / TILT, 0.28).fill(0xf4f1ea).stroke({ width: 0.1, color: INK });
         this.carsLayer.addChild(m);
         list.push(m);
       }
@@ -472,66 +570,45 @@ export class RaceRenderer {
     return { lane: lane.concat(back), wall: wall.concat(wallBack) };
   }
 
-  private drawGarages(g: Graphics): void {
+  /** Garages peints (la ligne droite principale est horizontale sur tous les circuits). */
+  private drawGarages(): void {
     const t = this.track, side = t.def.pitSide;
-    const teams: { id: string; color: string; color2: string }[] = [];
-    for (const c of this.sim.cars) if (!teams.some((x) => x.id === c.e.teamId)) teams.push({ id: c.e.teamId, color: c.e.color, color2: c.e.color2 });
-    const h = 7 / TILT;
-    // Garages tracés de l'arrière vers l'avant pour respecter l'ordre de profondeur.
-    const items = teams.map((tm, k) => {
+    const teams: { id: string; color: string; color2: string; name: string }[] = [];
+    for (const c of this.sim.cars) if (!teams.some((x) => x.id === c.e.teamId)) teams.push({ id: c.e.teamId, color: c.e.color, color2: c.e.color2, name: c.e.teamName });
+    const facing = side > 0; // au nord : on voit la façade ; au sud : le toit
+    const layer = new Container();
+    teams.forEach((tm, k) => {
       const s = t.length - 150 + k * 30;
-      const p = (ds: number, lat: number) => { worldPos(t, s + ds, side * lat, this.tmp); return { x: this.tmp.x, y: this.tmp.y }; };
-      const a = p(-13, t.half + 17), b2 = p(13, t.half + 17), c = p(13, t.half + 27), d = p(-13, t.half + 27);
-      return { tm, a, b: b2, c, d };
+      const art = paintGarage(tm.color, tm.color2, tm.name.toUpperCase(), facing, TILT, 8);
+      const sp = new Sprite(this.tex('garage-' + tm.id + facing, () => art.cv));
+      worldPos(t, s, side * (t.half + 17), this.tmp);
+      if (!facing) worldPos(t, s, side * (t.half + 27), this.tmp); // au sud : ancré au mur arrière
+      sp.anchor.set(0.5, 1);
+      sp.width = 26;
+      sp.height = art.h / TILT;
+      sp.position.set(this.tmp.x, this.tmp.y);
+      sp.cullable = true;
+      layer.addChild(sp);
     });
-    for (const it of items) {
-      const { a, b, c, d, tm } = it;
-      const col = hex(tm.color);
-      const front = side > 0 ? [a, b] : [d, c];
-      // façade (vers la piste) + toit
-      g.poly([a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y]).fill(0x3d3a36);
-      const fy = Math.max(a.y, d.y);
-      void fy;
-      g.poly([front[0].x, front[0].y, front[1].x, front[1].y, front[1].x, front[1].y - h, front[0].x, front[0].y - h])
-        .fill(shade(col, 0.75)).stroke({ width: 0.5, color: INK });
-      g.poly([a.x, a.y - h, b.x, b.y - h, c.x, c.y - h, d.x, d.y - h]).fill(col).stroke({ width: 0.6, color: INK });
-      g.poly([a.x + (b.x - a.x) * 0.15, a.y - h + (b.y - a.y) * 0.15 - 0.01, a.x + (b.x - a.x) * 0.85, a.y - h + (b.y - a.y) * 0.85,
-        d.x + (c.x - d.x) * 0.85, d.y - h + (c.y - d.y) * 0.85, d.x + (c.x - d.x) * 0.15, d.y - h + (c.y - d.y) * 0.15]).fill({ color: hex(tm.color2), alpha: 0.85 });
-    }
+    this.world.addChild(layer);
   }
 
-  private drawGrandstand(g: Graphics): void {
-    // Tribune toujours au nord de la ligne droite (derrière la piste vu de la caméra) pour ne jamais masquer les voitures.
-    const t = this.track, side = 1;
+  /** Tribune couverte peinte, au nord de la ligne droite (derrière la piste vu de la caméra). */
+  private drawGrandstand(): void {
+    const t = this.track;
     const base = t.def.pitSide > 0 ? t.half + 32 : t.half + 12;
     const s0 = -180, s1 = 140;
-    const rows = 5;
-    for (let r = rows - 1; r >= 0; r--) {
-      const lat = base + r * 3.2;
-      const hgt = (2 + r * 2.2) / TILT;
-      const pts: number[] = [], top: number[] = [];
-      for (let s = s0; s <= s1; s += 20) {
-        worldPos(t, s, side * lat, this.tmp);
-        pts.push(this.tmp.x, this.tmp.y);
-        top.push(this.tmp.x, this.tmp.y - hgt);
-      }
-      const n = pts.length / 2;
-      const front: number[] = [...pts];
-      for (let k = n - 1; k >= 0; k--) front.push(top[k * 2], top[k * 2 + 1]);
-      g.poly(front, true).fill(r % 2 ? 0x8a8f99 : 0x9aa0aa).stroke({ width: 0.5, color: INK });
-      // public : petites taches colorées
-      const rng = new Rng(r * 31 + 5);
-      for (let k = 0; k < (this.opts.quality === 'economie' ? 25 : 70); k++) {
-        const s = rng.range(s0 + 4, s1 - 4);
-        worldPos(t, s, side * lat, this.tmp);
-        g.circle(this.tmp.x, this.tmp.y - hgt - 0.4 / TILT, 0.7).fill(rng.pick([0xd62828, 0xf2c14e, 0x3a86ff, 0xf4f1ea, 0x06d6a0, 0xff7a00]));
-      }
-    }
-    // toit de la tribune
-    const pr: number[] = [];
-    for (let s = s0; s <= s1; s += 20) { worldPos(t, s, side * (base + 9), this.tmp); pr.push(this.tmp.x, this.tmp.y - 16 / TILT); }
-    for (let s = s1; s >= s0; s -= 20) { worldPos(t, s, side * (base + 17), this.tmp); pr.push(this.tmp.x, this.tmp.y - 16 / TILT); }
-    g.poly(pr, true).fill({ color: 0xf4f1ea, alpha: 0.92 }).stroke({ width: 0.8, color: INK });
+    const art = paintGrandstand(s1 - s0, !!t.def.night, 5, TILT, 5);
+    const sp = new Sprite(this.tex('tribune', () => art.cv));
+    worldPos(t, (s0 + s1) / 2, base, this.tmp);
+    sp.anchor.set(0.5, 1);
+    sp.width = s1 - s0;
+    sp.height = art.h / TILT;
+    sp.position.set(this.tmp.x, this.tmp.y);
+    sp.cullable = true;
+    // ombre portée vers la piste
+    const sh = new Graphics().rect(this.tmp.x - (s1 - s0) / 2 + 3, this.tmp.y - 1, s1 - s0, 6).fill({ color: 0x000000, alpha: 0.18 });
+    this.world.addChild(sh, sp);
   }
 
   private distToTrack(x: number, y: number): number {
@@ -544,88 +621,234 @@ export class RaceRenderer {
     return Math.sqrt(m);
   }
 
+  /** Vie de bord de piste : spectateurs derrière les grillages des virages, postes de commissaires. */
+  private drawTrackside(eco: boolean): void {
+    const t = this.track;
+    const layer = new Container();
+    const marshal = paintMarshal();
+    const mTex = this.tex('commissaire', () => marshal.cv);
+    const step = Math.round(260 / t.ds);
+    let k = 0;
+    for (let i = Math.round(60 / t.ds); i < t.n; i += step, k++) {
+      const s = i * t.ds;
+      const side = k % 2 ? 1 : -1;
+      if (side === t.def.pitSide && (s > t.pitEntry - 40 || s < t.pitExit + 40)) continue;
+      worldPos(t, s, side * (t.half + 11.5), this.tmp);
+      const sp = new Sprite(mTex);
+      sp.anchor.set(0.5, 1);
+      sp.width = marshal.w;
+      sp.height = marshal.h / TILT;
+      sp.position.set(this.tmp.x, this.tmp.y);
+      sp.cullable = true;
+      layer.addChild(sp);
+    }
+    if (!eco) {
+      // spectateurs : à l'extérieur des virages lents, derrière le grillage
+      let seed = 1;
+      for (let i = 0; i < t.n; i += Math.round(40 / t.ds)) {
+        if (t.corner[i] < 0.45) continue;
+        const out = -Math.sign(t.curv[i]);
+        const s = i * t.ds;
+        if (out === t.def.pitSide && (s > t.pitEntry - 40 || s < t.pitExit + 40)) continue;
+        if ((i * 7) % 3 === 0) continue;
+        const a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
+        worldPos(t, s - 14, out * (t.half + 13), a);
+        worldPos(t, s + 14, out * (t.half + 13), b);
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const crowd = paintCrowd(28, seed++);
+        const sp = new Sprite(this.tex('foule-' + (seed % 4), () => crowd.cv));
+        sp.anchor.set(0.5, 1);
+        sp.width = len;
+        sp.height = crowd.h / TILT;
+        sp.rotation = Math.atan2(b.y - a.y, b.x - a.x);
+        // les spectateurs regardent la piste : on garde l'image à l'endroit
+        if (Math.abs(sp.rotation) > Math.PI / 2) sp.rotation += Math.PI;
+        sp.position.set((a.x + b.x) / 2, (a.y + b.y) / 2);
+        sp.cullable = true;
+        layer.addChild(sp);
+      }
+    }
+    const items = [...layer.children];
+    items.sort((p, q) => p.y - q.y);
+    items.forEach((ch, idx) => layer.setChildIndex(ch, idx));
+    this.world.addChild(layer);
+  }
+
+  /** Décor peint (arbres, palmiers, immeubles, rochers, bateaux) en sprites triés par profondeur. */
   private drawProps(rng: Rng, eco: boolean): void {
-    const t = this.track, theme = t.def.theme, b = t.bounds;
-    const props: { x: number; y: number; kind: number; s: number }[] = [];
-    const count = eco ? 70 : 190;
+    const t = this.track, theme = t.def.theme, b = t.bounds, night = !!t.def.night;
+    const pal = THEMES[theme];
+    type P = { x: number; y: number; key: string; w: number; h: number; s: number; shadow: number };
+    const list: P[] = [];
+    const variants = (prefix: string, count: number, make: (i: number) => { cv: HTMLCanvasElement; w: number; h: number }) =>
+      Array.from({ length: count }, (_, i) => {
+        const key = `${prefix}-${i}`;
+        let dims = this.propDims.get(key);
+        if (!dims) {
+          const art = make(i);
+          this.tex(key, () => art.cv);
+          dims = { w: art.w, h: art.h };
+          this.propDims.set(key, dims);
+        }
+        return { key, ...dims };
+      });
+    const trees = variants('feuillu-' + theme, 3, (i) => paintTree('feuillu', pal.leaves, i + 1));
+    const bushes = variants('buisson-' + theme, 2, (i) => paintTree('buisson', pal.leaves, i + 7));
+    const pines = variants('sapin-' + theme, 2, (i) => paintTree('sapin', ['#1f4a2b', '#2d6a3b', '#5c9a5a'], i + 3));
+    const palms = variants('palmier', 2, (i) => paintTree('palmier', ['#2e6b2a', '#3f8f3a', '#77b84a'], i + 11));
+    const cactus = variants('cactus', 1, (i) => paintTree('cactus', ['#2e6b2a', '#4d8f3a', '#86c25a'], i + 5));
+    const rocks = variants('rocher-' + theme, 2, (i) => paintRock(theme === 'desert' ? '#b0703f' : '#8a8c92', i + 2));
+    const buildings = variants('immeuble-' + (night ? 'nuit' : 'jour'), 6, (i) => {
+      const cols = ['#e8c9a0', '#f0e1c6', '#d99a6c', '#c8d6c4', '#f2d98c', '#cfd8e3'];
+      const roofs = ['#b5452f', '#8c4b2f', '#6d7480', '#a65a3a', '#7a8a6a', '#556070'];
+      return paintBuilding(14 + (i % 3) * 5, 12 + ((i * 7) % 4) * 6, 10, cols[i], roofs[i], night, i + 1, TILT);
+    });
+    const pick = <T,>(arr: T[]) => arr[rng.int(0, arr.length - 1)];
+    const count = eco ? 90 : 320;
     let guard = 0;
-    while (props.length < count && guard++ < count * 8) {
+    while (list.length < count && guard++ < count * 8) {
       const x = rng.range(b.minX - 260, b.maxX + 260), y = rng.range(b.minY - 260, b.maxY + 260);
       if (theme === 'port' && y > b.maxY + 60) continue;
       if (theme === 'montagne' && y < b.minY - 150) continue;
       if (theme === 'lac') {
         const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
         const rr = Math.max(30, this.distToTrack(cx, cy) - t.half - 40);
-        if (((x - cx) / (rr * 1.3)) ** 2 + ((y - cy) / (rr * 0.85)) ** 2 < 1.1) continue;
+        if (((x - cx) / (rr * 1.3)) ** 2 + ((y - cy) / (rr * 0.85)) ** 2 < 1.15) continue;
       }
       const d = this.distToTrack(x, y);
-      if (d < t.half + 22) continue;
-      // garder dégagées les zones des stands / tribunes
-      if (y > -110 && y < 75 && x > -300 && x < 320) continue;
-      props.push({ x, y, kind: rng.int(0, 2), s: rng.range(0.8, 1.35) });
+      if (d < t.half + 15) continue;
+      if (y > -110 && y < 75 && x > -300 && x < 320) continue; // stands et tribune
+      const r = rng.next();
+      let v: { key: string; w: number; h: number };
+      if (theme === 'foret' || theme === 'lac') v = r < 0.6 ? pick(trees) : r < 0.85 ? pick(pines) : pick(bushes);
+      else if (theme === 'montagne') v = r < 0.65 ? pick(pines) : r < 0.85 ? pick(rocks) : pick(bushes);
+      else if (theme === 'desert') v = r < 0.4 ? pick(palms) : r < 0.75 ? pick(rocks) : pick(cactus);
+      else v = r < 0.55 ? pick(buildings) : r < 0.85 ? pick(palms) : pick(bushes);
+      const big = v.key.startsWith('immeuble');
+      if (big && d < t.half + 40) continue;
+      if (!big && d < t.half + 22 && !v.key.startsWith('buisson') && !v.key.startsWith('rocher')) continue;
+      list.push({ x, y, key: v.key, w: v.w, h: v.h, s: big ? 1 : rng.range(0.8, 1.3), shadow: big ? 0.9 : 0.6 });
     }
-    props.sort((a, b2) => a.y - b2.y); // ordre de profondeur
-    // Regroupement par bandes horizontales de 200 m (respecte l'ordre de profondeur, permet le culling).
-    const layer = new Container();
-    const bands = new Map<number, Graphics>();
-    for (const p of props) {
-      const key = Math.floor(p.y / 200);
-      let g = bands.get(key);
-      if (!g) {
-        g = new Graphics();
-        g.cullable = true;
-        bands.set(key, g);
-        layer.addChild(g);
+    // bateaux amarrés le long du quai
+    if (theme === 'port' && !eco) {
+      const seaY = b.maxY + 70;
+      for (let x = b.minX - 200; x < b.maxX + 200; x += rng.range(30, 60)) {
+        const key = 'bateau-' + (rng.int(0, 2));
+        if (!this.propDims.has(key)) {
+          const art = paintBoat(['#1f4e79', '#d62828', '#2a9d8f'][Number(key.slice(-1))], Number(key.slice(-1)) + 1);
+          this.tex(key, () => art.cv);
+          this.propDims.set(key, { w: art.w, h: art.h });
+        }
+        const dims = this.propDims.get(key)!;
+        const sp = new Sprite(this.tex(key, () => document.createElement('canvas')));
+        sp.anchor.set(0.5);
+        sp.rotation = Math.PI / 2;
+        sp.width = dims.w;
+        sp.height = dims.h;
+        sp.position.set(x, seaY + 12 + rng.range(0, 6));
+        sp.cullable = true;
+        this.boats.push(sp);
+        this.world.addChild(sp);
       }
-      if (theme === 'foret' || theme === 'lac') this.tree(g, p.x, p.y, p.s, theme === 'lac' && p.kind === 2 ? 0 : p.kind);
-      else if (theme === 'montagne') (p.kind === 0 ? this.rock(g, p.x, p.y, p.s, 0x7d7f86) : this.tree(g, p.x, p.y, p.s * 0.9, 2));
-      else if (theme === 'port') (p.kind === 0 ? this.palm(g, p.x, p.y, p.s) : this.building(g, p.x, p.y, p.s, rng));
-      else (p.kind === 0 ? this.palm(g, p.x, p.y, p.s) : this.rock(g, p.x, p.y, p.s));
     }
-    this.world.addChild(layer);
-  }
-
-  private tree(g: Graphics, x: number, y: number, s: number, kind: number): void {
-    const h = 14 * s / TILT;
-    g.ellipse(x + 4 * s, y + 2 * s, 7 * s, 3.5 * s).fill({ color: 0x000000, alpha: 0.22 });
-    g.rect(x - 0.7 * s, y - h * 0.35, 1.4 * s, h * 0.35).fill(0x5b3a1e);
-    const cols = kind === 1 ? [0x1f4d2b, 0x2e6b3a] : [0x2d5e2a, 0x3f7f35];
-    if (kind === 2) {
-      g.poly([x, y - h * 1.25, x - 6 * s, y - h * 0.3, x + 6 * s, y - h * 0.3]).fill(cols[0]).stroke({ width: 0.7, color: INK });
-      g.poly([x, y - h * 1.05, x - 3 * s, y - h * 0.5, x + 1.5 * s, y - h * 0.5]).fill({ color: cols[1], alpha: 0.9 });
-    } else {
-      g.circle(x, y - h * 0.75, 6 * s).fill(cols[0]).stroke({ width: 0.7, color: INK });
-      g.circle(x - 1.8 * s, y - h * 0.85, 3 * s).fill({ color: cols[1], alpha: 0.9 });
+    list.sort((a, b2) => a.y - b2.y);
+    const shadowTex = this.tex('ombre-douce', () => paintSoftShadow(64));
+    const shadows = new Container();
+    const props = new Container();
+    for (const p of list) {
+      const w = p.w * p.s, h = p.h * p.s;
+      const sh = new Sprite(shadowTex);
+      sh.anchor.set(0.5);
+      sh.width = w * 1.1;
+      sh.height = w * 0.55;
+      sh.alpha = p.shadow;
+      sh.position.set(p.x + w * 0.3, p.y + w * 0.12);
+      sh.cullable = true;
+      shadows.addChild(sh);
+      const sp = new Sprite(this.texCache.get(p.key)!);
+      sp.anchor.set(0.5, 0.97);
+      sp.width = w;
+      sp.height = h / TILT;
+      sp.position.set(p.x, p.y);
+      sp.cullable = true;
+      props.addChild(sp);
     }
+    this.world.addChild(shadows, props);
   }
 
-  private palm(g: Graphics, x: number, y: number, s: number): void {
-    const h = 12 * s / TILT;
-    g.ellipse(x + 4 * s, y + 1.5 * s, 6 * s, 2.5 * s).fill({ color: 0x000000, alpha: 0.2 });
-    g.moveTo(x, y).quadraticCurveTo(x + 2 * s, y - h * 0.5, x + 1 * s, y - h).stroke({ width: 1.1 * s, color: 0x7a5230 });
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2;
-      g.moveTo(x + s, y - h).quadraticCurveTo(x + s + Math.cos(a) * 4 * s, y - h - 2 * s, x + s + Math.cos(a) * 7 * s, y - h + Math.abs(Math.sin(a)) * 3 * s)
-        .stroke({ width: 1.3 * s, color: 0x3f8f3a });
+  /** Ombres de nuages qui dérivent, vignettage, traits de vitesse façon BD. */
+  private buildAmbience(eco: boolean): void {
+    const b = this.track.bounds;
+    if (!eco && !this.track.def.night) {
+      const tex = this.tex('nuage', () => paintCloudShadow(256));
+      const r = new Rng(17);
+      for (let k = 0; k < 6; k++) {
+        const c = new Sprite(tex);
+        c.anchor.set(0.5);
+        const size = r.range(260, 480);
+        c.width = size;
+        c.height = size * 0.7;
+        c.alpha = 0.22;
+        c.position.set(r.range(b.minX - 300, b.maxX + 300), r.range(b.minY - 300, b.maxY + 300));
+        this.world.addChild(c);
+        this.clouds.push(c);
+      }
     }
+    this.vignette = new Sprite(this.tex('vignette', () => paintVignette(256, this.track.def.night ? 0.55 : 0.32)));
+    this.overlay.addChildAt(this.vignette, 0);
+    this.speedLines = new Graphics();
+    this.overlay.addChildAt(this.speedLines, 1);
   }
 
-  private building(g: Graphics, x: number, y: number, s: number, rng: Rng): void {
-    const w = 16 * s, d = 12 * s, h = rng.range(10, 26) * s / TILT;
-    const col = rng.pick([0xe8c9a0, 0xf0e1c6, 0xd99a6c, 0xc8d6c4, 0xf2d98c]);
-    g.rect(x - w / 2 + 3, y - d / 2 + 3, w, d).fill({ color: 0x000000, alpha: 0.2 });
-    g.rect(x - w / 2, y + d / 2 - h, w, h).fill(shade(col, 0.82)).stroke({ width: 0.6, color: INK });
-    g.rect(x - w / 2, y - d / 2 - h, w, d).fill(col).stroke({ width: 0.6, color: INK });
-    for (let k = 0; k < 3; k++) g.rect(x - w / 2 + 2 + k * (w / 3), y + d / 2 - h * 0.7, w / 3 - 4, h * 0.18).fill(0x2a3d4f);
-    g.rect(x - w / 2, y - d / 2 - h, w, d * 0.25).fill(0xb5452f);
+  private updateAmbience(dtMs: number, sw: number, sh: number): void {
+    const b = this.track.bounds, dt = dtMs / 1000;
+    for (const c of this.clouds) {
+      c.x += dt * 6;
+      c.y += dt * 2;
+      if (c.x > b.maxX + 500) c.x = b.minX - 500;
+      if (c.y > b.maxY + 500) c.y = b.minY - 500;
+    }
+    if (this.water) {
+      this.water.tilePosition.x += dt * 3;
+      this.water.tilePosition.y += dt * 1.2;
+    }
+    const tt = performance.now() / 1000;
+    this.boats.forEach((bt, i) => (bt.rotation = Math.PI / 2 + Math.sin(tt * 0.8 + i) * 0.04));
+    if (this.vignette) {
+      this.vignette.width = sw;
+      this.vignette.height = sh;
+    }
+    // traits de vitesse autour de la voiture suivie (au-delà de ~225 km/h)
+    const g = this.speedLines!;
+    g.clear();
+    const fc = this.follow && this.mode !== 'circuit' && this.opts.quality !== 'economie' ? this.sim.car(this.follow) : null;
+    if (!fc || this.replay) return;
+    const k = Math.max(0, Math.min(1, (fc.v - 62) / 22));
+    if (k <= 0) return;
+    const { i } = locate(this.track, fc.s);
+    const hd = this.track.heading[i];
+    const dx = Math.cos(hd), dy = Math.sin(hd) * TILT;
+    const n = Math.hypot(dx, dy) || 1;
+    const ux = dx / n, uy = dy / n;
+    const seed = Math.floor(tt * 12);
+    const r = new Rng(seed);
+    for (let q = 0; q < 14; q++) {
+      // traits sur les bords de l'écran, alignés sur la direction de la voiture
+      const edge = r.next() < 0.5;
+      const px = edge ? (r.next() < 0.5 ? r.range(0, sw * 0.18) : r.range(sw * 0.82, sw)) : r.range(0, sw);
+      const py = edge ? r.range(0, sh) : r.next() < 0.5 ? r.range(0, sh * 0.15) : r.range(sh * 0.85, sh);
+      const len = r.range(40, 120) * k;
+      g.moveTo(px, py).lineTo(px - ux * len, py - uy * len);
+    }
+    g.stroke({ width: 2, color: 0xffffff, alpha: 0.35 * k });
   }
 
-  private rock(g: Graphics, x: number, y: number, s: number, color = 0xa9643a): void {
-    const r = 5 * s;
-    g.ellipse(x + 2, y + 1, r * 1.3, r * 0.5).fill({ color: 0x000000, alpha: 0.18 });
-    g.poly([x - r, y, x - r * 0.6, y - r * 1.2 / TILT * 0.6, x + r * 0.3, y - r * 1.4 / TILT * 0.6, x + r, y - r * 0.4, x + r * 0.9, y])
-      .fill(color).stroke({ width: 0.6, color: INK });
-  }
+  private propDims = new Map<string, { w: number; h: number }>();
+  private boats: Sprite[] = [];
+  private water: TilingSprite | null = null;
+  private clouds: Sprite[] = [];
+  private vignette: Sprite | null = null;
+  private speedLines: Graphics | null = null;
 
   // ------------------------------------------------------------ voitures
 
@@ -633,20 +856,17 @@ export class RaceRenderer {
 
   /** Voiture de sécurité : berline blanche à bandes orange, rampe lumineuse clignotante. */
   private buildSafetyCar(): void {
-    const S = CAR_PX;
-    const g = new Graphics();
-    g.roundRect(-2.4 * S, -0.95 * S, 4.8 * S, 1.9 * S, 0.5 * S).fill(0xf4f1ea).stroke({ width: 0.14 * S, color: INK });
-    g.rect(-2.3 * S, -0.25 * S, 4.6 * S, 0.5 * S).fill(0xff7a00);
-    g.roundRect(-0.9 * S, -0.75 * S, 1.9 * S, 1.5 * S, 0.3 * S).fill(0x2b3a4a);
-    const tex = this.app.renderer.generateTexture({ target: g, resolution: 1, antialias: true });
-    g.destroy();
+    const tex = Texture.from(paintCar({ color: '#f4f1ea', color2: '#ff7a00', number: 'SC', sponsor: 'SAFETY', sponsorColor: '#1d3557' }, CAR_PX));
     const root = new Container();
-    const shadow = new Graphics().roundRect(-2.5, -1.05, 5, 2.1, 0.8).fill({ color: 0x000000, alpha: 0.32 });
-    shadow.position.set(0.5, 0.7 / TILT);
+    const shadow = new Sprite(this.tex('ombre-douce', () => paintSoftShadow(64)));
+    shadow.anchor.set(0.5);
+    shadow.width = 6.2;
+    shadow.height = 2.9;
+    shadow.position.set(0.9, 0.9);
     const body = new Sprite(tex);
     body.anchor.set(0.5);
     body.scale.set(1 / CAR_PX);
-    body.position.set(0, -0.35 / TILT);
+    body.position.set(0, -0.42 / TILT);
     const bar = new Graphics();
     root.addChild(shadow, body, bar);
     root.visible = false;
@@ -682,6 +902,7 @@ export class RaceRenderer {
     v.root.position.set(this.tmp.x, this.tmp.y);
     v.root.zIndex = 999;
     v.body.rotation = head;
+    (v.root.children[0] as Sprite).rotation = head;
     const on = Math.floor(performance.now() / 250) % 2 === 0;
     v.bar.clear();
     v.bar.circle(Math.cos(head + 1.57) * 0.45, Math.sin(head + 1.57) * 0.45 - 0.9 / TILT, 0.35).fill(on ? 0xffb000 : 0x6a4a00);
@@ -693,55 +914,10 @@ export class RaceRenderer {
     v.dot.position.set(sx, sy);
   }
 
+  /** Livrée peinte (art.ts) : dégradés, encrage, numéro, sponsor principal. */
   private carTexture(e: SimCar['e']): Texture {
-    const c1 = hex(e.color), c2 = hex(e.color2);
-    const holder = new Container();
-    const g = new Graphics();
-    holder.addChild(g);
-    const S = CAR_PX;
-    const L = CAR_LEN * S, W = 1.9 * S;
-    // repère : x vers l'avant, centré en (0,0)
-    const r = (x: number, y: number, w: number, h: number) => g.roundRect(x * S, y * S, w * S, h * S, 0.12 * S);
-    // pneus
-    for (const [px, py] of [[-2.15, -0.98], [-2.15, 0.6], [1.25, -0.93], [1.25, 0.6]] as const) r(px, py, 0.75, 0.38).fill(0x1b1b1b).stroke({ width: 0.12 * S, color: INK });
-    // aileron arrière
-    r(-2.6, -0.85, 0.5, 1.7).fill(c2).stroke({ width: 0.12 * S, color: INK });
-    // coque
-    g.poly([
-      -2.15 * S, -0.42 * S, -0.6 * S, -0.62 * S, 0.8 * S, -0.34 * S, 2.35 * S, -0.14 * S,
-      2.35 * S, 0.14 * S, 0.8 * S, 0.34 * S, -0.6 * S, 0.62 * S, -2.15 * S, 0.42 * S,
-    ]).fill(c1).stroke({ width: 0.12 * S, color: INK });
-    // liseré et reflet cel-shading
-    g.poly([-1.9 * S, -0.08 * S, 2.2 * S, -0.05 * S, 2.2 * S, 0.05 * S, -1.9 * S, 0.08 * S]).fill(c2);
-    g.poly([-1.4 * S, -0.5 * S, 0.6 * S, -0.3 * S, 0.6 * S, -0.22 * S, -1.4 * S, -0.38 * S]).fill({ color: 0xffffff, alpha: 0.35 });
-    // aileron avant
-    r(2.25, -0.95, 0.38, 1.9).fill(c2).stroke({ width: 0.12 * S, color: INK });
-    // cockpit + casque
-    g.ellipse(-0.1 * S, 0, 0.55 * S, 0.27 * S).fill(INK);
-    g.circle(0.0, 0, 0.2 * S).fill(0xf4f1ea);
-    g.circle(0.04 * S, 0, 0.12 * S).fill(c2);
-    // numéro de course sur le capot moteur (pastille blanche)
-    g.circle(-1.25 * S, 0, 0.36 * S).fill(0xf4f1ea).stroke({ width: 0.06 * S, color: INK });
-    const num = new Text({ text: String(e.number), style: { fontFamily: 'Bangers, Impact, sans-serif', fontSize: 0.5 * S, fill: INK } });
-    num.anchor.set(0.5);
-    num.rotation = Math.PI / 2;
-    num.position.set(-1.25 * S, 0);
-    holder.addChild(num);
-    // sponsor principal sur les pontons
     const liv = this.opts.liveries?.[e.teamId];
-    if (liv) {
-      for (const side of [-1, 1]) {
-        g.rect(-1.05 * S, side * 0.42 * S - 0.12 * S, 1.2 * S, 0.24 * S).fill(hex(liv.color));
-        const t = new Text({ text: liv.sponsor.split(' ')[0].toUpperCase().slice(0, 7), style: { fontFamily: 'Barlow Condensed, Arial Narrow, sans-serif', fontWeight: '700', fontSize: 0.2 * S, fill: 0xffffff } });
-        t.anchor.set(0.5);
-        t.position.set(-0.45 * S, side * 0.42 * S);
-        holder.addChild(t);
-      }
-    }
-    const tex = this.app.renderer.generateTexture({ target: holder, resolution: 1, antialias: true });
-    holder.destroy({ children: true });
-    void L; void W;
-    return tex;
+    return Texture.from(paintCar({ color: e.color, color2: e.color2, number: e.number, sponsor: liv?.sponsor, sponsorColor: liv?.color }, CAR_PX));
   }
 
   private buildCars(): void {
@@ -767,7 +943,15 @@ export class RaceRenderer {
         texCache.set(c.id, tex);
       }
       const root = new Container();
-      const shadow = new Graphics().roundRect(-CAR_LEN / 2, -1.0, CAR_LEN, 2.0, 0.8).fill({ color: 0x000000, alpha: 0.32 });
+      const shadow = new Sprite(this.tex('ombre-douce', () => paintSoftShadow(64)));
+      shadow.anchor.set(0.5);
+      shadow.width = 6.2;
+      shadow.height = 2.9;
+      // flanc de la voiture : silhouette sombre sous la carrosserie (épaisseur 2,5D)
+      const side = new Sprite(this.tex('silhouette', () => paintSilhouette(CAR_PX)));
+      side.anchor.set(0.5);
+      side.scale.set(1 / CAR_PX);
+      side.tint = 0x24211c;
       const ring = new Graphics().ellipse(0, 0, 4.2, 2.8).stroke({ width: 0.45, color: 0xffd400, alpha: 0.95 });
       ring.visible = c.e.teamId === this.opts.focusTeamId;
       const body = new Sprite(tex);
@@ -775,7 +959,7 @@ export class RaceRenderer {
       body.scale.set(1 / CAR_PX);
       const rearLight = new Graphics().circle(0, 0, 0.28).fill(0xff2a2a);
       rearLight.visible = false;
-      root.addChild(ring, shadow, body, rearLight);
+      root.addChild(ring, shadow, side, body, rearLight);
       this.carsLayer.addChild(root);
       const label = new Text({
         text: c.e.short,
@@ -791,7 +975,7 @@ export class RaceRenderer {
       marker.anchor.set(0.5, 1);
       marker.visible = false;
       this.overlay.addChild(marker);
-      this.views.set(c.id, { root, shadow, body, ring, label, dot, marker, rearLight });
+      this.views.set(c.id, { root, shadow, side, body, ring, label, dot, marker, rearLight });
     }
   }
 
@@ -956,8 +1140,10 @@ export class RaceRenderer {
       if (c.errKind === 3 && c.errTimer > 0) head += (5 - c.errTimer) * 2.6; // tête-à-queue
       v.body.rotation = head;
       v.shadow.rotation = head;
-      v.shadow.position.set(0.5, 0.7 / TILT);
-      v.body.position.set(0, -0.35 / TILT);
+      v.shadow.position.set(0.9, 0.9);
+      v.side.rotation = head;
+      v.side.position.set(0, -0.14 / TILT);
+      v.body.position.set(0, -0.42 / TILT);
       v.body.alpha = c.status === 'dnf' ? 0.6 : 1;
       // écran
       const sx = (p.x - this.cam.x) * z + sw / 2;
@@ -994,6 +1180,7 @@ export class RaceRenderer {
       }
     });
     this.carsLayer.sortableChildren = true;
+    this.updateAmbience(dtMs, sw, sh);
     this.contactSparks();
     this.updateSafetyCar(sw, sh, z, detailed);
     this.updatePuffs(dtMs);
@@ -1002,7 +1189,7 @@ export class RaceRenderer {
 
     // Minicarte
     this.mini.visible = this.follow !== null || sw < 700;
-    this.mini.position.set(sw - (t.bounds.maxX - t.bounds.minX) * this.miniScale - 14, sh - (t.bounds.maxY - t.bounds.minY) * this.miniScale - 14);
+    this.mini.position.set(sw - (t.bounds.maxX - t.bounds.minX) * this.miniScale - 14, sh - (t.bounds.maxY - t.bounds.minY) * this.miniScale - (sw <= 520 ? 190 : sh < 520 ? 96 : 104));
     for (const ch of this.mini.children) {
       if (!(ch instanceof Sprite)) continue;
       const c = this.sim.car(ch.label);

@@ -1,6 +1,16 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.4 (dernière version)
+## V0.5 (dernière version) — refonte graphique
+
+* `npm test` : 41/41 (aucune régression de la simulation ou de la gestion).
+* Contrôle visuel par captures sur les 8 circuits (vue grille, course, zoom, circuit) : aucune erreur console.
+* E2E Chromium (PC avec saison complète, Android paysage et portrait) : voir ci-dessous.
+* Performances (800×360, rendu logiciel sans GPU, indicatif) : qualité Économie 32 i/s en vue Suivre (31 avant la
+  refonte), 24 en vue Circuit (28 avant) ; qualité Haute 11 / 6 (antialiasing coûteux sans GPU). La mesure sur
+  téléphone réel reste à faire ; en Économie, le grain d'asphalte, le gravier texturé, les nuages, les spectateurs
+  et une partie du décor sont désactivés.
+
+## V0.4
 
 * `npm test` : **41/41**. Nouveaux tests de gestion (`tests/management.test.ts`) : recrutement du chef mécanicien
   (effet sur les arrêts), projet de R&D sur plusieurs GP, négociation de sponsor (refus, rupture, contrat de 3 saisons

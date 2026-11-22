@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Logo } from '../common';
+import { PaintedCar } from '../PaintedCar';
 import { store, APP_VERSION } from '../App';
 import { SLOT_COUNT } from '../../game/save';
 
@@ -28,6 +29,14 @@ export function Home({ onNew, onLoad, onSettings, onCredits }: { onNew: () => vo
   return (
     <div className="home">
       <div className="home-sky" aria-hidden />
+      <div className="home-track" aria-hidden>
+        <div className="home-lane">
+          <div className="home-road" />
+          <div className="home-car c1"><PaintedCar livery={{ color: '#d62828', color2: '#ffd400', number: 1, sponsor: 'DYNASTY', sponsorColor: '#16130f' }} width={340} /></div>
+          <div className="home-car c2"><PaintedCar livery={{ color: '#1f9e89', color2: '#f4d35e', number: 27 }} width={300} /></div>
+          <div className="home-car c3"><PaintedCar livery={{ color: '#3a86ff', color2: '#f4f1ea', number: 44 }} width={280} /></div>
+        </div>
+      </div>
       <div className="home-inner">
         <Logo size={0.95} />
         <p className="tagline">Bâtissez votre écurie. Écrivez votre légende.</p>
