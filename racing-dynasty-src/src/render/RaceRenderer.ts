@@ -31,7 +31,7 @@ interface ReplayFrame {
   out: Uint8Array;
 }
 
-export type CameraMode = 'suivre' | 'embarquee' | 'tv' | 'circuit';
+export type CameraMode = 'suivre' | 'embarquee' | 'tv' | 'circuit' | 'cockpit';
 
 interface CarView {
   root: Container;
@@ -177,6 +177,8 @@ export class RaceRenderer {
 
   setMode(m: CameraMode, carId?: string): void {
     this.mode = m;
+    // en vue cockpit, la scène 2,5D n'est plus dessinée (la vue pseudo-3D la recouvre) : économie de GPU
+    if (this.ready) this.app.stage.visible = m !== 'cockpit';
     if (m === 'circuit') this.follow = null;
     else if (carId) this.follow = carId;
     else if (!this.follow) this.follow = this.sim.cars.find((c) => c.e.teamId === this.opts.focusTeamId)?.id ?? this.sim.cars[0].id;

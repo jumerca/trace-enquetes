@@ -4,6 +4,7 @@ import { finishRace, raceConfig, recordRaceProgress } from '../../game/career';
 import { isLowEndDevice } from '../../game/settings';
 import { DT, RaceSim, fmtLap, type SimCar } from '../../engine/race';
 import { RaceRenderer, type CameraMode } from '../../render/RaceRenderer';
+import { CockpitView } from '../../render/cockpit';
 import { RaceAudio } from '../../render/audio';
 import { menuMusic } from '../music';
 import { comment } from '../commentary';
@@ -112,6 +113,8 @@ export function RaceView({ api }: { api: GameApi }) {
   const simRef = useRef<RaceSim | null>(null);
   const rendRef = useRef<RaceRenderer | null>(null);
   const audioRef = useRef<RaceAudio | null>(null);
+  const cockpitCanvas = useRef<HTMLCanvasElement>(null);
+  const cockpitRef = useRef<CockpitView | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ d: number; moved: boolean }>({ d: 0, moved: false });
   const [camMode, setCamMode] = useState<CameraMode>('suivre');
@@ -194,6 +197,10 @@ export function RaceView({ api }: { api: GameApi }) {
         }
         r.alpha = sim.finished ? 1 : Math.min(1, accRef.current / DT);
         r.render(dtMs);
+        if (r.mode === 'cockpit' && cockpitCanvas.current) {
+          if (!cockpitRef.current) cockpitRef.current = new CockpitView(cockpitCanvas.current, sim, quality === 'economie');
+          cockpitRef.current.draw(r.follow, r.alpha, dtMs);
+        }
         audio.update(sim, r.follow, sim.finished ? 0 : speedRef.current);
       });
     }).catch((e) => setError('Impossible d’initialiser le rendu graphique : ' + (e as Error).message));
@@ -356,6 +363,7 @@ export function RaceView({ api }: { api: GameApi }) {
     <div className="race">
       <div className="race-canvas" ref={host} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
         onWheel={(e) => rendRef.current?.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12)} />
+      <canvas ref={cockpitCanvas} className="cockpit-canvas" style={{ display: camMode === 'cockpit' ? 'block' : 'none' }} aria-hidden="true" />
       {error && <div className="panel error-box">{error}<button className="btn" onClick={() => api.go('hub')}>Retour au QG</button></div>}
 
       <div className="race-top">
@@ -415,11 +423,12 @@ export function RaceView({ api }: { api: GameApi }) {
           <div className="seg cams">
             <button className={camMode === 'suivre' ? 'on' : ''} onClick={() => setCamera('suivre')}>Suivre</button>
             <button className={camMode === 'embarquee' ? 'on' : ''} onClick={() => setCamera('embarquee')} title="Caméra embarquée">Embarquée</button>
+            <button className={camMode === 'cockpit' ? 'on' : ''} onClick={() => setCamera('cockpit')} title="Vue du baquet">Cockpit</button>
             <button className={camMode === 'tv' ? 'on' : ''} onClick={() => setCamera('tv')}>TV</button>
             <button className={camMode === 'circuit' ? 'on' : ''} onClick={() => setCamera('circuit')}>Circuit</button>
           </div>
-          <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1 / 1.25)} disabled={camMode === 'circuit'} aria-label="Dézoomer">−</button>
-          <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1.25)} disabled={camMode === 'circuit'} aria-label="Zoomer">+</button>
+          <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1 / 1.25)} disabled={camMode === 'circuit' || camMode === 'cockpit'} aria-label="Dézoomer">−</button>
+          <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1.25)} disabled={camMode === 'circuit' || camMode === 'cockpit'} aria-label="Zoomer">+</button>
           <span className="sep" />
           <button className="btn small ghost" aria-label="Fin directe" onClick={skipToEnd} disabled={skipping || hud?.finished}>{skipping ? 'Simulation…' : <><span className="lbl">Fin directe </span>⏭</>}</button>
         </div>

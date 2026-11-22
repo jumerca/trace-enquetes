@@ -57,6 +57,11 @@ const log = (...a) => console.log('•', ...a);
     // Usine : lancer un projet de R&D
     await p.locator('.tabs button', { hasText: 'Usine' }).click();
     await p.locator('.rnd button', { hasText: 'Lancer' }).first().click();
+    // Installations : agrandir le simulateur (confirmation)
+    p.once('dialog', (d) => d.accept());
+    await p.locator('.facility', { hasText: 'Simulateur' }).locator('button').click();
+    await p.waitForSelector('.building');
+    log(name, 'chantier d’installation lancé :', (await p.locator('.building').textContent()).trim());
     await shot('04c-usine');
     await p.locator('.tabs button', { hasText: 'QG' }).click();
     const budget = await p.locator('.budget b').textContent();
@@ -99,6 +104,10 @@ const log = (...a) => console.log('•', ...a);
     await p.locator('.sim-controls button', { hasText: 'TV' }).click();
     await p.waitForTimeout(2500);
     await shot('08b-camera-tv');
+    await p.locator('.sim-controls button', { hasText: 'Cockpit' }).click();
+    await p.waitForTimeout(2500);
+    await shot('08b2-cockpit');
+    if (!(await p.locator('.cockpit-canvas').isVisible())) errors.push('vue cockpit non affichée');
     // Voiture de sécurité + averse forcées (accès de test) pour contrôler le rendu et l'interface.
     await p.evaluate(() => {
       const sim = window.__raceSim;
@@ -132,9 +141,14 @@ const log = (...a) => console.log('•', ...a);
     await p.getByText('Voir les résultats').click();
     await p.waitForSelector('text=Bilan de');
     await shot('11-resultats');
+    if (!(await p.locator('.gazette').count())) errors.push('article de presse absent des résultats');
+    else log(name, 'article de presse :', (await p.locator('.gazette h3').first().textContent()).trim());
     const myRows = await p.locator('.table tr.me').allTextContents();
     log(name, 'résultats joueur :', myRows.join(' | '));
     await p.getByText('Retour au QG').click();
+    await shot('11b-qg-directeur');
+    await p.locator('.tabs button', { hasText: 'Presse' }).click();
+    await shot('11c-presse');
     await p.locator('.tabs button', { hasText: 'Classements' }).click();
     await shot('12-classements');
     const leader = await p.locator('.table tbody tr').first().textContent();

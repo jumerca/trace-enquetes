@@ -691,7 +691,7 @@ export function writeArticle(c: Career, res: RoundResult, events: RaceEvent[], g
     }
     quote = { driverId: d.id, text };
   }
-  const art: Article = { season: c.season, round: res.round, title, body, quote, rivalQuote };
+  const art: Article = { season: c.season, round: res.round + 1, title, body, quote, rivalQuote };
   (c.press ??= []).unshift(art);
   if (c.press.length > 24) c.press.length = 24;
   return art;

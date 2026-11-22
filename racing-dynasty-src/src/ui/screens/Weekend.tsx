@@ -311,7 +311,7 @@ function Results({ api }: { api: GameApi }) {
         <p>Budget : <b>{money(c.budget)}</b> · Réputation : <b>{team.reputation}</b> · Confiance des actionnaires : <b>{c.director?.confidence ?? '—'}/100</b></p>
         <button className="btn primary big" onClick={() => { api.act((cc) => closeWeekend(cc)); api.go('hub'); }}>Retour au QG →</button>
       </section>
-      {c.press?.[0] && c.press[0].round === res.round && c.press[0].season === c.season && (
+      {c.press?.[0] && c.press[0].round === res.round + 1 && c.press[0].season === c.season && (
         <section className="panel"><ArticleCard c={c} a={c.press[0]} /></section>
       )}
     </div>
