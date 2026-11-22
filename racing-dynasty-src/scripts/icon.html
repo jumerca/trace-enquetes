@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face { font-family: Bangers; src: url(../node_modules/@fontsource/bangers/files/bangers-latin-400-normal.woff2); }
+body { margin: 0; background: #333; }</style></head><body><script>
+// Icône Racing Dynasty : monogramme « RD » encré sur damier, bandeau rouge.
+window.drawIcon = (size, maskable) => {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
+  const s = size / 512;
+  g.fillStyle = '#16130f'; g.fillRect(0, 0, size, size);
+  if (!maskable) { g.save(); g.beginPath(); g.roundRect(0, 0, size, size, 96 * s); g.clip(); }
+  // fond : rayons de vitesse
+  const grd = g.createRadialGradient(256 * s, 560 * s, 20 * s, 256 * s, 400 * s, 520 * s);
+  grd.addColorStop(0, '#ff7a00'); grd.addColorStop(0.45, '#7a1f12'); grd.addColorStop(1, '#16130f');
+  g.fillStyle = grd; g.fillRect(0, 0, size, size);
+  const inset = maskable ? 0.72 : 0.9; // zone de sécurité des icônes masquables
+  g.translate(256 * s, 256 * s); g.scale(inset, inset); g.translate(-256 * s, -256 * s);
+  // damier
+  g.save(); g.translate(256 * s, 120 * s); g.transform(1, 0, -0.2, 1, 0, 0);
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#16130f' : '#f4f1ea'; g.fillRect((-192 + i * 32) * s, (j * 32 - 32) * s, 32 * s, 32 * s); }
+  g.lineWidth = 10 * s; g.strokeStyle = '#16130f'; g.strokeRect(-192 * s, -32 * s, 384 * s, 64 * s);
+  g.restore();
+  // bandeau
+  g.save(); g.translate(256 * s, 300 * s); g.transform(1, 0, -0.2, 1, 0, 0);
+  g.fillStyle = '#d62828'; g.strokeStyle = '#16130f'; g.lineWidth = 16 * s; g.lineJoin = 'round';
+  g.beginPath(); g.rect(-210 * s, -130 * s, 420 * s, 230 * s); g.fill(); g.stroke();
+  g.fillStyle = '#ffd400'; g.beginPath(); g.rect(-210 * s, 100 * s, 420 * s, 40 * s); g.fill(); g.stroke();
+  g.font = `${250 * s}px Bangers`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 22 * s; g.strokeText('RD', 0, -5 * s); g.fillStyle = '#f4f1ea'; g.fillText('RD', 0, -5 * s);
+  g.restore();
+  if (!maskable) g.restore();
+  return c;
+};
+document.fonts.load('100px Bangers').then(() => { document.title = 'ready'; });
+</script></body></html>

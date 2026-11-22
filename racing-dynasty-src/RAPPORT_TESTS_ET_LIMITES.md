@@ -1,0 +1,81 @@
+# Racing Dynasty V0.1 — Tests réellement effectués et limites constatées
+
+Environnement de test : conteneur Linux (Node 22), Chromium headless (rendu WebGL logiciel, sans GPU).
+**Aucun test sur appareil Android réel n'a pu être fait depuis cet environnement.**
+
+## 1. Tests automatisés (Vitest) — `npm test` : 18/18 réussis
+
+Moteur (`tests/engine.test.ts`)
+* 3 circuits fermés, longueur 3,0 à 5,2 km, trajectoire idéale toujours dans la piste.
+* Même graine → résultats et fil d'événements strictement identiques ; graine différente → course différente.
+* Rejeu : une course avec consignes joueur (mode attaque, arrêt au stand) rejouée depuis la liste de consignes
+  donne exactement le même classement.
+* Course complète sur chacun des 3 circuits : **0 chevauchement de voitures à chaque pas** (20 voitures, contrôle
+  par paires) ; aucune voiture hors piste en dehors des stands, des abandons ou des 8 s suivant une erreur annoncée ;
+  positions 1–20 uniques ; arrivants classés par tours puis temps, abandons en fin de classement ; tous les arrivants
+  ont effectué l'arrêt prévu.
+* Course sous la pluie en pneus pluie : se termine normalement.
+* Le mode « attaque » use davantage les pneus que « normal » (même graine).
+
+Gestion et sauvegardes (`tests/career.test.ts`)
+* Création de carrière : 10 écuries, 18 pilotes sous contrat + 10 agents libres, 3 GP, budget conforme.
+* Recrutement : refus sous le salaire demandé, prime déduite, limite de 2 titulaires, libération avec indemnité.
+* Sponsors : réputation minimale exigée, 2 emplacements maximum. Évolution de voiture payante.
+* Saison complète (3 GP, essais → qualifs → stratégie → course → résultats) : total des points pilotes = somme du
+  barème des arrivants, classements triés, constructeurs = somme des pilotes, palmarès, passage en saison 2.
+* Même graine de carrière → mêmes résultats.
+* Sauvegarde pendant une course (après 1000 pas + consigne) puis rechargement : positions identiques au pas près
+  et même résultat final.
+* Sauvegarde principale corrompue → copie de secours chargée ; export/import ; refus d'un fichier étranger.
+
+## 2. Test de bout en bout dans le navigateur — `scripts/e2e.cjs`
+
+Sur le build de production servi par `vite preview`, dans 4 formats : PC 1366×768, Android paysage 800×360,
+Android portrait 360×740, tablette 1024×768 (tactile).
+Parcours vérifié à chaque fois : création d'écurie → recrutement de 2 pilotes (négociation) → signature d'un sponsor
+→ essais (réglage + 2 relais) → qualifications → départ → course en ×4 → consigne « attaque » → vue circuit →
+retour au QG en pleine course → **rechargement de la page → Continuer → reprise de la course** → fin directe →
+résultats → classements → **rechargement → classement conservé**. Sur PC, la saison entière est jouée (Port-Azur,
+Valbrune, Kharam) jusqu'à « Saison 1 terminée » puis lancement de la saison 2.
+Résultat : réussi dans les 4 formats, **aucune erreur JavaScript ni erreur console**.
+
+## 2 bis. PWA — `scripts/pwa-check.cjs` (build servi sur localhost)
+
+Manifeste lu (4 icônes dont 2 masquables) ; service worker installé et contrôlant la page ; **hors ligne**, l'écran
+d'accueil s'affiche et la sauvegarde `localStorage` est intacte. L'invite d'installation Android n'a pas pu être
+testée ici (elle nécessite un vrai Chrome Android sur HTTPS).
+
+## 3. Mesures de performance (dans le conteneur, pas sur téléphone)
+
+* Moteur : 55 à 120 µs par pas de simulation (20 voitures) ; une course de 12 tours se calcule en 0,7 à 1 s
+  (« Fin directe »), une course de 20 tours en ~1 s.
+* Bundle : JS principal 470 Ko (153 Ko gzip), CSS 20 Ko, total `dist/` 1,6 Mo avec polices et icônes.
+* Images/s mesurées dans Chromium headless **sans GPU** (rendu logiciel) : 12 à 54 i/s selon la taille de fenêtre.
+  Ce chiffre n'est **pas** représentatif d'un téléphone (qui dispose d'un GPU) et ne valide pas l'objectif de
+  30 i/s sur Android 4 Go : **la mesure sur appareil réel reste à faire** (procédure dans `PUBLICATION.md`,
+  compteur i/s intégré dans Paramètres).
+* Mesures prises côté rendu pour les appareils modestes : mode Économie automatique (≤ 4 Go ou ≤ 4 cœurs) :
+  résolution 1×, sans antialiasing, moins de décors, pas de fumée, étiquettes réduites ; plafond 30/60 i/s ;
+  décor statique dessiné une fois ; textures de voitures générées une fois par écurie ; interface React rafraîchie
+  4 fois par seconde seulement (pas à chaque image).
+
+## 4. Équilibrage observé (bancs d'essai, graine fixe)
+
+* Temps au tour : ~63 s (Port-Azur, 3,0 km), ~74 s (Valbrune, 5,1 km), ~90 s (Kharam, 5,2 km).
+* Écart voiture la plus rapide / plus lente : ~3,5 %. Réglages optimaux différents selon le circuit
+  (~1 s au tour entre un bon et un mauvais réglage).
+* Dépassements par course (12 tours) : Port-Azur 1 à 3 (urbain, voulu), Valbrune 3 à 17, Kharam ~20 à 28.
+  Abandons : 0 à 4 par course. Durée réelle d'un GP en ×1 : 13 à 19 min (6 à 8 min en tours « courts »).
+
+## 5. Limites constatées
+
+* **Performance mobile non validée** sur Android réel (voir §3). Le déploiement HTTPS n'a pas été effectué depuis
+  cette session (procédure prête : `PUBLICATION.md`).
+* Simulation en « 1D + latéral » : les voitures suivent le tracé et se décalent latéralement ; pas de contacts
+  physiques ni de dégâts, pas de voiture de sécurité ni de drapeaux jaunes.
+* Peu de dépassements à Port-Azur et sous la pluie : à rééquilibrer avec plus de retours de jeu.
+* Météo constante pendant une course (pas de pluie qui commence en cours de GP).
+* Reprise d'une course après rechargement : la course est recalculée depuis le départ (≈ 1 s sur PC ; peut
+  prendre quelques secondes sur un téléphone modeste).
+* Marché des transferts IA, développement de la voiture des IA, sons et musiques : non inclus en V0.1.
+* Une seule langue (français). Sauvegardes locales à l'appareil (export/import manuel pour changer d'appareil).
