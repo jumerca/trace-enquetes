@@ -1,6 +1,21 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.8 (dernière version)
+## V0.9 (dernière version)
+
+* `npm test` : 49/49 (aucune régression ; la cuisson 3D est testée par l'E2E et les contrôles visuels).
+* Contrôles visuels (captures) : planches de vues de la monoplace et de la voiture de sécurité, vue 2,5D sur 4
+  circuits, vue Bord, vue Cockpit (cockpit 3D), décor 3D de jour et de nuit.
+* Temps de préparation de la course, mesuré dans Chromium headless sans GPU (rendu WebGL logiciel) : ≈ 6 à 7 s,
+  décor et monoplaces compris (≈ 20 s avant le passage à un rendu unique par livrée). Sur un téléphone avec GPU,
+  ce devrait être nettement plus court, mais ce n'est pas mesuré. Les courses suivantes réutilisent les planches.
+* Mémoire : 11 planches 2,5D de 1024×768 (haute qualité) ou 672×336 (économie), plus les planches rasantes quand la
+  vue Cockpit ou Bord est ouverte (≈ 40 Mo en haute qualité) — à surveiller sur un téléphone de 4 Go.
+* Limites :
+  * les deux voitures d'une même écurie partagent le modèle (numéro visible sur l'étiquette) ;
+  * les roues ne tournent pas sur les modèles cuits ;
+  * la tribune et les garages restent dessinés en 2D.
+
+## V0.8
 
 * `npm test` : **49/49**. Nouveaux tests : conférence de presse (une question par GP, effets de la réponse sur le
   moral et la confiance, réponse citée dans l'article, réponse unique), prolongation du contrat du directeur (3

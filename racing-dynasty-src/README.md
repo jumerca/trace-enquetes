@@ -1,7 +1,7 @@
-# Racing Dynasty — V0.8 (JLG Creative)
+# Racing Dynasty — V0.9 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
-TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
+TypeScript · React 18 · PixiJS 8 · three.js (modèles 3D) · Vite 5. PWA installable, jouable hors ligne.
 
 ## Boucle de jeu livrée
 
@@ -14,6 +14,22 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libres et jeunes espoirs, 8 circuits originaux
 (Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.9 — modèles 3D
+* Monoplaces modélisées en 3D (`src/render/models3d.ts`, three.js) : monocoque, nez, pontons sculptés, capot et
+  prise d'air, aileron de requin, halo, rétroviseurs, ailerons avant (3 éléments) et arrière (volet + dérives),
+  fond plat et diffuseur, suspensions, roues à jantes et liseré, casque du pilote, sponsor sur les flancs.
+  Ombrage cel-shading 3 tons + arêtes et contour encrés façon BD.
+* Les modèles sont « cuits » au chargement de la course en planches d'images (48 angles en 2,5D, 36 angles en vue
+  rasante), en un seul rendu par livrée, puis affichés comme des sprites : la voiture montre son vrai volume quand
+  elle tourne, sans aucun coût 3D pendant la course. Planches gardées en mémoire d'une course à l'autre.
+* Toutes les vues en profitent : Suivre / Embarquée / TV / Hélico (2,5D), Bord (de face, de profil, de dos) et
+  Cockpit, dont le nez, les roues avant, le halo et les rétroviseurs sont rendus en perspective depuis le casque.
+* Voiture de sécurité en 3D (coupé blanc et orange, rampe lumineuse).
+* Décor en 3D low-poly : feuillus, sapins, palmiers, buissons, cactus, rochers, immeubles (façades fenêtrées,
+  allumées de nuit, équipements de toit) ; forêts plus denses.
+* Repli automatique sur les dessins 2D si WebGL est indisponible pour la cuisson.
+* Aperçu des modèles pour le développement : `npm run dev` puis `/preview/models.html`.
 
 ### Nouveautés V0.8
 * Vues de course : « Bord » (caméra de télévision au bord de la piste, au téléobjectif, qui voit arriver la voiture

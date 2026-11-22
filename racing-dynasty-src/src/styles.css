@@ -543,3 +543,6 @@ label.check { flex-direction: row; align-items: center; font-weight: 500; }
 .conference .answers { display: flex; flex-direction: column; gap: 6px; }
 .conference .answers .btn { text-align: left; display: flex; flex-direction: column; text-transform: none; }
 .conference .answers .btn small { font-weight: 400; opacity: 0.8; }
+.race-loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 30; background: #0006; pointer-events: none; }
+.race-loading .panel { display: flex; flex-direction: column; gap: 4px; text-align: center; font-family: var(--display); letter-spacing: 1px; }
+.race-loading small { font-family: var(--ui); letter-spacing: 0; }

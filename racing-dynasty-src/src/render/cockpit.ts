@@ -3,6 +3,7 @@
 // devant le pilote, les autres monoplaces sont dessinées de dos à leur vraie position.
 import type { RaceSim, SimCar } from '../engine/race';
 import { forwardDist, locate, worldPos, type Track } from '../engine/track';
+import { bakeAtlas, bakeCockpit, buildF1, buildSafetyCar, frameFor, releaseBaker, VIEW_LOW, type Atlas } from './models3d';
 
 const CAM_H = 0.95; // hauteur de l'œil (m)
 const NEAR = 1.2;
@@ -47,7 +48,12 @@ export class CockpitView {
   private camCar = '';
   camNo = 1;
 
-  constructor(private canvas: HTMLCanvasElement, private sim: RaceSim, private low: boolean) {
+  private low3d = new Map<string, Atlas>();
+  private preparing = false;
+  private baking = false; // le contexte de cuisson est occupé par les vues rasantes
+  private cockpit3d = true;
+
+  constructor(private canvas: HTMLCanvasElement, private sim: RaceSim, private low: boolean, private liveries?: Record<string, { sponsor?: string; color?: string }>) {
     this.ctx = canvas.getContext('2d')!;
     this.track = sim.track;
     const def = this.track.def;
@@ -78,6 +84,10 @@ export class CockpitView {
    */
   draw(carId: string | null, alpha: number, dtMs: number, mode: 'cockpit' | 'bord' = 'cockpit'): void {
     this.resize();
+    if (!this.preparing) {
+      this.preparing = true;
+      void this.prepare();
+    }
     const { ctx, w, h, track: t, sim } = this;
     const car = (carId && sim.car(carId)) || sim.cars.find((c) => c.e.isPlayer) || sim.cars[0];
     const s = car.prevS + (car.s - car.prevS) * alpha;
@@ -322,6 +332,11 @@ export class CockpitView {
       const cr = Math.cos(rel);
       const view: 'dos' | 'face' | 'profil' = isSc || cr > 0.45 ? 'dos' : cr < -0.45 ? 'face' : 'profil';
       const dir = Math.sin(rel) > 0 ? 1 : -1;
+      const k3 = isSc ? 'sc' : key;
+      if (this.low3d.has(k3)) {
+        bills.push({ z: p.z, draw: () => { this.car3D(p, F, k3, rel, sim.wet); } });
+        return;
+      }
       bills.push({ z: p.z, draw: () => (view === 'dos' ? this.carRear(p, F, color, color2, num, key, isSc, sim.wet) : this.carOther(p, F, color, color2, num, view, dir, sim.wet)) });
     };
     for (const c of sim.cars) {
@@ -399,6 +414,50 @@ export class CockpitView {
       }
       this.drops = this.drops.filter((dr) => dr.life > 0 && dr.y > -20).slice(-60);
     }
+  }
+
+  /** Cuisson des vues rasantes des monoplaces (une fois, en tâche de fond ; dessin simplifié en attendant). */
+  private async prepare(): Promise<void> {
+    this.baking = true;
+    try {
+      const frames = this.low ? 24 : 36, px = this.low ? 160 : 230;
+      const done = new Set<string>();
+      for (const c of this.sim.cars) {
+        if (done.has(c.e.teamId)) continue;
+        done.add(c.e.teamId);
+        const liv = this.liveries?.[c.e.teamId];
+        this.low3d.set(c.e.teamId, await bakeAtlas(buildF1({ color: c.e.color, color2: c.e.color2, sponsor: liv?.sponsor ?? c.e.teamName.split(' ')[0], sponsorColor: liv?.color }), VIEW_LOW(frames, px), `f1|${c.e.color}|${c.e.color2}|${liv?.sponsor ?? c.e.teamName}|${liv?.color}`));
+      }
+      this.low3d.set('sc', await bakeAtlas(buildSafetyCar(), VIEW_LOW(frames, px), 'sc'));
+    } catch (err) {
+      console.warn('Vues 3D rasantes indisponibles :', err);
+      this.low3d.clear();
+    } finally {
+      releaseBaker();
+      this.baking = false;
+      this.overlayKey = ''; // le cockpit 3D peut maintenant être cuit
+    }
+  }
+
+  /** Monoplace 3D vue sous l'angle `rel` (cap de la voiture − direction du regard). */
+  private car3D(p: Pt, F: number, key: string, rel: number, wet: number): boolean {
+    const a = this.low3d.get(key);
+    if (!a) return false;
+    const { ctx } = this;
+    const k = frameFor(a, Math.PI / 2 - rel);
+    const W = (a.spanW * F) / p.z, H = (a.spanH * F) / p.z;
+    if (wet > 0.3) {
+      ctx.fillStyle = `rgba(210,220,230,${Math.min(0.5, wet * 0.45)})`;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - H * 0.12, W * 0.32, H * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, W * 0.3 * (0.45 + 0.55 * Math.abs(Math.sin(rel))), H * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(a.canvas, (k % a.cols) * a.fw, Math.floor(k / a.cols) * a.fh, a.fw, a.fh, p.x - W / 2, p.y - H * a.originY, W, H);
+    return true;
   }
 
   private hills(horizon: number, heading: number, par: number, color: string, amp: number, seed: number): void {
@@ -726,9 +785,36 @@ export class CockpitView {
   private drawCockpit(car: SimCar, shake: number): void {
     const { ctx, w, h } = this;
     const key = `${w}x${h}|${car.e.color}|${car.e.color2}`;
-    if (key !== this.overlayKey || !this.overlay) {
-      this.overlay = this.paintOverlay(car.e.color, car.e.color2);
-      this.overlayKey = key;
+    if (!this.overlay || (key !== this.overlayKey && !(this.overlayKey === 'provisoire' && this.baking))) {
+      this.overlay = null;
+      if (this.cockpit3d && !this.baking) {
+        try {
+          // nez, roues, halo et rétroviseurs modélisés en 3D, vus depuis le casque du pilote
+          const F = Math.max(w * 0.62, h * 0.5);
+          const liv = this.liveries?.[car.e.teamId];
+          const img = bakeCockpit({ color: car.e.color, color2: car.e.color2, sponsor: liv?.sponsor, sponsorColor: liv?.color }, w, h, F, h * (h > w ? 0.36 : 0.4), 0.82);
+          const g = img.getContext('2d')!;
+          const vg = g.createRadialGradient(w / 2, h * 0.5, Math.min(w, h) * 0.45, w / 2, h * 0.5, Math.max(w, h) * 0.75);
+          vg.addColorStop(0, 'rgba(0,0,0,0)');
+          vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+          g.fillStyle = vg;
+          g.fillRect(0, 0, w, h);
+          this.overlay = img;
+        } catch (err) {
+          console.warn('Cockpit 3D indisponible :', err);
+          this.cockpit3d = false;
+        } finally {
+          releaseBaker();
+        }
+      }
+      const temporary = !this.overlay;
+      if (!this.overlay) this.overlay = this.paintOverlay(car.e.color, car.e.color2);
+      this.overlayKey = temporary && this.cockpit3d ? 'provisoire' : key;
+    }
+    if (this.cockpit3d && this.overlayKey !== 'provisoire') {
+      ctx.drawImage(this.overlay, 0, shake * 0.4);
+      this.drawWheel(car, shake);
+      return;
     }
     // roues avant (bande de roulement qui défile)
     const tw = w * 0.13, th = h * 0.3;
@@ -751,6 +837,11 @@ export class CockpitView {
       ctx.stroke();
     }
     ctx.drawImage(this.overlay, 0, shake * 0.4);
+    this.drawWheel(car, shake);
+  }
+
+  private drawWheel(car: SimCar, shake: number): void {
+    const { ctx, w, h } = this;
     // volant + écran
     const R = Math.min(w * 0.14, h * 0.24);
     const wx = w / 2, wy = h * 0.74 + R * 0.6 + shake * 0.3;

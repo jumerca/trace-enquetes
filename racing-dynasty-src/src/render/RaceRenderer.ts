@@ -1,6 +1,6 @@
 // Rendu 2,5D de la course avec PixiJS : lecture seule de l'état du moteur.
 // Caméra inclinée (écrasement vertical), ombres portées, volumes extrudés, encrage façon bande dessinée.
-import { Application, Container, Culler, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
+import { Application, CanvasSource, Container, Culler, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
 import {
   paintAsphalt, paintBoat, paintBuilding, paintCar, paintCloudShadow, paintGarage, paintGrandstand, paintGravel, paintGround,
   paintRock, paintSilhouette, paintSoftShadow, paintTree, paintVignette, paintWater, paintCrowd, paintMarshal, paintFog, paintSunset, type GroundKind,
@@ -8,6 +8,8 @@ import {
 import { CAR_LEN, LIGHTS_ON, type RaceSim, type SimCar } from '../engine/race';
 import { locate, worldPos, type Track } from '../engine/track';
 import { Rng } from '../engine/rng';
+import type { Group as Group3D } from 'three';
+import { bakeAtlas, bakeProp, buildBuilding, buildPlant, buildF1, buildSafetyCar as buildSafetyCar3D, frameFor, releaseBaker, VIEW_25D, type Atlas } from './models3d';
 
 export const TILT = 0.64; // écrasement vertical de la caméra
 const INK = 0x16130f;
@@ -149,6 +151,7 @@ export class RaceRenderer {
     const r = new Rng(3);
     for (let i = 0; i < (eco ? 40 : 110); i++) this.rainDrops.push({ x: r.next(), y: r.next(), v: 0.6 + r.next() * 0.6 });
     this.buildSafetyCar();
+    await this.bake3D(eco);
     this.buildAmbience(eco);
     const focus = this.sim.cars.find((c) => c.e.teamId === this.opts.focusTeamId);
     this.follow = focus?.id ?? null;
@@ -711,19 +714,43 @@ export class RaceRenderer {
         }
         return { key, ...dims };
       });
-    const trees = variants('feuillu-' + theme, 3, (i) => paintTree('feuillu', pal.leaves, i + 1));
-    const bushes = variants('buisson-' + theme, 2, (i) => paintTree('buisson', pal.leaves, i + 7));
-    const pines = variants('sapin-' + theme, 2, (i) => paintTree('sapin', ['#1f4a2b', '#2d6a3b', '#5c9a5a'], i + 3));
-    const palms = variants('palmier', 2, (i) => paintTree('palmier', ['#2e6b2a', '#3f8f3a', '#77b84a'], i + 11));
-    const cactus = variants('cactus', 1, (i) => paintTree('cactus', ['#2e6b2a', '#4d8f3a', '#86c25a'], i + 5));
-    const rocks = variants('rocher-' + theme, 2, (i) => paintRock(theme === 'desert' ? '#b0703f' : '#8a8c92', i + 2));
-    const buildings = variants('immeuble-' + (night ? 'nuit' : 'jour'), 6, (i) => {
+    // Décor modélisé en 3D (low-poly, cel-shading, encrage) ; repli sur les dessins 2D si WebGL fait défaut.
+    const ppm = eco ? 6 : 11;
+    let use3d = true;
+    const v3 = (make3d: () => { cv: HTMLCanvasElement; w: number; h: number }, make2d: () => { cv: HTMLCanvasElement; w: number; h: number }) => {
+      if (use3d) {
+        try {
+          return make3d();
+        } catch (err) {
+          console.warn('Décor 3D indisponible :', err);
+          use3d = false;
+        }
+      }
+      return make2d();
+    };
+    const leaves = pal.leaves as [string, string, string];
+    // mise à l'échelle des modèles végétaux pour une forêt aussi dense que les anciens dessins
+    const grow = (k: number, model: Group3D, w: number, h: number, yaw: number, foot: number) => {
+      model.scale.setScalar(k);
+      return bakeProp(model, w * k, h * k, ppm / Math.max(1, k * 0.8), yaw, foot * k);
+    };
+    const trees = variants('feuillu3d-' + theme, 3, (i) => v3(() => grow(1.45, buildPlant('feuillu', leaves, i + 1), 9, 9, i, 2.6), () => paintTree('feuillu', pal.leaves, i + 1)));
+    const bushes = variants('buisson3d-' + theme, 2, (i) => v3(() => grow(1.3, buildPlant('buisson', leaves, i + 7), 4.6, 3.4, i, 1.6), () => paintTree('buisson', pal.leaves, i + 7)));
+    const pines = variants('sapin3d', 2, (i) => v3(() => grow(1.6, buildPlant('sapin', ['#1f4a2b', '#2d6a3b', '#5c9a5a'], i + 3), 6, 7.6, i, 2.4), () => paintTree('sapin', ['#1f4a2b', '#2d6a3b', '#5c9a5a'], i + 3)));
+    const palms = variants('palmier3d', 2, (i) => v3(() => grow(1.25, buildPlant('palmier', ['#2e6b2a', '#3f8f3a', '#77b84a'], i + 11), 10, 10, i * 2.1, 3.5), () => paintTree('palmier', ['#2e6b2a', '#3f8f3a', '#77b84a'], i + 11)));
+    const cactus = variants('cactus3d', 1, (i) => v3(() => grow(1.4, buildPlant('cactus', ['#2e6b2a', '#4d8f3a', '#86c25a'], i + 5), 3.6, 4, 0.3, 1), () => paintTree('cactus', ['#2e6b2a', '#4d8f3a', '#86c25a'], i + 5)));
+    const rockCol = theme === 'desert' ? '#b0703f' : '#8a8c92';
+    const rocks = variants('rocher3d-' + theme, 2, (i) => v3(() => grow(1.3, buildPlant('rocher', ['#555', rockCol, '#ccc'], i + 2), 5.4, 3.6, i, 2.2), () => paintRock(rockCol, i + 2)));
+    const buildings = variants('immeuble3d-' + (night ? 'nuit' : 'jour'), 6, (i) => {
       const cols = ['#e8c9a0', '#f0e1c6', '#d99a6c', '#c8d6c4', '#f2d98c', '#cfd8e3'];
       const roofs = ['#b5452f', '#8c4b2f', '#6d7480', '#a65a3a', '#7a8a6a', '#556070'];
-      return paintBuilding(14 + (i % 3) * 5, 12 + ((i * 7) % 4) * 6, 10, cols[i], roofs[i], night, i + 1, TILT);
+      const bw = 14 + (i % 3) * 5, bh = 12 + ((i * 7) % 4) * 6;
+      return v3(() => bakeProp(buildBuilding(bw, bh, 10, cols[i], roofs[i], night, i + 1), bw + 9, bh * 0.77 + 13, Math.min(ppm, 7), 0.32, 8.5),
+        () => paintBuilding(bw, bh, 10, cols[i], roofs[i], night, i + 1, TILT));
     });
+    releaseBaker();
     const pick = <T,>(arr: T[]) => arr[rng.int(0, arr.length - 1)];
-    const count = eco ? 90 : 320;
+    const count = eco ? 110 : 420;
     let guard = 0;
     while (list.length < count && guard++ < count * 8) {
       const x = rng.range(b.minX - 260, b.maxX + 260), y = rng.range(b.minY - 260, b.maxY + 260);
@@ -907,6 +934,56 @@ export class RaceRenderer {
 
   // ------------------------------------------------------------ voitures
 
+  // modèles 3D cuits : une planche de vues par écurie (+ voiture de sécurité)
+  private atlas3d = new Map<string, Texture[]>();
+  private sc3d: Texture[] | null = null;
+  private atlasMeta: Atlas | null = null;
+  /** Vrai si les monoplaces sont affichées en 3D (sinon : sprites peints, repli). */
+  models3d = false;
+
+  private sliceAtlas(a: Atlas): Texture[] {
+    const src = new CanvasSource({ resource: a.canvas });
+    const out: Texture[] = [];
+    for (let k = 0; k < a.frames; k++) {
+      out.push(new Texture({ source: src, frame: new Rectangle((k % a.cols) * a.fw, Math.floor(k / a.cols) * a.fh, a.fw, a.fh) }));
+    }
+    return out;
+  }
+
+  private async bake3D(eco: boolean): Promise<void> {
+    try {
+      const frames = eco ? 32 : 48, px = eco ? 84 : 128;
+      const teams = new Map<string, SimCar['e']>();
+      for (const c of this.sim.cars) if (!teams.has(c.e.teamId)) teams.set(c.e.teamId, c.e);
+      for (const [tid, e] of teams) {
+        const liv = this.opts.liveries?.[tid];
+        const a = await bakeAtlas(buildF1({ color: e.color, color2: e.color2, sponsor: liv?.sponsor ?? e.teamName.split(' ')[0], sponsorColor: liv?.color }), VIEW_25D(frames, px), `f1|${e.color}|${e.color2}|${liv?.sponsor ?? e.teamName}|${liv?.color}`);
+        this.atlas3d.set(tid, this.sliceAtlas(a));
+        this.atlasMeta = a;
+      }
+      this.sc3d = this.sliceAtlas(await bakeAtlas(buildSafetyCar3D(), VIEW_25D(frames, px), 'sc'));
+      this.models3d = true;
+    } catch (err) {
+      console.warn('Modèles 3D indisponibles, monoplaces peintes utilisées :', err);
+      this.atlas3d.clear();
+      this.sc3d = null;
+    } finally {
+      releaseBaker();
+    }
+  }
+
+  /** Affiche la vue 3D correspondant au cap `head` ; renvoie false si le repli 2D est utilisé. */
+  private apply3D(body: Sprite, frames: Texture[] | null | undefined, head: number): boolean {
+    const a = this.atlasMeta;
+    if (!frames || !a) return false;
+    body.texture = frames[frameFor(a, -head)];
+    body.rotation = 0;
+    const k = a.spanW / a.fw;
+    body.scale.set(k, k / TILT);
+    body.position.set(0, 0);
+    return true;
+  }
+
   private scView: { root: Container; body: Sprite; bar: Graphics; label: Text; dot: Sprite } | null = null;
 
   /** Voiture de sécurité : berline blanche à bandes orange, rampe lumineuse clignotante. */
@@ -956,7 +1033,7 @@ export class RaceRenderer {
     v.root.visible = detailed;
     v.root.position.set(this.tmp.x, this.tmp.y);
     v.root.zIndex = 999;
-    v.body.rotation = head;
+    if (!this.apply3D(v.body, this.sc3d, head)) v.body.rotation = head;
     (v.root.children[0] as Sprite).rotation = head;
     const on = Math.floor(performance.now() / 250) % 2 === 0;
     v.bar.clear();
@@ -1222,9 +1299,20 @@ export class RaceRenderer {
         v.refl.position.set(0, 0.5 / TILT);
         v.refl.alpha = 0.28 * wk;
       }
-      v.side.rotation = head;
-      v.side.position.set(0, -0.14 / TILT);
-      v.body.position.set(0, -0.42 / TILT);
+      const in3d = this.apply3D(v.body, this.atlas3d.get(c.e.teamId), head);
+      v.side.visible = !in3d;
+      if (in3d) {
+        if (v.refl.visible) {
+          v.refl.texture = v.body.texture;
+          v.refl.rotation = 0;
+          v.refl.scale.set(v.body.scale.x, -v.body.scale.y);
+          v.refl.position.set(0, 0.2);
+        }
+      } else {
+        v.side.rotation = head;
+        v.side.position.set(0, -0.14 / TILT);
+        v.body.position.set(0, -0.42 / TILT);
+      }
       v.body.alpha = c.status === 'dnf' ? 0.6 : 1;
       // écran
       const sx = (p.x - this.cam.x) * z + sw / 2;
