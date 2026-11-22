@@ -1,3 +1,4 @@
+import { ArticleCard } from './HubCareer';
 import { useEffect, useState } from 'react';
 import type { GameApi } from '../App';
 import {
@@ -307,9 +308,12 @@ function Results({ api }: { api: GameApi }) {
           <tbody>{res.earnings.map((e, i) => <tr key={i}><td>{e.label}</td><td className={e.amount < 0 ? 'neg' : 'pos'}>{money(e.amount, true)}</td></tr>)}</tbody>
           <tfoot><tr><td><b>Total</b></td><td className={total < 0 ? 'neg' : 'pos'}><b>{money(total, true)}</b></td></tr></tfoot>
         </table>
-        <p>Budget : <b>{money(c.budget)}</b> · Réputation : <b>{team.reputation}</b></p>
+        <p>Budget : <b>{money(c.budget)}</b> · Réputation : <b>{team.reputation}</b> · Confiance des actionnaires : <b>{c.director?.confidence ?? '—'}/100</b></p>
         <button className="btn primary big" onClick={() => { api.act((cc) => closeWeekend(cc)); api.go('hub'); }}>Retour au QG →</button>
       </section>
+      {c.press?.[0] && c.press[0].round === res.round && c.press[0].season === c.season && (
+        <section className="panel"><ArticleCard c={c} a={c.press[0]} /></section>
+      )}
     </div>
   );
 }

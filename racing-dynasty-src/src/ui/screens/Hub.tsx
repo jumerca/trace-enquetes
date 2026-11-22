@@ -12,11 +12,12 @@ import { getTrack } from '../../engine/tracks';
 import { EmblemIcon, StatBar, money } from '../common';
 import { TrackMap } from './TrackMap';
 import { DriversTab, FactoryTab, PalmaresTab, SponsorsTab, moraleClass } from './HubManagement';
+import { ArticleCard, DirectorPanel, FiredOverlay, PressTab } from './HubCareer';
 import { moraleLabel, moraleOf, staffSalaries } from '../../game/management';
 
-type Tab = 'qg' | 'pilotes' | 'usine' | 'sponsors' | 'classements' | 'palmares' | 'finances';
+type Tab = 'qg' | 'pilotes' | 'usine' | 'sponsors' | 'presse' | 'classements' | 'palmares' | 'finances';
 const TABS: [Tab, string, string][] = [
-  ['qg', 'QG', '🏠'], ['pilotes', 'Pilotes', '🪖'], ['usine', 'Usine', '🔧'], ['sponsors', 'Sponsors', '🤝'],
+  ['qg', 'QG', '🏠'], ['pilotes', 'Pilotes', '🪖'], ['usine', 'Usine', '🔧'], ['sponsors', 'Sponsors', '🤝'], ['presse', 'Presse', '📰'],
   ['classements', 'Classements', '🏆'], ['palmares', 'Palmarès', '📜'], ['finances', 'Finances', '€'],
 ];
 
@@ -50,10 +51,12 @@ export function Hub({ api }: { api: GameApi }) {
         {tab === 'pilotes' && <DriversTab api={api} />}
         {tab === 'usine' && <FactoryTab api={api} />}
         {tab === 'sponsors' && <SponsorsTab api={api} />}
+        {tab === 'presse' && <PressTab api={api} />}
         {tab === 'classements' && <Standings api={api} />}
         {tab === 'palmares' && <PalmaresTab api={api} />}
         {tab === 'finances' && <Finances api={api} />}
       </main>
+      <FiredOverlay api={api} />
     </div>
   );
 }
@@ -119,6 +122,14 @@ function Dashboard({ api, setTab }: { api: GameApi; setTab: (t: Tab) => void }) 
           {c.results.length ? (pos <= c.objective.target ? ' — en bonne voie' : ' — en retard') : ''}
         </p>
       </section>
+      <DirectorPanel api={api} />
+      {c.press?.[0] && (
+        <section className="panel">
+          <h3>À la une</h3>
+          <ArticleCard c={c} a={c.press[0]} compact />
+          <button className="btn small" onClick={() => setTab('presse')}>Toute la presse →</button>
+        </section>
+      )}
       <section className="panel news">
         <h3>Actualités</h3>
         <ul>{c.news.slice(0, 8).map((n, i) => <li key={i}>{n.text}</li>)}</ul>

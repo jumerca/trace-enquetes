@@ -6,7 +6,7 @@ import {
   UPGRADE_LABEL, MAX_SPONSORS,
 } from '../../game/career';
 import {
-  academyDrivers, extendContract, extensionDemand, hireStaff, MAX_ACADEMY, MAX_PROJECTS, moraleLabel, moraleOf, negotiateSponsor,
+  academyDrivers, extendContract, extensionDemand, hireStaff, MAX_ACADEMY, maxProjects, moraleLabel, moraleOf, negotiateSponsor,
   projectTerms, reserveDriver, setDriverRole, signYouth, sponsorStance, staffSigningFee, startProject, STAFF_ROLES, topBy,
   youthProspects, type StatLine,
 } from '../../game/management';
@@ -14,6 +14,7 @@ import { carRating, driverRating, OBJECTIVE_LABEL, STAFF_LABEL, type Driver, typ
 import type { CarStats } from '../../engine/types';
 import { Modal, StatBar, money } from '../common';
 import { DriverCard } from './Hub';
+import { FacilitiesPanel } from './HubCareer';
 
 // ================================================================ Pilotes
 
@@ -187,9 +188,10 @@ export function FactoryTab({ api }: { api: GameApi }) {
   const rivals = teamStandings(c).map((s) => teamById(c, s.teamId));
   return (
     <div className="grid2">
+      <FacilitiesPanel api={api} />
       <section className="panel">
         <h2>Recherche & développement</h2>
-        <p className="muted">Chaque projet coûte au lancement et aboutit après plusieurs Grands Prix, avec une chance de réussite (et parfois une percée à +2). {MAX_PROJECTS} projets en parallèle au maximum.</p>
+        <p className="muted">Chaque projet coûte au lancement et aboutit après plusieurs Grands Prix, avec une chance de réussite (et parfois une percée à +2). {maxProjects(c)} projet(s) en parallèle (selon le niveau de l’usine).</p>
         {keys.map((k) => {
           const pr = projects.find((p) => p.stat === k);
           const terms = projectTerms(c, k);
@@ -202,7 +204,7 @@ export function FactoryTab({ api }: { api: GameApi }) {
                   <small>En cours : {pr.progress}/{pr.duration} GP · réussite {Math.round(pr.chance * 100)} %</small>
                 </div>
               ) : (
-                <button className="btn small" disabled={projects.length >= MAX_PROJECTS || t.car[k] >= 20} onClick={() => api.act((cc) => startProject(cc, k))}>
+                <button className="btn small" disabled={projects.length >= maxProjects(c) || t.car[k] >= 20} onClick={() => api.act((cc) => startProject(cc, k))}>
                   Lancer · {money(terms.cost)} · {terms.duration} GP · {Math.round(terms.chance * 100)} %
                 </button>
               )}
