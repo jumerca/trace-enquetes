@@ -21,6 +21,7 @@ export interface GameApi {
   toast: (msg: string) => void;
   go: (s: Screen) => void;
   settings: Settings;
+  setSettings: (s: Settings) => void;
 }
 
 export const store = new SaveStore(typeof localStorage !== 'undefined' ? localStorage : null, APP_VERSION);
@@ -101,7 +102,7 @@ export function App() {
   };
 
   const api: GameApi | null = useMemo(
-    () => (career ? { career, act, save, toast, go, settings } : null),
+    () => (career ? { career, act, save, toast, go, settings, setSettings: updateSettings } : null),
     // ver : la carrière est modifiée en place, on force un nouvel objet api à chaque action
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [career, act, save, toast, go, settings, ver],

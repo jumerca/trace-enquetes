@@ -311,3 +311,21 @@ label.check { flex-direction: row; align-items: center; font-weight: 500; }
   .race-standings { top: 44px; max-height: calc(100% - 200px); }
   .race-feed { top: auto; bottom: 150px; right: 6px; width: 52vw; }
 }
+
+.seg.cams > button { min-height: 36px; padding: 4px 10px; font-size: 0.9rem; }
+.icon-btn { min-width: 40px; }
+@media (max-height: 520px) and (orientation: landscape), (max-width: 520px) {
+  .seg.cams > button { min-height: 30px; padding: 2px 7px; font-size: 0.8rem; }
+}
+.objective { border-left: 6px solid var(--ink); padding: 4px 8px; background: #f4f1ea; border-radius: 6px; }
+.objective.ok { border-color: var(--green); }
+.objective.ko { border-color: var(--red); }
+
+.race-top > * { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 520px) {
+  .race-top { gap: 5px; }
+  .race-top .weather { font-size: 0.8rem; padding: 2px 5px; }
+  .lapbox { font-size: 1.1rem; padding: 1px 7px; }
+  .sim-controls .lbl, .sim-controls .zoombtn { display: none; }
+  .sim-controls .btn.small { padding: 2px 7px; }
+}

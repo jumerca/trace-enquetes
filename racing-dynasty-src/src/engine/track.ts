@@ -5,7 +5,7 @@ export interface TrackDef {
   name: string; // nom du circuit
   gp: string; // nom du Grand Prix
   place: string;
-  theme: 'port' | 'foret' | 'desert';
+  theme: 'port' | 'foret' | 'desert' | 'lac' | 'montagne';
   width: number; // largeur de piste (m)
   points: [number, number][]; // points de contrôle (m), sens de course, le premier est sur la ligne droite principale
   pitSide: 1 | -1; // côté de la voie des stands (+1 = gauche dans le sens de course)

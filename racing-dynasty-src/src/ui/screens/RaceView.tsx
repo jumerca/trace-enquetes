@@ -3,7 +3,9 @@ import type { GameApi } from '../App';
 import { finishRace, raceConfig, recordRaceProgress, teamById } from '../../game/career';
 import { isLowEndDevice } from '../../game/settings';
 import { DT, RaceSim, fmtLap, type SimCar } from '../../engine/race';
-import { RaceRenderer } from '../../render/RaceRenderer';
+import { RaceRenderer, type CameraMode } from '../../render/RaceRenderer';
+import { RaceAudio } from '../../render/audio';
+import { SPONSOR_SEEDS } from '../../game/data';
 import type { Compound, DriveMode, RaceEvent } from '../../engine/types';
 import { TyreChip, Weather } from '../common';
 
@@ -68,6 +70,11 @@ export function RaceView({ api }: { api: GameApi }) {
   const host = useRef<HTMLDivElement>(null);
   const simRef = useRef<RaceSim | null>(null);
   const rendRef = useRef<RaceRenderer | null>(null);
+  const audioRef = useRef<RaceAudio | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ d: number; moved: boolean }>({ d: 0, moved: false });
+  const [camMode, setCamMode] = useState<CameraMode>('suivre');
+  const [sound, setSound] = useState(api.settings.sound);
   const speedRef = useRef<Speed>(1);
   const accRef = useRef(0);
   const [speed, setSpeedState] = useState<Speed>(1);
@@ -98,7 +105,11 @@ export function RaceView({ api }: { api: GameApi }) {
     while (sim.tick < w.race!.tick && !sim.finished) sim.step(); // reprise exacte grâce au déterminisme
     simRef.current = sim;
     const quality = api.settings.quality === 'auto' ? (isLowEndDevice() ? 'economie' : 'haute') : api.settings.quality;
-    const r = new RaceRenderer(sim, { quality, fpsCap: api.settings.fpsCap, names: api.settings.names, focusTeamId: c.playerTeamId });
+    const banners = [...c.sponsors.map((x) => ({ name: x.name, color: x.color })), ...SPONSOR_SEEDS.map((x) => ({ name: x.name, color: x.color }))];
+    const r = new RaceRenderer(sim, { quality, fpsCap: api.settings.fpsCap, names: api.settings.names, focusTeamId: c.playerTeamId, banners });
+    const audio = new RaceAudio(api.settings.sound);
+    audio.start();
+    audioRef.current = audio;
     rendRef.current = r;
     let alive = true;
     r.init(host.current!).then(() => {
@@ -119,11 +130,15 @@ export function RaceView({ api }: { api: GameApi }) {
         }
         r.alpha = sim.finished ? 1 : Math.min(1, accRef.current / DT);
         r.render(dtMs);
+        audio.update(sim, r.follow, sim.finished ? 0 : speedRef.current);
       });
     }).catch((e) => setError('Impossible d’initialiser le rendu graphique : ' + (e as Error).message));
     const hudId = window.setInterval(() => {
       setHud(snapshot(sim));
-      if (rendRef.current) setFps(Math.round(rendRef.current.fps));
+      if (rendRef.current) {
+        setFps(Math.round(rendRef.current.fps));
+        setFollow(rendRef.current.follow);
+      }
     }, 250);
     const saveId = window.setInterval(persist, 15000);
     const onVis = () => {
@@ -142,6 +157,7 @@ export function RaceView({ api }: { api: GameApi }) {
       document.removeEventListener('visibilitychange', onVis);
       persist();
       r.destroy();
+      audio.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -178,12 +194,55 @@ export function RaceView({ api }: { api: GameApi }) {
   const followCar = (id: string | null) => {
     const r = rendRef.current;
     if (!r) return;
-    r.follow = id;
-    if (id) r.setOptions({});
-    setFollow(id);
+    audioRef.current?.start();
+    if (id) r.setMode('suivre', id);
+    else r.setMode('circuit');
+    setCamMode(r.mode);
+    setFollow(r.follow);
   };
 
-  const onCanvasTap = (e: React.PointerEvent) => {
+  const setCamera = (m: CameraMode) => {
+    const r = rendRef.current;
+    if (!r) return;
+    audioRef.current?.start();
+    r.setMode(m);
+    setCamMode(m);
+    setFollow(r.follow);
+  };
+
+  const toggleSound = () => {
+    const on = !sound;
+    setSound(on);
+    audioRef.current?.setEnabled(on);
+    api.setSettings({ ...api.settings, sound: on });
+  };
+
+  // Toucher : appui = choisir une voiture ; pincement / molette = zoom.
+  const onDown = (e: React.PointerEvent) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pinch.current.moved = false;
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch.current.d = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch.current.d > 0 && Math.abs(d - pinch.current.d) > 4) {
+        rendRef.current?.zoomBy(d / pinch.current.d);
+        pinch.current.d = d;
+        pinch.current.moved = true;
+      }
+    }
+  };
+  const onUp = (e: React.PointerEvent) => {
+    const wasPinch = pointers.current.size > 1 || pinch.current.moved;
+    pointers.current.delete(e.pointerId);
+    if (wasPinch) return;
     const r = rendRef.current;
     if (!r) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -198,7 +257,8 @@ export function RaceView({ api }: { api: GameApi }) {
 
   return (
     <div className="race">
-      <div className="race-canvas" ref={host} onPointerUp={onCanvasTap} />
+      <div className="race-canvas" ref={host} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+        onWheel={(e) => rendRef.current?.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12)} />
       {error && <div className="panel error-box">{error}<button className="btn" onClick={() => api.go('hub')}>Retour au QG</button></div>}
 
       <div className="race-top">
@@ -206,6 +266,7 @@ export function RaceView({ api }: { api: GameApi }) {
         <div className="lapbox"><small>Tour</small><b>{hud ? Math.min(hud.lap, sim?.cfg.laps ?? 0) : 1}/{sim?.cfg.laps}</b></div>
         <Weather w={w.weather} />
         {hud?.flag && <span className="flag">🏁</span>}
+        <button className="btn small icon-btn" onClick={toggleSound} aria-label={sound ? 'Couper le son' : 'Activer le son'}>{sound ? '🔊' : '🔇'}</button>
         {api.settings.showFps && <span className="fps">{fps} i/s</span>}
       </div>
 
@@ -240,11 +301,15 @@ export function RaceView({ api }: { api: GameApi }) {
             </button>
           ))}
           <span className="sep" />
-          <button className={'btn small' + (follow === null ? ' on' : '')} onClick={() => followCar(null)}>Circuit</button>
-          <button className="btn small" onClick={() => rendRef.current?.zoomBy(1 / 1.25)} disabled={follow === null}>−</button>
-          <button className="btn small" onClick={() => rendRef.current?.zoomBy(1.25)} disabled={follow === null}>+</button>
+          <div className="seg cams">
+            <button className={camMode === 'suivre' ? 'on' : ''} onClick={() => setCamera('suivre')}>Suivre</button>
+            <button className={camMode === 'tv' ? 'on' : ''} onClick={() => setCamera('tv')}>TV</button>
+            <button className={camMode === 'circuit' ? 'on' : ''} onClick={() => setCamera('circuit')}>Circuit</button>
+          </div>
+          <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1 / 1.25)} disabled={camMode === 'circuit'} aria-label="Dézoomer">−</button>
+          <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1.25)} disabled={camMode === 'circuit'} aria-label="Zoomer">+</button>
           <span className="sep" />
-          <button className="btn small ghost" onClick={skipToEnd} disabled={skipping || hud?.finished}>{skipping ? 'Simulation…' : 'Fin directe ⏭'}</button>
+          <button className="btn small ghost" onClick={skipToEnd} disabled={skipping || hud?.finished}>{skipping ? 'Simulation…' : <><span className="lbl">Fin directe </span>⏭</>}</button>
         </div>
         <div className="driver-controls">
           {players.map((p) => (

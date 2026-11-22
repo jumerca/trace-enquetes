@@ -1,4 +1,4 @@
-# Racing Dynasty — V0.1 (JLG Creative)
+# Racing Dynasty — V0.2 (JLG Creative)
 
 Jeu de management d'écurie de monoplaces, direction artistique BD 2,5D.
 TypeScript · React 18 · PixiJS 8 · Vite 5. PWA installable, jouable hors ligne.
@@ -11,8 +11,21 @@ emplacement de sauvegarde) → QG (recrutement et contrats, sponsors, évolution
 (pause, ×1, ×2, ×4, fin directe, consignes éco/normal/attaque, appel au stand) → résultats (points, primes, réputation)
 → GP suivant → fin de saison → saison suivante.
 
-Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires + 10 agents libres, 3 circuits originaux
-(Port-Azur urbain, Valbrune rapide, Kharam désertique), barème 25-18-15-12-10-8-6-4-2-1.
+Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires + 10 agents libres, 5 circuits originaux
+(Port-Azur urbain, Lac d'Argent, Valbrune rapide, Montclair en montagne, Kharam désertique),
+barème 25-18-15-12-10-8-6-4-2-1.
+
+### Nouveautés V0.2
+* Départ arrêté avec feux rouges (portique au-dessus de la ligne + panneau à l'écran, bips sonores).
+* Décor enrichi : rails de sécurité, murs de pneus, panneaux publicitaires de vos sponsors, mécaniciens qui
+  entourent la voiture pendant l'arrêt, gerbes d'eau et feu arrière clignotant sous la pluie, lac, sommets enneigés.
+* Caméras : Suivre (zoom dynamique selon la vitesse), TV (réalisateur automatique qui suit les bagarres), Circuit ;
+  zoom au pincement et à la molette.
+* Son synthétisé (moteur de la voiture suivie, feux de départ, public), coupable dans la course et les paramètres.
+* Gestion : 2 nouveaux circuits (calendrier de 5 GP), les écuries IA font évoluer leurs voitures pendant la saison,
+  objectif de classement fixé par les actionnaires (prime ou perte de réputation en fin de saison).
+* Performances : décor découpé en tronçons, seuls ceux à l'écran sont dessinés ; particules recyclées.
+* Sauvegardes : schéma 2 avec migration automatique des parties V0.1 (aucune perte).
 
 ## Commandes
 

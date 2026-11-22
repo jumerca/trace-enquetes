@@ -8,7 +8,7 @@ import type {
   CarEntry, CarSetup, CarStats, ClassifiedResult, Compound, DriverStats, PitPlan, RaceCommand, RaceConfig, Weather,
 } from '../engine/types';
 import {
-  buildWorld, driverRating, SPONSOR_SEEDS, type Driver, type Emblem, type SponsorOffer, type Team,
+  buildWorld, carRating, driverRating, SPONSOR_SEEDS, type Driver, type Emblem, type SponsorOffer, type Team,
 } from './data';
 
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
@@ -132,7 +132,9 @@ export interface Career {
   ledger: LedgerLine[];
   weekend: Weekend | null;
   news: { season: number; round: number; text: string }[];
-  history: { season: number; driverChampion: string; teamChampion: string; playerTeamPos: number }[];
+  history: { season: number; driverChampion: string; teamChampion: string; playerTeamPos: number; objective?: number }[];
+  /** Objectif fixé par les actionnaires : position au championnat constructeurs. */
+  objective: { season: number; target: number };
 }
 
 export const PRACTICE_RUNS = 4;
@@ -174,7 +176,7 @@ export function createCareer(o: CareerOptions): Career {
     drivers,
     sponsorOffers,
     sponsors: [],
-    calendar: TRACK_DEFS.map((t, i) => ({ round: i, trackId: t.id })),
+    calendar: seasonCalendar(),
     round: 0,
     results: [],
     budget: round1(BUDGET_INFO[o.budgetProfile].amount * diff.budget),
@@ -182,9 +184,12 @@ export function createCareer(o: CareerOptions): Career {
     weekend: null,
     news: [],
     history: [],
+    objective: { season: 1, target: 10 },
   };
+  c.objective = { season: 1, target: computeObjective(c) };
   addLedger(c, 'Budget initial', c.budget, true);
   addNews(c, `${player.name} rejoint le championnat ! Objectif : recruter deux pilotes avant le premier Grand Prix.`);
+  addNews(c, `Les actionnaires visent la ${c.objective.target}ᵉ place au championnat constructeurs.`);
   return c;
 }
 
@@ -197,6 +202,22 @@ function addLedger(c: Career, label: string, amount: number, silent = false): vo
 function addNews(c: Career, text: string): void {
   c.news.unshift({ season: c.season, round: c.round, text });
   if (c.news.length > 40) c.news.length = 40;
+}
+
+/** Ordre du calendrier (les circuits sont définis dans engine/tracks). */
+export const CALENDAR_ORDER = ['port-azur', 'lac-argent', 'valbrune', 'montclair', 'kharam'];
+
+export function seasonCalendar(): { round: number; trackId: string }[] {
+  const ids = CALENDAR_ORDER.filter((id) => TRACK_DEFS.some((t) => t.id === id));
+  return ids.map((trackId, round) => ({ round, trackId }));
+}
+
+/** Objectif réaliste : rang de la voiture parmi les 10, ajusté selon la difficulté. */
+export function computeObjective(c: Pick<Career, 'teams' | 'playerTeamId' | 'difficulty'>): number {
+  const ranked = [...c.teams].sort((a, b) => carRating(b.car) - carRating(a.car));
+  const rank = ranked.findIndex((t) => t.id === c.playerTeamId) + 1;
+  const bonus = c.difficulty === 'facile' ? 2 : c.difficulty === 'normale' ? 1 : 0;
+  return Math.max(1, Math.min(10, rank - bonus));
 }
 
 export function playerTeam(c: Career): Team {
@@ -560,18 +581,45 @@ export function finishRace(c: Career, results: ClassifiedResult[], fastest: { ca
 export function closeWeekend(c: Career): void {
   if (!c.weekend?.result) return;
   c.weekend = null;
+  aiDevelopment(c);
   c.round++;
   if (c.round >= c.calendar.length) {
     const ds = driverStandings(c);
     const ts = teamStandings(c);
     const champ = driverById(c, ds[0].driverId);
+    const pos = ts.findIndex((t) => t.teamId === c.playerTeamId) + 1;
     c.history.push({
       season: c.season,
       driverChampion: `${champ.first} ${champ.last}`,
       teamChampion: teamById(c, ts[0].teamId).name,
-      playerTeamPos: ts.findIndex((t) => t.teamId === c.playerTeamId) + 1,
+      playerTeamPos: pos,
+      objective: c.objective.target,
     });
     addNews(c, `${champ.first} ${champ.last} est sacré champion ! ${teamById(c, ts[0].teamId).name} remporte le titre constructeurs.`);
+    const team = playerTeam(c);
+    if (pos <= c.objective.target) {
+      const bonus = 3 + (c.objective.target - pos) * 0.8;
+      addLedger(c, `Prime des actionnaires (objectif ${c.objective.target}ᵉ atteint : ${pos}ᵉ)`, bonus);
+      team.reputation = Math.min(100, team.reputation + 6);
+      addNews(c, `Objectif atteint ! Les actionnaires versent une prime de ${bonus.toFixed(1)} M€.`);
+    } else {
+      team.reputation = Math.max(1, team.reputation - 4);
+      addNews(c, `Objectif manqué (${pos}ᵉ au lieu de ${c.objective.target}ᵉ) : les actionnaires sont déçus.`);
+    }
+  }
+}
+
+/** Entre deux Grands Prix, les écuries IA apportent des évolutions selon leurs moyens. */
+function aiDevelopment(c: Career): void {
+  const rng = new Rng(hashSeed(c.seed, c.season, c.round, 'evolutions'));
+  const keys: (keyof CarStats)[] = ['moteur', 'aero', 'chassis', 'fiabilite'];
+  for (const t of c.teams) {
+    if (t.isPlayer) continue;
+    if (!rng.chance(0.18 + t.reputation / 260)) continue;
+    const k = rng.pick(keys);
+    if (t.car[k] >= 20) continue;
+    t.car[k]++;
+    if (rng.chance(0.5)) addNews(c, `${t.name} apporte une évolution ${UPGRADE_LABEL[k].toLowerCase()} (niveau ${t.car[k]}).`);
   }
 }
 
@@ -606,6 +654,9 @@ export function startNextSeason(c: Career): void {
   c.round = 0;
   c.results = [];
   c.sponsors = [];
+  c.calendar = seasonCalendar();
+  c.objective = { season: c.season, target: computeObjective(c) };
+  addNews(c, `Les actionnaires visent la ${c.objective.target}ᵉ place cette saison.`);
   addNews(c, `Saison ${c.season} : les contrats de sponsoring sont à renégocier.`);
 }
 

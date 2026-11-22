@@ -73,6 +73,7 @@ export function SettingsScreen({ settings, onChange, onBack, toast, onQuit, hasC
             {([30, 60] as const).map((f) => <button key={f} className={settings.fpsCap === f ? 'on' : ''} onClick={() => set('fpsCap', f)}>{f} i/s</button>)}
           </div>
           <label className="check"><input type="checkbox" checked={settings.names} onChange={(e) => set('names', e.target.checked)} /> Noms au-dessus des voitures</label>
+          <label className="check"><input type="checkbox" checked={settings.sound} onChange={(e) => set('sound', e.target.checked)} /> Son (moteur, feux de départ, public)</label>
           <label className="check"><input type="checkbox" checked={settings.showFps} onChange={(e) => set('showFps', e.target.checked)} /> Afficher le compteur d’images/s</label>
         </section>
         <section className="panel">

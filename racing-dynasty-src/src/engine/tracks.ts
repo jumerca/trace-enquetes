@@ -63,6 +63,46 @@ export const TRACK_DEFS: TrackDef[] = [
       [-322, 150], [-300, 50], [-250, 8], [-150, 0]
     ],
   },
+  {
+    id: 'lac-argent',
+    name: 'Circuit du Lac d\u2019Argent',
+    gp: 'Grand Prix du Lac d\u2019Argent',
+    place: 'Saint-Aubin-du-Lac, Pays des Mille Étangs',
+    theme: 'lac',
+    width: 13,
+    pitSide: -1,
+    wear: 3.4,
+    suspOpt: 45,
+    overtaking: 0.6,
+    rainChance: 0.3,
+    description: 'Un tracé équilibré autour d\u2019un lac glaciaire, avec une épingle redoutée au bout de la ligne droite.',
+    points: [
+      [0, 0], [300, 0], [560, 0], [650, 25], [700, 90], [700, 200], [660, 260], [580, 280], [520, 330], [520, 420],
+      [580, 480], [640, 560], [620, 660], [540, 700], [400, 700], [300, 660], [240, 580], [160, 560], [60, 600],
+      [-60, 640], [-180, 620], [-260, 540], [-280, 420], [-240, 320], [-300, 230], [-360, 150], [-340, 60], [-260, 10],
+      [-130, 0],
+    ],
+  },
+  {
+    id: 'montclair',
+    name: 'Circuit de Montclair',
+    gp: 'Grand Prix de Montclair',
+    place: 'Montclair, Massif des Aiguilles',
+    theme: 'montagne',
+    width: 12,
+    pitSide: 1,
+    wear: 3.0,
+    suspOpt: 20,
+    overtaking: 0.4,
+    rainChance: 0.4,
+    description: 'Sinueux et piégeux au pied des sommets enneigés. La météo y change vite.',
+    points: [
+      [0, 0], [250, 0], [420, 0], [500, 30], [530, 100], [500, 170], [420, 200], [380, 260], [420, 330], [520, 360],
+      [600, 420], [610, 520], [540, 580], [440, 560], [360, 500], [280, 520], [230, 600], [150, 660], [40, 650],
+      [-20, 580], [-10, 480], [-80, 420], [-180, 440], [-270, 420], [-320, 340], [-300, 250], [-220, 200], [-200, 120],
+      [-285, 75], [-325, 35], [-300, 5], [-220, 0], [-110, 0],
+    ],
+  },
 ];
 
 const cache = new Map<string, Track>();

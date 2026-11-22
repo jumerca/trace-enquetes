@@ -126,7 +126,7 @@ export function NewCareer({ onCancel, onCreate }: { onCancel: () => void; onCrea
               <li>Difficulté : <b>{DIFFICULTY_INFO[difficulty].label}</b></li>
               <li>Budget : <b>{money(BUDGET_INFO[budget].amount * DIFFICULTY_INFO[difficulty].budget)}</b></li>
               <li>Grands Prix : <b>{RACE_LAPS[length]} tours</b></li>
-              <li>Championnat : <b>10 écuries, 20 pilotes, 3 circuits</b></li>
+              <li>Championnat : <b>10 écuries, 20 pilotes, 5 circuits</b></li>
             </ul>
           </section>
           <section className="panel">

@@ -44,7 +44,7 @@ export function Home({ onNew, onLoad, onSettings, onCredits }: { onNew: () => vo
                 <button key={s.slot} className="slot" disabled={s.empty} onClick={() => onLoad(s.slot)}>
                   <b>Emplacement {s.slot + 1}</b>
                   {s.empty ? <span>vide</span> : s.corrupted ? <span>illisible (copie de secours tentée)</span> : (
-                    <span>{s.teamName} · saison {s.season} · GP {Math.min((s.round ?? 0) + 1, 3)}/3 · {new Date(s.savedAt!).toLocaleString('fr-FR')}</span>
+                    <span>{s.teamName} · saison {s.season} · GP {Math.min((s.round ?? 0) + 1, s.rounds ?? 5)}/{s.rounds ?? 5} · {new Date(s.savedAt!).toLocaleString('fr-FR')}</span>
                   )}
                 </button>
               ))}
