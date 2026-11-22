@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameApi } from '../App';
-import { finishRace, raceConfig, recordRaceProgress, teamById } from '../../game/career';
+import { finishRace, raceConfig, recordRaceProgress } from '../../game/career';
 import { isLowEndDevice } from '../../game/settings';
 import { DT, RaceSim, fmtLap, type SimCar } from '../../engine/race';
 import { RaceRenderer, type CameraMode } from '../../render/RaceRenderer';
 import { RaceAudio } from '../../render/audio';
 import { menuMusic } from '../music';
+import { comment } from '../commentary';
+import { CommentatorBubble, Podium } from '../Visuals';
 import { SPONSOR_SEEDS } from '../../game/data';
 import type { Compound, DriveMode, RaceEvent, TeamOrder } from '../../engine/types';
 import { TyreChip } from '../common';
@@ -115,6 +117,8 @@ export function RaceView({ api }: { api: GameApi }) {
   const [camMode, setCamMode] = useState<CameraMode>('suivre');
   const [sound, setSound] = useState(api.settings.sound);
   const [replaying, setReplaying] = useState(false);
+  const [talk, setTalk] = useState<{ text: string; mood: 'excite' | 'grave' | 'calme'; until: number } | null>(null);
+  const talkSeen = useRef(0);
   const speedBeforeReplay = useRef<Speed>(1);
   const speedRef = useRef<Speed>(1);
   const accRef = useRef(0);
@@ -193,8 +197,21 @@ export function RaceView({ api }: { api: GameApi }) {
         audio.update(sim, r.follow, sim.finished ? 0 : speedRef.current);
       });
     }).catch((e) => setError('Impossible d’initialiser le rendu graphique : ' + (e as Error).message));
+    const PRIO: Record<string, number> = { drapeau: 9, securite: 8, depart: 7, contact: 6, abandon: 6, 'tete-a-queue': 5, depassement: 4, meteo: 4, jaune: 3, penalite: 3, consigne: 2, stand: 2, 'meilleur-tour': 1, sortie: 1 };
     const hudId = window.setInterval(() => {
       setHud(snapshot(sim));
+      // commentateur : réagit à l'événement le plus marquant depuis le dernier passage
+      const evs = sim.events;
+      if (talkSeen.current > evs.length) talkSeen.current = 0;
+      let bestI = -1;
+      for (let k = talkSeen.current; k < evs.length; k++) if (evs[k].kind !== 'radio' && (bestI < 0 || (PRIO[evs[k].kind] ?? 0) >= (PRIO[evs[bestI].kind] ?? 0))) bestI = k;
+      talkSeen.current = evs.length;
+      if (bestI >= 0) {
+        const nameOf = (id?: string) => (id ? sim.car(id)?.e.short ?? '' : '');
+        const mine = (id?: string) => !!id && !!sim.car(id)?.e.isPlayer;
+        const line = comment(evs[bestI], bestI, nameOf, mine);
+        if (line) setTalk((cur) => (cur && cur.until > Date.now() && (PRIO[evs[bestI].kind] ?? 0) < 4 ? cur : { ...line, until: Date.now() + 4500 }));
+      }
       if (rendRef.current) {
         setFps(Math.round(rendRef.current.fps));
         setFollow(rendRef.current.follow);
@@ -385,6 +402,8 @@ export function RaceView({ api }: { api: GameApi }) {
         ))}
       </div>
 
+      {talk && talk.until > Date.now() && !hud?.finished && <CommentatorBubble text={talk.text} mood={talk.mood} />}
+
       <div className="race-bottom">
         <div className="sim-controls">
           {([0, 1, 2, 4] as Speed[]).map((s) => (
@@ -395,6 +414,7 @@ export function RaceView({ api }: { api: GameApi }) {
           <span className="sep" />
           <div className="seg cams">
             <button className={camMode === 'suivre' ? 'on' : ''} onClick={() => setCamera('suivre')}>Suivre</button>
+            <button className={camMode === 'embarquee' ? 'on' : ''} onClick={() => setCamera('embarquee')} title="Caméra embarquée">Embarquée</button>
             <button className={camMode === 'tv' ? 'on' : ''} onClick={() => setCamera('tv')}>TV</button>
             <button className={camMode === 'circuit' ? 'on' : ''} onClick={() => setCamera('circuit')}>Circuit</button>
           </div>
@@ -457,16 +477,14 @@ export function RaceView({ api }: { api: GameApi }) {
       </div>
 
       {hud?.finished && winner && (
-        <div className="finish-overlay">
-          <div className="panel">
-            <h2>🏁 Drapeau à damier</h2>
-            <ol className="podium">
-              {hud.rows.slice(0, 3).map((r) => <li key={r.id} className={r.player ? 'me' : ''}><i style={{ background: r.color }} />{r.name} <small>{teamById(c, sim!.car(r.id)!.e.teamId).name}</small></li>)}
-            </ol>
-            {players.map((p) => <p key={p.id}>{p.name} : {p.status === 'done' ? `${p.pos}ᵉ` : 'abandon'}</p>)}
-            <button className="btn primary big" onClick={toResults}>Voir les résultats →</button>
-          </div>
-        </div>
+        <Podium
+          rows={hud.rows.slice(0, 3).map((r) => {
+            const car = sim!.car(r.id)!;
+            return { id: r.id, name: r.name, teamName: car.e.teamName, color: car.e.color, color2: car.e.color2, number: car.e.number, mine: r.player };
+          })}
+          extra={players.map((p) => <p key={p.id}>{p.name} : <b>{p.status === 'done' ? `${p.pos}ᵉ` : 'abandon'}</b></p>)}
+          onContinue={toResults}
+        />
       )}
     </div>
   );

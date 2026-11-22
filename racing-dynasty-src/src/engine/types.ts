@@ -86,7 +86,7 @@ export interface RaceEvent {
   lap: number;
   kind:
     | 'depart' | 'depassement' | 'erreur' | 'sortie' | 'tete-a-queue' | 'abandon' | 'stand' | 'meilleur-tour' | 'drapeau'
-    | 'securite' | 'meteo' | 'contact' | 'penalite' | 'radio' | 'consigne';
+    | 'securite' | 'meteo' | 'contact' | 'penalite' | 'radio' | 'consigne' | 'jaune';
   carId?: string;
   otherId?: string;
   text: string;

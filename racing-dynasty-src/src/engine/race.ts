@@ -17,7 +17,7 @@ export const CAR_LEN = 5.2;
 export const CAR_W = 1.9;
 export const LIGHTS_ON = 0.8; // intervalle d'allumage des feux de départ (s)
 const LAT_CLEAR = CAR_W + 0.3; // séparation latérale minimale entre deux voitures côte à côte
-const PIT_SPEED = 28; // 100 km/h
+const PIT_SPEED = 40; // 144 km/h (temps compressé : courses courtes)
 const CP = 50; // pas des points de chronométrage (m)
 const MECH_FAILS = ['Moteur', 'Boîte de vitesses', 'Hydraulique', 'Freins', 'Électronique', 'Suspension'];
 const SC_PACE = 0.6; // allure sous voiture de sécurité (fraction du profil)
@@ -127,6 +127,8 @@ export class RaceSim {
   sc: SafetyCar | null = null;
   /** Reprise après voiture de sécurité : pas de dépassement avant que le leader recoupe la ligne. */
   restartLap = -1;
+  /** Drapeaux jaunes locaux : zone [s0, s0+len] (abscisses modulo la longueur du tour). */
+  yellows: { s0: number; len: number; until: number; carId: string }[] = [];
   scCount = 0;
   teamOrders: Record<string, TeamOrder> = {};
   private radioLast: Record<string, number> = {};
@@ -237,6 +239,7 @@ export class RaceSim {
     }
     this.updateWeather(order);
     this.updateSafetyCar(order);
+    this.updateYellows();
     const sc = this.sc;
     const leaderLaps = order.length ? Math.max(...order.map((o) => o.laps)) : 0;
     const lap1 = this.t > this.lightsOut && leaderLaps === 0;
@@ -263,6 +266,8 @@ export class RaceSim {
       const base = this.wet > 0 ? c.prof[idx] * (1 - this.wet) + this.profWet[c.idx][idx] * this.wet : c.prof[idx];
       let vt = base * pace;
       if (sc && c.status === 'run') vt = base * SC_PACE * (c.pit === 0 ? 1 : 1);
+      const yellow = !sc && c.status === 'run' && c.pit === 0 && this.inYellow(c.s);
+      if (yellow) vt = Math.min(vt, base * 0.86);
       if (this.t < this.lightsOut + c.startDelay) vt = 0;
       if (c.status === 'retiring') vt = 0;
       // Hors trajectoire en virage : perte de vitesse.
@@ -298,7 +303,7 @@ export class RaceSim {
           c.pit = 2;
           c.v = 0;
           const crew = e.pitCrew;
-          c.pitTimer = 2.2 + (20 - crew) * 0.07 + Math.abs(rng.normal(0, 0.3)) + (rng.chance(0.04) ? rng.range(2.5, 6) : 0) +
+          c.pitTimer = 1.9 + (20 - crew) * 0.07 + Math.abs(rng.normal(0, 0.3)) + (rng.chance(0.04) ? rng.range(2.5, 6) : 0) +
             (c.damage === 1 ? 6 : 0);
         }
       }
@@ -377,8 +382,8 @@ export class RaceSim {
       }
       if (c.cooldown > 0) c.cooldown -= DT;
 
-      if (noOvertake && c.pass && !c.pass.lap) c.pass = null;
-      if (target && !c.pass && c.cooldown <= 0 && targetD - CAR_LEN < (lap1 ? 18 : 14)) this.considerPass(c, target, idx, lap1, noOvertake);
+      if ((noOvertake || yellow) && c.pass && !c.pass.lap) c.pass = null;
+      if (target && !c.pass && c.cooldown <= 0 && targetD - CAR_LEN < (lap1 ? 18 : 14)) this.considerPass(c, target, idx, lap1, noOvertake || yellow);
       if (c.pass) {
         const p = c.pass;
         const o = this.car(p.other)!;
@@ -606,7 +611,10 @@ export class RaceSim {
         this.retire(c, 'Accident');
         c.errTimer = 0;
         c.errKind = 0;
-      } else this.log('tete-a-queue', `Tête-à-queue de ${e.short} ! Il repart.`, c.id);
+      } else {
+        this.log('tete-a-queue', `Tête-à-queue de ${e.short} ! Il repart.`, c.id);
+        this.raiseYellow(c, 10);
+      }
     }
     c.pass = null;
     c.cooldown = 4;
@@ -623,7 +631,45 @@ export class RaceSim {
     const leader = this.cars.reduce((a, b) => (b.status === 'run' && b.s > a.s ? b : a), this.cars[0]);
     if (!this.sc && !this.flag && leader.laps < this.cfg.laps - 1 && this.t > this.lightsOut + 10 && this.rng.chance(p)) {
       this.deploySafetyCar(leader, reason === 'Accident' ? 'accident de ' + c.e.short : 'voiture de ' + c.e.short + ' arrêtée');
+    } else if (!this.flag) {
+      // pas de voiture de sécurité : drapeaux jaunes le temps de dégager la voiture
+      this.raiseYellow(c, reason === 'Accident' ? 30 : 18);
     }
+  }
+
+  /** Secteur (1, 2 ou 3) d'une abscisse. */
+  sectorOf(s: number): number {
+    const L = this.track.length;
+    const u = ((s % L) + L) % L;
+    return 1 + Math.min(2, Math.floor((u / L) * 3));
+  }
+
+  private raiseYellow(c: SimCar, seconds: number): void {
+    const L = this.track.length;
+    const s0 = (((c.s - 180) % L) + L) % L;
+    const existing = this.yellows.find((z) => z.carId === c.id);
+    if (existing) existing.until = Math.max(existing.until, this.t + seconds);
+    else {
+      this.yellows.push({ s0, len: 240, until: this.t + seconds, carId: c.id });
+      this.log('jaune', `Drapeau jaune dans le secteur ${this.sectorOf(c.s)} : ralentissement, dépassements interdits.`, c.id);
+    }
+  }
+
+  inYellow(s: number): boolean {
+    for (const z of this.yellows) if (forwardDist(this.track, z.s0, s) < z.len) return true;
+    return false;
+  }
+
+  private updateYellows(): void {
+    if (!this.yellows.length) return;
+    const before = this.yellows.length;
+    // tant qu'une voiture en abandon n'est pas à l'abri, la zone reste neutralisée
+    for (const z of this.yellows) {
+      const c = this.car(z.carId);
+      if (c && (c.status === 'retiring' || (c.errKind === 3 && c.errTimer > 0))) z.until = Math.max(z.until, this.t + 4);
+    }
+    this.yellows = this.yellows.filter((z) => z.until > this.t);
+    if (this.yellows.length < before && !this.yellows.length) this.log('jaune', 'Drapeau vert : la piste est dégagée.');
   }
 
   private deploySafetyCar(leader: SimCar, why: string): void {
@@ -852,25 +898,27 @@ export class RaceSim {
       c.pass = { target: side * (tr.half - 1.4), other: o.id, ok: true, timer: 8, lap: true };
       return;
     }
-    // Zones : lignes droites ; au premier tour, tout ce qui n'est pas un virage serré.
-    if (!tr.zone[idx] && !(lap1 && tr.corner[idx] < 0.3)) return;
     // Avantage de rythme réel (profil × pneus × humidité × mode × forme du moment × dégâts).
     const w = this.wet;
     const ref = (x: SimCar) => x.refLap * (1 - w) + this.refWet[x.idx] * w;
     const form = (x: SimCar) => tyreFactor(x.compound, x.wear, w) * MODE_PACE[x.mode] * x.noise *
       (1 + (x.e.driver.pluie - 10) * 0.0009 * w) * (x.damage === 1 ? 0.985 : 1);
     const adv = (ref(o) / ref(c)) * (form(c) / form(o)) - 1 + (o.errTimer > 0 ? 0.02 : 0);
+    // Zones : lignes droites ; au premier tour, tout sauf les virages serrés ; avec un net avantage
+    // (pneus neufs), toute portion peu sinueuse suffit.
+    const zoneOk = tr.zone[idx] || (lap1 && tr.corner[idx] < 0.3) || (adv > 0.035 && tr.corner[idx] < 0.15);
+    if (!zoneOk) return;
     if (adv < (c.mode === 'attaque' ? -0.004 : -0.0015)) {
       c.cooldown = 3;
       return;
     }
     const tryP = 0.45 + (c.mode === 'attaque' ? 0.25 : c.mode === 'eco' ? -0.2 : 0) + adv * 20 + (lap1 ? 0.25 : 0);
     if (!rng.chance(Math.min(0.95, tryP))) {
-      c.cooldown = 3;
+      c.cooldown = adv > 0.03 ? 1.5 : 3;
       return;
     }
     const chance = Math.max(0.05, Math.min(0.9,
-      0.2 + adv * 28 + (c.e.driver.depassement - o.e.driver.defense) / 35 + (tr.def.overtaking - 0.5) * 0.5 +
+      0.1 + Math.min(0.45, adv * 20) + (c.e.driver.depassement - o.e.driver.defense) / 35 + (tr.def.overtaking - 0.5) * 0.5 +
       (c.mode === 'attaque' ? 0.08 : 0) - (o.mode === 'attaque' ? 0.05 : 0) + 0.12 * w + (lap1 ? 0.15 : 0)));
     const ok = rng.chance(chance);
     if (!ok) this.maybeContact(c, o, lap1);
@@ -1040,6 +1088,7 @@ export class RaceSim {
       cpTimes: [...this.cpTimes], cmdPtr: this.cmdPtr, rng: this.rng.state, events: this.events.map((x) => ({ ...x })),
       wet: this.wet, raining: this.raining, wIdx: this.wIdx, sc: this.sc ? { ...this.sc } : null, restartLap: this.restartLap,
       scCount: this.scCount, teamOrders: { ...this.teamOrders }, radioLast: { ...this.radioLast }, cars,
+      yellows: this.yellows.map((z) => ({ ...z })),
       formation: this.formation, lightsStart: this.lightsStart, lightsOut: Number.isFinite(this.lightsOut) ? this.lightsOut : -1,
     };
   }
@@ -1063,6 +1112,7 @@ export class RaceSim {
     sim.sc = snap.sc ? { ...snap.sc } : null;
     sim.restartLap = snap.restartLap;
     sim.scCount = snap.scCount;
+    sim.yellows = (snap.yellows ?? []).map((z) => ({ ...z }));
     sim.teamOrders = { ...snap.teamOrders };
     sim.radioLast = { ...snap.radioLast };
     if (snap.formation !== undefined) {
@@ -1116,6 +1166,7 @@ export interface RaceSnapshot {
   sc: SafetyCar | null;
   restartLap: number;
   scCount: number;
+  yellows?: { s0: number; len: number; until: number; carId: string }[];
   teamOrders: Record<string, TeamOrder>;
   radioLast: Record<string, number>;
   cars: Record<string, unknown>[];

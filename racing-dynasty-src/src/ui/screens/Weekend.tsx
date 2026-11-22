@@ -10,6 +10,8 @@ import { COMPOUNDS } from '../../engine/physics';
 import type { CarSetup, Compound } from '../../engine/types';
 import { TyreChip, Weather, money } from '../common';
 import { RaceView } from './RaceView';
+import { PracticeChart, QualiSession } from '../Visuals';
+import { teamStandings } from '../../game/career';
 
 const PHASES = [['essais', 'Essais libres'], ['qualifs', 'Qualifications'], ['strategie', 'Stratégie'], ['course', 'Course'], ['resultats', 'Résultats']] as const;
 
@@ -78,6 +80,7 @@ function Practice({ api }: { api: GameApi }) {
                   <ul>{last.feedback.map((f) => <li key={f.axis} className={f.dir === 0 ? 'ok' : 'todo'}>« {f.text} »</li>)}</ul>
                 </div>
               )}
+              <PracticeChart runs={p.runs} />
               {p.runs.length > 1 && (
                 <table className="table small">
                   <thead><tr><th>Relais</th><th>Aileron</th><th>Susp.</th><th>Boîte</th><th>Meilleur</th></tr></thead>
@@ -128,9 +131,19 @@ function StrategyPhase({ api }: { api: GameApi }) {
     setReveal(0);
     const id = window.setInterval(() => setReveal((r) => (r >= q.length ? (window.clearInterval(id), r) : r + 1)), 90);
     return () => window.clearInterval(id);
-  }, [q]);
+  }, [q, w.qualiSeen]);
   const pole = q[0].time;
+  if (!w.qualiSeen) {
+    const runners = q.map((e) => {
+      const d = driverById(c, e.driverId);
+      const t = teamById(c, d.teamId!);
+      return { id: d.id, short: d.short, color: t.color, mine: t.isPlayer, laps: e.laps };
+    }).sort((a, b) => a.id.localeCompare(b.id));
+    return <QualiSession trackId={w.trackId} runners={runners} onDone={() => api.act((cc) => { cc.weekend!.qualiSeen = true; })} />;
+  }
   return (
+    <>
+    <Briefing api={api} />
     <div className="grid2">
       <section className="panel">
         <h2>Grille de départ</h2>
@@ -161,6 +174,52 @@ function StrategyPhase({ api }: { api: GameApi }) {
         </button>
       </section>
     </div>
+    </>
+  );
+}
+
+/** Briefing d'avant-course : météo, profil du circuit, rivaux directs, conseil de l'ingénieur. */
+function Briefing({ api }: { api: GameApi }) {
+  const c = api.career;
+  const w = c.weekend!;
+  const tr = getTrack(w.trackId).def;
+  const q = w.quali!;
+  const mine = teamDrivers(c, c.playerTeamId);
+  const stars = (v: number, max = 5) => '★'.repeat(Math.max(1, Math.round(v * max))) + '☆'.repeat(Math.max(0, max - Math.max(1, Math.round(v * max))));
+  const ts = teamStandings(c);
+  const myPos = ts.findIndex((t) => t.teamId === c.playerTeamId);
+  const champRivals = [ts[myPos - 1], ts[myPos + 1]].filter(Boolean).map((t) => teamById(c, t.teamId).name);
+  return (
+    <section className="panel briefing">
+      <h2>🎧 Briefing de l’ingénieur</h2>
+      <div className="brief-grid">
+        <div>
+          <h3>Conditions</h3>
+          <p>{w.forecast ?? (w.weather === 'pluie' ? 'Pluie.' : 'Temps sec.')}</p>
+          <p className="muted">Dépassement : {stars(tr.overtaking)} · Usure des pneus : {stars(Math.min(1, tr.wear / 4.5))}</p>
+          <p className="muted">{tr.description}</p>
+        </div>
+        <div>
+          <h3>Rivaux directs</h3>
+          {mine.map((d) => {
+            const k = q.findIndex((x) => x.driverId === d.id);
+            const ahead = q[k - 1] ? driverById(c, q[k - 1].driverId) : null;
+            const behind = q[k + 1] ? driverById(c, q[k + 1].driverId) : null;
+            return <p key={d.id}><b>{d.short}</b> ({k + 1}ᵉ) : devant {ahead ? `${ahead.short} (${teamById(c, ahead.teamId!).short})` : '—'}, derrière {behind ? `${behind.short} (${teamById(c, behind.teamId!).short})` : '—'}</p>;
+          })}
+          {champRivals.length > 0 && <p className="muted">Au championnat, surveillez : {champRivals.join(' et ')}.</p>}
+        </div>
+        <div>
+          <h3>Stratégie conseillée</h3>
+          {mine.map((d) => {
+            const sg = suggestStrategy(c, d.id, w.weather === 'pluie' ? 'P' : 'M');
+            const seq = [sg.start, ...sg.plan.map((p) => p.compound)].map((k) => COMPOUNDS[k].name).join(' → ');
+            return <p key={d.id}><b>{d.short}</b> : {seq}{sg.plan.length ? ` (arrêt${sg.plan.length > 1 ? 's' : ''} tour ${sg.plan.map((p) => p.lap).join(', ')})` : ''}</p>;
+          })}
+          <p className="muted">Sur les circuits à forte usure, deux arrêts en pneus tendres peuvent payer ; une voiture de sécurité rend un arrêt presque gratuit.</p>
+        </div>
+      </div>
+    </section>
   );
 }
 

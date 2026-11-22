@@ -63,7 +63,7 @@ export function profileLapTime(track: Track, prof: Float32Array): number {
 }
 
 export const COMPOUNDS: Record<Compound, { name: string; color: string; grip: number; wear: number }> = {
-  T: { name: 'Tendre', color: '#e5383b', grip: 1.009, wear: 1.6 },
+  T: { name: 'Tendre', color: '#e5383b', grip: 1.022, wear: 1.8 },
   M: { name: 'Médium', color: '#f2c14e', grip: 1.0, wear: 1.0 },
   D: { name: 'Dur', color: '#f4f1ea', grip: 0.9935, wear: 0.62 },
   P: { name: 'Pluie', color: '#3a86ff', grip: 0.985, wear: 0.9 },
@@ -84,7 +84,7 @@ export function tyreFactor(c: Compound, wear: number, weather: Weather | number)
   let g: number;
   if (c === 'P') g = 0.955 + 0.045 * Math.min(1, w * 1.6);
   else g = COMPOUNDS[c].grip * (1 - 0.14 * w);
-  g *= 1 - 0.0006 * wear - Math.max(0, wear - 55) * 0.0012 - Math.max(0, wear - 95) * 0.01;
+  g *= 1 - 0.0006 * wear - Math.max(0, wear - 55) * 0.0014 - Math.max(0, wear - 95) * 0.01;
   return g;
 }
 

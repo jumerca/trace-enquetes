@@ -15,6 +15,8 @@ export interface TrackDef {
   rainChance: number;
   description: string;
   night?: boolean; // course de nuit sous projecteurs
+  fog?: boolean; // nappes de brouillard
+  sunset?: boolean; // lumière de fin de journée
 }
 
 export interface Track {

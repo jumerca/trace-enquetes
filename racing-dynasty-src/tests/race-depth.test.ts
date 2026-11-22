@@ -135,6 +135,27 @@ describe('profondeur de course', () => {
     expect(swapped).toBeGreaterThan(0);
   });
 
+  it('drapeaux jaunes locaux : signalés, puis levés, sans dépassement dans la zone', () => {
+    let yellowSeen = 0, illegal = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const sim = new RaceSim({ ...cfg('montclair', seed), entries: entries(seed, 6) });
+      while (!sim.finished) {
+        const before = sim.events.length;
+        const zones = sim.yellows.map((z) => ({ ...z }));
+        sim.step();
+        for (const e of sim.events.slice(before)) {
+          if (e.kind === 'jaune' && /secteur/.test(e.text)) yellowSeen++;
+          if (e.kind === 'depassement' && e.carId && zones.length) {
+            const c = sim.car(e.carId)!;
+            if (zones.some((z) => forwardDist(sim.track, z.s0, c.s) < z.len - 20)) illegal++;
+          }
+        }
+      }
+    }
+    expect(yellowSeen).toBeGreaterThan(0);
+    expect(illegal).toBe(0);
+  });
+
   it('contacts : produisent des dégâts ou des pénalités sur un ensemble de courses', () => {
     let contacts = 0, damage = 0;
     for (let seed = 1; seed <= 8; seed++) {
