@@ -1,6 +1,6 @@
 # Racing Dynasty — Feuille de route
 
-État au 22/11/2026 : V0.2 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
+État au 22/11/2026 : V0.3 en ligne sur https://jumerca.github.io/trace-enquetes/racing-dynasty/
 Ce qu'il reste à vérifier, corriger et développer, par ordre de priorité.
 
 ## 0. À vérifier sur le téléphone du joueur (bloquant)
