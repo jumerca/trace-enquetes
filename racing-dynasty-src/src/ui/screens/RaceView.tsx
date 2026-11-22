@@ -6,8 +6,8 @@ import { DT, RaceSim, fmtLap, type SimCar } from '../../engine/race';
 import { RaceRenderer, type CameraMode } from '../../render/RaceRenderer';
 import { RaceAudio } from '../../render/audio';
 import { SPONSOR_SEEDS } from '../../game/data';
-import type { Compound, DriveMode, RaceEvent } from '../../engine/types';
-import { TyreChip, Weather } from '../common';
+import type { Compound, DriveMode, RaceEvent, TeamOrder } from '../../engine/types';
+import { TyreChip } from '../common';
 
 type Speed = 0 | 1 | 2 | 4;
 
@@ -31,6 +31,9 @@ interface Row {
   player: boolean;
   laps: number;
   reason?: string;
+  damage: number;
+  penalty: number;
+  teamId: string;
 }
 
 interface Hud {
@@ -40,6 +43,13 @@ interface Hud {
   t: number;
   flag: boolean;
   finished: boolean;
+  sc: boolean;
+  scIn: boolean;
+  restart: boolean;
+  wet: number;
+  raining: boolean;
+  radio: Record<string, RaceEvent>;
+  order: TeamOrder;
 }
 
 function snapshot(sim: RaceSim): Hud {
@@ -48,13 +58,39 @@ function snapshot(sim: RaceSim): Hud {
       id: c.id, pos: c.position, short: c.e.short, name: c.e.name, color: c.e.color, gap: c.gap, interval: c.interval,
       compound: c.compound, wear: c.wear, status: c.status, pit: c.pit, pitReq: c.pitReq, mode: c.mode, lastLap: c.lastLap,
       bestLap: c.bestLap, stops: c.stops, player: c.e.isPlayer, laps: c.laps, reason: c.reason,
+      damage: c.damage, penalty: c.penalty, teamId: c.e.teamId,
     })),
     lap: sim.leaderLap,
-    events: sim.events.slice(-5).reverse(),
+    events: sim.events.filter((e) => e.kind !== 'radio').slice(-5).reverse(),
     t: sim.t,
     flag: sim.flag,
     finished: sim.finished,
+    sc: !!sim.sc,
+    scIn: sim.sc?.phase === 'rentre',
+    restart: !sim.sc && Math.max(...sim.cars.map((x) => x.laps)) < sim.restartLap,
+    wet: sim.wet,
+    raining: sim.raining,
+    radio: lastRadios(sim),
+    order: sim.teamOrders[sim.cars.find((x) => x.e.isPlayer)?.e.teamId ?? ''] ?? 'libre',
   };
+}
+
+/** Dernier message radio de chaque pilote du joueur (affiché pendant 12 s). */
+function lastRadios(sim: RaceSim): Record<string, RaceEvent> {
+  const out: Record<string, RaceEvent> = {};
+  for (let k = sim.events.length - 1; k >= 0 && k > sim.events.length - 60; k--) {
+    const e = sim.events[k];
+    if (e.kind === 'radio' && e.carId && !out[e.carId] && sim.t - e.t < 12) out[e.carId] = e;
+  }
+  return out;
+}
+
+function weatherLabel(wet: number, raining: boolean): string {
+  if (raining && wet > 0.5) return '🌧 Pluie';
+  if (raining) return '🌦 Averse';
+  if (wet > 0.3) return '💧 Mouillé';
+  if (wet > 0.05) return '🌤 Séchage';
+  return '☀ Sec';
 }
 
 function gapText(r: Row, mode: 'gap' | 'int'): string {
@@ -95,15 +131,25 @@ export function RaceView({ api }: { api: GameApi }) {
   const persist = () => {
     const sim = simRef.current;
     if (!sim || !c.weekend?.race || c.weekend.result) return;
-    recordRaceProgress(c, sim.commands, sim.tick);
+    recordRaceProgress(c, sim.commands, sim.tick, sim.snapshot());
     api.save();
   };
 
   useEffect(() => {
     const w = c.weekend!;
-    const sim = new RaceSim(raceConfig(c), w.race!.commands);
-    while (sim.tick < w.race!.tick && !sim.finished) sim.step(); // reprise exacte grâce au déterminisme
+    let sim: RaceSim;
+    const snap = w.race!.snapshot;
+    try {
+      // reprise instantanée depuis l'instantané enregistré
+      if (!snap || snap.tick !== w.race!.tick) throw new Error('pas d’instantané');
+      sim = RaceSim.restore(raceConfig(c), w.race!.commands, snap);
+    } catch {
+      // sinon : rejeu déterministe depuis le départ (sauvegardes antérieures)
+      sim = new RaceSim(raceConfig(c), w.race!.commands);
+      while (sim.tick < w.race!.tick && !sim.finished) sim.step();
+    }
     simRef.current = sim;
+    (window as unknown as { __raceSim?: RaceSim }).__raceSim = sim; // accès de test (E2E)
     const quality = api.settings.quality === 'auto' ? (isLowEndDevice() ? 'economie' : 'haute') : api.settings.quality;
     const banners = [...c.sponsors.map((x) => ({ name: x.name, color: x.color })), ...SPONSOR_SEEDS.map((x) => ({ name: x.name, color: x.color }))];
     const r = new RaceRenderer(sim, { quality, fpsCap: api.settings.fpsCap, names: api.settings.names, focusTeamId: c.playerTeamId, banners });
@@ -163,7 +209,7 @@ export function RaceView({ api }: { api: GameApi }) {
   }, []);
 
   const sim = simRef.current;
-  const issue = (carId: string, cmd: { type: 'mode'; mode: DriveMode } | { type: 'pit'; compound: Compound } | { type: 'cancelPit' }) => {
+  const issue = (carId: string, cmd: { type: 'mode'; mode: DriveMode } | { type: 'pit'; compound: Compound } | { type: 'cancelPit' } | { type: 'teamOrder'; order: TeamOrder }) => {
     if (!sim) return;
     sim.issue({ carId, ...cmd });
     persist();
@@ -252,7 +298,6 @@ export function RaceView({ api }: { api: GameApi }) {
 
   const players = hud?.rows.filter((r) => r.player) ?? [];
   const visibleRows = hud ? (fullList ? hud.rows : hud.rows.filter((r) => r.pos <= 5 || r.player || r.id === follow)) : [];
-  const w = c.weekend!;
   const winner = hud?.rows[0];
 
   return (
@@ -264,8 +309,10 @@ export function RaceView({ api }: { api: GameApi }) {
       <div className="race-top">
         <button className="btn small ghost" onClick={() => { persist(); api.go('hub'); }}>← QG</button>
         <div className="lapbox"><small>Tour</small><b>{hud ? Math.min(hud.lap, sim?.cfg.laps ?? 0) : 1}/{sim?.cfg.laps}</b></div>
-        <Weather w={w.weather} />
+        <span className={'weather' + (hud && hud.wet > 0.3 ? ' pluie' : '')}>{hud ? weatherLabel(hud.wet, hud.raining) : ''}</span>
         {hud?.flag && <span className="flag">🏁</span>}
+        {hud?.sc && <span className="sc-banner">{hud.scIn ? 'SC rentre' : 'VOITURE DE SÉCURITÉ'}</span>}
+        {hud?.restart && <span className="sc-banner green">Reprise</span>}
         <button className="btn small icon-btn" onClick={toggleSound} aria-label={sound ? 'Couper le son' : 'Activer le son'}>{sound ? '🔊' : '🔇'}</button>
         {api.settings.showFps && <span className="fps">{fps} i/s</span>}
       </div>
@@ -283,7 +330,8 @@ export function RaceView({ api }: { api: GameApi }) {
               <span className="n">{r.short}</span>
               <span className="g">{gapText(r, gapMode)}</span>
               <TyreChip c={r.compound} />
-              {r.pit > 0 ? <span className="tag pit">STAND</span> : r.status === 'done' ? <span className="tag">🏁</span> : null}
+              {r.pit > 0 ? <span className="tag pit">STAND</span> : r.status === 'done' ? <span className="tag">🏁</span>
+                : r.damage ? <span className="tag dmg">{r.damage === 2 ? 'CREV' : 'DÉG'}</span> : r.penalty ? <span className="tag pen">+{r.penalty}s</span> : null}
             </li>
           ))}
         </ol>
@@ -309,7 +357,7 @@ export function RaceView({ api }: { api: GameApi }) {
           <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1 / 1.25)} disabled={camMode === 'circuit'} aria-label="Dézoomer">−</button>
           <button className="btn small zoombtn" onClick={() => rendRef.current?.zoomBy(1.25)} disabled={camMode === 'circuit'} aria-label="Zoomer">+</button>
           <span className="sep" />
-          <button className="btn small ghost" onClick={skipToEnd} disabled={skipping || hud?.finished}>{skipping ? 'Simulation…' : <><span className="lbl">Fin directe </span>⏭</>}</button>
+          <button className="btn small ghost" aria-label="Fin directe" onClick={skipToEnd} disabled={skipping || hud?.finished}>{skipping ? 'Simulation…' : <><span className="lbl">Fin directe </span>⏭</>}</button>
         </div>
         <div className="driver-controls">
           {players.map((p) => (
@@ -318,8 +366,11 @@ export function RaceView({ api }: { api: GameApi }) {
                 <b>P{p.pos}</b> <span className="fullname">{p.name}</span><span className="shortname">{p.short}</span>
                 <small>{p.status === 'dnf' || p.status === 'retiring' ? `Abandon — ${p.reason}` : `Dernier ${fmtLap(p.lastLap)} · Meilleur ${fmtLap(p.bestLap)}`}</small>
               </header>
+              {hud?.radio[p.id] && <div className="radio-bubble">{hud.radio[p.id].text.replace(/^📻 [A-Z]+ : /, '📻 ')}</div>}
               <div className="wear">
                 <TyreChip c={p.compound} />
+                {p.damage ? <span className="tag dmg">{p.damage === 2 ? 'Crevaison' : 'Aileron'}</span> : null}
+                {p.penalty ? <span className="tag pen">+{p.penalty} s</span> : null}
                 <div className="bar"><i style={{ width: Math.min(100, p.wear) + '%', background: p.wear > 75 ? '#d62828' : p.wear > 55 ? '#f2a33a' : '#2aa876' }} /></div>
                 <small>{Math.round(p.wear)} %</small>
               </div>
@@ -337,7 +388,7 @@ export function RaceView({ api }: { api: GameApi }) {
                   ) : (
                     <div className="seg pitsel">
                       <span>Stand :</span>
-                      {(w.weather === 'pluie' ? ['P', 'M'] : ['T', 'M', 'D', 'P']).map((k) => (
+                      {(['T', 'M', 'D', 'P'] as const).map((k) => (
                         <button key={k} onClick={() => issue(p.id, { type: 'pit', compound: k as Compound })}><TyreChip c={k as Compound} /></button>
                       ))}
                     </div>
@@ -346,6 +397,18 @@ export function RaceView({ api }: { api: GameApi }) {
               )}
             </div>
           ))}
+          {players.length === 2 && players.every((p) => p.status === 'run') && (
+            <div className="team-orders">
+              <span>Consigne d’équipe :</span>
+              <div className="seg">
+                {(['libre', 'tenir', 'inverser'] as TeamOrder[]).map((o) => (
+                  <button key={o} className={hud?.order === o ? 'on' : ''} onClick={() => issue(players[0].id, { type: 'teamOrder', order: o })}>
+                    {o === 'libre' ? 'Libre' : o === 'tenir' ? 'Tenir' : 'Inverser'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -4,8 +4,10 @@ import { getTrack } from '../engine/tracks';
 import { TRACK_DEFS } from '../engine/tracks';
 import { optimalSetup, setupFeedback, timedLap, type SetupFeedback } from '../engine/quali';
 import { COMPOUNDS, tyreWearRate } from '../engine/physics';
+import type { RaceSnapshot } from '../engine/race';
 import type {
   CarEntry, CarSetup, CarStats, ClassifiedResult, Compound, DriverStats, PitPlan, RaceCommand, RaceConfig, Weather,
+  WeatherChange,
 } from '../engine/types';
 import {
   buildWorld, carRating, driverRating, SPONSOR_SEEDS, type Driver, type Emblem, type SponsorOffer, type Team,
@@ -60,6 +62,7 @@ export interface RoundEntry {
   gap: string;
   bestLap: number;
   stops: number;
+  penalty?: number;
 }
 
 export interface RoundResult {
@@ -101,8 +104,11 @@ export interface Weekend {
   practice: Record<string, { runs: PracticeRun[]; knowledge: number }>;
   quali: QualiEntry[] | null;
   strategy: Record<string, Strategy>;
-  race: { seed: number; commands: RaceCommand[]; tick: number } | null;
+  race: { seed: number; commands: RaceCommand[]; tick: number; snapshot?: RaceSnapshot } | null;
   result: RoundResult | null;
+  /** Changements de météo prévus pendant la course (absents des sauvegardes V0.1/V0.2 : course stable). */
+  weatherPlan?: WeatherChange[];
+  forecast?: string;
 }
 
 export interface LedgerLine {
@@ -342,12 +348,39 @@ function trackOptimum(trackId: string, weather: Weather): CarSetup {
   return o;
 }
 
-export function forecastFor(c: Career, round: number): { weather: Weather; rainProb: number } {
+export interface Forecast {
+  weather: Weather; // au départ
+  rainProb: number;
+  plan: WeatherChange[]; // changements pendant la course (tours, fractions possibles)
+  text: string; // prévision lisible (volontairement approximative)
+}
+
+export function forecastFor(c: Career, round: number): Forecast {
   const tr = getTrack(c.calendar[round].trackId).def;
   const rng = new Rng(hashSeed(c.seed, c.season, round, 'meteo'));
   const rainProb = Math.min(0.9, Math.max(0.02, tr.rainChance + rng.range(-0.1, 0.15)));
   const weather: Weather = rng.next() < rainProb ? 'pluie' : 'sec';
-  return { weather, rainProb };
+  const laps = RACE_LAPS[c.raceLength];
+  const plan: WeatherChange[] = [];
+  const around = (lap: number) => `vers le tour ${Math.max(1, Math.floor(lap) - 1)}–${Math.min(laps, Math.floor(lap) + 2)}`;
+  let text: string;
+  const roll = rng.next();
+  if (weather === 'sec') {
+    if (roll < rainProb * 0.7 && laps >= 6) {
+      const start = rng.range(laps * 0.25, laps * 0.7);
+      plan.push({ lap: start, rain: true });
+      if (rng.chance(0.55)) {
+        const stop = start + rng.range(laps * 0.15, laps * 0.35);
+        if (stop < laps - 0.5) plan.push({ lap: stop, rain: false });
+      }
+      text = `Départ au sec, averse attendue ${around(start)}` + (plan.length > 1 ? ', puis éclaircie.' : '.');
+    } else text = rainProb > 0.25 ? 'Temps sec, ciel menaçant.' : 'Temps sec.';
+  } else if (roll < 0.5 && laps >= 6) {
+    const stop = rng.range(laps * 0.15, laps * 0.6);
+    plan.push({ lap: stop, rain: false });
+    text = `Départ sous la pluie, éclaircie attendue ${around(stop)} : la piste séchera ensuite.`;
+  } else text = 'Pluie pendant toute la course.';
+  return { weather, rainProb, plan, text };
 }
 
 export function startWeekend(c: Career): string | null {
@@ -355,7 +388,8 @@ export function startWeekend(c: Career): string | null {
   if (err) return err;
   if (c.weekend) return null;
   const { trackId } = c.calendar[c.round];
-  const { weather } = forecastFor(c, c.round);
+  const fc = forecastFor(c, c.round);
+  const { weather } = fc;
   const opt = trackOptimum(trackId, weather);
   const rng = new Rng(hashSeed(c.seed, c.season, c.round, 'reglages'));
   const setups: Record<string, CarSetup> = {};
@@ -377,7 +411,10 @@ export function startWeekend(c: Career): string | null {
       };
     }
   }
-  c.weekend = { round: c.round, trackId, weather, phase: 'essais', setups, practice, quali: null, strategy: {}, race: null, result: null };
+  c.weekend = {
+    round: c.round, trackId, weather, phase: 'essais', setups, practice, quali: null, strategy: {}, race: null, result: null,
+    weatherPlan: fc.plan, forecast: fc.text,
+  };
   return null;
 }
 
@@ -471,8 +508,17 @@ function planStops(c: Career, driverId: string, start: Compound, laps: number, s
     if (lap >= laps) break;
     const rem = laps - lap;
     const options: Compound[] = c.weekend!.weather === 'pluie' ? ['P'] : ['T', 'M', 'D'];
-    comp = options.find((o) => expectedWearPerLap(c, driverId, o) * rem <= 85) ?? options[options.length - 1];
+    comp = options.find((o) => expectedWearPerLap(c, driverId, o) * rem <= 85 && (o !== start || plan.length > 0)) ?? options[options.length - 1];
     plan.push({ lap, compound: comp });
+  }
+  // Règle des deux gommes sèches : au moins un arrêt avec une gomme différente.
+  if (c.weekend!.weather === 'sec' && ![start, ...plan.map((p) => p.compound)].some((x) => x !== start)) {
+    if (plan.length) plan[plan.length - 1].compound = start === 'M' ? 'D' : 'M';
+    else {
+      const half = Math.max(1, Math.round(laps * 0.5));
+      const other: Compound = start === 'T' ? 'M' : start === 'M' ? 'T' : 'M';
+      plan.push({ lap: Math.min(laps - 1, half), compound: other });
+    }
   }
   return plan;
 }
@@ -482,6 +528,14 @@ function aiStrategy(c: Career, driverId: string, rng: Rng): Strategy {
   const r = rng.next();
   const start: Compound = r < 0.3 ? 'T' : r < 0.8 ? 'M' : 'D';
   return suggestStrategy(c, driverId, start, rng.range(64, 80));
+}
+
+/** Vrai si la stratégie respecte la règle des deux gommes sèches (sur piste sèche). */
+export function strategyRuleOk(c: Career, s: Strategy): boolean {
+  if (!c.weekend || c.weekend.weather === 'pluie') return true;
+  const all = [s.start, ...s.plan.map((p) => p.compound)];
+  if (all.includes('P')) return true;
+  return new Set(all).size >= 2;
 }
 
 export function setStrategy(c: Career, driverId: string, s: Strategy): void {
@@ -518,14 +572,15 @@ export function raceConfig(c: Career): RaceConfig {
       startCompound: st.start, pitPlan: st.plan, isPlayer: team.isPlayer,
     };
   });
-  return { trackId: w.trackId, laps: raceLaps(c), weather: w.weather, seed: w.race!.seed, entries };
+  return { trackId: w.trackId, laps: raceLaps(c), weather: w.weather, weatherPlan: w.weatherPlan ?? [], seed: w.race!.seed, entries };
 }
 
 /** Enregistre la progression de la course en cours (consignes + pas atteint) pour pouvoir la reprendre. */
-export function recordRaceProgress(c: Career, commands: RaceCommand[], tick: number): void {
+export function recordRaceProgress(c: Career, commands: RaceCommand[], tick: number, snapshot?: RaceSnapshot): void {
   if (c.weekend?.race) {
     c.weekend.race.commands = commands.map((x) => ({ ...x }));
     c.weekend.race.tick = tick;
+    c.weekend.race.snapshot = snapshot;
   }
 }
 
@@ -538,7 +593,7 @@ export function finishRace(c: Career, results: ClassifiedResult[], fastest: { ca
     return {
       driverId: r.carId, teamId: d.teamId!, position: r.position, grid: r.gridPosition,
       points: r.status === 'arrivé' && r.position <= 10 ? POINTS[r.position - 1] : 0,
-      status: r.status, gap: r.gap, bestLap: r.bestLap, stops: r.stops,
+      status: r.status, gap: r.gap, bestLap: r.bestLap, stops: r.stops, penalty: r.penalty,
     };
   });
   const earnings: { label: string; amount: number }[] = [];

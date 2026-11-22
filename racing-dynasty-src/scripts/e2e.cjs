@@ -69,6 +69,19 @@ const log = (...a) => console.log('•', ...a);
     await p.locator('.sim-controls button', { hasText: 'TV' }).click();
     await p.waitForTimeout(2500);
     await shot('08b-camera-tv');
+    // Voiture de sécurité + averse forcées (accès de test) pour contrôler le rendu et l'interface.
+    await p.evaluate(() => {
+      const sim = window.__raceSim;
+      const leader = sim.cars.reduce((a, b) => (b.s > a.s ? b : a));
+      sim.deploySafetyCar(leader, 'test');
+      sim.raining = true;
+    });
+    await p.locator('.sim-controls button', { hasText: 'Suivre' }).click();
+    await p.waitForTimeout(9000);
+    await shot('08c-securite-pluie');
+    const scBanner = await p.locator('.sc-banner').count();
+    log(name, 'bandeau voiture de sécurité affiché :', scBanner > 0);
+    if (!scBanner) errors.push('bandeau voiture de sécurité absent');
     await p.locator('.sim-controls button', { hasText: 'Circuit' }).click();
     await p.waitForTimeout(1500);
     await shot('09-vue-circuit');
@@ -82,7 +95,7 @@ const log = (...a) => console.log('•', ...a);
     await p.waitForSelector('.race-canvas canvas', { timeout: 15000 });
     log(name, 'reprise de course après rechargement : OK');
     p.on('dialog', (d) => d.accept());
-    await p.getByText('Fin directe').click();
+    await p.getByRole('button', { name: 'Fin directe' }).click();
     await p.waitForSelector('.finish-overlay', { timeout: 60000 });
     await shot('10-arrivee');
     await p.getByText('Voir les résultats').click();
@@ -118,7 +131,7 @@ const log = (...a) => console.log('•', ...a);
         await p.locator('.sim-controls button', { hasText: 'TV' }).click();
         await p.waitForTimeout(3000);
         await shot('14b-tv-' + gp);
-        await p.getByText('Fin directe').click();
+        await p.getByRole('button', { name: 'Fin directe' }).click();
         await p.waitForSelector('.finish-overlay', { timeout: 60000 });
         await p.getByText('Voir les résultats').click();
         await p.getByText('Retour au QG').click();
@@ -130,10 +143,12 @@ const log = (...a) => console.log('•', ...a);
     }
     await ctx.close();
   }
-  await run('pc', { width: 1366, height: 768 });
-  await run('android-paysage', { width: 800, height: 360 }, { isMobile: true, hasTouch: true });
-  await run('android-portrait', { width: 360, height: 740 }, { isMobile: true, hasTouch: true });
-  await run('tablette', { width: 1024, height: 768 }, { isMobile: true, hasTouch: true });
+  const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+  const want = (n) => !only || only.includes(n);
+  if (want('pc')) await run('pc', { width: 1366, height: 768 });
+  if (want('android-paysage')) await run('android-paysage', { width: 800, height: 360 }, { isMobile: true, hasTouch: true });
+  if (want('android-portrait')) await run('android-portrait', { width: 360, height: 740 }, { isMobile: true, hasTouch: true });
+  if (want('tablette')) await run('tablette', { width: 1024, height: 768 }, { isMobile: true, hasTouch: true });
   await browser.close();
   if (errors.length) { console.log('ERREURS :\n' + errors.join('\n')); process.exit(1); }
   console.log('E2E OK — captures dans', OUT);

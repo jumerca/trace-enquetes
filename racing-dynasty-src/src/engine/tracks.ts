@@ -12,7 +12,7 @@ export const TRACK_DEFS: TrackDef[] = [
     pitSide: 1,
     wear: 3.2,
     suspOpt: 30,
-    overtaking: 0.35,
+    overtaking: 0.45,
     rainChance: 0.2,
     description: 'Tracé urbain serré entre les quais et la vieille ville. Dépasser y est un art.',
     points: [
@@ -32,7 +32,7 @@ export const TRACK_DEFS: TrackDef[] = [
     pitSide: -1,
     wear: 3.6,
     suspOpt: 55,
-    overtaking: 0.55,
+    overtaking: 0.35,
     rainChance: 0.35,
     description: 'Rapide et fluide, entre les sapins. Les grandes courbes usent les pneus avant.',
     points: [
@@ -52,7 +52,7 @@ export const TRACK_DEFS: TrackDef[] = [
     pitSide: 1,
     wear: 4.1,
     suspOpt: 70,
-    overtaking: 0.75,
+    overtaking: 0.55,
     rainChance: 0.05,
     description: 'Longues lignes droites et freinages appuyés. Le sable rend la piste abrasive.',
     points: [
@@ -73,7 +73,7 @@ export const TRACK_DEFS: TrackDef[] = [
     pitSide: -1,
     wear: 3.4,
     suspOpt: 45,
-    overtaking: 0.6,
+    overtaking: 0.45,
     rainChance: 0.3,
     description: 'Un tracé équilibré autour d\u2019un lac glaciaire, avec une épingle redoutée au bout de la ligne droite.',
     points: [
@@ -93,7 +93,7 @@ export const TRACK_DEFS: TrackDef[] = [
     pitSide: 1,
     wear: 3.0,
     suspOpt: 20,
-    overtaking: 0.4,
+    overtaking: 0.5,
     rainChance: 0.4,
     description: 'Sinueux et piégeux au pied des sommets enneigés. La météo y change vite.',
     points: [

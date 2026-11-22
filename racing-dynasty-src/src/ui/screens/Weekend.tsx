@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { GameApi } from '../App';
 import {
   closeWeekend, driverById, expectedWearPerLap, playerTeam, practiceRun, raceLaps, runQualifying, setSetup, setStrategy,
-  startRace, suggestStrategy, teamById, teamDrivers, PRACTICE_RUNS, type Strategy,
+  startRace, strategyRuleOk, suggestStrategy, teamById, teamDrivers, PRACTICE_RUNS, type Strategy,
 } from '../../game/career';
 import { getTrack } from '../../engine/tracks';
 import { fmtLap } from '../../engine/race';
@@ -30,6 +30,7 @@ export function WeekendScreen({ api }: { api: GameApi }) {
         <div>
           <h1>{tr.gp}</h1>
           <small>{tr.name} · {raceLaps(c)} tours · <Weather w={w.weather} /></small>
+          {w.forecast && <small className="forecast"> · Prévision : {w.forecast}</small>}
         </div>
         <span className="steps">{PHASES.map(([p, l], i) => <i key={p} className={i === phaseIdx ? 'on' : i < phaseIdx ? 'done' : ''}>{l}</i>)}</span>
       </header>
@@ -153,7 +154,8 @@ function StrategyPhase({ api }: { api: GameApi }) {
       <section className="panel">
         <h2>Stratégie ({laps} tours)</h2>
         {mine.map((d) => <StrategyEditor key={d.id} api={api} driverId={d.id} grid={q.findIndex((x) => x.driverId === d.id) + 1} />)}
-        <p className="muted">Pendant la course, vous pourrez changer le rythme (éco / normal / attaque) et rappeler un pilote au stand à tout moment.</p>
+        {w.forecast && <p className="forecast-box">🌦 Prévision météo : {w.forecast}</p>}
+        <p className="muted">Pendant la course : rythme (éco / normal / attaque), appel au stand, consignes d’équipe. Votre ingénieur vous parle à la radio.</p>
         <button className="btn primary big" onClick={() => { api.act((cc) => { const r = startRace(cc); return typeof r === 'string' ? r : null; }); }}>
           Départ du Grand Prix 🏁
         </button>
@@ -199,6 +201,7 @@ function StrategyEditor({ api, driverId, grid }: { api: GameApi; driverId: strin
         <button className="btn small" disabled={st.plan.length >= 3} onClick={() => set({ ...st, plan: [...st.plan, { lap: Math.min(laps - 1, (st.plan[st.plan.length - 1]?.lap ?? 0) + Math.ceil(laps / 2)), compound: w.weather === 'pluie' ? 'P' : 'M' }] })}>+ Ajouter un arrêt</button>
         <button className="btn small ghost" onClick={() => set(suggestStrategy(c, driverId, st.start))}>Suggestion de l’ingénieur</button>
       </div>
+      {!strategyRuleOk(c, st) && <p className="warn">Règle : sur piste sèche, il faut utiliser au moins deux gommes différentes (sinon 20 s de pénalité).</p>}
       <div className="stints">
         {stints.map((s, i) => (
           <div key={i} className={'stint' + (s.wear > 95 ? ' bad' : s.wear > 80 ? ' warn' : '')} style={{ flex: Math.max(1, s.len), borderColor: COMPOUNDS[s.comp].color }}>
@@ -231,7 +234,7 @@ function Results({ api }: { api: GameApi }) {
                 <tr key={e.driverId} className={t.isPlayer ? 'me' : ''}>
                   <td>{e.status === 'abandon' ? 'Ab' : e.position}</td>
                   <td><i className="dot" style={{ background: t.color }} />{d.first[0]}. {d.last} <small>{t.short}</small>{res.fastest?.driverId === e.driverId ? <small title="meilleur tour"> ⏱</small> : null}</td>
-                  <td>{e.gap}</td><td>{e.grid}</td><td>{e.stops}</td><td><b>{e.points || ''}</b></td>
+                  <td>{e.gap}{e.penalty ? <small className="warn"> ⚖</small> : null}</td><td>{e.grid}</td><td>{e.stops}</td><td><b>{e.points || ''}</b></td>
                 </tr>
               );
             })}
