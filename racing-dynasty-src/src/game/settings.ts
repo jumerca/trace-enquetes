@@ -5,10 +5,11 @@ export interface Settings {
   showFps: boolean;
   names: boolean; // étiquettes au-dessus des voitures
   sound: boolean;
+  music: boolean;
 }
 
 const KEY = 'racing-dynasty/settings';
-export const DEFAULT_SETTINGS: Settings = { quality: 'auto', fpsCap: 60, showFps: false, names: true, sound: true };
+export const DEFAULT_SETTINGS: Settings = { quality: 'auto', fpsCap: 60, showFps: false, names: true, sound: true, music: true };
 
 export function loadSettings(): Settings {
   try {

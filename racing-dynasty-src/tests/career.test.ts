@@ -39,12 +39,13 @@ function playRound(c: Career): void {
 }
 
 describe('création de carrière', () => {
-  it('crée 10 écuries, 28 pilotes dont 10 libres, 5 Grands Prix', () => {
+  it('crée 10 écuries, 28 pilotes + 6 espoirs, 10 libres, 8 Grands Prix', () => {
     const c = createCareer(opts);
     expect(c.teams).toHaveLength(10);
     expect(c.drivers.filter((d) => d.teamId)).toHaveLength(18);
+    expect(c.drivers.filter((d) => d.age <= 19)).toHaveLength(6);
     expect(freeAgents(c)).toHaveLength(10);
-    expect(c.calendar).toHaveLength(5);
+    expect(c.calendar).toHaveLength(8);
     expect(c.objective.target).toBeGreaterThanOrEqual(1);
     expect(c.objective.target).toBeLessThanOrEqual(10);
     expect(playerTeam(c).name).toBe('Écurie Test');
@@ -93,8 +94,8 @@ describe('boucle complète', () => {
     hireTwo(c);
     signSponsor(c, availableSponsors(c).find((s) => s.minReputation === 0)!.id);
     const carsBefore = JSON.stringify(c.teams.filter((t) => !t.isPlayer).map((t) => t.car));
-    for (let r = 0; r < 5; r++) playRound(c);
-    expect(c.results).toHaveLength(5);
+    for (let r = 0; r < 8; r++) playRound(c);
+    expect(c.results).toHaveLength(8);
     expect(JSON.stringify(c.teams.filter((t) => !t.isPlayer).map((t) => t.car))).not.toBe(carsBefore); // les IA évoluent
     expect(c.history[0].objective).toBeDefined();
     expect(c.ledger.some((l) => /actionnaires/.test(l.label)) || c.news.some((n) => /Objectif manqué/.test(n.text))).toBe(true);

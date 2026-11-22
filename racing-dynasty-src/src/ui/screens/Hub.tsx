@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import type { GameApi } from '../App';
 import {
-  availableSponsors, buyUpgrade, canRace, driverById, driverStandings, forecastFor, freeAgents, hireDriver, playerTeam,
-  raceLaps, releaseCost, releaseDriver, seasonOver, signSponsor, signingFee, startNextSeason, startWeekend, teamById,
-  teamDrivers, teamStandings, upgradeCost, UPGRADE_LABEL, MAX_SPONSORS,
+  canRace, driverById, driverStandings, forecastFor, playerTeam,
+  raceLaps, seasonOver, startNextSeason, startWeekend, teamById,
+  teamDrivers, teamStandings, MAX_SPONSORS,
 } from '../../game/career';
-import { carRating, driverRating, NAT_LABEL, OBJECTIVE_LABEL, type Driver } from '../../game/data';
+import { carRating, driverRating, NAT_LABEL, type Driver } from '../../game/data';
 import { getTrack } from '../../engine/tracks';
-import type { CarStats } from '../../engine/types';
-import { EmblemIcon, Modal, StatBar, money } from '../common';
+import { EmblemIcon, StatBar, money } from '../common';
 import { TrackMap } from './TrackMap';
+import { DriversTab, FactoryTab, PalmaresTab, SponsorsTab, moraleClass } from './HubManagement';
+import { moraleLabel, moraleOf, staffSalaries } from '../../game/management';
 
-type Tab = 'qg' | 'pilotes' | 'voiture' | 'sponsors' | 'classements' | 'finances';
+type Tab = 'qg' | 'pilotes' | 'usine' | 'sponsors' | 'classements' | 'palmares' | 'finances';
 const TABS: [Tab, string, string][] = [
-  ['qg', 'QG', '🏠'], ['pilotes', 'Pilotes', '🪖'], ['voiture', 'Voiture', '🔧'], ['sponsors', 'Sponsors', '🤝'],
-  ['classements', 'Classements', '🏆'], ['finances', 'Finances', '€'],
+  ['qg', 'QG', '🏠'], ['pilotes', 'Pilotes', '🪖'], ['usine', 'Usine', '🔧'], ['sponsors', 'Sponsors', '🤝'],
+  ['classements', 'Classements', '🏆'], ['palmares', 'Palmarès', '📜'], ['finances', 'Finances', '€'],
 ];
 
 const STAT_LABELS: [keyof Driver['stats'], string][] = [
@@ -44,10 +45,11 @@ export function Hub({ api }: { api: GameApi }) {
       </nav>
       <main className="hubmain">
         {tab === 'qg' && <Dashboard api={api} setTab={setTab} />}
-        {tab === 'pilotes' && <Drivers api={api} />}
-        {tab === 'voiture' && <CarTab api={api} />}
-        {tab === 'sponsors' && <Sponsors api={api} />}
+        {tab === 'pilotes' && <DriversTab api={api} />}
+        {tab === 'usine' && <FactoryTab api={api} />}
+        {tab === 'sponsors' && <SponsorsTab api={api} />}
         {tab === 'classements' && <Standings api={api} />}
+        {tab === 'palmares' && <PalmaresTab api={api} />}
         {tab === 'finances' && <Finances api={api} />}
       </main>
     </div>
@@ -132,161 +134,10 @@ export function DriverCard({ d, compact, children }: { d: Driver; compact?: bool
       </header>
       {!compact && STAT_LABELS.map(([k, l]) => <StatBar key={k} label={l} value={d.stats[k]} />)}
       {compact && <div className="mini-stats">{STAT_LABELS.map(([k, l]) => <span key={k} title={l}>{l.slice(0, 3)} <b>{d.stats[k]}</b></span>)}</div>}
+      <div className="morale"><span>Moral</span><div className="bar"><i className={moraleClass(moraleOf(d))} style={{ width: moraleOf(d) + '%' }} /></div><small>{moraleLabel(moraleOf(d))}</small></div>
+      {d.potential !== undefined && d.age <= 23 && <small className="muted">Potentiel : {'★'.repeat(Math.max(1, Math.round((d.potential - 10) / 2)))} ({d.potential.toFixed(0)})</small>}
       {d.contract && <small className="contract">Contrat : {money(d.contract.salary)}/saison · {d.contract.years} saison(s)</small>}
       {children}
-    </div>
-  );
-}
-
-function Drivers({ api }: { api: GameApi }) {
-  const c = api.career;
-  const mine = teamDrivers(c, c.playerTeamId);
-  const [nego, setNego] = useState<Driver | null>(null);
-  const [view, setView] = useState<'libres' | 'grille'>('libres');
-  return (
-    <div>
-      <section className="panel">
-        <h2>Pilotes titulaires ({mine.length}/2)</h2>
-        <div className="cards">
-          {mine.map((d) => (
-            <DriverCard key={d.id} d={d}>
-              <button className="btn small danger" onClick={() => {
-                if (confirm(`Libérer ${d.first} ${d.last} ? Indemnité : ${money(releaseCost(c, d.id))}.`)) api.act((cc) => releaseDriver(cc, d.id));
-              }}>Libérer ({money(releaseCost(c, d.id))})</button>
-            </DriverCard>
-          ))}
-        </div>
-      </section>
-      <section className="panel">
-        <div className="row spread">
-          <h2>Marché des pilotes</h2>
-          <div className="seg">
-            <button className={view === 'libres' ? 'on' : ''} onClick={() => setView('libres')}>Agents libres</button>
-            <button className={view === 'grille' ? 'on' : ''} onClick={() => setView('grille')}>Grille actuelle</button>
-          </div>
-        </div>
-        {view === 'libres' ? (
-          <div className="cards">
-            {freeAgents(c).map((d) => (
-              <DriverCard key={d.id} d={d}>
-                <div className="row spread">
-                  <small>Demande : <b>{money(d.askSalary)}</b>/saison</small>
-                  <button className="btn small primary" disabled={mine.length >= 2 || !!c.weekend} onClick={() => setNego(d)}>Négocier</button>
-                </div>
-              </DriverCard>
-            ))}
-          </div>
-        ) : (
-          <table className="table">
-            <thead><tr><th>Pilote</th><th>Écurie</th><th>Note</th><th>Vit.</th><th>Rég.</th><th>Dép.</th><th>Pneus</th></tr></thead>
-            <tbody>
-              {c.drivers.filter((d) => d.teamId).sort((a, b) => driverRating(b.stats) - driverRating(a.stats)).map((d) => (
-                <tr key={d.id} className={d.teamId === c.playerTeamId ? 'me' : ''}>
-                  <td>{d.first[0]}. {d.last}</td><td><i className="dot" style={{ background: teamById(c, d.teamId!).color }} />{teamById(c, d.teamId!).short}</td>
-                  <td>{driverRating(d.stats).toFixed(1)}</td><td>{d.stats.vitesse}</td><td>{d.stats.regularite}</td><td>{d.stats.depassement}</td><td>{d.stats.pneus}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-      {nego && <Negotiation api={api} d={nego} onClose={() => setNego(null)} />}
-    </div>
-  );
-}
-
-function Negotiation({ api, d, onClose }: { api: GameApi; d: Driver; onClose: () => void }) {
-  const [salary, setSalary] = useState(d.askSalary);
-  const [years, setYears] = useState(2);
-  const [msg, setMsg] = useState<string | null>(null);
-  return (
-    <Modal title={`Contrat — ${d.first} ${d.last}`} onClose={onClose}>
-      <DriverCard d={d} />
-      <label>Salaire annuel : <b>{money(salary)}</b>
-        <input type="range" min={Math.max(0.2, d.askSalary * 0.6)} max={d.askSalary * 1.6} step={0.05} value={salary} onChange={(e) => setSalary(Number(e.target.value))} />
-      </label>
-      <div className="choices">
-        {[1, 2, 3].map((y) => <button key={y} className={'chip' + (y === years ? ' on' : '')} onClick={() => setYears(y)}>{y} saison{y > 1 ? 's' : ''}</button>)}
-      </div>
-      <p className="muted">Prime de signature : {money(signingFee(salary))} · Coût par Grand Prix : {money(salary / api.career.calendar.length)}. Les contrats longs exigent un salaire plus élevé.</p>
-      {msg && <p className="warn">{msg}</p>}
-      <button className="btn primary big" onClick={() => {
-        const err = api.act((cc) => hireDriver(cc, d.id, salary, years));
-        if (err) setMsg(err);
-        else onClose();
-      }}>Proposer le contrat</button>
-    </Modal>
-  );
-}
-
-function CarTab({ api }: { api: GameApi }) {
-  const c = api.career;
-  const t = playerTeam(c);
-  const rivals = teamStandings(c).map((s) => teamById(c, s.teamId));
-  const keys: (keyof CarStats)[] = ['moteur', 'aero', 'chassis', 'fiabilite'];
-  return (
-    <div className="grid2">
-      <section className="panel">
-        <h2>Monoplace {new Date().getFullYear()}</h2>
-        {keys.map((k) => (
-          <div key={k} className="upgrade">
-            <StatBar label={UPGRADE_LABEL[k]} value={t.car[k]} />
-            <button className="btn small" disabled={!!c.weekend || t.car[k] >= 20} onClick={() => api.act((cc) => buyUpgrade(cc, k))}>
-              Évolution · {money(upgradeCost(t.car[k]))}
-            </button>
-          </div>
-        ))}
-        <StatBar label="Équipe aux stands" value={t.pitCrew} />
-        <p className="muted">Moteur : vitesse de pointe et accélération. Aéro : vitesse en courbe. Châssis : freinage et adhérence mécanique. Fiabilité : risque de casse.</p>
-        <p className="muted">Les réglages (aileron, suspensions, boîte) se font pendant les essais libres de chaque Grand Prix.</p>
-      </section>
-      <section className="panel">
-        <h2>Comparatif des voitures</h2>
-        <table className="table">
-          <thead><tr><th>Écurie</th><th>Mot.</th><th>Aéro</th><th>Châs.</th><th>Fiab.</th><th>Note</th></tr></thead>
-          <tbody>
-            {[...rivals].sort((a, b) => carRating(b.car) - carRating(a.car)).map((r) => (
-              <tr key={r.id} className={r.isPlayer ? 'me' : ''}>
-                <td><i className="dot" style={{ background: r.color }} />{r.name}</td>
-                <td>{r.car.moteur}</td><td>{r.car.aero}</td><td>{r.car.chassis}</td><td>{r.car.fiabilite}</td><td>{carRating(r.car).toFixed(1)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-    </div>
-  );
-}
-
-function Sponsors({ api }: { api: GameApi }) {
-  const c = api.career;
-  const rep = playerTeam(c).reputation;
-  return (
-    <div className="grid2">
-      <section className="panel">
-        <h2>Partenaires ({c.sponsors.length}/{MAX_SPONSORS})</h2>
-        {c.sponsors.length === 0 && <p className="muted">Aucun sponsor : chaque Grand Prix coûte sans rien rapporter.</p>}
-        {c.sponsors.map((s) => (
-          <div key={s.id} className="sponsor signed" style={{ borderLeftColor: s.color }}>
-            <b>{s.name}</b> <small>({s.slot})</small>
-            <span>{money(s.perRace)} par GP · bonus {money(s.bonus)} si : {OBJECTIVE_LABEL[s.objective].toLowerCase()}</span>
-          </div>
-        ))}
-        <p className="muted">Les contrats courent jusqu’à la fin de la saison.</p>
-      </section>
-      <section className="panel">
-        <h2>Offres</h2>
-        {availableSponsors(c).map((s) => (
-          <div key={s.id} className="sponsor" style={{ borderLeftColor: s.color }}>
-            <div><b>{s.name}</b> <small>{s.sector}</small></div>
-            <span>{money(s.perRace)} par GP · signature {money(s.signing)}</span>
-            <span>Bonus {money(s.bonus)} : {OBJECTIVE_LABEL[s.objective]}</span>
-            {s.minReputation > rep
-              ? <small className="warn">Réputation requise : {s.minReputation} (vous : {rep})</small>
-              : <button className="btn small primary" disabled={c.sponsors.length >= MAX_SPONSORS} onClick={() => api.act((cc) => signSponsor(cc, s.id))}>Signer</button>}
-          </div>
-        ))}
-      </section>
     </div>
   );
 }
@@ -360,14 +211,15 @@ function Finances({ api }: { api: GameApi }) {
   const c = api.career;
   const mine = teamDrivers(c, c.playerTeamId);
   const perRaceIn = c.sponsors.reduce((a, s) => a + s.perRace, 0) + 0.5;
-  const perRaceOut = mine.reduce((a, d) => a + (d.contract?.salary ?? 0), 0) / c.calendar.length + 1.4;
+  const perRaceOut = (c.drivers.filter((d) => d.teamId === c.playerTeamId).reduce((a, d) => a + (d.contract?.salary ?? 0), 0) + staffSalaries(c)) / c.calendar.length + 1.4;
+  void mine;
   return (
     <div className="grid2">
       <section className="panel">
         <h2>Prévision par Grand Prix</h2>
         <ul className="facts">
           <li>Recettes garanties (sponsors + participation) : <b>{money(perRaceIn)}</b></li>
-          <li>Dépenses (salaires + logistique) : <b>{money(-perRaceOut)}</b></li>
+          <li>Dépenses (pilotes, personnel, logistique) : <b>{money(-perRaceOut)}</b></li>
           <li>Solde hors primes : <b className={perRaceIn - perRaceOut < 0 ? 'neg' : 'pos'}>{money(perRaceIn - perRaceOut, true)}</b></li>
         </ul>
         <p className="muted">Primes de résultat : 0,12 M€ par point marqué, plus les bonus d’objectifs sponsors.</p>

@@ -10,8 +10,18 @@ import type {
   WeatherChange,
 } from '../engine/types';
 import {
-  buildWorld, carRating, driverRating, SPONSOR_SEEDS, type Driver, type Emblem, type SponsorOffer, type Team,
+  buildWorld, buildYouthPool, carRating, driverRating, SPONSOR_SEEDS, type Driver, type Emblem, type SponsorOffer, type StaffMember,
+  type Team,
 } from './data';
+import { addLedger, addNews, isRaceDriver, round1 } from './util';
+import {
+  applyStaffEffects, checkInjuries, developYouth, engineerFactor, formFactor, initialStaff, negotiateSponsor, progressProjects,
+  recordRaceStats, recordTitles, refreshStaffMarket, reliabilityBonus, renewSponsors, restoreStandIn, seasonTransfers,
+  staffSalaries, updateMorale, type CareerStats, type RndProject, type Staff,
+} from './management';
+import type { RaceEvent } from '../engine/types';
+
+export { addLedger, addNews, round1 };
 
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 export const RACE_LAPS = { courte: 6, standard: 12, longue: 20 } as const;
@@ -50,6 +60,7 @@ export interface CareerOptions extends TeamIdentity {
 
 export interface SignedSponsor extends SponsorOffer {
   slot: 'principal' | 'secondaire';
+  years?: number; // saisons restantes (saison en cours incluse)
 }
 
 export interface RoundEntry {
@@ -104,11 +115,13 @@ export interface Weekend {
   practice: Record<string, { runs: PracticeRun[]; knowledge: number }>;
   quali: QualiEntry[] | null;
   strategy: Record<string, Strategy>;
-  race: { seed: number; commands: RaceCommand[]; tick: number; snapshot?: RaceSnapshot } | null;
+  race: { seed: number; commands: RaceCommand[]; tick: number; snapshot?: RaceSnapshot; formation?: boolean } | null;
   result: RoundResult | null;
   /** Changements de météo prévus pendant la course (absents des sauvegardes V0.1/V0.2 : course stable). */
   weatherPlan?: WeatherChange[];
   forecast?: string;
+  /** Pilote forfait remplacé pour ce Grand Prix. */
+  standIn?: { injured: string; sub: string; temp: boolean };
 }
 
 export interface LedgerLine {
@@ -141,14 +154,15 @@ export interface Career {
   history: { season: number; driverChampion: string; teamChampion: string; playerTeamPos: number; objective?: number }[];
   /** Objectif fixé par les actionnaires : position au championnat constructeurs. */
   objective: { season: number; target: number };
+  staff?: Staff;
+  staffMarket?: StaffMember[];
+  projects?: RndProject[];
+  stats?: CareerStats;
+  sponsorTalks?: Record<string, number>;
 }
 
 export const PRACTICE_RUNS = 4;
 export const MAX_SPONSORS = 2;
-
-function round1(v: number): number {
-  return Math.round(v * 100) / 100;
-}
 
 export function createCareer(o: CareerOptions): Career {
   const seed = o.seed ?? (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
@@ -193,25 +207,22 @@ export function createCareer(o: CareerOptions): Career {
     objective: { season: 1, target: 10 },
   };
   c.objective = { season: 1, target: computeObjective(c) };
+  c.drivers.push(...buildYouthPool(hashSeed(seed, 'espoirs-init'), 6, c.drivers));
+  c.staff = initialStaff(c);
+  applyStaffEffects(c);
+  refreshStaffMarket(c);
+  c.projects = [];
+  c.stats = { drivers: {}, teams: {} };
+  c.sponsorTalks = {};
   addLedger(c, 'Budget initial', c.budget, true);
   addNews(c, `${player.name} rejoint le championnat ! Objectif : recruter deux pilotes avant le premier Grand Prix.`);
   addNews(c, `Les actionnaires visent la ${c.objective.target}ᵉ place au championnat constructeurs.`);
   return c;
 }
 
-function addLedger(c: Career, label: string, amount: number, silent = false): void {
-  if (!silent) c.budget = round1(c.budget + amount);
-  c.ledger.push({ season: c.season, round: c.round, label, amount: round1(amount) });
-  if (c.ledger.length > 200) c.ledger.splice(0, c.ledger.length - 200);
-}
-
-function addNews(c: Career, text: string): void {
-  c.news.unshift({ season: c.season, round: c.round, text });
-  if (c.news.length > 40) c.news.length = 40;
-}
 
 /** Ordre du calendrier (les circuits sont définis dans engine/tracks). */
-export const CALENDAR_ORDER = ['port-azur', 'lac-argent', 'valbrune', 'montclair', 'kharam'];
+export const CALENDAR_ORDER = ['port-azur', 'lac-argent', 'brumevent', 'valbrune', 'montclair', 'rocheval', 'lumen', 'kharam'];
 
 export function seasonCalendar(): { round: number; trackId: string }[] {
   const ids = CALENDAR_ORDER.filter((id) => TRACK_DEFS.some((t) => t.id === id));
@@ -239,11 +250,12 @@ export function driverById(c: Career, id: string): Driver {
 }
 
 export function teamDrivers(c: Career, teamId: string): Driver[] {
-  return c.drivers.filter((d) => d.teamId === teamId).sort((a, b) => a.number - b.number);
+  return c.drivers.filter((d) => d.teamId === teamId && isRaceDriver(d)).sort((a, b) => a.number - b.number);
 }
 
+/** Pilotes libres confirmés (les espoirs de 19 ans et moins sont dans l'onglet académie). */
 export function freeAgents(c: Career): Driver[] {
-  return c.drivers.filter((d) => !d.teamId).sort((a, b) => driverRating(b.stats) - driverRating(a.stats));
+  return c.drivers.filter((d) => !d.teamId && !d.retired && d.age > 19).sort((a, b) => driverRating(b.stats) - driverRating(a.stats));
 }
 
 export function signingFee(salary: number): number {
@@ -269,6 +281,7 @@ export function hireDriver(c: Career, driverId: string, salary: number, years: n
   const fee = signingFee(salary);
   if (c.budget < fee) return 'Budget insuffisant pour la prime de signature.';
   d.teamId = c.playerTeamId;
+  d.role = undefined;
   d.contract = { salary: round1(salary), years };
   const used = new Set(c.drivers.filter((x) => x.teamId && x !== d).map((x) => x.number));
   while (used.has(d.number)) d.number++;
@@ -292,6 +305,7 @@ export function releaseDriver(c: Career, driverId: string): string | null {
   addLedger(c, `Indemnité de départ — ${d.first} ${d.last}`, -cost);
   d.teamId = null;
   d.contract = null;
+  d.role = undefined;
   addNews(c, `${d.first} ${d.last} quitte ${playerTeam(c).name}.`);
   return null;
 }
@@ -300,15 +314,9 @@ export function availableSponsors(c: Career): SponsorOffer[] {
   return c.sponsorOffers.filter((s) => !c.sponsors.some((x) => x.id === s.id));
 }
 
+/** Signature aux conditions proposées (1 saison). Pour négocier : negotiateSponsor. */
 export function signSponsor(c: Career, offerId: string): string | null {
-  const s = c.sponsorOffers.find((x) => x.id === offerId);
-  if (!s) return 'Offre introuvable.';
-  if (c.sponsors.length >= MAX_SPONSORS) return 'Vos deux emplacements de sponsors sont occupés.';
-  if (playerTeam(c).reputation < s.minReputation) return `${s.name} exige une réputation de ${s.minReputation}.`;
-  c.sponsors.push({ ...s, slot: c.sponsors.some((x) => x.slot === 'principal') ? 'secondaire' : 'principal' });
-  addLedger(c, `Prime de signature — ${s.name}`, s.signing);
-  addNews(c, `${s.name} devient partenaire de ${playerTeam(c).name}.`);
-  return null;
+  return negotiateSponsor(c, offerId, 1, 1);
 }
 
 export const UPGRADE_LABEL: Record<keyof CarStats, string> = {
@@ -394,8 +402,13 @@ export function startWeekend(c: Career): string | null {
   const rng = new Rng(hashSeed(c.seed, c.season, c.round, 'reglages'));
   const setups: Record<string, CarSetup> = {};
   const practice: Weekend['practice'] = {};
+  c.weekend = {
+    round: c.round, trackId, weather, phase: 'essais', setups, practice, quali: null, strategy: {}, race: null, result: null,
+    weatherPlan: fc.plan, forecast: fc.text,
+  };
+  checkInjuries(c);
   for (const d of c.drivers) {
-    if (!d.teamId) continue;
+    if (!d.teamId || !isRaceDriver(d)) continue;
     const team = teamById(c, d.teamId);
     if (team.isPlayer) {
       setups[d.id] = { aileron: 50, suspension: 50, boite: 50 };
@@ -411,10 +424,6 @@ export function startWeekend(c: Career): string | null {
       };
     }
   }
-  c.weekend = {
-    round: c.round, trackId, weather, phase: 'essais', setups, practice, quali: null, strategy: {}, race: null, result: null,
-    weatherPlan: fc.plan, forecast: fc.text,
-  };
   return null;
 }
 
@@ -445,7 +454,7 @@ export function practiceRun(c: Career, driverId: string): PracticeRun | string {
   const fb = setupFeedback(track, e, w.weather, p.knowledge, rng);
   const run: PracticeRun = { setup: { ...w.setups[driverId] }, best: Math.min(...laps), laps, feedback: fb };
   p.runs.push(run);
-  p.knowledge = Math.min(1, p.knowledge + 0.25 + d.stats.regularite / 100);
+  p.knowledge = Math.min(1, p.knowledge + (0.25 + d.stats.regularite / 100) * engineerFactor(c));
   return run;
 }
 
@@ -456,7 +465,7 @@ export function runQualifying(c: Career): QualiEntry[] | string {
   const track = getTrack(w.trackId);
   const rng = new Rng(hashSeed(c.seed, c.season, w.round, 'qualifs'));
   const list: QualiEntry[] = [];
-  const racers = c.drivers.filter((d) => d.teamId).sort((a, b) => a.id.localeCompare(b.id));
+  const racers = c.drivers.filter((d) => isRaceDriver(d)).sort((a, b) => a.id.localeCompare(b.id));
   for (const d of racers) {
     const e = entryFor(c, d, w);
     const laps: number[] = [];
@@ -553,7 +562,7 @@ export function startRace(c: Career): RaceConfig | string {
   const w = c.weekend;
   if (!w || !w.quali) return 'Les qualifications n’ont pas eu lieu.';
   if (!w.race) {
-    w.race = { seed: hashSeed(c.seed, c.season, w.round, 'course'), commands: [], tick: 0 };
+    w.race = { seed: hashSeed(c.seed, c.season, w.round, 'course'), commands: [], tick: 0, formation: true };
   }
   w.phase = 'course';
   return raceConfig(c);
@@ -568,11 +577,15 @@ export function raceConfig(c: Career): RaceConfig {
     return {
       id: d.id, name: `${d.first} ${d.last}`, short: d.short, number: d.number,
       teamId: team.id, teamName: team.name, color: team.color, color2: team.color2,
-      driver: d.stats, car: team.car, setup: w.setups[d.id], pitCrew: team.pitCrew,
-      startCompound: st.start, pitPlan: st.plan, isPlayer: team.isPlayer,
+      driver: d.stats, setup: w.setups[d.id], pitCrew: team.pitCrew,
+      car: team.isPlayer ? { ...team.car, fiabilite: Math.max(1, Math.min(20, team.car.fiabilite + reliabilityBonus(c))) } : team.car,
+      startCompound: st.start, pitPlan: st.plan, isPlayer: team.isPlayer, form: formFactor(d),
     };
   });
-  return { trackId: w.trackId, laps: raceLaps(c), weather: w.weather, weatherPlan: w.weatherPlan ?? [], seed: w.race!.seed, entries };
+  return {
+    trackId: w.trackId, laps: raceLaps(c), weather: w.weather, weatherPlan: w.weatherPlan ?? [], seed: w.race!.seed, entries,
+    formation: w.race!.formation ?? false,
+  };
 }
 
 /** Enregistre la progression de la course en cours (consignes + pas atteint) pour pouvoir la reprendre. */
@@ -585,7 +598,9 @@ export function recordRaceProgress(c: Career, commands: RaceCommand[], tick: num
 }
 
 /** Applique le résultat d'une course : points, finances, réputation, actualités. */
-export function finishRace(c: Career, results: ClassifiedResult[], fastest: { carId: string; time: number } | null): RoundResult {
+export function finishRace(
+  c: Career, results: ClassifiedResult[], fastest: { carId: string; time: number } | null, events: RaceEvent[] = [],
+): RoundResult {
   const w = c.weekend!;
   if (w.result) return w.result;
   const entries: RoundEntry[] = results.map((r) => {
@@ -610,8 +625,10 @@ export function finishRace(c: Career, results: ClassifiedResult[], fastest: { ca
       mine.some((e) => e.status === 'arrivé' && e.position <= 3);
     if (ok) earnings.push({ label: `${s.name} — bonus objectif`, amount: s.bonus });
   }
-  const salaries = teamDrivers(c, c.playerTeamId).reduce((a, d) => a + (d.contract?.salary ?? 0), 0) / c.calendar.length;
-  earnings.push({ label: 'Salaires des pilotes', amount: -round1(salaries) });
+  const salaries = c.drivers.filter((d) => d.teamId === c.playerTeamId).reduce((a, d) => a + (d.contract?.salary ?? 0), 0) / c.calendar.length;
+  earnings.push({ label: 'Salaires des pilotes (titulaires, réserve, académie)', amount: -round1(salaries) });
+  const staffPay = staffSalaries(c) / c.calendar.length;
+  if (staffPay) earnings.push({ label: 'Salaires du personnel clé', amount: -round1(staffPay) });
   earnings.push({ label: 'Logistique et personnel', amount: -1.4 });
   for (const e of earnings) addLedger(c, `${getTrack(w.trackId).def.gp} — ${e.label}`, e.amount);
 
@@ -627,6 +644,8 @@ export function finishRace(c: Career, results: ClassifiedResult[], fastest: { ca
   w.result = res;
   w.phase = 'resultats';
   c.results.push(res);
+  updateMorale(c, res, events);
+  recordRaceStats(c, res, w.quali?.[0]?.driverId ?? null);
   const win = driverById(c, entries[0].driverId);
   addNews(c, `${getTrack(w.trackId).def.gp} : victoire de ${win.first} ${win.last} (${teamById(c, win.teamId!).name}).`);
   return res;
@@ -635,8 +654,11 @@ export function finishRace(c: Career, results: ClassifiedResult[], fastest: { ca
 /** Clôt le week-end et passe au Grand Prix suivant (ou à la fin de saison). */
 export function closeWeekend(c: Career): void {
   if (!c.weekend?.result) return;
+  restoreStandIn(c, c.weekend);
   c.weekend = null;
   aiDevelopment(c);
+  progressProjects(c);
+  developYouth(c);
   c.round++;
   if (c.round >= c.calendar.length) {
     const ds = driverStandings(c);
@@ -651,6 +673,7 @@ export function closeWeekend(c: Career): void {
       objective: c.objective.target,
     });
     addNews(c, `${champ.first} ${champ.last} est sacré champion ! ${teamById(c, ts[0].teamId).name} remporte le titre constructeurs.`);
+    recordTitles(c, champ.id, ts[0].teamId);
     const team = playerTeam(c);
     if (pos <= c.objective.target) {
       const bonus = 3 + (c.objective.target - pos) * 0.8;
@@ -696,23 +719,28 @@ export function startNextSeason(c: Career): void {
       d.contract.years--;
       if (d.contract.years <= 0) {
         const team = d.teamId ? teamById(c, d.teamId) : null;
-        if (team && !team.isPlayer) d.contract.years = 1 + rng.int(0, 2); // l'IA prolonge
-        else {
-          if (team) addNews(c, `Fin de contrat : ${d.first} ${d.last} quitte ${team.name}.`);
-          d.teamId = null;
-          d.contract = null;
+        if (team && !team.isPlayer) continue; // décidé par le marché des transferts
+        if (team && d.role === 'academie') {
+          d.contract.years = 2; // les contrats d'académie se renouvellent
+          continue;
         }
+        if (team) addNews(c, `Fin de contrat : ${d.first} ${d.last} quitte ${team.name}.`);
+        d.teamId = null;
+        d.contract = null;
+        d.role = undefined;
       }
     }
   }
+  seasonTransfers(c, rng);
+  renewSponsors(c);
   c.season++;
+  refreshStaffMarket(c);
   c.round = 0;
   c.results = [];
-  c.sponsors = [];
   c.calendar = seasonCalendar();
   c.objective = { season: c.season, target: computeObjective(c) };
   addNews(c, `Les actionnaires visent la ${c.objective.target}ᵉ place cette saison.`);
-  addNews(c, `Saison ${c.season} : les contrats de sponsoring sont à renégocier.`);
+  addNews(c, `Saison ${c.season} : nouvelle grille, nouveaux candidats au personnel, offres de sponsors renouvelées.`);
 }
 
 // ---------------------------------------------------------------- Classements

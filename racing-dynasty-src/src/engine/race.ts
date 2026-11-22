@@ -110,7 +110,14 @@ export class RaceSim {
   finished = false;
   fastest: { carId: string; time: number } | null = null;
   /** Instant d'extinction des feux (s) : 5 feux rouges s'allument un par un puis s'éteignent après un délai aléatoire. */
-  readonly lightsOut: number;
+  lightsOut: number;
+  /** Instant d'allumage du premier feu (0 sans tour de formation). */
+  lightsStart = 0;
+  /** Tour de formation en cours. */
+  formation = false;
+  private lightsHold: number;
+  private gridS: number[] = [];
+  private gridLat: number[] = [];
   /** Humidité de la piste (0 sec, 1 détrempé) et pluie en cours. */
   wet = 0;
   raining = false;
@@ -162,8 +169,18 @@ export class RaceSim {
     for (const c of this.cars) c.teamIdx = teams.indexOf(c.e.teamId);
     // Fiabilité : probabilité d'abandon mécanique sur la course, répartie par mètre parcouru.
     this.failHazard = this.cars.map((c) => (0.0045 * (21 - c.e.car.fiabilite)) / (cfg.laps * tr.length));
-    this.lightsOut = LIGHTS_ON * 5 + 0.4 + this.rng.next() * 1.2;
-    for (const c of this.cars) c.lapStartT = this.lightsOut;
+    this.lightsHold = 0.4 + this.rng.next() * 1.2;
+    this.lightsOut = LIGHTS_ON * 5 + this.lightsHold;
+    for (const c of this.cars) {
+      c.lapStartT = this.lightsOut;
+      this.gridS.push(c.s);
+      this.gridLat.push(c.lat);
+    }
+    if (cfg.formation) {
+      this.formation = true;
+      this.lightsOut = Infinity;
+      this.log('depart', 'Tour de formation : les pilotes chauffent leurs pneus.');
+    }
     this.raining = cfg.weather === 'pluie';
     this.wet = this.raining ? 1 : 0;
     this.maxWet = this.wet;
@@ -207,6 +224,10 @@ export class RaceSim {
   step(): void {
     if (this.finished) return;
     this.applyCommands();
+    if (this.formation) {
+      this.formationStep();
+      return;
+    }
     if (this.t < this.lightsOut && this.t + DT >= this.lightsOut) this.log('depart', 'Feux éteints ! Départ du ' + this.track.def.gp + '.');
     const tr = this.track, L = tr.length, rng = this.rng;
     const order = this.cars.filter((c) => c.status !== 'dnf').sort((a, b) => b.s - a.s);
@@ -235,6 +256,7 @@ export class RaceSim {
       }
       let pace = tyreFactor(c.compound, c.wear, this.wet) * MODE_PACE[c.mode] * c.noise;
       pace *= 1 + (e.driver.pluie - 10) * 0.0009 * this.wet;
+      pace *= e.form ?? 1;
       if (c.damage === 1) pace *= 0.985;
       if (c.damage === 2) pace *= 0.7;
       if (c.status === 'done') pace *= 0.8;
@@ -554,6 +576,7 @@ export class RaceSim {
     if (c.compound === 'P') f *= w < 0.15 ? 1.5 : 1 + 1.2 * w * (1.4 - d.pluie / 20);
     else f *= 1 + 6 * w * (1.3 - d.pluie / 40);
     if (c.damage === 1) f *= 1.3;
+    f *= Math.max(0.6, 1 + (1 - (e.form ?? 1)) * 25);
     if (c.wear > 70) f *= 1 + (c.wear - 70) / 15;
     // Pression d'un poursuivant proche.
     const chaser = order.find((o) => o !== c && o.status === 'run' && o.pit === 0 && forwardDist(tr, o.s, c.s) > 0 && forwardDist(tr, o.s, c.s) < 20);
@@ -625,6 +648,66 @@ export class RaceSim {
       this.radio(c, 'sc', 'Voiture de sécurité ! Un arrêt maintenant coûte beaucoup moins de temps.', 0);
       // L'IA profite de la neutralisation pour s'arrêter si ses pneus ont vécu.
       if (!c.e.isPlayer && !c.pitReq && c.wear > 35 && c.laps < this.cfg.laps - 2) c.pitReq = this.bestCompound(c);
+    }
+  }
+
+  /** Tour de formation : file indienne à allure réduite, puis retour exact sur la case de grille. */
+  private formationStep(): void {
+    const tr = this.track, L = tr.length;
+    const order = [...this.cars].sort((a, b) => b.s - a.s);
+    for (const c of this.cars) {
+      c.prevS = c.s;
+      c.prevLat = c.lat;
+    }
+    let settled = true;
+    for (const c of order) {
+      const target = this.gridS[c.idx] + L;
+      const left = target - c.s;
+      const { i } = locate(tr, c.s);
+      let vt = Math.min(c.prof[i] * (this.wet > 0.3 ? 0.5 : 0.6), Math.sqrt(Math.max(0, 2 * 5 * left)));
+      if (this.t < 1 + c.idx * 0.25) vt = 0; // départ échelonné de la grille
+      // suivre la voiture qui précède sans jamais la toucher
+      for (const o of order) {
+        if (o === c || Math.abs(o.lat - c.lat) >= LAT_CLEAR) continue;
+        const d = forwardDist(tr, c.s, o.s);
+        if (d > 0 && d < 40) vt = Math.min(vt, o.v + (d - CAR_LEN - 6) * 0.6);
+      }
+      vt = Math.max(0, vt);
+      c.v = vt > c.v ? Math.min(vt, c.v + 6 * DT) : Math.max(vt, c.v - 9 * DT);
+      // trajectoire puis retour sur sa colonne de grille dans les 250 derniers mètres
+      const latT = left < 250 ? this.gridLat[c.idx] : tr.line[i];
+      const nl = c.lat + Math.max(-2 * DT, Math.min(2 * DT, latT - c.lat));
+      let blocked = false;
+      for (const o of order) {
+        if (o === c) continue;
+        const d = forwardDist(tr, c.s, o.s);
+        if (Math.min(d, L - d) < CAR_LEN + 0.9 && Math.abs(nl - o.lat) < LAT_CLEAR && Math.abs(nl - o.lat) < Math.abs(c.lat - o.lat)) blocked = true;
+      }
+      if (!blocked) c.lat = nl;
+      let ns = Math.min(target, c.s + c.v * DT);
+      for (const o of order) {
+        if (o === c || Math.abs(o.lat - c.lat) >= LAT_CLEAR) continue;
+        const d0 = forwardDist(tr, c.s, o.s);
+        if (d0 > 0 && d0 < L / 2 && ns - c.s > d0 - CAR_LEN - 0.2) ns = c.s + Math.max(0, d0 - CAR_LEN - 0.2);
+      }
+      c.s = ns;
+      if (target - c.s > 0.3 || Math.abs(c.lat - this.gridLat[c.idx]) > 0.3 || c.v > 0.1) settled = false;
+    }
+    this.tick++;
+    this.t = this.tick * DT;
+    if (settled || this.t > 600) {
+      // en place : on ramène les abscisses d'un tour en arrière (même position physique)
+      for (const c of this.cars) {
+        c.s = this.gridS[c.idx];
+        c.prevS = c.s;
+        c.lat = c.prevLat = this.gridLat[c.idx];
+        c.v = 0;
+      }
+      this.formation = false;
+      this.lightsStart = this.t + 1.5;
+      this.lightsOut = this.lightsStart + LIGHTS_ON * 5 + this.lightsHold;
+      for (const c of this.cars) c.lapStartT = this.lightsOut;
+      this.log('depart', 'Les voitures sont en place sur la grille.');
     }
   }
 
@@ -957,6 +1040,7 @@ export class RaceSim {
       cpTimes: [...this.cpTimes], cmdPtr: this.cmdPtr, rng: this.rng.state, events: this.events.map((x) => ({ ...x })),
       wet: this.wet, raining: this.raining, wIdx: this.wIdx, sc: this.sc ? { ...this.sc } : null, restartLap: this.restartLap,
       scCount: this.scCount, teamOrders: { ...this.teamOrders }, radioLast: { ...this.radioLast }, cars,
+      formation: this.formation, lightsStart: this.lightsStart, lightsOut: Number.isFinite(this.lightsOut) ? this.lightsOut : -1,
     };
   }
 
@@ -981,6 +1065,11 @@ export class RaceSim {
     sim.scCount = snap.scCount;
     sim.teamOrders = { ...snap.teamOrders };
     sim.radioLast = { ...snap.radioLast };
+    if (snap.formation !== undefined) {
+      sim.formation = snap.formation;
+      sim.lightsStart = snap.lightsStart ?? 0;
+      sim.lightsOut = snap.lightsOut === -1 ? Infinity : snap.lightsOut ?? sim.lightsOut;
+    }
     snap.cars.forEach((o, i) => {
       if (o.id !== sim.cars[i].id) throw new Error('Instantané incompatible');
       Object.assign(sim.cars[i], JSON.parse(JSON.stringify(o)));
@@ -1030,6 +1119,9 @@ export interface RaceSnapshot {
   teamOrders: Record<string, TeamOrder>;
   radioLast: Record<string, number>;
   cars: Record<string, unknown>[];
+  formation?: boolean;
+  lightsStart?: number;
+  lightsOut?: number;
 }
 
 export function fmtLap(t: number): string {

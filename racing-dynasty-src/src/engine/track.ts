@@ -14,6 +14,7 @@ export interface TrackDef {
   overtaking: number; // facilité de dépassement 0..1
   rainChance: number;
   description: string;
+  night?: boolean; // course de nuit sous projecteurs
 }
 
 export interface Track {

@@ -7,7 +7,7 @@ import { Rng } from '../engine/rng';
 
 export const TILT = 0.64; // écrasement vertical de la caméra
 const INK = 0x16130f;
-const CAR_PX = 10; // résolution des textures de voiture (px par mètre)
+const CAR_PX = 16; // résolution des textures de voiture (px par mètre)
 
 export interface RenderOptions {
   quality: 'haute' | 'economie';
@@ -15,6 +15,16 @@ export interface RenderOptions {
   names: boolean;
   focusTeamId: string;
   banners: { name: string; color: string }[];
+  /** Sponsor principal affiché sur les pontons (par écurie). */
+  liveries?: Record<string, { sponsor: string; color: string }>;
+}
+
+/** Image enregistrée pour le ralenti (positions de toutes les voitures à un pas de simulation). */
+interface ReplayFrame {
+  t: number;
+  s: Float32Array;
+  lat: Float32Array;
+  out: Uint8Array;
 }
 
 export type CameraMode = 'suivre' | 'tv' | 'circuit';
@@ -79,6 +89,17 @@ export class RaceRenderer {
   private crews = new Map<number, Graphics[]>();
   private puffPool: Sprite[] = [];
   private screenRect = new Rectangle(0, 0, 1, 1);
+  private marksLayer = new Container();
+  private marks: Sprite[] = [];
+  private markIdx = 0;
+  private lastMark = new Map<string, number>();
+  private markTex: Texture | null = null;
+  private seenEvents = 0;
+  // ralenti
+  private frames: ReplayFrame[] = [];
+  private replay: { i: number; end: number; speed: number } | null = null;
+  /** Fin du ralenti (pour l'interface). */
+  onReplayEnd: (() => void) | null = null;
   /** Fraction (0..1) du pas de simulation écoulée, pour interpoler les positions. */
   alpha = 0;
   fps = 0;
@@ -94,7 +115,7 @@ export class RaceRenderer {
     const theme = THEMES[this.track.def.theme];
     await this.app.init({
       resizeTo: host,
-      background: theme.bg,
+      background: this.track.def.night ? '#0b1026' : theme.bg,
       antialias: !eco,
       resolution: eco ? 1 : Math.min(window.devicePixelRatio || 1, 2),
       autoDensity: true,
@@ -107,6 +128,8 @@ export class RaceRenderer {
     this.app.ticker.maxFPS = this.opts.fpsCap;
     this.app.stage.addChild(this.world, this.overlay, this.mini);
     this.buildScenery();
+    this.world.addChild(this.marksLayer);
+    if (this.track.def.night) this.buildNight();
     this.world.addChild(this.carsLayer, this.fxLayer);
     this.buildCars();
     this.buildMinimap();
@@ -672,7 +695,9 @@ export class RaceRenderer {
 
   private carTexture(e: SimCar['e']): Texture {
     const c1 = hex(e.color), c2 = hex(e.color2);
+    const holder = new Container();
     const g = new Graphics();
+    holder.addChild(g);
     const S = CAR_PX;
     const L = CAR_LEN * S, W = 1.9 * S;
     // repère : x vers l'avant, centré en (0,0)
@@ -695,8 +720,26 @@ export class RaceRenderer {
     g.ellipse(-0.1 * S, 0, 0.55 * S, 0.27 * S).fill(INK);
     g.circle(0.0, 0, 0.2 * S).fill(0xf4f1ea);
     g.circle(0.04 * S, 0, 0.12 * S).fill(c2);
-    const tex = this.app.renderer.generateTexture({ target: g, resolution: 1, antialias: true });
-    g.destroy();
+    // numéro de course sur le capot moteur (pastille blanche)
+    g.circle(-1.25 * S, 0, 0.36 * S).fill(0xf4f1ea).stroke({ width: 0.06 * S, color: INK });
+    const num = new Text({ text: String(e.number), style: { fontFamily: 'Bangers, Impact, sans-serif', fontSize: 0.5 * S, fill: INK } });
+    num.anchor.set(0.5);
+    num.rotation = Math.PI / 2;
+    num.position.set(-1.25 * S, 0);
+    holder.addChild(num);
+    // sponsor principal sur les pontons
+    const liv = this.opts.liveries?.[e.teamId];
+    if (liv) {
+      for (const side of [-1, 1]) {
+        g.rect(-1.05 * S, side * 0.42 * S - 0.12 * S, 1.2 * S, 0.24 * S).fill(hex(liv.color));
+        const t = new Text({ text: liv.sponsor.split(' ')[0].toUpperCase().slice(0, 7), style: { fontFamily: 'Barlow Condensed, Arial Narrow, sans-serif', fontWeight: '700', fontSize: 0.2 * S, fill: 0xffffff } });
+        t.anchor.set(0.5);
+        t.position.set(-0.45 * S, side * 0.42 * S);
+        holder.addChild(t);
+      }
+    }
+    const tex = this.app.renderer.generateTexture({ target: holder, resolution: 1, antialias: true });
+    holder.destroy({ children: true });
     void L; void W;
     return tex;
   }
@@ -717,10 +760,11 @@ export class RaceRenderer {
       this.puffPool.push(sp);
     }
     for (const c of this.sim.cars) {
-      let tex = texCache.get(c.e.teamId);
+      // une texture par voiture : chacune porte son numéro
+      let tex = texCache.get(c.id);
       if (!tex) {
         tex = this.carTexture(c.e);
-        texCache.set(c.e.teamId, tex);
+        texCache.set(c.id, tex);
       }
       const root = new Container();
       const shadow = new Graphics().roundRect(-CAR_LEN / 2, -1.0, CAR_LEN, 2.0, 0.8).fill({ color: 0x000000, alpha: 0.32 });
@@ -775,10 +819,73 @@ export class RaceRenderer {
   }
 
   private carPos(c: SimCar, out: { x: number; y: number }): void {
+    const r = this.replayState(c);
+    if (r) {
+      worldPos(this.track, r.s, r.lat, out);
+      return;
+    }
     const a = this.alpha;
     const s = c.prevS + (c.s - c.prevS) * a;
     const lat = c.prevLat + (c.lat - c.prevLat) * a;
     worldPos(this.track, s, lat, out);
+  }
+
+  /** Position (et déplacement) d'une voiture dans le ralenti en cours, sinon null. */
+  private replayState(c: SimCar): { s: number; lat: number; ds: number; dl: number; out: boolean } | null {
+    const rp = this.replay;
+    if (!rp) return null;
+    const k = Math.min(this.frames.length - 2, Math.floor(rp.i));
+    const f = rp.i - k;
+    const a = this.frames[k], b = this.frames[k + 1];
+    const j = c.idx;
+    return {
+      s: a.s[j] + (b.s[j] - a.s[j]) * f,
+      lat: a.lat[j] + (b.lat[j] - a.lat[j]) * f,
+      ds: b.s[j] - a.s[j],
+      dl: b.lat[j] - a.lat[j],
+      out: !!b.out[j],
+    };
+  }
+
+  /** Enregistre l'état courant (à appeler après chaque pas de simulation). 20 s gardées. */
+  recordFrame(): void {
+    if (this.replay) return;
+    const n = this.sim.cars.length;
+    const f: ReplayFrame = { t: this.sim.t, s: new Float32Array(n), lat: new Float32Array(n), out: new Uint8Array(n) };
+    this.sim.cars.forEach((c, i) => {
+      f.s[i] = c.s;
+      f.lat[i] = c.lat;
+      f.out[i] = c.status === 'dnf' ? 1 : 0;
+    });
+    this.frames.push(f);
+    if (this.frames.length > 200) this.frames.shift();
+  }
+
+  /** Vrai si l'instant t est encore dans la mémoire du ralenti. */
+  canReplay(t: number): boolean {
+    return this.frames.length > 20 && t - 4 >= this.frames[0].t - 0.05 && t <= this.frames[this.frames.length - 1].t;
+  }
+
+  /** Ralenti de t-4 s à t+2 s, au tiers de la vitesse, centré sur une voiture. */
+  startReplay(t: number, carId?: string): boolean {
+    if (!this.canReplay(t)) return false;
+    const from = this.frames.findIndex((f) => f.t >= t - 4);
+    let to = this.frames.findIndex((f) => f.t >= t + 2);
+    if (to < 0) to = this.frames.length - 1;
+    this.replay = { i: Math.max(0, from), end: to, speed: 0.33 };
+    if (carId) this.setMode('suivre', carId);
+    return true;
+  }
+
+  stopReplay(): void {
+    if (!this.replay) return;
+    this.replay = null;
+    this.frames = [];
+    this.onReplayEnd?.();
+  }
+
+  get replaying(): boolean {
+    return !!this.replay;
   }
 
   // ------------------------------------------------------------ image par image
@@ -788,6 +895,10 @@ export class RaceRenderer {
     const t = this.track;
     const sw = this.app.screen.width, sh = this.app.screen.height;
     this.fps = this.fps * 0.9 + (1000 / Math.max(1, dtMs)) * 0.1;
+    if (this.replay) {
+      this.replay.i += (dtMs / 100) * this.replay.speed;
+      if (this.replay.i >= this.replay.end) this.stopReplay();
+    }
     // Caméra
     let tz = this.cam.z;
     if (this.mode === 'tv') this.tvDirector(dtMs);
@@ -836,9 +947,10 @@ export class RaceRenderer {
       v.root.visible = detailed;
       v.root.position.set(p.x, p.y);
       // cap : direction du tracé + composante latérale
-      const ds = c.s - c.prevS;
-      const dl = c.lat - c.prevLat;
-      const { i } = locate(t, c.prevS + ds * this.alpha);
+      const rs = this.replayState(c);
+      const ds = rs ? rs.ds : c.s - c.prevS;
+      const dl = rs ? rs.dl : c.lat - c.prevLat;
+      const { i } = locate(t, rs ? rs.s : c.prevS + ds * this.alpha);
       let head = t.heading[i];
       if (ds > 0.05) head -= Math.atan2(dl, ds);
       if (c.errKind === 3 && c.errTimer > 0) head += (5 - c.errTimer) * 2.6; // tête-à-queue
@@ -867,13 +979,22 @@ export class RaceRenderer {
       if (detailed && onScreen && c.damage && Math.random() < (c.damage === 2 ? 0.5 : 0.15)) {
         this.puff(p.x - Math.cos(head) * 2, p.y - Math.sin(head) * 2, c.damage === 2 ? 0xffb000 : 0x555555, 0.5);
       }
-      v.rearLight.visible = detailed && wet && c.status !== 'dnf' && Math.floor(this.sim.t * 4) % 2 === 0;
+      // traces de pneus : blocages, sorties, envol au départ
+      const launching = this.sim.t > this.sim.lightsOut && this.sim.t < this.sim.lightsOut + 1.6;
+      if (!rs && detailed && (launching || (c.errKind > 0 && c.errTimer > 0 && c.v > 4))) this.tyreMark(c, p.x, p.y, head);
+      // étincelles : fond plat à haute vitesse, crevaison
+      if (!rs && detailed && onScreen && !eco && ((c.v > 72 && Math.random() < 0.025) || (c.damage === 2 && Math.random() < 0.4))) {
+        for (let k = 0; k < 3; k++) this.puff(p.x - Math.cos(head) * 2.6, p.y - Math.sin(head) * 2.6, 0xffc23d, 0.22);
+      }
+      const night = !!this.track.def.night;
+      v.rearLight.visible = detailed && c.status !== 'dnf' && (night || (wet && Math.floor(this.sim.t * 4) % 2 === 0));
       if (v.rearLight.visible) v.rearLight.position.set(-Math.cos(head) * 2.7, -Math.sin(head) * 2.7 - 0.5 / TILT);
       if (wet && detailed && onScreen && !eco && c.v > 25 && Math.random() < 0.35) {
         this.puff(p.x - Math.cos(head) * 3.5, p.y - Math.sin(head) * 3.5, 0xe3ebf2, 0.6 + c.v / 160);
       }
     });
     this.carsLayer.sortableChildren = true;
+    this.contactSparks();
     this.updateSafetyCar(sw, sh, z, detailed);
     this.updatePuffs(dtMs);
     this.updateCrews();
@@ -908,6 +1029,68 @@ export class RaceRenderer {
       }
       if (drops) r.stroke({ width: 1.2, color: 0xcfe3f5, alpha: 0.55 });
     }
+  }
+
+  private tyreMark(c: SimCar, x: number, y: number, head: number): void {
+    const last = this.lastMark.get(c.id) ?? -99;
+    if (Math.abs(c.s - last) < 2.5) return;
+    this.lastMark.set(c.id, c.s);
+    if (!this.markTex) {
+      const g = new Graphics().rect(0, 0, 10, 3).fill(0x111111);
+      this.markTex = this.app.renderer.generateTexture({ target: g, resolution: 1 });
+    }
+    const cap = this.opts.quality === 'economie' ? 80 : 240;
+    let m = this.marks[this.markIdx];
+    if (!m) {
+      m = new Sprite(this.markTex);
+      m.anchor.set(0.5);
+      m.scale.set(0.32, 0.25);
+      this.marksLayer.addChild(m);
+      this.marks.push(m);
+    }
+    this.markIdx = (this.markIdx + 1) % cap;
+    m.position.set(x - Math.cos(head) * 1.6, y - Math.sin(head) * 1.6);
+    m.rotation = head;
+    m.alpha = 0.35;
+  }
+
+  /** Gerbe d'étincelles à chaque nouveau contact annoncé par le moteur. */
+  private contactSparks(): void {
+    const ev = this.sim.events;
+    for (; this.seenEvents < ev.length; this.seenEvents++) {
+      const e = ev[this.seenEvents];
+      if (e.kind !== 'contact' || !e.carId) continue;
+      const c = this.sim.car(e.carId);
+      if (!c) continue;
+      this.carPos(c, this.tmp);
+      for (let k = 0; k < 10; k++) this.puff(this.tmp.x + (Math.random() - 0.5) * 3, this.tmp.y + (Math.random() - 0.5) * 3, 0xffb000, 0.25);
+    }
+  }
+
+  /** Course de nuit : décor assombri, projecteurs le long de la piste, halos lumineux. */
+  private buildNight(): void {
+    const t = this.track, b = t.bounds;
+    const dark = new Graphics().rect(b.minX - 1200, b.minY - 1200, b.maxX - b.minX + 2400, b.maxY - b.minY + 2400).fill({ color: 0x070b24, alpha: 0.7 });
+    this.world.addChild(dark);
+    // halos des projecteurs sur la piste (additifs)
+    // piste éclairée : bande lumineuse chaude continue (plus intense au centre)
+    const pools = this.segments((g, i0, i1) => {
+      const pts = this.edge(0, i0, i1 + 2, 2);
+      g.poly(pts, false).stroke({ width: (t.half + 10) * 2, color: 0xffd98a, alpha: 0.1, join: 'round', cap: 'butt' });
+      g.poly(pts, false).stroke({ width: t.half * 2, color: 0xfff1c4, alpha: 0.12, join: 'round', cap: 'butt' });
+    });
+    pools.blendMode = 'add';
+    // mâts d'éclairage
+    this.segments((g, i0, i1) => {
+      const step = Math.max(1, Math.round(90 / t.ds));
+      for (let i = i0 - (i0 % step); i < i1; i += step) {
+        const side = (i / step) % 2 ? 1 : -1;
+        const x = t.x[i] + t.nx[i] * (t.half + 11) * side, y = t.y[i] + t.ny[i] * (t.half + 11) * side;
+        g.rect(x - 0.25, y - 14 / TILT, 0.5, 14 / TILT).fill(0x3a3f4a);
+        g.circle(x, y - 14 / TILT, 1.1).fill(0xfff6d8);
+        g.circle(x, y - 14 / TILT, 3).fill({ color: 0xfff1c4, alpha: 0.25 });
+      }
+    });
   }
 
   private puff(x: number, y: number, color: number, size = 1): void {
@@ -964,7 +1147,8 @@ export class RaceRenderer {
 
   private updateLights(sw: number): void {
     const t = this.sim.t, out = this.sim.lightsOut;
-    const lit = t >= out ? 0 : Math.min(5, Math.floor(t / LIGHTS_ON) + 1);
+    const ls = this.sim.lightsStart;
+    const lit = t >= out || t < ls || this.sim.formation ? 0 : Math.min(5, Math.floor((t - ls) / LIGHTS_ON) + 1);
     if (this.gantry) {
       const g = this.gantry;
       g.clear();
@@ -977,7 +1161,7 @@ export class RaceRenderer {
     if (!this.lights) return;
     const L = this.lights;
     L.clear();
-    if (t > out + 1.5) {
+    if (t > out + 1.5 || this.sim.formation || t < this.sim.lightsStart - 0.5) {
       L.visible = false;
       return;
     }

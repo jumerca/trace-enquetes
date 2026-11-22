@@ -1,7 +1,7 @@
 {
   "name": "racing-dynasty",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Racing Dynasty — management d'écurie de monoplaces — JLG Creative",
   "scripts": {

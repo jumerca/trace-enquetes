@@ -1,6 +1,23 @@
 # Racing Dynasty — Tests réellement effectués et limites constatées
 
-## V0.3 (dernière version)
+## V0.4 (dernière version)
+
+* `npm test` : **41/41**. Nouveaux tests de gestion (`tests/management.test.ts`) : recrutement du chef mécanicien
+  (effet sur les arrêts), projet de R&D sur plusieurs GP, négociation de sponsor (refus, rupture, contrat de 3 saisons
+  conservé à l'intersaison), académie (signature, progression, passage en réserve), forfait d'un titulaire remplacé
+  par le réserviste puis retour, moral et prolongation, saison complète de 8 GP (statistiques : 8 victoires,
+  8 poles, 1 titre ; grilles IA complètes après les transferts ; marché du personnel renouvelé), migration d'une
+  carrière V0.3 (schéma 2 → 3).
+* Tour de formation simulé sur les 8 circuits : 0 chevauchement, chaque voiture revient exactement sur sa case,
+  durée 2 à 2,7 min en ×1 (bouton « Passer »).
+* E2E Chromium sur PC (saison entière de **8 GP**, négociation de sponsor, académie, usine, palmarès, saison 2),
+  Android paysage et portrait, tablette : réussi, ralenti lancé depuis le fil d'événements, aucune erreur console.
+  PWA hors ligne : OK. Rendu de nuit (Lumen) vérifié sur capture.
+* Images/s dans ce conteneur sans GPU, qualité Haute forcée : 5 à 9 i/s — non représentatif d'un téléphone ;
+  la mesure sur appareil réel reste à faire.
+* Non vérifiable ici : la musique et le son (synthèse WebAudio, testée seulement sans erreur).
+
+## V0.3
 
 * `npm test` : **29/29**. Nouveaux tests (`tests/race-depth.test.ts`) : reprise par instantané identique au déroulé
   continu (avec averse et consignes), voiture de sécurité sans chevauchement ni dépassement pendant la

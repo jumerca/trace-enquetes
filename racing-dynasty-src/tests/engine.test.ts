@@ -22,7 +22,7 @@ const cfg = (trackId: string, seed: number, weather: 'sec' | 'pluie' = 'sec'): R
 
 describe('circuits', () => {
   it('trois circuits fermés de longueur réaliste', () => {
-    expect(TRACK_DEFS).toHaveLength(5);
+    expect(TRACK_DEFS).toHaveLength(8);
     for (const d of TRACK_DEFS) {
       const t = getTrack(d.id);
       expect(t.length).toBeGreaterThan(2500);
