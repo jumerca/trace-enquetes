@@ -13,3 +13,7 @@ Aventure narrative 2,5D illustrée de JLG Creative — Prologue : La Route effac
 ## Rugby Manager 27 — V2.0
 
 Jeu de gestion de rugby à XV de JLG Creative avec moteur de match 2D multi-agents : `rugby-manager-27/` (PWA à la racine du dossier, version autonome dans `rugby-manager-27/dist/`, sources dans `rugby-manager-27/src/`, rapports de modifications et de tests dans le dossier).
+
+## Racing Dynasty — V0.1
+
+Jeu de management d'écurie de monoplaces de JLG Creative, rendu BD 2,5D (React + PixiJS + TypeScript + Vite) : `racing-dynasty/` (build publié, PWA), sources dans `racing-dynasty-src/` (voir son README, `RAPPORT_TESTS_ET_LIMITES.md` et `PUBLICATION.md` pour Vercel).
