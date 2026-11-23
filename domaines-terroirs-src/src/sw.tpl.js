@@ -1,7 +1,9 @@
 // Service worker — Domaines & Terroirs. Généré au build : ne pas modifier dist/sw.js à la main.
 // Il ne touche jamais au IndexedDB : les sauvegardes survivent à toutes les mises à jour.
 const BUILD = '__BUILD__';
-const CACHE = 'domaines-terroirs-' + BUILD;
+// un cache par adresse d'installation (plusieurs copies du jeu peuvent coexister sur le même site)
+const PREFIX = 'domaines-terroirs-' + self.registration.scope + '-';
+const CACHE = PREFIX + BUILD;
 const ASSETS = __ASSETS__;
 
 self.addEventListener('install', (e) => {
@@ -11,7 +13,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('domaines-terroirs-') && k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => (k.startsWith(PREFIX) || /^domaines-terroirs-\d/.test(k)) && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
