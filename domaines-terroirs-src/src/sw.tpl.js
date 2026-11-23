@@ -31,7 +31,8 @@ self.addEventListener('fetch', (e) => {
   }
   // Navigation : réseau d'abord (nouvelle version dès qu'en ligne), cache hors ligne.
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(() => caches.match('index.html')));
+    // no-store : jamais de page d'accueil périmée venant du cache HTTP (GitHub Pages la garde 10 min)
+    e.respondWith(fetch(req, { cache: 'no-store' }).catch(() => caches.match('index.html')));
     return;
   }
   e.respondWith(

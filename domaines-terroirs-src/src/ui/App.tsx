@@ -7,6 +7,8 @@ import { Logo } from './Logo';
 import { Icon } from './icons';
 import { GameScreen } from './GameScreen';
 import { loadSettings, saveSettings, type Settings } from './settings';
+import { applyUpdate, onUpdateReady } from '../update';
+import { saveSlot } from '../save/save';
 
 type Modal = null | 'nouvelle' | 'charger' | 'reglages' | 'credits' | 'installer';
 
@@ -25,6 +27,18 @@ export function App() {
   const [region, setRegion] = useState('limousin');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [update, setUpdate] = useState(false);
+  const stateRef = useRef<GameState | null>(null);
+  stateRef.current = state;
+  // nouvelle version : au menu, on recharge tout de suite ; en partie, on propose (sauvegarde d'abord)
+  useEffect(
+    () =>
+      onUpdateReady(() => {
+        if (!stateRef.current) applyUpdate();
+        else setUpdate(true);
+      }),
+    [],
+  );
   const refreshSlots = () => listSlots().then(setSlots).catch(() => setSlots([]));
   useEffect(() => {
     refreshSlots();
@@ -63,8 +77,25 @@ export function App() {
     saveSettings(s);
   };
 
+  const banner = update && (
+    <div className="update-banner" role="status">
+      <span>Une nouvelle version du jeu est disponible.</span>
+      <button
+        className="btn small primary"
+        onClick={() => {
+          const s = (window as unknown as { __dt?: { sim: { s: GameState } } }).__dt?.sim.s;
+          (s ? saveSlot('auto', s) : Promise.resolve()).finally(applyUpdate);
+        }}
+      >
+        Mettre à jour (partie sauvegardée)
+      </button>
+    </div>
+  );
+
   if (state)
     return (
+      <>
+      {banner}
       <GameScreen
         key={gameKey}
         initial={state}
@@ -76,6 +107,7 @@ export function App() {
         }}
         onLoad={start}
       />
+      </>
     );
 
   const auto = slots.find((s) => s.slot === 'auto') ?? slots[0];

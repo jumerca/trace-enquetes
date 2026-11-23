@@ -184,3 +184,5 @@ small { font-size: 0.82em; }
 
 .hud-group.perf { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .hud-group.perf small { font-size: 0.7rem; color: var(--encre-2); }
+
+.update-banner { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); top: calc(8px + var(--safe-t)); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 16px); padding: 8px 12px; background: var(--parchemin); border: 2px solid var(--vert); border-radius: 14px; box-shadow: var(--ombre); font-weight: 600; }
