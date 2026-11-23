@@ -312,6 +312,64 @@ export function van(phase: number) {
   return t;
 }
 
+/** Faneuse rotative (prairies) : rotors à dents. */
+export function tedder(phase: number) {
+  const t = new THREE.Group();
+  box(t, 0.08, 0.06, 1.3, 0xc4332b, 0, 0.32, 0, 0.01);
+  box(t, 0.5, 0.05, 0.06, 0xc4332b, 0.25, 0.3, 0, 0.01);
+  for (const z of [-0.45, -0.15, 0.15, 0.45]) {
+    const r = new THREE.Group();
+    add(r, new THREE.CylinderGeometry(0.03, 0.03, 0.2, 6), toon(0x3a3632), 0, 0.2, 0);
+    for (let k = 0; k < 6; k++) {
+      const a = phase * 3 + (k / 6) * Math.PI * 2;
+      const arm = box(r, 0.28, 0.02, 0.02, 0xe0b020, Math.cos(a) * 0.12, 0.1, Math.sin(a) * 0.12, 0);
+      arm.rotation.y = -a;
+    }
+    r.position.set(-0.05, 0, z);
+    t.add(r);
+  }
+  return t;
+}
+
+/** Arracheuse (pommes de terre, betteraves, lin) : trémie et tapis. */
+export function lifter(phase: number) {
+  const t = new THREE.Group();
+  for (const z of [-0.32, 0.32]) wheel(t, 0.17, 0.12, 0xd8d2c4, -0.1, 0.17, z, phase);
+  box(t, 0.7, 0.32, 0.56, 0x2f6a9a, -0.1, 0.42, 0, 0.04);
+  box(t, 0.66, 0.16, 0.5, 0x8a6a42, -0.1, 0.62, 0, 0.02); // récolte dans la trémie
+  const belt = box(t, 0.5, 0.04, 0.4, 0x3a3632, 0.32, 0.24, 0, 0.01);
+  belt.rotation.z = -0.35;
+  box(t, 0.4, 0.05, 0.06, 0x2f6a9a, 0.4, 0.32, 0, 0.01);
+  return t;
+}
+
+/** Car de tourisme de la navette. */
+export function coach(phase: number) {
+  const t = new THREE.Group();
+  for (const [x, z] of [[0.75, 0.3], [0.75, -0.3], [-0.6, 0.3], [-0.6, -0.3]]) wheel(t, 0.13, 0.1, 0xb8b8b8, x, 0.13, z, phase, false);
+  box(t, 2.0, 0.62, 0.62, 0xf0ece2, 0, 0.48, 0, 0.07);
+  box(t, 2.02, 0.08, 0.63, 0x2a7a3a, 0, 0.3, 0, 0.02);
+  box(t, 2.02, 0.04, 0.63, 0xe0b020, 0, 0.36, 0, 0.01);
+  box(t, 1.7, 0.2, 0.635, toon(0x6a8aa8, { glass: true }), -0.1, 0.6, 0, 0.02);
+  box(t, 0.04, 0.34, 0.56, toon(0x9cc8e0, { glass: true }), 1.0, 0.56, 0, 0.02);
+  box(t, 1.9, 0.04, 0.56, 0xd8d4cc, 0, 0.81, 0, 0.02);
+  for (const z of [-0.2, 0.2]) box(t, 0.02, 0.04, 0.08, toon(0xfff4c8, { emissive: 0x605020 }), 1.0, 0.3, z, 0.005);
+  return t;
+}
+
+/** Utilitaire plateau bâché (tournées au marché). */
+export function pickup(phase: number) {
+  const t = new THREE.Group();
+  for (const [x, z] of [[0.45, 0.27], [0.45, -0.27], [-0.42, 0.27], [-0.42, -0.27]]) wheel(t, 0.12, 0.09, 0xb8b8b8, x, 0.12, z, phase, false);
+  box(t, 0.42, 0.42, 0.56, 0xf0eee8, 0.42, 0.38, 0, 0.06);
+  box(t, 0.04, 0.18, 0.5, toon(0x9cc8e0, { glass: true }), 0.63, 0.48, 0, 0.02);
+  box(t, 0.84, 0.08, 0.58, 0x5a5a58, -0.24, 0.24, 0, 0.01);
+  box(t, 0.8, 0.36, 0.56, 0x3a6a4a, -0.24, 0.46, 0, 0.05); // bâche
+  box(t, 0.5, 0.1, 0.565, 0xf0e8d0, -0.24, 0.5, 0, 0.01); // bandeau « produits de la ferme »
+  for (const z of [-0.2, 0.2]) box(t, 0.02, 0.04, 0.08, toon(0xfff4c8, { emissive: 0x605020 }), 0.64, 0.3, z, 0.005);
+  return t;
+}
+
 export function car(color: number, phase: number) {
   const t = new THREE.Group();
   for (const [x, z] of [[0.3, 0.24], [0.3, -0.24], [-0.3, 0.24], [-0.3, -0.24]]) wheel(t, 0.1, 0.07, 0xc8c8c8, x, 0.1, z, phase, false);

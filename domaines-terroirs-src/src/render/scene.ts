@@ -116,6 +116,12 @@ export class Scene {
   fx = new Container();
   night = new Graphics();
   rain = new Graphics();
+  /** ombres de nuages (monde) et brume (écran) */
+  clouds = new Container();
+  fog = new Container();
+  private cloudSprites: Sprite[] = [];
+  private fogSprites: Sprite[] = [];
+  private flash = 0;
   groundAtlas = new Atlas();
   objectAtlas = new Atlas();
   staticAtlas = new Atlas();
@@ -179,9 +185,9 @@ export class Scene {
       this.mark('rendu', t0);
       return r;
     }) as typeof render;
-    this.world.addChild(this.ground, this.roads, this.marks, this.objects);
+    this.world.addChild(this.ground, this.roads, this.marks, this.objects, this.clouds);
     this.objects.sortableChildren = true;
-    this.fx.addChild(this.rain, this.night);
+    this.fx.addChild(this.fog, this.rain, this.night);
     this.season = seasonOf(this.sim.s.minute);
     await this.buildingAtlas.load('./sprites', `batiments-${this.sim.s.region}`).catch(() => undefined);
     buildStaticAtlas(this.staticAtlas, (k) => this.buildingAtlas.map.has(k));
@@ -795,6 +801,7 @@ export class Scene {
         this.objects.addChild(sp);
       }
       sp.visible = true;
+      sp.alpha = 1;
       a = { sp, key: '', depth: 0, x0: 0, y0: 0, x1: 0, y1: 0 };
       this.agents.set(id, a);
     }
@@ -807,6 +814,7 @@ export class Scene {
 
   private vehicleKey(v: Vehicle, d: number, f: number): string {
     if (v.kind === 'moissonneuse' || v.kind === 'vendangeuse' || v.kind === 'camionnette' || v.kind === 'betaillere') return `${v.kind}:${d}:${f}`;
+    if (v.kind === 'bus' || v.kind === 'utilitaire') return this.vehicleAtlas.map.has(`${v.kind}:${d}:${f}`) ? `${v.kind}:${d}:${f}` : `camionnette:${d}:${f}`;
     if (v.kind === 'voiture') return `voiture:${v.look % 3}:${d}:${f}`;
     const livery = LIVERIES[v.look % 3];
     let tool = v.tool;
@@ -815,12 +823,45 @@ export class Scene {
       tool = !r ? 'remorque-vide' : ['pommes', 'prunes', 'mirabelles', 'raisin', 'olives', 'betterave', 'pommes_de_terre', 'legumes'].includes(r) ? 'remorque-pommes' : 'remorque-ble';
     }
     if (livery !== 'rouge' && (tool === 'remorque-pommes' || tool === 'remorque-foin')) tool = 'remorque-ble';
-    if (!['seul', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
+    if (!['seul', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'faneuse', 'arracheuse', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
     return `tracteur:${livery}:${tool}:${d}:${f}`;
+  }
+
+  /**
+   * Passage d'une porte : en entrant, la personne marche jusqu'au seuil et s'efface dans le bâtiment ;
+   * en sortant, elle apparaît sur le seuil et rejoint sa position. null = invisible (à l'intérieur).
+   */
+  private presence = new Map<string, { hidden: boolean; t: number; b?: number; x: number; y: number }>();
+  private doorway(id: string, hidden: boolean, inside: number | undefined, x: number, y: number) {
+    let st = this.presence.get(id);
+    if (!st) this.presence.set(id, (st = { hidden, t: -1e9, b: inside, x, y }));
+    if (hidden !== st.hidden) {
+      st.hidden = hidden;
+      st.t = this.time;
+      if (inside != null) st.b = inside;
+    }
+    if (!hidden) {
+      st.x = x;
+      st.y = y;
+    }
+    const DUR = 650;
+    const k = (this.time - st.t) / DUR;
+    const b = st.b != null ? this.sim.s.buildings.find((q) => q.id === st!.b) : undefined;
+    if (k >= 1 || !b || defOf(b).kind === 'enclos') return hidden ? null : { x, y, dx: 0, dy: 0, alpha: 1, moving: false };
+    // seuil : sur la façade, au droit de la porte (un peu à l'intérieur)
+    const [dx, dy] = doorOf(b);
+    const ex = b.rot === 1 ? dx - 0.75 : dx, ey = b.rot === 1 ? dy : dy - 0.75;
+    const [fx, fy, tx, ty] = hidden ? [st.x, st.y, ex, ey] : [ex, ey, x, y];
+    const e = Math.min(1, Math.max(0, k));
+    return { x: fx + (tx - fx) * e, y: fy + (ty - fy) * e, dx: tx - fx, dy: ty - fy, alpha: hidden ? 1 - e * e : Math.min(1, e * 1.6), moving: true };
   }
 
   private updateAgents(alpha: number) {
     const s = this.sim.s;
+    if (this.presence.size > 400) {
+      const live = new Set([...s.workers.map((w) => 'w' + w.id), ...s.visitors.map((v) => 'v' + v.id)]);
+      for (const k of this.presence.keys()) if (!live.has(k)) this.presence.delete(k);
+    }
     const seen = new Set<string>();
     const walkFrame = (id: number) => [1, 0, 2, 0][Math.floor((this.time / 150 + id) % 4)];
     const put = (o: Obj, x: number, y: number, depthBias = 0.02) => {
@@ -852,13 +893,15 @@ export class Scene {
     };
     for (const w of s.workers) {
       const id = 'w' + w.id;
-      if (w.hidden) continue;
+      const door = this.doorway(id, w.hidden && w.vehicle == null, w.inside, lerp(w.px, w.x), lerp(w.py, w.y));
+      if (!door) continue;
       seen.add(id);
-      const moving = w.x !== w.px || w.y !== w.py;
+      const moving = door.moving || w.x !== w.px || w.y !== w.py;
       const working = !moving && w.timer > 0 && ['pick', 'process', 'field', 'take', 'put'].includes(w.steps[0]?.k ?? '');
       const fr = moving ? walkFrame(w.id) : working ? 3 + (Math.floor(this.time / 300) % 2) : 0;
-      const { o, front, heading } = personSprite(id, w.role, w.dir, w.x - w.px, w.y - w.py, fr);
-      put(o, lerp(w.px, w.x), lerp(w.py, w.y));
+      const { o, front, heading } = personSprite(id, w.role, w.dir, door.dx, door.dy, fr);
+      put(o, door.x, door.y);
+      o.sp.alpha = door.alpha;
       if (w.carry) {
         if (!o.carry) {
           o.carry = (o.sp.children[0] as Sprite | undefined) ?? new Sprite();
@@ -876,11 +919,14 @@ export class Scene {
     }
     for (const v of s.visitors) {
       const id = 'v' + v.id;
-      seen.add(id);
-      const moving = v.x !== v.px || v.y !== v.py;
-      const { o } = personSprite(id, `v${v.look}`, v.dir, v.x - v.px, v.y - v.py, moving ? walkFrame(v.id) : 0);
       const j = (hash2(v.id, 3, 1) - 0.5) * 0.5;
-      put(o, lerp(v.px, v.x) + j, lerp(v.py, v.y) - j);
+      const door = this.doorway(id, v.hidden, v.inside, lerp(v.px, v.x) + j, lerp(v.py, v.y) - j);
+      if (!door) continue;
+      seen.add(id);
+      const moving = door.moving || v.x !== v.px || v.y !== v.py;
+      const { o } = personSprite(id, `v${v.look}`, v.dir, door.dx, door.dy, moving ? walkFrame(v.id) : 0);
+      put(o, door.x, door.y);
+      o.sp.alpha = door.alpha;
     }
     for (const v of s.vehicles) {
       const id = 'veh' + v.id;
@@ -900,7 +946,7 @@ export class Scene {
       const id = 'a' + a.id;
       seen.add(id);
       const moving = a.x !== a.px || a.y !== a.py;
-      if (has3d && a.kind !== 'ruche') {
+      if (has3d && a.kind !== 'ruche' && this.livingAtlas.map.has(`aa:${a.kind}:0:0:0`)) {
         const h = headingOf(id, a.x - a.px, a.y - a.py, a.dir);
         // à l'arrêt, les herbivores broutent la moitié du temps
         const graze = !moving && hash2(a.id, Math.floor(this.time / 2600), 7) < 0.55;
@@ -913,7 +959,8 @@ export class Scene {
       }
       const fr = a.kind === 'ruche' ? Math.floor(this.time / 400 + a.id) % 2 : moving ? Math.floor(this.time / 220 + a.id) % 2 : 0;
       const [f, sx] = face(a.dir);
-      const o = this.agentSprite(id, a.kind === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${a.kind}:${a.look}:${a.kind === 'ruche' ? 0 : f}:${fr}`);
+      const k2 = ({ limousine: 'vache', cheval: 'vache', ane: 'chevre', oie: 'canard', lapin: 'poule' } as Record<string, string>)[a.kind] ?? a.kind;
+      const o = this.agentSprite(id, k2 === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${k2}:${a.look}:${k2 === 'ruche' ? 0 : f}:${fr}`);
       o.sp.scale.x = a.kind === 'ruche' ? 1 : a.kind === 'poule' ? (a.dir === 1 || a.dir === 2 ? -1 : 1) : sx;
       put(o, lerp(a.px, a.x) - 0.5, lerp(a.py, a.y) - 0.5, 0.01);
     }
@@ -1035,7 +1082,27 @@ export class Scene {
       this.night.rect(0, 0, w, h);
       this.night.fill({ color: a > 0.02 ? col : 0x30384a, alpha: Math.min(0.62, a + weatherDim) });
     }
+    this.updateSky(hour);
     this.rain.clear();
+    if (s.weather === 'orage') {
+      // éclairs : flash blanc bref et irrégulier
+      if (this.flash <= 0 && hash2(Math.floor(this.time / 700), 9, 1) < 0.035) this.flash = 1;
+      if (this.flash > 0) {
+        this.night.rect(0, 0, w, h).fill({ color: 0xffffff, alpha: 0.35 * this.flash });
+        this.flash -= dtMs / 180;
+      }
+    }
+    if (this.season === 2 && (s.weather === 'soleil' || s.weather === 'nuageux')) {
+      // feuilles mortes emportées par le vent
+      const t = this.time / 1000;
+      for (let i = 0; i < 46; i++) {
+        const sp = 30 + hash2(i, 5, 2) * 40;
+        const sx = (hash2(i, 1, 2) * w * 1.2 + t * sp) % (w + 40) - 20;
+        const sy = (hash2(i, 2, 2) * h + t * (18 + hash2(i, 3, 2) * 22) + Math.sin(t * 2 + i) * 10) % h;
+        const c = [0xd8862a, 0xb8502a, 0xe8b03a, 0x9a6a2a][i % 4];
+        this.rain.ellipse(sx, sy, 3.2, 1.6 + Math.abs(Math.sin(t * 3 + i)) * 1.4).fill({ color: c, alpha: 0.85 });
+      }
+    }
     if (s.weather === 'pluie' || s.weather === 'orage' || s.weather === 'neige') {
       const n = s.weather === 'orage' ? 220 : 140;
       const t = this.time / 1000;
@@ -1079,6 +1146,48 @@ export class Scene {
       p.sp.destroy();
       return false;
     });
+  }
+
+  /** Ombres de nuages qui glissent sur le relief ; brume du petit matin dans les creux. */
+  private updateSky(hour: number) {
+    const s = this.sim.s;
+    if (!this.cloudSprites.length) {
+      for (let i = 0; i < 9; i++) {
+        const sp = new Sprite(this.smokeTex);
+        sp.anchor.set(0.5);
+        sp.tint = 0x1a2230;
+        this.clouds.addChild(sp);
+        this.cloudSprites.push(sp);
+      }
+      for (let i = 0; i < 7; i++) {
+        const sp = new Sprite(this.smokeTex);
+        sp.anchor.set(0.5);
+        this.fog.addChild(sp);
+        this.fogSprites.push(sp);
+      }
+    }
+    const cover = { soleil: 0.35, nuageux: 1, pluie: 0.6, orage: 0.5, neige: 0.3 }[s.weather];
+    const z = this.cam.z, { width, height } = this.app.screen;
+    // les nuages suivent la caméra (repère monde) en dérivant avec le vent
+    const span = Math.max(width, height) / z * 1.6;
+    const t = this.time / 1000;
+    this.cloudSprites.forEach((sp, i) => {
+      // position fixe dans le monde (dérive du vent), repliée autour de la caméra
+      const wrap = (base: number, c: number) => c - span / 2 + ((((base - (c - span / 2)) % span) + span) % span);
+      sp.position.set(wrap(hash2(i, 7, 1) * span + t * 14, this.cam.x), wrap(hash2(i, 8, 1) * span + t * 5, this.cam.y));
+      sp.scale.set(9 + hash2(i, 9, 1) * 8, 5 + hash2(i, 10, 1) * 4);
+      sp.alpha = 0.13 * cover * (i < Math.round(9 * cover) ? 1 : 0);
+    });
+    // brume : de l'aube à 9 h, plus dense en automne et en hiver
+    const fogK = hour >= 5 && hour < 9.5 ? Math.min(1, (hour - 5) / 1.2) * Math.min(1, (9.5 - hour) / 1.8) : 0;
+    const dense = fogK * ([0.45, 0.2, 0.8, 0.7][this.season] + (s.weather === 'pluie' || s.weather === 'nuageux' ? 0.25 : 0));
+    this.fog.visible = dense > 0.02;
+    if (this.fog.visible)
+      this.fogSprites.forEach((sp, i) => {
+        sp.position.set(((hash2(i, 11, 1) * width * 1.4 + t * 8) % (width * 1.4)) - width * 0.2, height * (0.25 + hash2(i, 12, 1) * 0.7));
+        sp.scale.set(width / 64 * 0.7, height / 64 * 0.22);
+        sp.alpha = 0.42 * dense;
+      });
   }
 
   // ————— caméra —————

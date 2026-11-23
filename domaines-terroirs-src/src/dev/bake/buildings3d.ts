@@ -847,9 +847,8 @@ export function buildingModel(type: string, st: Style, size: number, dx: number)
       break;
     case 'serre': {
       // tunnel maraîcher sur une parcelle 4×4 (arceaux et bâche translucide)
-      const g = new THREE.CylinderGeometry(1.25, 1.25, 3.6, 18, 1, true, -Math.PI / 2, Math.PI);
-      g.rotateZ(Math.PI / 2);
-      g.rotateY(Math.PI / 2);
+      const g = new THREE.CylinderGeometry(1.25, 1.25, 3.6, 18, 1, true, 0, Math.PI);
+      g.rotateZ(Math.PI / 2); // axe du tunnel selon x, demi-cylindre au-dessus du sol
       g.scale(1, 0.75, 1);
       const glass = new THREE.MeshToonMaterial({ color: 0xe8f4f8, transparent: true, opacity: 0.42, side: THREE.DoubleSide, gradientMap: (toon(0xffffff) as THREE.MeshToonMaterial).gradientMap });
       markRoof(add(p, g, glass, 2.0, 0, 2.0, false));

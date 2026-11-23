@@ -1,4 +1,13 @@
-# Rapport — V0.3 (état au 23/11/2026)
+# Rapport — V0.4 (état au 23/11/2026)
+
+## Nouveautés V0.4 (faites et testées)
+
+- **Bâtiments 3D par région** : chaque bâtiment (≈ 45 types, deux orientations) est modélisé en 3D et cuit en sprites dans l'architecture de la région ; planches WebP d'environ 1 Mo par région, téléchargées seulement pour la région jouée. Calque « neige » des toits affiché en hiver selon l'altitude. Repli dessiné si la planche ne se charge pas.
+- **Entrées et sorties visibles** : un ouvrier qui dépose à la grange, travaille à l'atelier, tient la boutique ou rentre à la maison disparaît par la porte et ressort ensuite ; les touristes entrent dans la boutique, l'accueil, la ferme pédagogique, l'auberge et le gîte (où ils passent la nuit).
+- **Personnages** retravaillés (visage, mains, coiffures, ceinture, bottes, lunettes, barbe, gilet, chapeaux) et nouveaux profils : saisonnier, guide, enfants, randonneur, vacancière. **Animaux** : cheval, âne, oie, lapin, vache limousine (8 directions, marche et pâture).
+- **Climat** : ombres de nuages, brume du matin (plus dense en automne et en hiver), feuilles mortes en automne, éclairs par orage.
+- **Contenu et simulation** : nouvelles cultures, vergers, élevages, ateliers ; gîte et camping (nuitées selon réputation, saison, tourisme), ferme-auberge (repas à 24 € avec 3 produits du stock), visites payantes (balade à cheval, ânes, pêche), ferme pédagogique, navette touristique le week-end, utilitaire de marché tous les 3 jours, quad (éleveur plus rapide), chargeur télescopique, silo (grains seulement), chambre froide, irrigation (+25 % de croissance), panneaux solaires, foin des prairies qui réduit le coût d'alimentation des herbivores ; faneuse et arracheuse attelées au tracteur ; rôles saisonnier (récolte à la main) et guide (accueil, satisfaction).
+
 
 Ce rapport distingue ce qui est **fait et testé** de ce qui est **partiel**, **non commencé** ou **non testé**. Aucune mesure sur téléphone réel n'a pu être faite dans cet environnement.
 
@@ -7,7 +16,7 @@ Ce rapport distingue ce qui est **fait et testé** de ce qui est **partiel**, **
 | Suite | Commande | Résultat |
 |---|---|---|
 | TypeScript strict | `npm run build` | 0 erreur |
-| Unitaires (Vitest) | `npm test` | **45/45** réussis |
+| Unitaires (Vitest) | `npm test` | **51/51** réussis (dont 6 nouveaux : silo, entrées dans les bâtiments, gîte/auberge/navette/centre équestre/ferme pédagogique, marché, foin) |
 | Bout en bout (Playwright, build de prod) | `npm run test:e2e` | **46/46** vérifications (détail : `docs/captures/resultats-e2e.json`) |
 | Performance, processeur bridé ×4 | `node scripts/perf.cjs <url> 4` | voir ci-dessous |
 
@@ -67,8 +76,11 @@ Autres mesures : niveau de détail au dézoom, qualité adaptative, compteur de 
 
 ## Limites honnêtes
 
-1. **Graphismes** : véhicules, personnages et animaux sont désormais des modèles 3D cohérents avec la caméra. Les **bâtiments et les arbres restent peints par code** — cohérents mais en deçà des concept arts. Voir `ASSETS_A_PRODUIRE.md`.
+1. **Graphismes** : véhicules, bâtiments, personnages et animaux sont des modèles 3D cohérents avec la caméra ; les **arbres, cultures et le décor des villages voisins (église, phare) restent peints par code**. Les portes ne s'ouvrent pas : on voit la personne passer le seuil et s'effacer. L'étang ne gèle pas en hiver. Voir `ASSETS_A_PRODUIRE.md`.
+6. Les nouveaux équilibrages (gîte, auberge, marché, solaire) sont testés en simulation accélérée, pas encore en longues parties réelles.
 2. Le relief est continu (collines douces) : pas de falaises verticales franches ni de tunnels ; l'eau est plane par case (petits paliers sur les rivières de montagne).
 3. Les cultures des fermes voisines sont décoratives (elles suivent seulement la saison).
 4. Une sauvegarde V0.1 reprise est réinstallée sur la nouvelle carte : la disposition exacte des bâtiments n'est pas conservée.
 5. Les ruches restent dessinées en 2D.
+
+Captures V0.4 : `docs/captures/v04-ferme-limousin.jpg`, `v04-ferme-est.jpg` (colombages), `v04-hiver-montagne.jpg` (neige sur les toits, pierre et lauzes). Performance V0.4 (processeur bridé ×4, rendu logiciel) : coût JS moyen 2,6 à 5,2 ms par image selon la région et le zoom, du même ordre qu'en V0.3.

@@ -1,10 +1,10 @@
 // Service worker — Domaines & Terroirs. Généré au build : ne pas modifier dist/sw.js à la main.
 // Il ne touche jamais au IndexedDB : les sauvegardes survivent à toutes les mises à jour.
-const BUILD = '0.3.1-202611231142';
+const BUILD = '0.4.0-202611231505';
 // un cache par adresse d'installation (plusieurs copies du jeu peuvent coexister sur le même site)
 const PREFIX = 'domaines-terroirs-' + self.registration.scope + '-';
 const CACHE = PREFIX + BUILD;
-const ASSETS = ["./","assets/CanvasPool-T2wm7Ydg.js","assets/SharedSystems-CsfZWYFN.js","assets/WebGLRenderer-Bv0s8z1l.js","assets/WebGPURenderer-B2scvip6.js","assets/browserAll-D4BQDnc3.js","assets/colorToUniform-KTpA7KSL.js","assets/index-CDVMcLUz.css","assets/index-CTiv5AMj.js","assets/react-DcELUuLK.js","assets/webworkerAll-CXoWbNs9.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","sprites/vehicules-0.png","sprites/vehicules-1.png","sprites/vehicules-2.png","sprites/vehicules.json","sprites/vivants-0.png","sprites/vivants-1.png","sprites/vivants.json","index.html"];
+const ASSETS = ["./","assets/CanvasPool-BzVqgnWw.js","assets/SharedSystems-Bk9MaGI0.js","assets/WebGLRenderer-BEajSIay.js","assets/WebGPURenderer-B6twai-E.js","assets/browserAll-B5Kuvwhd.js","assets/colorToUniform-KTpA7KSL.js","assets/index-CDVMcLUz.css","assets/index-ClqJwHMZ.js","assets/react-DcELUuLK.js","assets/webworkerAll-Da-vtq6_.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","sprites/vehicules-0.png","sprites/vehicules-1.png","sprites/vehicules-2.png","sprites/vehicules-3.png","sprites/vehicules.json","sprites/vivants-0.webp","sprites/vivants-1.webp","sprites/vivants-2.webp","sprites/vivants.json","index.html"];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));

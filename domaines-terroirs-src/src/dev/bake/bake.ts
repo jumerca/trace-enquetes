@@ -1,5 +1,5 @@
 // Page de cuisson des sprites de véhicules : rend tous les modèles en 8 directions et les empaquette.
-import { LIVERIES, car, combine, grapeHarvester, livestockTruck, plough, seeder, shoot, sprayer, spreader, tractor, trailer, van, type Load, type Shot } from './vehicles3d';
+import { LIVERIES, car, coach, pickup, tedder, lifter, combine, grapeHarvester, livestockTruck, plough, seeder, shoot, sprayer, spreader, tractor, trailer, van, type Load, type Shot } from './vehicles3d';
 import * as THREE from 'three';
 import { PEOPLE, animal, person } from './living3d';
 import { buildingModel, buildingSize, regionStyle, shootBuilding } from './buildings3d';
@@ -32,6 +32,14 @@ function rig(livery: keyof typeof LIVERIES, tool: string, phase: number) {
     const t = spreader(phase);
     t.position.x = -1.08;
     g.add(t);
+  } else if (tool === 'faneuse') {
+    const t = tedder(phase);
+    t.position.x = -0.85;
+    g.add(t);
+  } else if (tool === 'arracheuse') {
+    const t = lifter(phase);
+    t.position.x = -0.95;
+    g.add(t);
   } else if (tool === 'pulverisateur') {
     const t = sprayer(phase);
     t.position.x = -1.0;
@@ -44,7 +52,7 @@ function rig(livery: keyof typeof LIVERIES, tool: string, phase: number) {
   return g;
 }
 
-const TOOLS = SET !== 'vehicules' ? [] : ['seul', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin', 'charrue', 'semoir', 'epandeur', 'pulverisateur'];
+const TOOLS = SET !== 'vehicules' ? [] : ['seul', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'faneuse', 'arracheuse'];
 for (let d = 0; d < 8 && SET === 'vehicules'; d++) {
   for (let f = 0; f < 2; f++) {
     for (const livery of ['rouge', 'vert', 'bleu'] as const)
@@ -57,6 +65,8 @@ for (let d = 0; d < 8 && SET === 'vehicules'; d++) {
     shots.push(shoot(`vendangeuse:${d}:${f}`, grapeHarvester(PH[f]), d, RES));
     shots.push(shoot(`betaillere:${d}:${f}`, livestockTruck(PH[f]), d, RES));
     shots.push(shoot(`camionnette:${d}:${f}`, van(PH[f]), d, RES));
+    shots.push(shoot(`bus:${d}:${f}`, coach(PH[f]), d, RES));
+    shots.push(shoot(`utilitaire:${d}:${f}`, pickup(PH[f]), d, RES));
     [0xb8443a, 0x3f6a8a, 0xe8e2d0].forEach((c, i) => shots.push(shoot(`voiture:${i}:${d}:${f}`, car(c, PH[f]), d, RES)));
   }
 }
@@ -64,7 +74,7 @@ for (let d = 0; d < 8 && SET === 'vehicules'; d++) {
 if (SET === 'vivants') {
   for (let d = 0; d < 8; d++) {
     for (const [k, look] of Object.entries(PEOPLE)) for (let fr = 0; fr < 5; fr++) shots.push(shoot(`pp:${k}:${d}:${fr}`, person(look, fr), d, RES));
-    for (const kind of ['vache', 'chevre', 'brebis', 'cochon', 'canard', 'poule'])
+    for (const kind of ['vache', 'limousine', 'chevre', 'brebis', 'cochon', 'canard', 'poule', 'cheval', 'ane', 'oie', 'lapin'])
       for (let l = 0; l < 3; l++) for (let fr = 0; fr < 4; fr++) shots.push(shoot(`aa:${kind}:${l}:${d}:${fr}`, animal(kind, l, fr), d, RES));
   }
 }

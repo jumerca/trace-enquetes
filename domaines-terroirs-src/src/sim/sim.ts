@@ -1584,7 +1584,7 @@ export class Sim {
     }
     const dx = a.tx - a.x, dy = a.ty - a.y;
     const d = Math.hypot(dx, dy);
-    const sp = SPEED.animal * (a.kind === 'poule' || a.kind === 'canard' ? 1.2 : a.kind === 'vache' ? 0.7 : 1);
+    const sp = SPEED.animal * (a.kind === 'poule' || a.kind === 'canard' || a.kind === 'lapin' ? 1.2 : a.kind === 'vache' || a.kind === 'limousine' ? 0.7 : a.kind === 'cheval' ? 1.3 : 1);
     if (d < sp) {
       a.x = a.tx;
       a.y = a.ty;
@@ -1609,7 +1609,7 @@ export class Sim {
   penSpot(b: Building): [number, number] {
     const s = defOf(b).size;
     const abri = LIVESTOCK[defOf(b).livestock!]?.abri;
-    const sh = abri === 'etable' || abri === 'bergerie' ? 2.3 : abri === 'rucher' ? 0 : 1.3;
+    const sh = abri === 'etable' || abri === 'bergerie' || abri === 'ecurie' ? 2.3 : abri === 'rucher' ? 0 : abri === 'etang' ? 0 : 1.3;
     for (let k = 0; k < 8; k++) {
       const x = b.x + 0.3 + this.rng.next() * (s - 0.8), y = b.y + 0.4 + this.rng.next() * (s - 0.9);
       if (!(x < b.x + sh && y < b.y + sh)) return [x, y];

@@ -15,7 +15,7 @@ const path = require('path');
   for (const item of list) {
     const [kind, region] = item.split(':');
     const set = region ? `${kind}-${region}` : kind;
-    await p.goto(`http://localhost:${PORT}/bake.html?set=${kind}${region ? '&region=' + region : ''}`);
+    await p.goto(`http://localhost:${PORT}/bake.html?set=${kind}${region ? '&region=' + region : ''}`, { waitUntil: 'commit' });
     await p.waitForFunction('window.baked', null, { timeout: 900000 });
     const { pngs, json, ext } = await p.evaluate('window.baked');
     const out = path.join(__dirname, '../public/sprites');
