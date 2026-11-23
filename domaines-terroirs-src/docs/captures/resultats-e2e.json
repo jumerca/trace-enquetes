@@ -72,7 +72,7 @@
  {
   "name": "le temps avance à ×4",
   "ok": true,
-  "info": "25 min de jeu en 1,5 s"
+  "info": "24 min de jeu en 1,5 s"
  },
  {
   "name": "pause : le temps est figé",
@@ -162,7 +162,7 @@
  {
   "name": "mesure FPS (rendu logiciel, indicatif)",
   "ok": true,
-  "info": "13 i/s ; coût JS moyen 0.41 ms/image"
+  "info": "12 i/s ; coût JS moyen 0.26 ms/image"
  },
  {
   "name": "export JSON téléchargé",
@@ -172,7 +172,7 @@
  {
   "name": "partie rechargée à l'identique",
   "ok": true,
-  "info": "{\"m\":17180.6,\"t\":1416,\"b\":7,\"w\":4}"
+  "info": "{\"m\":17197.4,\"t\":1418,\"b\":7,\"w\":4}"
  },
  {
   "name": "région « nord » : partie lancée (engins et personnages 3D chargés)",

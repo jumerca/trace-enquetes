@@ -26,7 +26,7 @@ npm run bake:sprites    # re-cuit véhicules, personnages et animaux 3D (three.j
 npm run build:pages  # build + copie dans ../domaines-terroirs (publication GitHub Pages)
 ```
 
-Outils de diagnostic : `sheet.html` (planche-contact des assets peints, `/sheet.html?s=0..3`), `bake.html` + `src/dev/bake/` (modèles 3D des véhicules), `scripts/quick.cjs` (capture d'une région), `scripts/engins.cjs` (engins au travail), `scripts/vivants.cjs` (personnages et animaux), `scripts/perf.cjs` (coût par image avec processeur bridé).
+Outils de diagnostic : `sheet.html` (planche-contact des assets peints, `/sheet.html?s=0..3`), `bake.html` + `src/dev/bake/` (modèles 3D des véhicules), `scripts/quick.cjs` (capture d'une région), `scripts/engins.cjs` (engins au travail), `scripts/vivants.cjs` (personnages et animaux), `scripts/perf.cjs` (coût par image avec processeur bridé), `scripts/saccades.cjs` (glissements de caméra : médiane, 95 %, 99 %, pire image), `scripts/pics.cjs` (bascule de saison, construction).
 
 ## Commandes de jeu
 

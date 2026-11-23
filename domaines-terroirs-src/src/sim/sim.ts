@@ -148,7 +148,24 @@ export class Sim {
     this.refresh();
   }
 
-  refresh() {
+  /** Zone de la carte modifiée depuis le dernier rendu (null = tout). */
+  private dirty: [number, number, number, number] | null = null;
+  private dirtyAll = true;
+  touch(x0: number, y0: number, x1: number, y1: number) {
+    this.dirty = this.dirty ? [Math.min(this.dirty[0], x0), Math.min(this.dirty[1], y0), Math.max(this.dirty[2], x1), Math.max(this.dirty[3], y1)] : [x0, y0, x1, y1];
+  }
+  /** Rectangle à redessiner (null : toute la carte), puis remise à zéro. */
+  takeDirty(): [number, number, number, number] | null {
+    const r = this.dirtyAll ? null : this.dirty;
+    this.dirty = null;
+    this.dirtyAll = false;
+    return r;
+  }
+  private paths = new Map<string, [number, number][]>();
+
+  refresh(partial = false) {
+    if (!partial) this.dirtyAll = true;
+    this.paths.clear();
     this.byId = new Map(this.s.buildings.map((b) => [b.id, b]));
     this.occ = buildOccupancy(this.s.world, this.s.buildings);
     this.costCache.clear();
@@ -398,7 +415,18 @@ export class Sim {
 
   // ————— déplacements —————
   navTo(a: Agent, kind: NavKind, tx: number, ty: number, field = -1): boolean {
-    const p = findPath(this.s.world.w, this.s.world.h, Math.round(a.x), Math.round(a.y), tx, ty, this.cost(kind, field));
+    const sx = Math.round(a.x), sy = Math.round(a.y);
+    // trajets fréquents mis en cache (vidé à chaque modification du monde)
+    const key = `${kind}${field}:${sx},${sy}>${tx},${ty}`;
+    let p: [number, number][] | null | undefined = this.paths.get(key);
+    if (p) p = p.slice();
+    else {
+      p = findPath(this.s.world.w, this.s.world.h, sx, sy, tx, ty, this.cost(kind, field));
+      if (p) {
+        if (this.paths.size > 3000) this.paths.clear();
+        this.paths.set(key, p.slice());
+      }
+    }
     if (!p) return false;
     a.path = p;
     a.moving = p.length > 0;

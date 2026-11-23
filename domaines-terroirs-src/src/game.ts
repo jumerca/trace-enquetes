@@ -45,7 +45,13 @@ export class Game {
         n = 40;
         this.acc = 40;
       }
+      const ts = performance.now();
       for (let i = 0; i < n; i++) this.sim.tick();
+      if (this.scene) {
+        const a = (this.scene.prof.simulation ??= []);
+        a.push(performance.now() - ts);
+        if (a.length > 600) a.shift();
+      }
       this.acc -= n;
       const d = dayOf(this.sim.s.minute);
       if (d !== this.lastDay) {
@@ -65,7 +71,7 @@ export class Game {
       }
     }
     this.cpuTimes.push(performance.now() - t0);
-    if (this.cpuTimes.length > 120) this.cpuTimes.shift();
+    if (this.cpuTimes.length > 600) this.cpuTimes.shift();
     this.uiAcc += dt;
     if (this.uiAcc > 200) {
       this.uiAcc = 0;
@@ -97,7 +103,8 @@ export class Game {
 
   /** Coût JS moyen par image (ms), hors rendu GPU. */
   cpuMs() {
-    return this.cpuTimes.length ? this.cpuTimes.reduce((a, b) => a + b, 0) / this.cpuTimes.length : 0;
+    const t = this.cpuTimes.slice(-120);
+    return t.length ? t.reduce((a, b) => a + b, 0) / t.length : 0;
   }
 
   destroy() {

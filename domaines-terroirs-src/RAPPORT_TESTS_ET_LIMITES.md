@@ -7,7 +7,7 @@ Ce rapport distingue ce qui est **fait et testé** de ce qui est **partiel**, **
 | Suite | Commande | Résultat |
 |---|---|---|
 | TypeScript strict | `npm run build` | 0 erreur |
-| Unitaires (Vitest) | `npm test` | **46/46** réussis |
+| Unitaires (Vitest) | `npm test` | **45/45** réussis |
 | Bout en bout (Playwright, build de prod) | `npm run test:e2e` | **46/46** vérifications (détail : `docs/captures/resultats-e2e.json`) |
 | Performance, processeur bridé ×4 | `node scripts/perf.cjs <url> 4` | voir ci-dessous |
 
@@ -17,20 +17,30 @@ E2E (Chromium, rendu logiciel) : menu et fenêtres, **choix de la région**, car
 
 ## Performance (mesures réelles, à interpréter avec prudence)
 
-Mesure du coût JavaScript par image avec le **processeur bridé ×4** (approximation d'un téléphone d'entrée de gamme), écran 412×915, sur les zones les plus chargées :
+Toutes les mesures ci-dessous sont faites avec le **processeur bridé ×4** (approximation d'un téléphone d'entrée de gamme), écran 412×915, rendu WebGL logiciel. Outils : `scripts/saccades.cjs` (glissements continus de la caméra), `scripts/pics.cjs` (saison, construction), `scripts/perf.cjs`.
 
-| Région | Zoom 1 | Zoom 0,6 | Zoom 0,35 (dézoom max) |
-|---|---|---|---|
-| Est (forêts denses) | 3,9 ms | 2,6 ms | 2,3 ms |
-| Montagne | 3,8 ms | 5,7 ms | 2,8 ms |
-| Limousin | 2,4 ms | 2,4 ms | 4,5 ms |
+**Glissements de caméra** (≈ 1 900 images, montagne et Est, zooms 1 / 0,6 / 0,4) :
 
-Budget à 30 i/s : 33 ms. Des pics isolés (jusqu'à ~75 ms bridé) subsistent lors de grands déplacements de caméra ; ils sont étalés (création des objets limitée à 2 chunks par image).
+| | médiane | 95 % | 99 % | pire |
+|---|---|---|---|---|
+| Mise à jour (simulation + scène) | 1,1 – 1,7 ms | 3,6 – 5,4 ms | 4,9 – 10,4 ms | 37 ms (une image, au repositionnement) |
+| Préparation du rendu (tri, lots) | 3 – 5 ms | 6 – 10 ms | 8,5 – 13 ms | 19 ms |
 
-V0.3 : **niveau de détail** (petit décor masqué sous le zoom 0,62, forêts éclaircies sous 0,42 : jusqu'à 3,7× moins d'objets), **qualité adaptative** (si l'affichage reste sous 24 i/s pendant 4 s, le décor est allégé automatiquement, réglable), **compteur de performances** activable dans Réglages (images/s, ms par image, objets affichés).
+**1 image sur ≈ 1 900 dépasse 33 ms** (budget à 30 i/s), contre des pics répétés jusqu'à 75 ms auparavant.
 
-- **30 i/s sur Android 4 Go : toujours NON VALIDÉ sur un vrai téléphone** — le coût GPU (remplissage, textures) ne peut pas être mesuré ici (rendu logiciel). Activez « Afficher les performances » dans Réglages pour lire la valeur sur votre appareil.
-- Mémoire GPU des planches : véhicules 3 pages, personnages/animaux 2 pages, plus 3 à 4 pages d'atlas peints (≈ 16 Mo par page de 2048², moitié moins en qualité « Économie » pour les atlas peints).
+**À-coups ponctuels supprimés** (mesures non bridées ; ×4 environ sur téléphone modeste) :
+
+| Événement | Avant | Après |
+|---|---|---|
+| Changement de saison | 276 ms d'un bloc | 6 ms à la bascule ; préparation en tâche de fond pendant le dernier jour, pire image 7,6 ms |
+| Construction d'un bâtiment, chemin, achat de terrain | 40 ms | 1 à 3 ms (seule la zone modifiée est recalculée) |
+| Premier affichage d'une planche (véhicules, personnages) | envoi au GPU au premier usage | planches envoyées dès le chargement |
+| Arrivée/départ de visiteurs, défilement | créations et retraits de sprites | sprites recyclés, retraits supprimés ; trajets fréquents en cache |
+
+Autres mesures : niveau de détail au dézoom, qualité adaptative, compteur de performances dans Réglages.
+
+- **30 i/s sur Android 4 Go : toujours NON VALIDÉ sur un vrai téléphone** — le coût GPU réel (remplissage, envoi des textures) ne se mesure pas ici. Activez « Afficher les performances » dans Réglages pour lire la valeur sur votre appareil.
+- Mémoire GPU : véhicules 3 pages, personnages/animaux 2 pages, plus 3 à 4 pages d'atlas peints ; pendant le dernier jour d'une saison, la saison suivante est préparée en plus (≈ +50 Mo de mémoire vive le temps de la bascule).
 
 ## Tableau d'avancement
 

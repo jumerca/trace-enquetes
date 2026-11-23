@@ -2,14 +2,14 @@
 // seulement autour de la caméra, tri en profondeur, interpolation des déplacements, ambiance.
 // Ne modifie jamais la simulation.
 import { Application, Container, Geometry, Graphics, Mesh, Shader, Sprite, Texture, CanvasSource, UniformGroup, Buffer, BufferUsage } from 'pixi.js';
-import { BUILDINGS, CROPS, LIVESTOCK, LOT_SIZE, ORCHARDS } from '../data/content';
+import { BUILDINGS, CROPS, DAYS_PER_SEASON, LIVESTOCK, LOT_SIZE, ORCHARDS } from '../data/content';
 import { REGION_BY_ID } from '../data/regions';
 import { hash2 } from '../core/rng';
 import { D, NEIGHBOR_CROPS, T, heightAt, isOwned, isPathLike, lotsPerRow, rasterLine, vh, type World } from '../world/terrain';
 import { defOf, doorOf, footprint } from '../sim/geom';
 import { LIVERIES, minuteOfDay, seasonOf, type Sim } from '../sim/sim';
 import type { Building, Vehicle } from '../sim/state';
-import { Atlas, MIRROR_PAINTED, TREE_SPECIES, buildGroundAtlas, buildObjectAtlas, buildStaticAtlas, type Tex } from './atlas';
+import { Atlas, MIRROR_PAINTED, TREE_SPECIES, buildGroundAtlas, buildObjectAtlas, buildStaticAtlas, type AtlasJob, type Tex } from './atlas';
 import { RES, TH, TW, setPaintRes, setPaintStyle, type Season } from './paint';
 import { agentDepth, buildingDepth, tileDepth } from './depth';
 
@@ -46,6 +46,7 @@ interface Chunk {
   height: Buffer;
   objs: Sprite[] | null; // sprites instanciés (null = non visible)
   objLevel: number; // niveau de détail utilisé à l'instanciation
+  uvDirty: boolean; // UV à recalculer (changement de saison) quand le chunk redevient visible
   descs: Desc[] | null;
   x0: number;
   y0: number;
@@ -127,6 +128,7 @@ export class Scene {
   private pool: Sprite[] = [];
   private bObjs = new Map<number, Obj[]>();
   private agents = new Map<string, Obj & { carry?: Sprite; heading?: number }>();
+  private agentPool: Sprite[] = [];
   private smoke: { sp: Sprite; vx: number; life: number }[] = [];
   private smokeTex!: Texture;
   private smokeAcc = 0;
@@ -167,13 +169,23 @@ export class Scene {
     this.app.canvas.style.touchAction = 'none';
     this.app.canvas.setAttribute('aria-label', 'Carte du domaine');
     this.app.stage.addChild(this.world, this.fx);
+    // mesure du temps de rendu Pixi (tri des objets + envoi au GPU)
+    const render = this.app.renderer.render.bind(this.app.renderer);
+    this.app.renderer.render = ((...args: Parameters<typeof render>) => {
+      const t0 = performance.now();
+      const r = render(...args);
+      this.mark('rendu', t0);
+      return r;
+    }) as typeof render;
     this.world.addChild(this.ground, this.roads, this.marks, this.objects);
     this.objects.sortableChildren = true;
     this.fx.addChild(this.rain, this.night);
     this.season = seasonOf(this.sim.s.minute);
     buildStaticAtlas(this.staticAtlas);
     buildObjectAtlas(this.objectAtlas, this.season);
+    this.objectAtlas.pack();
     buildGroundAtlas(this.groundAtlas, this.season);
+    this.groundAtlas.pack(1);
     await this.vehicleAtlas.load('./sprites').catch(() => undefined);
     await this.livingAtlas.load('./sprites', 'vivants').catch(() => undefined);
     this.smokeTex = softTexture();
@@ -181,6 +193,8 @@ export class Scene {
     this.buildChunks();
     this.buildRoads();
     this.syncWorld();
+    // envoi de toutes les planches au GPU dès le chargement (pas d'à-coup au premier affichage)
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas]) this.upload(a.pages);
     const [fx, fy] = this.sim.s.world.farm;
     this.centerOn(fx + 2, fy, window.innerWidth < 700 ? 0.8 : 1);
     this.bindInput();
@@ -224,7 +238,7 @@ export class Scene {
         });
         const mesh = new Mesh({ geometry, shader: this.shader });
         this.ground.addChild(mesh);
-        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, objLevel: 0, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, objLevel: 0, uvDirty: false, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
         this.chunks.push(ch);
         this.fillChunk(ch, true);
       }
@@ -508,7 +522,12 @@ export class Scene {
     ch.objLevel = level;
     for (const d of this.chunkDescs(ch)) {
       if (d.detail !== 0 && d.detail <= level) continue;
-      const sp = this.pool.pop() ?? new Sprite();
+      let sp = this.pool.pop();
+      if (!sp) {
+        sp = new Sprite();
+        this.objects.addChild(sp);
+      }
+      sp.label = d.key;
       this.setTex(sp, d.key);
       const [px, py] = d.key.startsWith('b:hameau') || d.key === 'b:eglise' ? [isoX(d.gx, d.gy), isoY(d.gx, d.gy) - heightAt(this.W, d.gx + 0.5, d.gy + 0.5)] : this.groundPos(d.gx, d.gy);
       sp.position.set(px, py);
@@ -516,15 +535,16 @@ export class Scene {
       sp.zIndex = d.depth;
       sp.tint = d.tint;
       sp.visible = true;
-      this.objects.addChild(sp);
       ch.objs.push(sp);
     }
   }
 
+  /** Sprites recyclés : ils restent dans le conteneur, masqués et triés en tête (aucun retrait coûteux). */
   private hideChunkObjects(ch: Chunk) {
     if (!ch.objs) return;
     for (const sp of ch.objs) {
-      this.objects.removeChild(sp);
+      sp.visible = false;
+      sp.zIndex = -1e9;
       this.pool.push(sp);
     }
     ch.objs = null;
@@ -557,8 +577,10 @@ export class Scene {
         this.fieldSig.delete(id);
         this.orchardSig.delete(id);
       }
-    // sol et décor : relief éventuellement terrassé, chemins, défrichages
+    // sol et décor : seulement les chunks touchés (construction, chemin, terrain…) ; tout au chargement
+    const r = this.sim.takeDirty();
     for (const ch of this.chunks) {
+      if (r && (ch.x0 + CHUNK <= r[0] - 1 || ch.x0 > r[2] + 1 || ch.y0 + CHUNK <= r[1] - 1 || ch.y0 > r[3] + 1)) continue;
       this.fillChunk(ch, true);
       this.hideChunkObjects(ch);
       ch.descs = null;
@@ -597,37 +619,106 @@ export class Scene {
   }
 
   // ————— saisons —————
-  private setSeason(s: Season) {
+  private upload(pages: { uid: number }[]) {
+    const tex = (this.app.renderer as unknown as { texture?: { initSource?: (s: unknown) => void } }).texture;
+    for (const p of pages) tex?.initSource?.(p);
+  }
+
+  /** Saison suivante préparée en tâche de fond (quelques ms par image), activée d'un coup ensuite. */
+  private nextSeason: { season: Season; ground: AtlasJob; object: AtlasJob; uploaded: boolean; up: number } | null = null;
+
+  private prepareNextSeason() {
+    const next = ((this.season + 1) % 4) as Season;
+    if (this.nextSeason?.season === next) return;
+    const g = new Atlas(), o = new Atlas();
+    buildGroundAtlas(g, next);
+    buildObjectAtlas(o, next);
+    this.nextSeason = { season: next, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
+  }
+
+  private stepNextSeason(budgetMs: number) {
+    const n = this.nextSeason;
+    if (!n) return;
+    const t0 = performance.now();
+    if (!n.ground.done) this.groundAtlas.step(n.ground, budgetMs);
+    const left = budgetMs - (performance.now() - t0);
+    if (n.ground.done && !n.object.done && left > 0.5) this.objectAtlas.step(n.object, left);
+    else if (n.ground.done && n.object.done && !n.uploaded && left > 0.5) {
+      // envoi au GPU avant l'échange, une page par image
+      const all = [...n.ground.sources!, ...n.object.sources!];
+      this.upload([all[n.up++]]);
+      n.uploaded = n.up >= all.length;
+    }
+  }
+
+  setSeason(s: Season) {
+    const wasWinter = this.season === 3;
     this.season = s;
-    buildObjectAtlas(this.objectAtlas, s);
-    buildGroundAtlas(this.groundAtlas, s);
+    // préparation terminée en tâche de fond ; sinon (saut dans le temps) on la termine maintenant
+    let n = this.nextSeason;
+    if (!n || n.season !== s) {
+      const g = new Atlas(), o = new Atlas();
+      buildGroundAtlas(g, s);
+      buildObjectAtlas(o, s);
+      n = { season: s, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
+    }
+    this.nextSeason = null;
+    const old = [...this.groundAtlas.commit(n.ground), ...this.objectAtlas.commit(n.object)];
+    if (!n.uploaded) this.upload([...this.groundAtlas.pages, ...this.objectAtlas.pages].slice(n.up));
     this.shader.resources.uTexture = this.groundAtlas.pages[0];
-    this.buildRoads();
+    if (wasWinter || s === 3) this.buildRoads();
+    // sol : UV des chunks visibles tout de suite, des autres quand ils réapparaîtront
+    // la disposition des tuiles est identique d'une saison à l'autre : les UV restent valables ;
+    // seuls les champs voisins changent de stade, recalculés progressivement
     for (const ch of this.chunks) {
-      this.fillChunk(ch, false);
-      this.hideChunkObjects(ch);
+      ch.uvDirty = true;
+      // décor déjà affiché : simple changement de texture (pas de recréation)
+      if (ch.objs) for (const sp of ch.objs) this.setTex(sp, sp.label);
     }
     for (const objs of this.bObjs.values()) for (const o of objs) this.setTex(o.sp, o.key);
+    for (const p of old) p.destroy();
     this.orchardSig.clear();
     this.viewDirty = true;
   }
 
   // ————— boucle de rendu —————
+  /** Profilage léger : durée de chaque étape sur les dernières images (diagnostic des saccades). */
+  prof: Record<string, number[]> = {};
+  private mark(name: string, t0: number) {
+    const a = (this.prof[name] ??= []);
+    a.push(performance.now() - t0);
+    if (a.length > 600) a.shift();
+    return performance.now();
+  }
+
   update(dtMs: number, alpha: number) {
     const s = this.sim.s;
     this.time += dtMs;
     this.fps = this.app.ticker.FPS;
+    let t = performance.now();
     if (this.sim.worldRev !== this.lastRev) this.syncWorld();
+    t = this.mark('syncWorld', t);
     const season = seasonOf(s.minute);
     if (season !== this.season) this.setSeason(season);
+    else if (Math.floor(s.minute / 1440) % DAYS_PER_SEASON === DAYS_PER_SEASON - 1) {
+      // dernier jour de la saison : la suivante se prépare en tâche de fond (mémoire limitée au strict nécessaire)
+      this.prepareNextSeason();
+      this.stepNextSeason(2.5);
+    }
+    t = this.mark('saison', t);
     this.updateSnow();
     this.updateCrops();
+    t = this.mark('cultures', t);
     this.updateAgents(alpha);
+    t = this.mark('agents', t);
     this.updateGhost();
     this.updateMarks();
+    t = this.mark('marques', t);
     this.applyCamera();
     this.cull();
+    t = this.mark('culling', t);
     this.updateFx(dtMs);
+    this.mark('effets', t);
   }
 
   /** Neige : en hiver sur les sommets ; les jours de neige, jusque dans les vallées. */
@@ -672,8 +763,13 @@ export class Scene {
   private agentSprite(id: string, key: string): Obj & { carry?: Sprite; heading?: number } {
     let a = this.agents.get(id);
     if (!a) {
-      const sp = new Sprite();
-      this.objects.addChild(sp);
+      // sprites d'agents recyclés (pas de création/destruction à chaque arrivée de visiteurs)
+      let sp = this.agentPool.pop();
+      if (!sp) {
+        sp = new Sprite();
+        this.objects.addChild(sp);
+      }
+      sp.visible = true;
       a = { sp, key: '', depth: 0, x0: 0, y0: 0, x1: 0, y1: 0 };
       this.agents.set(id, a);
     }
@@ -740,9 +836,10 @@ export class Scene {
       put(o, lerp(w.px, w.x), lerp(w.py, w.y));
       if (w.carry) {
         if (!o.carry) {
-          o.carry = new Sprite();
-          o.sp.addChild(o.carry);
+          o.carry = (o.sp.children[0] as Sprite | undefined) ?? new Sprite();
+          if (!o.carry.parent) o.sp.addChild(o.carry);
         }
+        o.carry.visible = true;
         const t = this.tex(`carry:${w.carry.res}`);
         o.carry.texture = t.tex;
         o.carry.anchor.set(t.ax, t.ay);
@@ -797,7 +894,11 @@ export class Scene {
     }
     for (const [id, o] of this.agents)
       if (!seen.has(id)) {
-        o.sp.destroy({ children: true });
+        o.sp.visible = false;
+        o.sp.zIndex = -1e9;
+        if (o.carry) o.carry.visible = false;
+        o.sp.label = 'carry:' + (o.carry ? '1' : '0');
+        this.agentPool.push(o.sp);
         this.agents.delete(id);
       }
   }
@@ -1054,7 +1155,7 @@ export class Scene {
     if (this.viewDirty) {
       // niveau de détail selon le zoom ; création des objets étalée sur plusieurs images (pas de saccade)
       const level = this.lodLevel;
-      let budget = 2, pending = false;
+      let budget = 1, pending = false, uvBudget = 4;
       let count = 0;
       for (const ch of this.chunks) {
         const vis = ch.maxX >= tl.x && ch.minX <= br.x && ch.maxY >= tl.y && ch.minY <= br.y;
@@ -1066,6 +1167,10 @@ export class Scene {
             this.hideChunkObjects(ch);
           } else pending = true;
         }
+        if (vis && ch.uvDirty && uvBudget-- > 0) {
+          this.fillChunk(ch, false);
+          ch.uvDirty = false;
+        } else if (vis && ch.uvDirty) pending = true;
         if (vis && !ch.objs) {
           if (budget > 0) {
             this.showChunkObjects(ch);

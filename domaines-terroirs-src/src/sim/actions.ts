@@ -1,5 +1,5 @@
 // Actions du joueur : toutes validées ici (l'interface ne fait que les appeler).
-import { BRIDGE_COST, BUILDINGS, LEVEL_COST, LOT_PRICE, PATH_COST, ROAD_COST, RESOURCES, TREE_CLEAR_COST, wholesaleFactor, type Res } from '../data/content';
+import { BRIDGE_COST, BUILDINGS, LEVEL_COST, LOT_PRICE, LOT_SIZE, PATH_COST, ROAD_COST, RESOURCES, TREE_CLEAR_COST, wholesaleFactor, type Res } from '../data/content';
 import { regionBuildings } from '../data/regions';
 import { DECOR_IS_TREE, D, HSCALE, T, flattenRect, inside, isBuildableGround, isOwned, isPathLike, lotOf, lotsPerRow, slopeOf } from '../world/terrain';
 import { defOf, doorOf, footprint, isParcel } from './geom';
@@ -74,10 +74,11 @@ export function build(sim: Sim, type: string, x: number, y: number, rot: 0 | 1):
   if (c.level) flattenRect(W, x, y, x + def.size - 1, y + def.size - 1);
   const b: Building = { id: sim.s.nextId++, type, x, y, rot, inv: {}, ready: 0, growth: 0, phase: 'labour', done: [], busyBy: null, priority: false, batches: 0, builtDay: dayOf(sim.s.minute) };
   sim.s.buildings.push(b);
+  sim.touch(x - 2, y - 2, x + def.size + 2, y + def.size + 2);
   sim.book(def.activite, -def.cout, `Construction — ${def.nom}`, true);
   if (c.clear) sim.book('general', -c.clear * TREE_CLEAR_COST, 'Défrichage', true);
   if (c.level) sim.book('general', -c.level * LEVEL_COST, 'Terrassement', true);
-  sim.refresh();
+  sim.refresh(true);
   sim.onBuilt(b);
   sim.s.stats.built++;
   sim.event(`${def.nom} construit (${c.cost} €).`, 'succes');
@@ -114,7 +115,8 @@ export function demolish(sim: Sim, id: number): boolean {
   sim.s.vehicles = sim.s.vehicles.filter((v) => v.home !== id);
   const refund = Math.round(def.cout * 0.3);
   sim.book(def.activite, refund, `Récupération — ${def.nom}`, true);
-  sim.refresh();
+  sim.touch(b.x - 2, b.y - 2, b.x + def.size + 2, b.y + def.size + 2);
+  sim.refresh(true);
   sim.event(`${def.nom} démoli (${refund} € récupérés).`, 'info');
   return true;
 }
@@ -162,7 +164,8 @@ export function buildPath(sim: Sim, x: number, y: number, voie: Voie = 'chemin')
   W.terrain[i] = voie === 'pont' ? T.pont : voie === 'route' ? T.route : T.chemin;
   W.decor[i] = D.none;
   sim.book('general', -c.cost, voie === 'pont' ? 'Ponts' : voie === 'route' ? 'Routes' : 'Chemins', true);
-  sim.refresh();
+  sim.touch(x - 1, y - 1, x + 1, y + 1);
+  sim.refresh(true);
   return true;
 }
 
@@ -188,7 +191,10 @@ export function buyLot(sim: Sim, lot: number): boolean {
   if (!c.ok) return false;
   sim.s.world.owned[lot] = true;
   sim.book('general', -c.cost, 'Achat de terrain', true);
-  sim.refresh();
+  const per = lotsPerRow(sim.s.world);
+  const lx = (lot % per) * LOT_SIZE, ly = Math.floor(lot / per) * LOT_SIZE;
+  sim.touch(lx, ly, lx + LOT_SIZE, ly + LOT_SIZE);
+  sim.refresh(true);
   sim.event(`Nouvelle parcelle acquise (${c.cost} €).`, 'succes');
   return true;
 }
