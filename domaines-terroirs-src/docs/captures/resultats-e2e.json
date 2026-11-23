@@ -72,7 +72,7 @@
  {
   "name": "le temps avance à ×4",
   "ok": true,
-  "info": "24 min de jeu en 1,5 s"
+  "info": "25 min de jeu en 1,5 s"
  },
  {
   "name": "pause : le temps est figé",
@@ -155,9 +155,14 @@
   "info": ""
  },
  {
+  "name": "route empierrée tracée",
+  "ok": true,
+  "info": ""
+ },
+ {
   "name": "mesure FPS (rendu logiciel, indicatif)",
   "ok": true,
-  "info": "11 i/s ; coût JS moyen 0.28 ms/image"
+  "info": "13 i/s ; coût JS moyen 0.41 ms/image"
  },
  {
   "name": "export JSON téléchargé",
@@ -167,42 +172,42 @@
  {
   "name": "partie rechargée à l'identique",
   "ok": true,
-  "info": "{\"m\":17305,\"t\":1424,\"b\":7,\"w\":4}"
+  "info": "{\"m\":17180.6,\"t\":1416,\"b\":7,\"w\":4}"
  },
  {
-  "name": "région « nord » : partie lancée",
+  "name": "région « nord » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"nord\",\"b\":5,\"veh\":208}"
+  "info": "{\"region\":\"nord\",\"b\":5,\"veh\":480,\"vivants\":976}"
  },
  {
-  "name": "région « beauce » : partie lancée",
+  "name": "région « beauce » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"beauce\",\"b\":10,\"veh\":208}"
+  "info": "{\"region\":\"beauce\",\"b\":10,\"veh\":480,\"vivants\":976}"
  },
  {
-  "name": "région « est » : partie lancée",
+  "name": "région « est » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"est\",\"b\":6,\"veh\":208}"
+  "info": "{\"region\":\"est\",\"b\":6,\"veh\":480,\"vivants\":976}"
  },
  {
-  "name": "région « sudouest » : partie lancée",
+  "name": "région « sudouest » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"sudouest\",\"b\":5,\"veh\":208}"
+  "info": "{\"region\":\"sudouest\",\"b\":5,\"veh\":480,\"vivants\":976}"
  },
  {
-  "name": "région « montagne » : partie lancée",
+  "name": "région « montagne » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"montagne\",\"b\":5,\"veh\":208}"
+  "info": "{\"region\":\"montagne\",\"b\":5,\"veh\":480,\"vivants\":976}"
  },
  {
-  "name": "région « mer » : partie lancée",
+  "name": "région « mer » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"mer\",\"b\":6,\"veh\":208}"
+  "info": "{\"region\":\"mer\",\"b\":6,\"veh\":480,\"vivants\":976}"
  },
  {
-  "name": "région « provence » : partie lancée",
+  "name": "région « provence » : partie lancée (engins et personnages 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"provence\",\"b\":6,\"veh\":208}"
+  "info": "{\"region\":\"provence\",\"b\":6,\"veh\":480,\"vivants\":976}"
  },
  {
   "name": "mobile : pincement = zoom",

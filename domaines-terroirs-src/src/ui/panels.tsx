@@ -1,8 +1,8 @@
 import { useState, type ComponentType } from 'react';
-import { ACTIVITIES, BUILDINGS, CATEGORIES, CROPS, LIVESTOCK, LOT_SIZE, ORCHARDS, PATH_COST, RESOURCES, RES_IDS, ROLES, type Activity, type BuildCategory, type Res, type Role } from '../data/content';
+import { ACTIVITIES, BUILDINGS, CATEGORIES, CROPS, LIVESTOCK, LOT_SIZE, ORCHARDS, RESOURCES, RES_IDS, ROLES, type Activity, type BuildCategory, type Res, type Role } from '../data/content';
 import { aptitude, regionBuildings } from '../data/regions';
 import { lotsPerRow } from '../world/terrain';
-import { canBuyLot, buyLot, createOrder, setPrice, wholesalePrice } from '../sim/actions';
+import { VOIES, canBuyLot, buyLot, createOrder, setPrice, wholesalePrice, type Voie } from '../sim/actions';
 import { defOf } from '../sim/geom';
 import { productOf, round2, type Sim } from '../sim/sim';
 import type { Building } from '../sim/state';
@@ -125,9 +125,11 @@ function Construire({ sim, onTool }: PanelProps) {
   return (
     <div>
       <div className="tool-row">
-        <button className="btn small" onClick={() => onTool({ kind: 'chemin' })} data-testid="outil-chemin">
-          <Icon name="path" size={18} /> Chemin ({eur(PATH_COST)}/case)
-        </button>
+        {(Object.keys(VOIES) as Voie[]).map((v) => (
+          <button key={v} className="btn small" onClick={() => onTool({ kind: 'chemin', voie: v })} data-testid={'outil-' + v} title={VOIES[v].desc}>
+            <Icon name="path" size={18} /> {VOIES[v].nom} ({eur(VOIES[v].cout)})
+          </button>
+        ))}
         <button className="btn small" onClick={() => onTool({ kind: 'demolir' })}>
           <Icon name="trash" size={18} /> Démolir
         </button>
@@ -234,8 +236,9 @@ export function statusLine(sim: Sim, b: Building): string {
       const left = 16 - b.done.length;
       if (b.phase === 'mur') return `Récolte : ${Math.round(b.ready)} ${RESOURCES[c.produit].unite} (${left} cases restantes)`;
       if (b.phase === 'labour') return `À labourer (${left} cases)`;
+      if (b.phase === 'epandage') return `Épandage du fumier (${left} cases, +15 % de récolte)`;
       if (b.phase === 'semis') return `À semer (${left} cases)`;
-      return `Pousse : ${Math.round(b.growth * 100)} % (récolte ≈ ${Math.round(c.rendement * aptitude(sim.region, c.id))} ${RESOURCES[prod!].unite})`;
+      return `Pousse : ${Math.round(b.growth * 100)} % (récolte ≈ ${Math.round(c.rendement * aptitude(sim.region, c.id) * (1 + (b.bonus ?? 0)))} ${RESOURCES[prod!].unite})${b.bonus ? ` · bonus +${Math.round(b.bonus * 100)} %` : ''}${b.treated ? ' · traitée' : ''}`;
     }
     case 'atelier':
       return `${busy ? `${busy.nom} : ${busy.label.toLowerCase()}` : 'Libre'} · ${b.batches} lot(s) · ` + d.recettes!.map((r) => `${RESOURCES[r.input].nom.toLowerCase()} en stock : ${Math.floor(sim.stockOf(r.input))}`).join(', ');
@@ -374,11 +377,11 @@ function Commerce({ sim, game }: PanelProps) {
             <tr key={r}>
               <td>{RESOURCES[r].nom}</td>
               <td className="price-cell">
-                <button className="mini" onClick={() => ((s.autoSell[r] = s.autoSell[r] < 0 ? 200 : Math.max(0, s.autoSell[r] - 50)), game.notify())}>
+                <button className="mini" aria-label="Seuil plus bas" onClick={() => ((s.autoSell[r] = s.autoSell[r] === -2 ? Math.max(0, sim.sellThreshold(r) - 50) : s.autoSell[r] === -1 ? -2 : Math.max(0, s.autoSell[r] - 50)), game.notify())}>
                   −
                 </button>
-                <span>{s.autoSell[r] < 0 ? 'désactivé' : `au-delà de ${s.autoSell[r]}`}</span>
-                <button className="mini" onClick={() => ((s.autoSell[r] = s.autoSell[r] < 0 ? 150 : s.autoSell[r] >= 450 ? -1 : s.autoSell[r] + 50), game.notify())}>
+                <span>{s.autoSell[r] === -1 ? 'désactivé' : s.autoSell[r] === -2 ? `auto (au-delà de ${sim.sellThreshold(r)})` : `au-delà de ${s.autoSell[r]}`}</span>
+                <button className="mini" aria-label="Seuil plus haut" onClick={() => ((s.autoSell[r] = s.autoSell[r] === -2 ? sim.sellThreshold(r) + 50 : s.autoSell[r] === -1 ? -2 : s.autoSell[r] >= 950 ? -1 : s.autoSell[r] + 50), game.notify())}>
                   +
                 </button>
               </td>

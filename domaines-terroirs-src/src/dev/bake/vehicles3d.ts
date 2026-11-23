@@ -191,6 +191,72 @@ export function seeder(phase: number) {
   return t;
 }
 
+/** Épandeur à fumier : caisse, hérissons rotatifs à l'arrière. */
+export function spreader(phase: number) {
+  const t = new THREE.Group();
+  box(t, 0.42, 0.04, 0.05, 0x2c2a28, 0.62, 0.24, 0, 0.01);
+  box(t, 0.9, 0.05, 0.58, 0x6b4a2c, 0, 0.3, 0, 0.01);
+  for (const z of [0.29, -0.29]) box(t, 0.9, 0.22, 0.03, 0x2f7d3a, 0, 0.42, z, 0.01);
+  box(t, 0.03, 0.22, 0.58, 0x2f7d3a, 0.45, 0.42, 0, 0.01);
+  const g = new THREE.SphereGeometry(0.5, 16, 10);
+  g.scale(0.82, 0.2, 0.52);
+  add(t, g, toon(0x5a3f26), 0, 0.5, 0);
+  for (const y of [0.32, 0.52]) {
+    const rot = new THREE.CylinderGeometry(0.08, 0.08, 0.6, 10);
+    rot.rotateX(Math.PI / 2);
+    const m = add(t, rot, toon(0x8a8680), -0.5, y, 0);
+    m.rotation.z = phase * 3;
+  }
+  for (const z of [0.33, -0.33]) wheel(t, 0.17, 0.1, 0xd8d2c4, 0, 0.17, z, phase, false);
+  return t;
+}
+
+/** Pulvérisateur traîné : cuve et rampe de traitement dépliée. */
+export function sprayer(phase: number) {
+  const t = new THREE.Group();
+  box(t, 0.42, 0.04, 0.05, 0x2c2a28, 0.6, 0.24, 0, 0.01);
+  box(t, 0.8, 0.06, 0.5, 0x3a3632, 0, 0.3, 0, 0.01);
+  const tank = new THREE.CylinderGeometry(0.22, 0.22, 0.7, 18);
+  tank.rotateZ(Math.PI / 2);
+  add(t, tank, toon(0xf0eee8), 0.02, 0.55, 0);
+  box(t, 0.12, 0.06, 0.12, 0xe6c84a, 0.2, 0.79, 0, 0.02);
+  // rampe
+  box(t, 0.05, 0.05, 2.2, 0xe6c84a, -0.42, 0.42, 0, 0.01);
+  for (let k = 0; k < 12; k++) box(t, 0.02, 0.08, 0.02, 0x3a3632, -0.42, 0.36, -1.05 + k * 0.19, 0);
+  for (const z of [0.3, -0.3]) wheel(t, 0.2, 0.1, 0xd8d2c4, 0, 0.2, z, phase, false);
+  return t;
+}
+
+/** Machine à vendanger enjambeuse. */
+export function grapeHarvester(phase: number) {
+  const t = new THREE.Group();
+  const body = 0x7a2a5a, light = 0xf0ece2;
+  for (const [x, z] of [[0.45, 0.42], [0.45, -0.42], [-0.45, 0.42], [-0.45, -0.42]]) wheel(t, 0.2, 0.14, light, x, 0.2, z, phase);
+  // portique enjambant le rang
+  for (const z of [0.42, -0.42]) box(t, 1.0, 0.75, 0.16, body, 0, 0.75, z, 0.04);
+  box(t, 1.0, 0.2, 1.0, body, 0, 1.2, 0, 0.04);
+  box(t, 0.5, 0.18, 0.6, light, -0.2, 1.38, 0, 0.04); // bennes
+  box(t, 0.34, 0.06, 0.4, body, 0.32, 1.33, 0, 0.02);
+  box(t, 0.3, 0.3, 0.38, toon(0x9cc8e0, { glass: true }), 0.32, 1.52, 0, 0.02);
+  box(t, 0.38, 0.05, 0.46, light, 0.32, 1.7, 0, 0.02);
+  for (const [x, z] of [[0.18, -0.17], [0.18, 0.17], [0.46, -0.17], [0.46, 0.17]]) box(t, 0.03, 0.3, 0.03, 0x2c2a28, x, 1.52, z, 0.005);
+  box(t, 0.06, 0.05, 0.14, toon(0xf0a020, { emissive: 0x804000 }), 0.32, 1.75, 0, 0.01);
+  return t;
+}
+
+/** Bétaillère : porteur avec caisse ajourée. */
+export function livestockTruck(phase: number) {
+  const t = new THREE.Group();
+  for (const [x, z] of [[0.62, 0.3], [0.62, -0.3], [-0.35, 0.3], [-0.35, -0.3], [-0.6, 0.3], [-0.6, -0.3]]) wheel(t, 0.14, 0.1, 0xb8b8b8, x, 0.14, z, phase, false);
+  box(t, 1.7, 0.08, 0.6, 0x3a3632, -0.05, 0.27, 0, 0.01);
+  box(t, 0.38, 0.42, 0.62, 0x2a5ea8, 0.65, 0.5, 0, 0.06);
+  box(t, 0.04, 0.2, 0.54, toon(0x9cc8e0, { glass: true }), 0.84, 0.6, 0, 0.02);
+  box(t, 1.15, 0.5, 0.64, 0xd8c8a8, -0.3, 0.58, 0, 0.03);
+  for (let k = 0; k < 6; k++) for (const z of [0.325, -0.325]) box(t, 1.13, 0.03, 0.012, 0x6b4a2c, -0.3, 0.42 + k * 0.07, z, 0);
+  box(t, 1.17, 0.04, 0.66, 0x8a8680, -0.3, 0.85, 0, 0.01);
+  return t;
+}
+
 export function combine(phase: number) {
   const t = new THREE.Group();
   const body = 0xc4332b, light = 0xf0ece2;

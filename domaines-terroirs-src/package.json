@@ -1,7 +1,7 @@
 {
   "name": "domaines-terroirs",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Domaines & Terroirs — gestion d'un territoire rural — JLG Creative",
   "scripts": {
@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:e2e": "node scripts/e2e.cjs",
     "icons": "node scripts/icons.cjs",
-    "bake:vehicules": "node scripts/bake-vehicles.cjs",
+    "bake:sprites": "node scripts/bake-vehicles.cjs",
     "build:pages": "npm run build && rm -rf ../domaines-terroirs && cp -r dist ../domaines-terroirs"
   },
   "dependencies": {

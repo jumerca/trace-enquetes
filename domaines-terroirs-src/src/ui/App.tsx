@@ -198,6 +198,14 @@ export function SettingsForm({ settings, onChange }: { settings: Settings; onCha
         <input type="checkbox" checked={settings.tutorial} onChange={(e) => onChange({ ...settings, tutorial: e.target.checked })} />
         <span>Afficher le tutoriel</span>
       </label>
+      <label className="field check">
+        <input type="checkbox" checked={settings.adaptive} onChange={(e) => onChange({ ...settings, adaptive: e.target.checked })} />
+        <span>Alléger l'affichage automatiquement si le jeu ralentit</span>
+      </label>
+      <label className="field check">
+        <input type="checkbox" checked={settings.perf} onChange={(e) => onChange({ ...settings, perf: e.target.checked })} data-testid="reglage-perf" />
+        <span>Afficher les performances (images/s, coût par image, objets affichés)</span>
+      </label>
       <p className="muted">La qualité graphique s'applique au prochain lancement d'une partie.</p>
     </>
   );

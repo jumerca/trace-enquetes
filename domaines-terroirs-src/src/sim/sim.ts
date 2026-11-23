@@ -1,7 +1,7 @@
 // Moteur de simulation : pas fixe d'une minute de jeu, RNG déterministe, aucune dépendance au rendu.
 import {
   BUILDINGS, CARRY, CROPS, DAY_MIN, DAYS_PER_SEASON, FIRST_NAMES, LIVESTOCK, ORCHARDS, RESOURCES, RES_IDS, ROLES, SEASONS, VISIT_END, VISIT_FEE_DEFAULT,
-  VISIT_START, WEATHER, WORK_END, WORK_START, wholesaleFactor,
+  VISIT_START, WEATHER, WORK_END, WORK_START, wholesaleFactor, FUMURE_COST, TRAITEMENT_COST,
   type Activity, type Recipe, type Res, type Role, type Season, type Weather,
 } from '../data/content';
 import { REGION_BY_ID, aptitude, type RegionDef } from '../data/regions';
@@ -13,7 +13,9 @@ import {
   SAVE_VERSION, type Agent, type Animal, type Building, type FieldOp, type GameState, type LedgerDay, type Order, type Step, type Vehicle, type VehicleKind, type Visitor, type Worker,
 } from './state';
 
-export const SPEED = { worker: 0.35, visitor: 0.3, tracteur: 0.55, moissonneuse: 0.4, camionnette: 2, voiture: 2.2, animal: 0.05 };
+export const SPEED = { worker: 0.35, visitor: 0.3, tracteur: 0.55, moissonneuse: 0.4, vendangeuse: 0.35, camionnette: 2, betaillere: 1.6, voiture: 2.2, animal: 0.05 };
+export const LIVERIES = ['rouge', 'vert', 'bleu'];
+const REGION_LIVERY: Record<string, number> = { limousin: 0, nord: 2, beauce: 1, est: 0, sudouest: 1, montagne: 0, mer: 2, provence: 1 };
 const START_SEASON = 1; // la partie commence en été
 /** Au-delà de ce stock de produit fini, l'atelier ne tourne plus (sauf priorité) : on produit pour vendre. */
 export const PROCESS_TARGET = 80;
@@ -64,7 +66,7 @@ export function newGame(seed = 1789, regionId = 'limousin'): GameState {
     world, buildings: [], workers: [], visitors: [], vehicles: [], animals: [], orders: [],
     prices: Object.fromEntries(RES_IDS.map((r) => [r, RESOURCES[r].prix])) as Record<Res, number>,
     visitFee: VISIT_FEE_DEFAULT, ledger: [], stats: { harvested: {}, produced: {}, sold: {}, batches: 0, built: 0, visitors: 0 },
-    tutorial: 0, nextId: 1, events: [], autoSell: Object.fromEntries(RES_IDS.map((r) => [r, 150])),
+    tutorial: 0, nextId: 1, events: [], autoSell: Object.fromEntries(RES_IDS.map((r) => [r, -2])),
   };
   const [cx, cy] = world.farm;
   const add = (type: string, rel: [number, number], rot: 0 | 1) => {
@@ -247,7 +249,7 @@ export class Sim {
       for (let i = 0; i < l.nombre; i++) this.addAnimal(l.animal, b.id, i);
     }
     if (d.kind === 'hangar') this.addVehicle('tracteur', b);
-    if (d.kind === 'remise') this.addVehicle('moissonneuse', b);
+    if (d.kind === 'remise') this.addVehicle(b.type === 'remise_viti' ? 'vendangeuse' : 'moissonneuse', b);
     if (!initial && d.crop) b.phase = 'labour';
   }
 
@@ -255,7 +257,9 @@ export class Sim {
     const [dx, dy] = home ? doorOf(home) : [x!, y!];
     const v: Vehicle = { ...newAgent(this.s.nextId++, dx, dy), kind, home: home?.id ?? -1, load: null, cap: kind === 'moissonneuse' ? 260 : 400, driver: null, order: null, tool: 'seul', look: 0, passengers: 0, back: 0, slot: -1 };
     v.dir = 1;
-    v.label = kind === 'tracteur' ? 'Tracteur' : kind === 'moissonneuse' ? 'Moissonneuse-batteuse' : kind === 'voiture' ? 'Voiture de visiteurs' : 'Camionnette';
+    // livrée des tracteurs : couleur dominante de la région, puis alternance
+    if (kind === 'tracteur') v.look = (REGION_LIVERY[this.s.region] ?? 0) + this.s.vehicles.filter((x) => x.kind === 'tracteur').length;
+    v.label = kind === 'tracteur' ? 'Tracteur' : kind === 'moissonneuse' ? 'Moissonneuse-batteuse' : kind === 'vendangeuse' ? 'Machine à vendanger' : kind === 'betaillere' ? 'Bétaillère' : kind === 'voiture' ? 'Voiture de visiteurs' : 'Camionnette';
     this.s.vehicles.push(v);
     return v;
   }
@@ -298,10 +302,7 @@ export class Sim {
         // ruches alignées
         x = b.x + 0.6 + (index % 3) * ((s - 1.2) / 2);
         y = b.y + 0.9 + Math.floor(index / 3) * ((s - 1.4) / 1);
-      } else {
-        x = b.x + 1 + this.rng.next() * (s - 2);
-        y = b.y + 1 + this.rng.next() * (s - 2);
-      }
+      } else [x, y] = this.penSpot(b);
     } else {
       x = cx - 3 + this.rng.next() * 9;
       y = cy - 2 + this.rng.next() * 4;
@@ -328,7 +329,7 @@ export class Sim {
     for (const v of s.visitors) this.updateVisitor(v);
     s.visitors = s.visitors.filter((v) => !v.done);
     for (const v of s.vehicles) this.updateVehicle(v);
-    s.vehicles = s.vehicles.filter((v) => !((v.kind === 'camionnette' || v.kind === 'voiture') && v.order === -2));
+    s.vehicles = s.vehicles.filter((v) => !((v.kind === 'camionnette' || v.kind === 'betaillere' || v.kind === 'voiture') && v.order === -2));
     for (const a of s.animals) this.updateAnimal(a);
     this.checkTutorial();
     s.rng = this.rng.state;
@@ -378,7 +379,7 @@ export class Sim {
       if (b.growth >= 1) {
         b.phase = 'mur';
         b.done = [];
-        b.ready = round2(c.rendement * aptitude(this.region, c.id));
+        b.ready = round2(c.rendement * aptitude(this.region, c.id) * (1 + (b.bonus ?? 0)));
         this.event(`${d.nom} : récolte possible (${Math.round(b.ready)} ${RESOURCES[c.produit].unite}).`, 'succes');
       }
     }
@@ -513,7 +514,7 @@ export class Sim {
       return;
     }
     const order: Record<Role, string[]> = {
-      cultivateur: ['harvest', 'fieldwork', 'orchard', 'restock', 'tendUrgent'],
+      cultivateur: ['harvest', 'vines', 'fieldwork', 'orchard', 'restock', 'tendUrgent'],
       eleveur: ['animals', 'orchard', 'harvest', 'tendUrgent'],
       artisan: ['tendUrgent', 'process', 'restock', 'tend'],
       vendeur: ['tendUrgent', 'restock', 'tend'],
@@ -539,6 +540,7 @@ export class Sim {
   private machineFor(op: FieldOp, cropId: string): Vehicle | null {
     const c = CROPS[cropId];
     const kind: VehicleKind = op === 'recolte' && c.recolte === 'moissonneuse' ? 'moissonneuse' : 'tracteur';
+    void c;
     if (op === 'recolte' && c.recolte === 'main') return null;
     return this.s.vehicles.find((v) => v.kind === kind && v.driver == null && this.byId.has(v.home)) ?? null;
   }
@@ -570,21 +572,38 @@ export class Sim {
       const b = list[0];
       return { a: defOf(b).activite, label: `Soins et collecte : ${defOf(b).nom.toLowerCase()}`, steps: [{ k: 'go', ...xy(this.gateOf(b)) }, { k: 'pick', b: b.id }, { k: 'put', b: -1 }] };
     }
+    if (task === 'vines') {
+      // vendange mécanique : machine enjambeuse sur les rangs de vigne
+      const vm = this.s.vehicles.find((v) => v.kind === 'vendangeuse' && v.driver == null && this.byId.has(v.home));
+      if (!vm || spaceTotal < 30) return null;
+      const vines = B.filter((b) => b.type === 'verger_vigne' && b.busyBy == null && b.ready >= 30);
+      if (!vines.length) return null;
+      const f = vines.sort((a, b) => b.ready - a.ready)[0];
+      const home = this.byId.get(vm.home)!;
+      const steps: Step[] = [{ k: 'go', ...xy(doorOf(home)) }, { k: 'board', v: vm.id, tool: 'seul' }];
+      for (const [x, y] of footprint(f).sort((a, b) => a[1] - b[1] || ((a[1] - f.y) % 2 ? b[0] - a[0] : a[0] - b[0]))) steps.push({ k: 'go', x, y, vehicle: true }, { k: 'vine', b: f.id });
+      f.busyBy = w.id;
+      steps.push(...this.vehicleReturn(vm, true));
+      return { a: 'vigne', label: 'Vendanges à la machine', steps };
+    }
     if (task === 'harvest' || task === 'fieldwork') {
-      const want = (b: Building) => (task === 'harvest' ? b.phase === 'mur' : b.phase === 'labour' || b.phase === 'semis');
+      const hasTractor = this.s.vehicles.some((v) => v.kind === 'tracteur' && this.byId.has(v.home));
+      const needsTreatment = (b: Building) => b.phase === 'pousse' && hasTractor && !b.treated && b.growth >= 0.3 && b.growth < 0.9 && !CROPS[defOf(b).crop!].vivace;
+      const want = (b: Building) => (task === 'harvest' ? b.phase === 'mur' : b.phase === 'labour' || b.phase === 'epandage' || b.phase === 'semis' || needsTreatment(b));
       const fields = B.filter((b) => defOf(b).crop && b.busyBy == null && want(b));
       if (!fields.length) return null;
       if (task === 'harvest' && spaceTotal < 10) return null;
       const f = fields.sort((a, b) => Number(b.priority) - Number(a.priority))[0];
       const crop = CROPS[defOf(f).crop!];
-      const op: FieldOp = f.phase === 'mur' ? 'recolte' : f.phase === 'labour' ? 'labour' : 'semis';
+      const op: FieldOp = f.phase === 'mur' ? 'recolte' : f.phase === 'labour' ? 'labour' : f.phase === 'epandage' ? 'epandage' : f.phase === 'pousse' ? 'traitement' : 'semis';
       const todo = this.tileOrder(f);
       if (!todo.length) return null;
       const machine = this.machineFor(op, crop.id);
       const home = machine ? this.byId.get(machine.home) : null;
-      const opName = op === 'labour' ? 'Labour' : op === 'semis' ? 'Semis' : 'Récolte';
+      const opName = { labour: 'Labour', epandage: 'Épandage', semis: 'Semis', traitement: 'Traitement', recolte: 'Récolte' }[op];
+      if (op === 'traitement' && !(machine && home)) return null; // le traitement se fait au pulvérisateur
       if (machine && home) {
-        const tool = op === 'labour' ? 'charrue' : op === 'semis' ? 'semoir' : machine.kind === 'tracteur' ? 'remorque' : 'seul';
+        const tool = { labour: 'charrue', epandage: 'epandeur', semis: 'semoir', traitement: 'pulverisateur', recolte: machine.kind === 'tracteur' ? 'remorque' : 'seul' }[op];
         const steps: Step[] = [{ k: 'go', ...xy(doorOf(home)) }, { k: 'board', v: machine.id, tool }];
         for (const [x, y] of todo) steps.push({ k: 'go', x, y, vehicle: true }, { k: 'field', b: f.id, op });
         f.busyBy = w.id;
@@ -607,7 +626,9 @@ export class Sim {
         d.recettes!.forEach((r, ri) => {
           const have = this.stockOf(r.input);
           if (have < r.inQty || this.totalSpace() + r.inQty < r.outQty) return;
-          if (!b.priority && this.stockOf(r.output) >= PROCESS_TARGET) return;
+          // on produit tant que le surplus peut s'écouler (boutique ou contrat négociant)
+          const seuil = this.sellThreshold(r.output);
+          if (!b.priority && this.stockOf(r.output) >= Math.max(PROCESS_TARGET, seuil >= 0 ? seuil + 60 : 0)) return;
           cands.push({ b, r, ri, score: (b.priority ? -1e6 : 0) + this.stockOf(r.output) / r.outQty - have / r.inQty / 100 });
         });
       }
@@ -811,16 +832,26 @@ export class Sim {
       }
       case 'field': {
         const b = this.byId.get(st.b);
-        const want = st.op === 'recolte' ? 'mur' : st.op;
-        if (!b || b.phase !== want) {
+        const want = st.op === 'recolte' ? 'mur' : st.op === 'traitement' ? 'pousse' : st.op;
+        if (!b || b.phase !== want || (st.op === 'traitement' && b.treated)) {
           // opération déjà terminée : l'engin rentre (en déchargeant), le travailleur dépose sa charge
           w.steps = w.vehicle != null ? this.vehicleHome(w) : w.carry ? [{ k: 'put', b: -1 }] : [];
           return;
         }
         const v = this.vehicleOf(w);
         const crop = CROPS[defOf(b).crop!];
-        w.timer = v ? (st.op === 'labour' ? 3 : st.op === 'semis' ? 2 : v.kind === 'moissonneuse' ? 3 : 4) : st.op === 'labour' ? 14 : st.op === 'semis' ? 8 : crop.look === 'lavande' || crop.look === 'legumes' ? 7 : 10;
-        w.label = `${st.op === 'labour' ? 'Laboure' : st.op === 'semis' ? 'Sème' : 'Récolte'}${v ? (v.kind === 'moissonneuse' ? ' (moissonneuse)' : ' (tracteur)') : ' à la main'}`;
+        w.timer = v ? { labour: 3, epandage: 2, semis: 2, traitement: 1, recolte: v.kind === 'moissonneuse' ? 3 : 4 }[st.op] : { labour: 14, epandage: 8, semis: 8, traitement: 6, recolte: crop.look === 'lavande' || crop.look === 'legumes' ? 7 : 10 }[st.op];
+        w.label = `${{ labour: 'Laboure', epandage: 'Épand le fumier', semis: 'Sème', traitement: 'Traite la culture', recolte: 'Récolte' }[st.op]}${v ? (v.kind === 'moissonneuse' ? ' (moissonneuse)' : ' (tracteur)') : ' à la main'}`;
+        return;
+      }
+      case 'vine': {
+        const b = this.byId.get(st.b);
+        if (!b || b.ready < 1) {
+          w.steps = this.vehicleHome(w);
+          return;
+        }
+        w.timer = 3;
+        w.label = 'Vendange (machine à vendanger)';
         return;
       }
       case 'unload':
@@ -866,6 +897,18 @@ export class Sim {
       if (b && b.busyBy === w.id) b.busyBy = null;
     } else if (st.k === 'field') {
       this.fieldTile(w, st.b, st.op);
+    } else if (st.k === 'vine') {
+      const b = this.byId.get(st.b);
+      const v = this.vehicleOf(w);
+      if (b && v && b.ready > 0) {
+        const left = footprint(b).length - b.done.length;
+        const q = round2(b.ready / Math.max(1, left));
+        b.ready = round2(b.ready - q);
+        v.load = { res: 'raisin', qty: round2((v.load?.qty ?? 0) + q) };
+        this.s.stats.harvested.raisin = round2((this.s.stats.harvested.raisin ?? 0) + q);
+        b.done.push(Math.round(w.y) * 10000 + Math.round(w.x));
+        if (b.done.length >= footprint(b).length) b.done = [];
+      }
     } else if (st.k === 'unload') {
       const v = this.s.vehicles.find((x) => x.id === st.v);
       const b = this.byId.get(st.b);
@@ -873,10 +916,17 @@ export class Sim {
         const q = Math.min(this.space(b), v.load.qty);
         this.add(b, v.load.res, q);
         v.load.qty = round2(v.load.qty - q);
-        if (v.load.qty <= 0) v.load = null;
-        else this.event('Benne non entièrement vidée : grange pleine.', 'alerte');
+        if (v.load.qty > 0) {
+          // grange pleine : le reste part directement à la coopérative, au prix du négociant
+          const r = v.load.res, rest = v.load.qty;
+          const price = round2(RESOURCES[r].prix * wholesaleFactor(r));
+          this.book(RESOURCES[r].activite, rest * price, `Coopérative — ${RESOURCES[r].nom}`);
+          this.s.stats.sold[r] = round2((this.s.stats.sold[r] ?? 0) + rest);
+          this.event(`Grange pleine : ${Math.round(rest)} ${RESOURCES[r].unite} livrés directement à la coopérative (${Math.round(rest * price)} €).`, 'info');
+        }
+        v.load = null;
       }
-      for (const f of this.s.buildings) if (f.busyBy === w.id && defOf(f).crop) f.busyBy = null;
+      for (const f of this.s.buildings) if (f.busyBy === w.id && (defOf(f).crop || defOf(f).kind === 'verger')) f.busyBy = null;
     } else if (st.k === 'alight') this.alight(w);
   }
 
@@ -890,7 +940,9 @@ export class Sim {
     const tx = Math.round(w.x), ty = Math.round(w.y);
     const here = left.find(([x, y]) => x === tx && y === ty) ?? left[0];
     if (!here) return;
-    if (op === 'recolte') {
+    if (op === 'traitement') {
+      if (b.phase !== 'pousse' || b.treated) return;
+    } else if (op === 'recolte') {
       if (b.phase !== 'mur') return;
       const q = round2(b.ready / Math.max(1, left.length));
       b.ready = round2(b.ready - q);
@@ -902,14 +954,26 @@ export class Sim {
     b.done.push(here[1] * 10000 + here[0]);
     if (b.done.length >= tiles.length) {
       b.done = [];
-      if (op === 'labour') b.phase = 'semis';
-      else if (op === 'semis') {
+      const hasTractor = this.s.vehicles.some((v) => v.kind === 'tracteur' && this.byId.has(v.home));
+      if (op === 'labour') b.phase = hasTractor ? 'epandage' : 'semis';
+      else if (op === 'epandage') {
+        b.phase = 'semis';
+        b.bonus = round2((b.bonus ?? 0) + 0.15);
+        this.book(defOf(b).activite, -FUMURE_COST, 'Fumure (épandage)');
+      } else if (op === 'traitement') {
+        b.treated = true;
+        b.bonus = round2((b.bonus ?? 0) + 0.1);
+        this.book(defOf(b).activite, -TRAITEMENT_COST, 'Traitement des cultures');
+        if (b.busyBy === w.id && !this.vehicleOf(w)) b.busyBy = null;
+      } else if (op === 'semis') {
         b.phase = 'pousse';
         b.growth = 0;
         this.book(defOf(b).activite, -crop.semence, `Semences — ${crop.nom}`);
       } else {
         b.ready = 0;
         b.growth = 0;
+        b.bonus = 0;
+        b.treated = false;
         b.phase = crop.vivace ? 'pousse' : 'labour';
         if (b.busyBy === w.id && !this.vehicleOf(w)) b.busyBy = null;
         this.event(`${defOf(b).nom} : récolte terminée.`, 'info');
@@ -928,7 +992,7 @@ export class Sim {
     }
     w.vehicle = null;
     w.hidden = false;
-    for (const f of this.s.buildings) if (f.busyBy === w.id && defOf(f).crop) f.busyBy = null;
+    for (const f of this.s.buildings) if (f.busyBy === w.id && (defOf(f).crop || defOf(f).kind === 'verger')) f.busyBy = null;
   }
 
   // ————— visiteurs (en voiture) —————
@@ -1088,10 +1152,20 @@ export class Sim {
     }
   }
 
-  /** Contrats négociant : chaque matin, les stocks au-delà du seuil choisi sont vendus en gros. */
+  /** Seuil effectif d'un contrat négociant (-2 = automatique, -1 = désactivé). */
+  sellThreshold(res: Res): number {
+    const v = this.s.autoSell[res] ?? -2;
+    if (v !== -2) return v;
+    // automatique : on garde de quoi alimenter les ateliers du domaine
+    const input = this.s.buildings.some((b) => defOf(b).recettes?.some((r) => r.input === res));
+    return input ? 300 : 150;
+  }
+
+  /** Contrats négociant : chaque matin, les stocks au-delà du seuil sont vendus en gros. */
   private autoSell() {
-    for (const [res, seuil] of Object.entries(this.s.autoSell)) {
-      if (seuil == null || seuil < 0) continue;
+    for (const res of RES_IDS) {
+      const seuil = this.sellThreshold(res);
+      if (seuil < 0) continue;
       const surplus = Math.floor(this.stockOf(res) - seuil);
       if (surplus >= 5) this.order(res, surplus, true);
     }
@@ -1117,7 +1191,8 @@ export class Sim {
       if (o.status !== 'attente' || s.minute < o.dueMin) continue;
       const [ex, ey] = s.world.entry;
       const st = this.nearest(this.storages(), ex, ey);
-      const van = this.addVehicle('camionnette', null, ex, ey);
+      // les animaux vendus partent en bétaillère, le reste en camionnette
+      const van = this.addVehicle(RESOURCES[o.res].unite === 'tête' ? 'betaillere' : 'camionnette', null, ex, ey);
       van.order = o.id;
       if (!st || !this.navTo(van, 'vehicle', ...doorOf(st))) {
         s.vehicles = s.vehicles.filter((v) => v !== van);
@@ -1125,7 +1200,7 @@ export class Sim {
         continue;
       }
       van.steps = [{ k: 'go', ...xy(doorOf(st)) }, { k: 'wait', min: 15, label: 'Chargement' }, { k: 'go', x: ex, y: ey }];
-      van.label = 'Camionnette du négociant';
+      van.label = van.kind === 'betaillere' ? 'Bétaillère du négociant' : 'Camionnette du négociant';
       o.status = 'en route';
     }
     s.orders = s.orders.filter((o) => o.status === 'attente' || o.status === 'en route' || o.status === 'chargement' || s.minute - o.createdMin < DAY_MIN);
@@ -1143,7 +1218,7 @@ export class Sim {
   }
 
   private updateVehicle(v: Vehicle) {
-    if (v.kind === 'tracteur' || v.kind === 'moissonneuse') return; // conduits par un travailleur
+    if (v.kind === 'tracteur' || v.kind === 'moissonneuse' || v.kind === 'vendangeuse') return; // conduits par un travailleur
     if (v.moving) {
       if (this.move(v, SPEED[v.kind])) {
         v.steps.shift();
@@ -1211,9 +1286,7 @@ export class Sim {
       if (a.pen >= 0) {
         const b = this.byId.get(a.pen);
         if (!b) return;
-        const s = defOf(b).size;
-        a.tx = b.x + 0.35 + this.rng.next() * (s - 1.6);
-        a.ty = b.y + 1.1 + this.rng.next() * (s - 1.5);
+        [a.tx, a.ty] = this.penSpot(b);
       } else {
         const [cx, cy] = this.s.world.farm;
         a.tx = cx - 4 + this.rng.next() * 10;
@@ -1224,6 +1297,18 @@ export class Sim {
     a.dir = dirOf(dx, dy);
     a.x += (dx / d) * sp;
     a.y += (dy / d) * sp;
+  }
+
+  /** Point libre dans un enclos, hors de l'abri (étable et bergerie : 2×2 au fond ; autres : 1×1). */
+  penSpot(b: Building): [number, number] {
+    const s = defOf(b).size;
+    const abri = LIVESTOCK[defOf(b).livestock!]?.abri;
+    const sh = abri === 'etable' || abri === 'bergerie' ? 2.3 : abri === 'rucher' ? 0 : 1.3;
+    for (let k = 0; k < 8; k++) {
+      const x = b.x + 0.3 + this.rng.next() * (s - 0.8), y = b.y + 0.4 + this.rng.next() * (s - 0.9);
+      if (!(x < b.x + sh && y < b.y + sh)) return [x, y];
+    }
+    return [b.x + s - 0.6, b.y + s - 0.6];
   }
 
   // ————— tutoriel —————

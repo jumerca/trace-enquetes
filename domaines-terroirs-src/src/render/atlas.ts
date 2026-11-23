@@ -84,16 +84,20 @@ export class Atlas {
     this.items = [];
   }
 
-  /** Planche pré-cuite (PNG + JSON) : les véhicules 3D. */
-  async load(png: string, json: string) {
-    const meta = await (await fetch(json)).json();
-    const img = new Image();
-    img.src = png;
-    await img.decode();
-    const src = new ImageSource({ resource: img, resolution: meta.res, scaleMode: 'linear' });
-    this.pages.push(src);
-    for (const [key, f] of Object.entries(meta.frames as Record<string, { x: number; y: number; w: number; h: number; ax: number; ay: number }>)) {
-      const tex = new Texture({ source: src, frame: new Rectangle(f.x / meta.res, f.y / meta.res, f.w / meta.res, f.h / meta.res) });
+  /** Planches pré-cuites (PNG + JSON) : les véhicules 3D. */
+  async load(dir: string, name = 'vehicules') {
+    const meta = await (await fetch(`${dir}/${name}.json`)).json();
+    const srcs: TextureSource[] = [];
+    for (let i = 0; i < meta.pages; i++) {
+      const img = new Image();
+      img.src = `${dir}/${name}-${i}.png`;
+      await img.decode();
+      const src = new ImageSource({ resource: img, resolution: meta.res, scaleMode: 'linear' });
+      this.pages.push(src);
+      srcs.push(src);
+    }
+    for (const [key, f] of Object.entries(meta.frames as Record<string, { p: number; x: number; y: number; w: number; h: number; ax: number; ay: number }>)) {
+      const tex = new Texture({ source: srcs[f.p], frame: new Rectangle(f.x / meta.res, f.y / meta.res, f.w / meta.res, f.h / meta.res) });
       this.map.set(key, { tex, ax: (f.ax * meta.res) / f.w, ay: (f.ay * meta.res) / f.h });
     }
   }

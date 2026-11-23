@@ -1,6 +1,8 @@
-# Domaines & Terroirs — JLG Creative (V0.2)
+# Domaines & Terroirs — JLG Creative (V0.3)
 
 Jeu de gestion d'un domaine rural français en 2,5D isométrique. PWA installable, jouable au toucher et à la souris, entièrement en français.
+
+**V0.3** : nouveaux engins (épandeur, pulvérisateur, vendangeuse, bétaillère, tracteurs de trois couleurs), personnages et animaux 3D, routes et ponts, économie équilibrée dans les 8 régions, reprise des sauvegardes V0.1, niveau de détail et qualité adaptative, compteur de performances.
 
 **V0.2** : huit régions au choix (Limousin, Nord, Beauce, Est, Sud-Ouest, moyenne montagne, bord de mer, Provence) avec relief, climat, architecture et productions propres ; carte de 256×256 cases ; 9 cultures, 6 vergers et vignes, 7 élevages, 10 ateliers ; véhicules modélisés en 3D (tracteur et outils, moissonneuse-batteuse, camionnette, voitures) rendus en sprites 8 directions ; labour, semis et moisson mécanisés ; visiteurs qui arrivent en voiture ; contrats négociant.
 
@@ -20,11 +22,11 @@ npm run build        # vérification TypeScript + build de production dans dist/
 npm run preview      # sert dist/ sur http://localhost:4174
 npm run test:e2e     # tests de bout en bout Playwright sur dist/ (ordinateur + Pixel 5 émulé), captures dans docs/captures/
 npm run icons        # régénère les icônes PNG depuis public/icons/icon.svg
-npm run bake:vehicules  # re-cuit les véhicules 3D (three.js) en planche PNG 8 directions : public/sprites/
+npm run bake:sprites    # re-cuit véhicules, personnages et animaux 3D (three.js) en planches PNG 8 directions : public/sprites/
 npm run build:pages  # build + copie dans ../domaines-terroirs (publication GitHub Pages)
 ```
 
-Outils de diagnostic : `sheet.html` (planche-contact des assets peints, `/sheet.html?s=0..3`), `bake.html` + `src/dev/bake/` (modèles 3D des véhicules), `scripts/quick.cjs` (capture d'une région), `scripts/engins.cjs` (engins au travail).
+Outils de diagnostic : `sheet.html` (planche-contact des assets peints, `/sheet.html?s=0..3`), `bake.html` + `src/dev/bake/` (modèles 3D des véhicules), `scripts/quick.cjs` (capture d'une région), `scripts/engins.cjs` (engins au travail), `scripts/vivants.cjs` (personnages et animaux), `scripts/perf.cjs` (coût par image avec processeur bridé).
 
 ## Commandes de jeu
 

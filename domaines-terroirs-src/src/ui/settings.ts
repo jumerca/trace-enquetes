@@ -2,10 +2,12 @@
 export interface Settings {
   quality: 'haute' | 'basse';
   tutorial: boolean;
+  perf: boolean; // afficher les performances
+  adaptive: boolean; // alléger l'affichage automatiquement
 }
 const KEY = 'dt-reglages';
 export function loadSettings(): Settings {
-  const def: Settings = { quality: 'haute', tutorial: true };
+  const def: Settings = { quality: 'haute', tutorial: true, perf: false, adaptive: true };
   try {
     return { ...def, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
   } catch {

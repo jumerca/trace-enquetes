@@ -1,6 +1,7 @@
 // Sauvegardes : sérialisation JSON versionnée, stockage IndexedDB, export/import de fichiers.
 import { SAVE_VERSION, type GameState } from '../sim/state';
 import { dateLabel } from '../sim/sim';
+import { migrateV1 } from './migrate';
 
 const toB64 = (a: Uint8Array) => {
   let s = '';
@@ -24,16 +25,14 @@ export function serialize(s: GameState): string {
 }
 
 /** Migrations successives : chaque version future ajoutera une étape ici. */
-const MIGRATIONS: Record<number, (st: any) => any> = {
-  1: () => {
-    throw new Error('Sauvegarde de la V0.1 : la carte et le contenu ont changé (V0.2), elle ne peut pas être reprise');
-  },
-};
+const MIGRATIONS: Record<number, (st: any) => any> = {};
 
 export function deserialize(json: string): GameState {
   const f = JSON.parse(json) as SaveFile;
   if (f.format !== 'domaines-terroirs') throw new Error('Fichier de sauvegarde non reconnu');
   if (f.version > SAVE_VERSION) throw new Error('Sauvegarde issue d\'une version plus récente du jeu');
+  // V0.1 : carte et contenu différents → reprise dans un domaine recréé (voir migrate.ts)
+  if (f.version === 1) return migrateV1(f.state);
   let st: any = f.state;
   for (let v = f.version; v < SAVE_VERSION; v++) st = MIGRATIONS[v]?.(st) ?? st;
   st.world.terrain = fromB64(st.world.terrain);

@@ -53,9 +53,9 @@ export const REGIONS: RegionDef[] = [
     relief: { amplitude: 14, echelle: 40, montagne: 0 }, mer: false, rivieres: 1, forets: 0.12, essences: ['chene', 'bouleau', 'peuplier'], bocage: false,
     champsVoisins: ['betterave', 'ble', 'patate', 'orge', 'colza'], architecture: { mur: '#b0553a', toit: '#5a6068', toitType: 'ardoise', pente: 1.0, volets: '#e8e2d0', brique: true },
     meteo: [[0.3, 0.38, 0.29, 0.03, 0], [0.45, 0.3, 0.2, 0.05, 0], [0.2, 0.4, 0.37, 0.03, 0], [0.15, 0.4, 0.3, 0, 0.15]],
-    aptitudes: { betterave: 1.3, pommes_de_terre: 1.25, orge: 1.2, ble: 1.15, vaches: 1.15, lavande: 0.3, olivier: 0 },
+    aptitudes: { betterave: 1.3, pommes_de_terre: 1.25, orge: 1.2, ble: 1.15, vaches: 1.3, lavande: 0.3, olivier: 0 },
     cultures: ['ble', 'orge', 'betterave', 'pommes_de_terre', 'colza', 'legumes'], vergers: ['pommier'], elevages: ['vaches', 'poules', 'porcs', 'brebis'],
-    ateliers: ['fromagerie', 'moulin', 'boulangerie', 'brasserie', 'huilerie', 'charcuterie', 'pressoir'], tourisme: 0.7, depart: { parcelle: 'elevage_vaches', atelier: 'fromagerie', argent: 20000 },
+    ateliers: ['fromagerie', 'moulin', 'boulangerie', 'brasserie', 'huilerie', 'charcuterie', 'pressoir'], tourisme: 0.9, depart: { parcelle: 'elevage_vaches', atelier: 'fromagerie', argent: 20000 },
     specialites: 'Tommes au lait de vache, bière d\'orge, pommes de terre.',
   },
   {
@@ -63,9 +63,9 @@ export const REGIONS: RegionDef[] = [
     relief: { amplitude: 8, echelle: 50, montagne: 0 }, mer: false, rivieres: 0, forets: 0.06, essences: ['chene', 'peuplier', 'noyer'], bocage: false,
     champsVoisins: ['ble', 'ble', 'orge', 'colza', 'tournesol', 'mais'], architecture: { mur: '#d6c4a0', toit: '#8a4a32', toitType: 'tuilesPlates', pente: 1.35, volets: '#7a8a6a' },
     meteo: [[0.45, 0.32, 0.2, 0.03, 0], [0.6, 0.24, 0.1, 0.06, 0], [0.38, 0.34, 0.25, 0.03, 0], [0.25, 0.4, 0.22, 0, 0.13]],
-    aptitudes: { ble: 1.3, orge: 1.2, colza: 1.2, tournesol: 1.05, mais: 1.0, brebis: 1.1 },
+    aptitudes: { ble: 1.6, orge: 1.3, colza: 1.2, tournesol: 1.05, mais: 1.0, brebis: 1.1 },
     cultures: ['ble', 'orge', 'colza', 'tournesol', 'mais', 'betterave'], vergers: ['pommier'], elevages: ['brebis', 'poules', 'vaches'],
-    ateliers: ['moulin', 'boulangerie', 'huilerie', 'brasserie', 'fromagerie'], tourisme: 0.6, depart: { parcelle: 'champ_ble', atelier: 'moulin', argent: 24000, hangar: true, second: 'boulangerie' },
+    ateliers: ['moulin', 'boulangerie', 'huilerie', 'brasserie', 'fromagerie'], tourisme: 0.8, depart: { parcelle: 'champ_ble', atelier: 'moulin', argent: 24000, hangar: true, second: 'boulangerie' },
     specialites: 'Blé, farine et pain ; huiles de colza et tournesol.',
   },
   {
@@ -73,7 +73,7 @@ export const REGIONS: RegionDef[] = [
     relief: { amplitude: 110, echelle: 26, montagne: 0.25 }, mer: false, rivieres: 1, forets: 0.35, essences: ['sapin', 'hetre', 'chene', 'bouleau'], bocage: false,
     champsVoisins: ['vigne', 'ble', 'mais', 'orge', 'legumes'], architecture: { mur: '#efe2c4', toit: '#b8503a', toitType: 'tuilesPlates', pente: 1.6, volets: '#6f8a5a', colombages: true },
     meteo: [[0.4, 0.33, 0.24, 0.03, 0], [0.55, 0.22, 0.13, 0.1, 0], [0.3, 0.38, 0.29, 0.03, 0], [0.18, 0.37, 0.1, 0, 0.35]],
-    aptitudes: { mirabellier: 1.35, vigne: 1.15, porcs: 1.1, legumes: 1.05 },
+    aptitudes: { mirabellier: 1.15, vigne: 1.15, porcs: 1.1, legumes: 1.05 },
     cultures: ['ble', 'orge', 'mais', 'legumes', 'pommes_de_terre'], vergers: ['mirabellier', 'vigne', 'pommier', 'prunier'], elevages: ['porcs', 'vaches', 'poules', 'ruches'],
     ateliers: ['conserverie', 'chai', 'brasserie', 'charcuterie', 'pressoir', 'fromagerie', 'boulangerie', 'moulin'], tourisme: 1.1, depart: { parcelle: 'verger_mirabellier', atelier: 'conserverie', argent: 18000 },
     specialites: 'Confitures de mirabelles, vin blanc, charcuterie, bière.',
@@ -124,7 +124,7 @@ export const REGION_BY_ID: Record<string, RegionDef> = Object.fromEntries(REGION
 
 /** Bâtiments constructibles dans une région. */
 export function regionBuildings(r: RegionDef): Set<string> {
-  return new Set([...COMMUNS, ...r.cultures.map((c) => 'champ_' + c), ...r.vergers.map((v) => 'verger_' + v), ...r.elevages.map((e) => 'elevage_' + e), ...r.ateliers]);
+  return new Set([...COMMUNS, ...(r.vergers.includes('vigne') ? ['remise_viti'] : []), ...r.cultures.map((c) => 'champ_' + c), ...r.vergers.map((v) => 'verger_' + v), ...r.elevages.map((e) => 'elevage_' + e), ...r.ateliers]);
 }
 
 /** Rendement relatif d'une production dans la région (1 par défaut). */

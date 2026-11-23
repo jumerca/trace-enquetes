@@ -1,5 +1,5 @@
 // Actions du joueur : toutes validées ici (l'interface ne fait que les appeler).
-import { BUILDINGS, LEVEL_COST, LOT_PRICE, PATH_COST, RESOURCES, TREE_CLEAR_COST, wholesaleFactor, type Res } from '../data/content';
+import { BRIDGE_COST, BUILDINGS, LEVEL_COST, LOT_PRICE, PATH_COST, ROAD_COST, RESOURCES, TREE_CLEAR_COST, wholesaleFactor, type Res } from '../data/content';
 import { regionBuildings } from '../data/regions';
 import { DECOR_IS_TREE, D, HSCALE, T, flattenRect, inside, isBuildableGround, isOwned, isPathLike, lotOf, lotsPerRow, slopeOf } from '../world/terrain';
 import { defOf, doorOf, footprint, isParcel } from './geom';
@@ -119,31 +119,49 @@ export function demolish(sim: Sim, id: number): boolean {
   return true;
 }
 
-export function checkPath(sim: Sim, x: number, y: number): { ok: boolean; reason: string; cost: number } {
+export type Voie = 'chemin' | 'route' | 'pont';
+export const VOIES: Record<Voie, { nom: string; cout: number; desc: string }> = {
+  chemin: { nom: 'Chemin de terre', cout: PATH_COST, desc: 'Piétons et engins agricoles (au pas)' },
+  route: { nom: 'Route empierrée', cout: ROAD_COST, desc: 'Plus rapide pour les engins et les voitures' },
+  pont: { nom: 'Pont de bois', cout: BRIDGE_COST, desc: 'Franchit une rivière ou un étang' },
+};
+
+export function checkPath(sim: Sim, x: number, y: number, voie: Voie = 'chemin'): { ok: boolean; reason: string; cost: number } {
   const W = sim.s.world;
   if (!inside(W, x, y)) return { ok: false, reason: 'Hors de la carte', cost: 0 };
   if (!isOwned(W, x, y)) return { ok: false, reason: 'Terrain non acquis', cost: 0 };
   const i = y * W.w + x;
   const t = W.terrain[i];
   if (sim.occ[i] >= 0) return { ok: false, reason: 'Occupé par un bâtiment', cost: 0 };
-  if (isPathLike(t)) return { ok: false, reason: 'Déjà praticable', cost: 0 };
-  if (t === T.eau || t === T.mer) return { ok: false, reason: 'Pas de pont en V0.2', cost: 0 };
+  if (voie === 'pont') {
+    if (t === T.mer) return { ok: false, reason: 'Pas de pont sur la mer', cost: 0 };
+    if (t !== T.eau) return { ok: false, reason: 'Un pont se pose sur l\'eau', cost: 0 };
+    // il doit prolonger une voie existante (chemin, route, cour ou pont)
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inside(W, x + dx, y + dy) && isPathLike(W.terrain[(y + dy) * W.w + x + dx]));
+    if (!nb) return { ok: false, reason: 'Le pont doit prolonger un chemin ou une route', cost: 0 };
+    if (sim.s.money < VOIES.pont.cout) return { ok: false, reason: 'Fonds insuffisants', cost: VOIES.pont.cout };
+    return { ok: true, reason: VOIES.pont.nom, cost: VOIES.pont.cout };
+  }
+  if (t === T.eau || t === T.mer) return { ok: false, reason: 'Sur l\'eau : utilisez un pont', cost: 0 };
+  if (t === T.route || t === T.pont || t === T.cour || (voie === 'chemin' && t === T.chemin)) return { ok: false, reason: 'Déjà praticable', cost: 0 };
   if (slopeOf(W, x, y) > 40) return { ok: false, reason: 'Pente trop forte', cost: 0 };
   const d = W.decor[i];
   if (d === D.rocher || d === D.rocherGros || d === D.maison || d === D.eglise) return { ok: false, reason: 'Obstacle', cost: 0 };
-  const cost = PATH_COST + (DECOR_IS_TREE(d) ? TREE_CLEAR_COST : 0);
+  // un chemin existant s'empierre à moindre coût
+  const base = voie === 'route' && t === T.chemin ? ROAD_COST - PATH_COST : VOIES[voie].cout;
+  const cost = base + (DECOR_IS_TREE(d) ? TREE_CLEAR_COST : 0);
   if (sim.s.money < cost) return { ok: false, reason: 'Fonds insuffisants', cost };
-  return { ok: true, reason: 'Chemin de terre', cost };
+  return { ok: true, reason: VOIES[voie].nom, cost };
 }
 
-export function buildPath(sim: Sim, x: number, y: number): boolean {
-  const c = checkPath(sim, x, y);
+export function buildPath(sim: Sim, x: number, y: number, voie: Voie = 'chemin'): boolean {
+  const c = checkPath(sim, x, y, voie);
   if (!c.ok) return false;
   const W = sim.s.world;
   const i = y * W.w + x;
-  W.terrain[i] = T.chemin;
+  W.terrain[i] = voie === 'pont' ? T.pont : voie === 'route' ? T.route : T.chemin;
   W.decor[i] = D.none;
-  sim.book('general', -c.cost, 'Chemins', true);
+  sim.book('general', -c.cost, voie === 'pont' ? 'Ponts' : voie === 'route' ? 'Routes' : 'Chemins', true);
   sim.refresh();
   return true;
 }

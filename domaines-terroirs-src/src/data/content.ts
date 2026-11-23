@@ -45,14 +45,14 @@ export const RESOURCES: Record<Res, ResDef> = Object.fromEntries(
     R('vin', 'Vin du domaine', 'bouteille', 9, 'vigne', true, '#7a1a2a'),
     R('lavande', 'Lavande', 'botte', 3, 'lavande', true, '#8a66c8'),
     R('essence', 'Huile essentielle de lavande', 'flacon', 12, 'lavande', true, '#a888e0'),
-    R('ble', 'Blé', 'kg', 0.35, 'cereales', false, '#e0b84a'),
+    R('ble', 'Blé', 'kg', 0.5, 'cereales', false, '#e0b84a'),
     R('farine', 'Farine', 'kg', 2.2, 'cereales', true, '#efe7d8'),
     R('pain', 'Pain de campagne', 'pièce', 3.2, 'cereales', true, '#c88a4a'),
-    R('orge', 'Orge', 'kg', 0.3, 'cereales', false, '#d8c070'),
+    R('orge', 'Orge', 'kg', 0.45, 'cereales', false, '#d8c070'),
     R('biere', 'Bière de la ferme', 'bouteille', 3.6, 'cereales', true, '#d89a2a'),
-    R('mais', 'Maïs grain', 'kg', 0.25, 'grandes', false, '#f0c430'),
-    R('tournesol', 'Graines de tournesol', 'kg', 0.6, 'grandes', false, '#3a3020'),
-    R('colza', 'Graines de colza', 'kg', 0.55, 'grandes', false, '#2a2018'),
+    R('mais', 'Maïs grain', 'kg', 0.4, 'grandes', false, '#f0c430'),
+    R('tournesol', 'Graines de tournesol', 'kg', 0.9, 'grandes', false, '#3a3020'),
+    R('colza', 'Graines de colza', 'kg', 0.85, 'grandes', false, '#2a2018'),
     R('huile', 'Huile vierge', 'bouteille', 6, 'grandes', true, '#e8c84a'),
     R('betterave', 'Betteraves sucrières', 'kg', 0.12, 'grandes', false, '#e8dcc0'),
     R('pommes_de_terre', 'Pommes de terre', 'kg', 1, 'maraichage', true, '#c8a060'),
@@ -73,8 +73,8 @@ export const RESOURCES: Record<Res, ResDef> = Object.fromEntries(
 );
 export const RES_IDS = Object.keys(RESOURCES) as Res[];
 
-/** Le négociant paie 60 % du prix de référence pour les produits de boutique, 90 % pour les matières brutes. */
-export const wholesaleFactor = (r: Res) => (RESOURCES[r].boutique ? 0.6 : 0.9);
+/** Le négociant paie 70 % du prix de référence pour les produits de boutique, 90 % pour les matières brutes. */
+export const wholesaleFactor = (r: Res) => (RESOURCES[r].boutique ? 0.7 : 0.9);
 
 // ————— cultures annuelles (parcelles) —————
 export type PlantLook = 'cereale' | 'mais' | 'tournesol' | 'colza' | 'betterave' | 'patate' | 'lavande' | 'legumes';
@@ -91,15 +91,15 @@ export interface CropDef {
   cout: number;
 }
 export const CROPS: Record<string, CropDef> = {
-  ble: { id: 'ble', nom: 'Blé tendre', produit: 'ble', rendement: 195, croissance: [0.15, 0.13, 0.06, 0.03], recolte: 'moissonneuse', semence: 24, look: 'cereale', cout: 900 },
-  orge: { id: 'orge', nom: 'Orge de brasserie', produit: 'orge', rendement: 188, croissance: [0.16, 0.14, 0.06, 0.03], recolte: 'moissonneuse', semence: 22, look: 'cereale', cout: 900 },
-  mais: { id: 'mais', nom: 'Maïs', produit: 'mais', rendement: 300, croissance: [0.08, 0.16, 0.1, 0], recolte: 'moissonneuse', semence: 30, look: 'mais', cout: 950 },
-  tournesol: { id: 'tournesol', nom: 'Tournesol', produit: 'tournesol', rendement: 112, croissance: [0.1, 0.17, 0.06, 0], recolte: 'moissonneuse', semence: 26, look: 'tournesol', cout: 950 },
-  colza: { id: 'colza', nom: 'Colza', produit: 'colza', rendement: 120, croissance: [0.16, 0.12, 0.08, 0.04], recolte: 'moissonneuse', semence: 26, look: 'colza', cout: 950 },
-  betterave: { id: 'betterave', nom: 'Betterave sucrière', produit: 'betterave', rendement: 630, croissance: [0.1, 0.12, 0.1, 0.01], recolte: 'tracteur', semence: 30, look: 'betterave', cout: 1000 },
-  pommes_de_terre: { id: 'pommes_de_terre', nom: 'Pommes de terre', produit: 'pommes_de_terre', rendement: 390, croissance: [0.16, 0.15, 0.05, 0], recolte: 'tracteur', semence: 40, look: 'patate', cout: 1000 },
-  lavande: { id: 'lavande', nom: 'Lavande', produit: 'lavande', rendement: 105, croissance: [0.12, 0.18, 0.03, 0], recolte: 'main', semence: 0, vivace: true, look: 'lavande', cout: 1400 },
-  legumes: { id: 'legumes', nom: 'Potager de maraîchage', produit: 'legumes', rendement: 105, croissance: [0.3, 0.32, 0.22, 0.06], recolte: 'main', semence: 18, look: 'legumes', cout: 1100 },
+  ble: { id: 'ble', nom: 'Blé tendre', produit: 'ble', rendement: 520, croissance: [0.15, 0.13, 0.06, 0.03], recolte: 'moissonneuse', semence: 24, look: 'cereale', cout: 900 },
+  orge: { id: 'orge', nom: 'Orge de brasserie', produit: 'orge', rendement: 500, croissance: [0.16, 0.14, 0.06, 0.03], recolte: 'moissonneuse', semence: 22, look: 'cereale', cout: 900 },
+  mais: { id: 'mais', nom: 'Maïs', produit: 'mais', rendement: 600, croissance: [0.08, 0.16, 0.1, 0], recolte: 'moissonneuse', semence: 30, look: 'mais', cout: 950 },
+  tournesol: { id: 'tournesol', nom: 'Tournesol', produit: 'tournesol', rendement: 220, croissance: [0.1, 0.17, 0.06, 0], recolte: 'moissonneuse', semence: 26, look: 'tournesol', cout: 950 },
+  colza: { id: 'colza', nom: 'Colza', produit: 'colza', rendement: 240, croissance: [0.16, 0.12, 0.08, 0.04], recolte: 'moissonneuse', semence: 26, look: 'colza', cout: 950 },
+  betterave: { id: 'betterave', nom: 'Betterave sucrière', produit: 'betterave', rendement: 1260, croissance: [0.1, 0.12, 0.1, 0.01], recolte: 'tracteur', semence: 30, look: 'betterave', cout: 1000 },
+  pommes_de_terre: { id: 'pommes_de_terre', nom: 'Pommes de terre', produit: 'pommes_de_terre', rendement: 520, croissance: [0.16, 0.15, 0.05, 0], recolte: 'tracteur', semence: 40, look: 'patate', cout: 1000 },
+  lavande: { id: 'lavande', nom: 'Lavande', produit: 'lavande', rendement: 220, croissance: [0.12, 0.18, 0.03, 0], recolte: 'main', semence: 0, vivace: true, look: 'lavande', cout: 1400 },
+  legumes: { id: 'legumes', nom: 'Potager de maraîchage', produit: 'legumes', rendement: 150, croissance: [0.3, 0.32, 0.22, 0.06], recolte: 'main', semence: 18, look: 'legumes', cout: 1100 },
 };
 
 // ————— vergers et vignes (arbres pérennes) —————
@@ -140,7 +140,7 @@ export interface LivestockDef {
 }
 export const LIVESTOCK: Record<string, LivestockDef> = {
   chevres: { id: 'chevres', nom: 'Enclos caprin', animal: 'chevre', nombre: 6, produit: 'lait_chevre', tauxParTete: 0.208, cap: 70, saisons: [1.1, 1, 0.9, 0.6], entretien: 14, cout: 2600, abri: 'abri' },
-  vaches: { id: 'vaches', nom: 'Étable et pré (vaches laitières)', animal: 'vache', nombre: 4, produit: 'lait', tauxParTete: 1.2, cap: 224, saisons: [1.1, 1, 0.95, 0.85], entretien: 28, cout: 6800, abri: 'etable' },
+  vaches: { id: 'vaches', nom: 'Étable et pré (vaches laitières)', animal: 'vache', nombre: 6, produit: 'lait', tauxParTete: 1.2, cap: 224, saisons: [1.1, 1, 0.95, 0.85], entretien: 28, cout: 6800, abri: 'etable' },
   brebis: { id: 'brebis', nom: 'Bergerie (agneaux)', animal: 'brebis', nombre: 8, produit: 'agneaux', tauxParTete: 0.00192, cap: 8, saisons: [1.6, 0.8, 0.8, 0.8], entretien: 16, cout: 3400, abri: 'bergerie' },
   poules: { id: 'poules', nom: 'Poulailler', animal: 'poule', nombre: 14, produit: 'oeufs', tauxParTete: 0.012, cap: 42, saisons: [1.1, 1, 0.8, 0.5], entretien: 6, cout: 1200, abri: 'poulailler' },
   canards: { id: 'canards', nom: 'Parc à canards', animal: 'canard', nombre: 10, produit: 'canards', tauxParTete: 0.0096, cap: 28, saisons: [0.8, 0.8, 1.3, 1.1], entretien: 12, cout: 2400, abri: 'poulailler' },
@@ -162,7 +162,7 @@ const rc = (input: Res, inQty: number, output: Res, outQty: number, minutes: num
 export const WORKSHOPS: Record<string, { nom: string; desc: string; cout: number; entretien: number; recettes: Recipe[] }> = {
   pressoir: { nom: 'Pressoir', desc: 'Presse les pommes en jus mis en bouteille.', cout: 3600, entretien: 6, recettes: [rc('pommes', 8, 'jus', 5, 50, 2, 'bouteilles et bouchons')] },
   fromagerie: { nom: 'Fromagerie', desc: 'Fromages de chèvre et tommes de vache.', cout: 5200, entretien: 9, recettes: [rc('lait_chevre', 10, 'fromage_chevre', 3, 80, 1.2, 'présure et sel'), rc('lait', 20, 'tomme', 2, 140, 2, 'présure, sel, toile')] },
-  moulin: { nom: 'Moulin', desc: 'Moud le blé en farine.', cout: 6000, entretien: 10, recettes: [rc('ble', 20, 'farine', 15, 45, 0.8, 'entretien des meules')] },
+  moulin: { nom: 'Moulin', desc: 'Moud le blé en farine.', cout: 6000, entretien: 10, recettes: [rc('ble', 50, 'farine', 38, 50, 2, 'entretien des meules')] },
   boulangerie: { nom: 'Boulangerie', desc: 'Four à bois : pains de campagne.', cout: 4600, entretien: 8, recettes: [rc('farine', 5, 'pain', 12, 70, 3, 'bois de four, levain, sel')] },
   brasserie: { nom: 'Brasserie', desc: 'Bière de la ferme à partir de l\'orge.', cout: 7800, entretien: 12, recettes: [rc('orge', 20, 'biere', 30, 150, 9, 'houblon, bouteilles, capsules')] },
   chai: { nom: 'Chai', desc: 'Vinification et mise en bouteille.', cout: 8200, entretien: 12, recettes: [rc('raisin', 15, 'vin', 10, 110, 6, 'bouteilles, bouchons, étiquettes')] },
@@ -197,9 +197,10 @@ export interface BuildingDef {
 
 const B: BuildingDef[] = [
   { id: 'maison', nom: 'Maison du domaine', desc: 'Logis du domaine. Le personnel y prend son repos hors des heures de travail.', kind: 'maison', categorie: 'base', size: 3, cout: 0, entretien: 6, activite: 'general', unique: true, constructible: false },
-  { id: 'grange', nom: 'Grange', desc: 'Stockage de toutes les récoltes et productions du domaine.', kind: 'stock', categorie: 'base', size: 3, cout: 3200, entretien: 5, activite: 'general', capacite: 500, constructible: true },
-  { id: 'hangar', nom: 'Hangar & tracteur', desc: 'Un tracteur avec remorque, charrue et semoir : labours, semis, arrachage et transports bien plus rapides.', kind: 'hangar', categorie: 'base', size: 3, cout: 12500, entretien: 16, activite: 'grandes', constructible: true },
-  { id: 'remise', nom: 'Remise & moissonneuse-batteuse', desc: 'Moissonneuse-batteuse pour les céréales, le colza, le tournesol et le maïs.', kind: 'remise', categorie: 'base', size: 3, cout: 26000, entretien: 28, activite: 'cereales', constructible: true },
+  { id: 'grange', nom: 'Grange', desc: 'Stockage de toutes les récoltes et productions du domaine.', kind: 'stock', categorie: 'base', size: 3, cout: 3200, entretien: 5, activite: 'general', capacite: 1200, constructible: true },
+  { id: 'hangar', nom: 'Hangar & tracteur', desc: 'Un tracteur avec remorque, charrue, épandeur, semoir et pulvérisateur : labours, fumure (+15 % de récolte), semis, traitement (+10 %), arrachage et transports.', kind: 'hangar', categorie: 'base', size: 3, cout: 12500, entretien: 12, activite: 'grandes', constructible: true },
+  { id: 'remise', nom: 'Remise & moissonneuse-batteuse', desc: 'Moissonneuse-batteuse pour les céréales, le colza, le tournesol et le maïs.', kind: 'remise', categorie: 'base', size: 3, cout: 26000, entretien: 18, activite: 'cereales', constructible: true },
+  { id: 'remise_viti', nom: 'Hangar viticole & vendangeuse', desc: 'Machine à vendanger enjambeuse : vendanges de la vigne bien plus rapides.', kind: 'remise', categorie: 'base', size: 3, cout: 21000, entretien: 22, activite: 'vigne', constructible: true },
   { id: 'boutique', nom: 'Boutique de la ferme', desc: 'Vente directe aux visiteurs. Un membre du personnel doit tenir la caisse.', kind: 'boutique', categorie: 'accueil', size: 2, cout: 3200, entretien: 4, activite: 'general', capacite: 140, constructible: true },
   { id: 'accueil', nom: 'Accueil des visiteurs', desc: 'Attire davantage de visiteurs et propose une visite de la ferme (tarif réglable).', kind: 'accueil', categorie: 'accueil', size: 2, cout: 3800, entretien: 9, activite: 'accueil', constructible: true },
   ...Object.values(CROPS).map((c): BuildingDef => ({
@@ -219,7 +220,11 @@ const B: BuildingDef[] = [
 export const BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(B.map((b) => [b.id, b]));
 export const CATEGORIES: Record<BuildCategory, string> = { base: 'Domaine & matériel', cultures: 'Cultures', vergers: 'Vergers & vignes', elevages: 'Élevages', ateliers: 'Ateliers', accueil: 'Commerce & accueil' };
 
+export const FUMURE_COST = 30; // € par parcelle (fumier, engrais)
+export const TRAITEMENT_COST = 20; // € par parcelle
 export const PATH_COST = 14;
+export const ROAD_COST = 40; // € par case de route empierrée
+export const BRIDGE_COST = 450; // € par case de pont
 export const TREE_CLEAR_COST = 35;
 export const LEVEL_COST = 6; // € par unité de dénivelé à terrasser
 export const LOT_SIZE = 16;
@@ -233,10 +238,10 @@ export interface RoleDef {
   desc: string;
 }
 export const ROLES: Record<Role, RoleDef> = {
-  cultivateur: { id: 'cultivateur', nom: 'Cultivateur', salaire: 52, desc: 'Labours, semis et récoltes ; conduit le tracteur et la moissonneuse.' },
-  eleveur: { id: 'eleveur', nom: 'Éleveur', salaire: 52, desc: 'Soigne les animaux et récolte lait, œufs, miel… ; aide aux récoltes sinon.' },
-  artisan: { id: 'artisan', nom: 'Artisan', salaire: 58, desc: 'Fait tourner les ateliers ; réassortit et tient la boutique sinon.' },
-  vendeur: { id: 'vendeur', nom: 'Vendeur', salaire: 46, desc: 'Tient la boutique et réassortit les rayons.' },
+  cultivateur: { id: 'cultivateur', nom: 'Cultivateur', salaire: 46, desc: 'Labours, semis et récoltes ; conduit le tracteur et la moissonneuse.' },
+  eleveur: { id: 'eleveur', nom: 'Éleveur', salaire: 46, desc: 'Soigne les animaux et récolte lait, œufs, miel… ; aide aux récoltes sinon.' },
+  artisan: { id: 'artisan', nom: 'Artisan', salaire: 52, desc: 'Fait tourner les ateliers ; réassortit et tient la boutique sinon.' },
+  vendeur: { id: 'vendeur', nom: 'Vendeur', salaire: 40, desc: 'Tient la boutique et réassortit les rayons.' },
 };
 
 export const FIRST_NAMES = ['Mathilde', 'Pierre', 'Jeanne', 'Antoine', 'Lucie', 'Bastien', 'Odile', 'Rémi', 'Margaux', 'Étienne', 'Camille', 'Jules', 'Élise', 'Gaspard', 'Rose', 'Hugo', 'Louise', 'Victor', 'Anaïs', 'Marius'];

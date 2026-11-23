@@ -176,6 +176,26 @@ const findWater = (page) =>
     ok('commande au négociant : stock réservé', (await page.evaluate('window.__dt.sim.stockOf("jus")')) === st0 - 5);
     await page.click('[data-testid=onglet-commerce]');
 
+    // route empierrée tracée par le joueur
+    await page.click('[data-testid=onglet-construire]');
+    await page.click('[data-testid=outil-route]');
+    const routeSpot = await page.evaluate(() => {
+      const sim = window.__dt.sim, W = sim.s.world;
+      const [cx, cy] = W.farm;
+      for (let r = 3; r < 15; r++) for (let dx = -r; dx <= r; dx++) {
+        const x = cx + dx, y = cy + r;
+        const t = W.terrain[y * W.w + x];
+        if ((t === 0 || t === 1) && sim.occ[y * W.w + x] < 0 && !W.decor[y * W.w + x]) return [x, y];
+      }
+      return null;
+    });
+    await page.evaluate(([x, y]) => window.__dt.scene.centerOn(x, y, 1), routeSpot);
+    await page.waitForTimeout(150);
+    const [rx, ry] = await tileScreen(page, routeSpot[0], routeSpot[1]);
+    await page.mouse.click(rx, ry);
+    ok('route empierrée tracée', (await page.evaluate(([x, y]) => window.__dt.sim.s.world.terrain[y * 256 + x], routeSpot)) === 5);
+    await page.getByRole('button', { name: 'Terminer' }).click();
+
     // simulation d'une journée complète puis capture
     await page.evaluate('for (let i = 0; i < 900; i++) window.__dt.sim.tick()');
     await page.waitForTimeout(400);
@@ -212,8 +232,8 @@ const findWater = (page) =>
       const rp = await ctx.newPage();
       rp.on('pageerror', (e) => errors.push(region + ': ' + e.message));
       await startGame(rp, region);
-      const info = await rp.evaluate(() => ({ region: window.__dt.sim.s.region, b: window.__dt.sim.s.buildings.length, veh: window.__dt.scene.vehicleAtlas.map.size }));
-      ok(`région « ${region} » : partie lancée`, info.region === region && info.b >= 5 && info.veh > 100, JSON.stringify(info));
+      const info = await rp.evaluate(() => ({ region: window.__dt.sim.s.region, b: window.__dt.sim.s.buildings.length, veh: window.__dt.scene.vehicleAtlas.map.size, vivants: window.__dt.scene.livingAtlas.map.size }));
+      ok(`région « ${region} » : partie lancée (engins et personnages 3D chargés)`, info.region === region && info.b >= 5 && info.veh > 400 && info.vivants > 900, JSON.stringify(info));
       if (region === 'montagne' || region === 'mer' || region === 'beauce') {
         await rp.evaluate('window.__dt.scene.zoomBy(0.5)');
         await rp.waitForTimeout(800);

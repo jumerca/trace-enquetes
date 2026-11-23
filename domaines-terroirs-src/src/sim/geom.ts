@@ -47,7 +47,7 @@ export function makeCost(world: World, occ: Int32Array, byId: Map<number, Buildi
       const b = byId.get(o)!;
       const k = BUILDINGS[b.type].kind;
       if (kind === 'worker' && (k === 'verger' || k === 'champ')) return 2.5;
-      if (kind === 'vehicle' && k === 'champ' && (fieldAllowed === -1 || fieldAllowed === o)) return 1.6;
+      if (kind === 'vehicle' && (k === 'champ' || (k === 'verger' && b.type === 'verger_vigne')) && (fieldAllowed === -1 || fieldAllowed === o)) return 1.6;
       return Infinity;
     }
     if (DECOR_BLOCKS(world.decor[i])) return Infinity;

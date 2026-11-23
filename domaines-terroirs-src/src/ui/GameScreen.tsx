@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Game, type Speed } from '../game';
-import { BUILDINGS, PATH_COST, RESOURCES, WEATHER } from '../data/content';
+import { BUILDINGS, RESOURCES, WEATHER } from '../data/content';
 import { TUTORIAL, dateLabel, fmtTime } from '../sim/sim';
-import { build, buildPath, checkBuild, checkPath, demolish, togglePriority } from '../sim/actions';
+import { VOIES, build, buildPath, checkBuild, checkPath, demolish, togglePriority, type Voie } from '../sim/actions';
 import { defOf, isParcel } from '../sim/geom';
 import type { GameState } from '../sim/state';
 import { deserialize, downloadSave, saveSlot, SLOTS, SLOT_NAMES, listSlots, loadSlot, type Slot } from '../save/save';
@@ -11,7 +11,7 @@ import { BuildingCard, PANELS, type PanelId } from './panels';
 import { SettingsForm } from './App';
 import type { Settings } from './settings';
 
-export type Tool = { kind: 'build'; type: string; rot: 0 | 1; x: number; y: number; placed: boolean } | { kind: 'chemin' } | { kind: 'demolir' } | null;
+export type Tool = { kind: 'build'; type: string; rot: 0 | 1; x: number; y: number; placed: boolean } | { kind: 'chemin'; voie: Voie } | { kind: 'demolir' } | null;
 
 export const eur = (v: number, d = 0) => `${v.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d })} €`;
 
@@ -74,8 +74,8 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
         return;
       }
       if (t?.kind === 'chemin') {
-        const c = checkPath(sim, tx, ty);
-        if (c.ok) buildPath(sim, tx, ty);
+        const c = checkPath(sim, tx, ty, t.voie);
+        if (c.ok) buildPath(sim, tx, ty, t.voie);
         else flash(c.reason);
         game.notify();
         return;
@@ -100,7 +100,7 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
         toolRef.current = nt;
         updateGhost(nt);
       } else if (t?.kind === 'chemin' && game.scene) {
-        const c = checkPath(sim, tx, ty);
+        const c = checkPath(sim, tx, ty, t.voie);
         game.scene.ghost = { type: 'chemin', x: tx, y: ty, rot: 0, ok: c.ok };
       }
     };
@@ -185,6 +185,7 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
   );
   const today = s.ledger[s.ledger.length - 1];
   const todayNet = today ? Object.values(today.rev).reduce((a, b) => a + (b ?? 0), 0) - Object.values(today.cost).reduce((a, b) => a + (b ?? 0), 0) : 0;
+  game.adaptive = settings.adaptive;
   const recentEvents = s.events.slice(-3).filter((e) => s.minute - e.min < 240);
 
   const buildTool = tool?.kind === 'build' ? tool : null;
@@ -223,6 +224,14 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
           {speedBtn(2, '×2')}
           {speedBtn(4, '×4')}
         </div>
+        {settings.perf && (
+          <div className="hud-group perf" data-testid="perf">
+            <span>{game.measuredFps()} i/s</span>
+            <small>
+              {game.cpuMs().toFixed(1)} ms · {game.scene?.visibleObjects ?? 0} obj. · détail {2 - (game.scene?.lodLevel ?? 0)}/2
+            </small>
+          </div>
+        )}
         <div className="hud-group tools">
           <button className="icon-btn" title="Recentrer sur la ferme" aria-label="Recentrer" onClick={() => game.scene?.centerOn(game.sim.s.world.farm[0] + 2, game.sim.s.world.farm[1])}>
             <Icon name="target" />
@@ -304,8 +313,10 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
           )}
           {tool.kind === 'chemin' && (
             <div>
-              <b>Tracer des chemins</b>
-              <small>Touchez chaque case · {eur(PATH_COST)} la case (+ défrichage)</small>
+              <b>{VOIES[tool.voie].nom}</b>
+              <small>
+                Touchez chaque case · {eur(VOIES[tool.voie].cout)} la case{tool.voie !== 'pont' ? ' (+ défrichage)' : ''} · {VOIES[tool.voie].desc}
+              </small>
             </div>
           )}
           {tool.kind === 'demolir' && (

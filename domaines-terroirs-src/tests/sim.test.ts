@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { newGame, Sim, dayOf } from '../src/sim/sim';
-import { build, buildPath, buyLot, canBuyLot, checkBuild, createOrder, demolish } from '../src/sim/actions';
+import { build, buildPath, buyLot, canBuyLot, checkBuild, checkPath, createOrder, demolish } from '../src/sim/actions';
 import { findPath } from '../src/nav/astar';
 import { deserialize, serialize } from '../src/save/save';
 import { doorOf, footprint } from '../src/sim/geom';
-import { BUILDINGS, CROPS, RES_IDS, RESOURCES } from '../src/data/content';
+import { BUILDINGS, CROPS, RES_IDS, RESOURCES, ROLES } from '../src/data/content';
 import { REGIONS, regionBuildings } from '../src/data/regions';
 import { T, isWater } from '../src/world/terrain';
 
@@ -49,6 +49,13 @@ describe('régions', () => {
     expect(sum(s.stats.harvested)).toBeGreaterThan(10);
     expect(s.stats.batches).toBeGreaterThan(0);
     expect(s.stats.visitors).toBeGreaterThan(0);
+  });
+
+  it.each(REGIONS.map((r) => r.id))('%s : la ferme de départ tient l\'équilibre sur 4 semaines (hiver compris)', (id) => {
+    const sim = new Sim(newGame(4, id));
+    const m0 = sim.s.money;
+    run(sim, 28 * 1440);
+    expect(sim.s.money - m0).toBeGreaterThan(-300);
   });
 
   it('le bord de mer a la mer, la montagne a du relief, la Beauce est plate', () => {
@@ -104,7 +111,8 @@ describe('simulation', () => {
     const sim = new Sim(newGame(5, 'limousin'));
     run(sim, 1440 + 1);
     const day0 = sim.s.ledger.find((l) => l.day === 0)!;
-    expect(sum(day0.cost)).toBeGreaterThanOrEqual(72 + 80 + 12 + 8 + 6 + 7 + 4);
+    const expected = sim.s.workers.reduce((a, w) => a + ROLES[w.role].salaire, 0) + sim.s.buildings.reduce((a, b) => a + BUILDINGS[b.type].entretien, 0);
+    expect(sum(day0.cost)).toBeGreaterThanOrEqual(expected - 0.01);
     expect(day0.lines.some((l) => l.label.startsWith('Salaires'))).toBe(true);
     expect(day0.cost.verger ?? 0).toBeGreaterThan(0);
   });
@@ -183,6 +191,43 @@ describe('simulation', () => {
       expect([Math.round(v.x), Math.round(v.y)]).toEqual(doorOf(sim.byId.get(v.home)!));
     }
     expect(sim.s.stats.produced.farine ?? 0).toBeGreaterThan(0);
+    // épandage puis semis puis traitement au pulvérisateur : bonus de rendement
+    run(sim, 6 * 1440);
+    const lines = sim.s.ledger.flatMap((l) => l.lines.map((x) => x.label));
+    expect(lines).toContain('Fumure (épandage)');
+    expect(lines).toContain('Traitement des cultures');
+  });
+
+  it('vendangeuse : vendange mécanique de la vigne', () => {
+    const sim = new Sim(newGame(14, 'sudouest'));
+    sim.s.money = 90000;
+    const vigne = place(sim, 'verger_vigne')!;
+    expect(vigne).not.toBeNull();
+    expect(place(sim, 'remise_viti')).not.toBeNull();
+    expect(sim.s.vehicles.some((v) => v.kind === 'vendangeuse')).toBe(true);
+    vigne.ready = 150;
+    run(sim, 900);
+    expect(sim.s.stats.harvested.raisin ?? 0).toBeGreaterThan(100);
+    const vm = sim.s.vehicles.find((v) => v.kind === 'vendangeuse')!;
+    run(sim, 600);
+    expect(vm.driver).toBeNull();
+    expect(vigne.busyBy).toBeNull();
+  });
+
+  it('bétaillère pour les animaux vendus, livrées de tracteur variées', () => {
+    const sim = new Sim(newGame(14, 'sudouest'));
+    sim.storages()[0].inv.canards = 6;
+    expect(createOrder(sim, 'canards', 4)).toBe(true);
+    let seen = false;
+    for (let i = 0; i < 300 && !seen; i++) {
+      sim.tick();
+      seen = sim.s.vehicles.some((v) => v.kind === 'betaillere');
+    }
+    expect(seen).toBe(true);
+    const nord = new Sim(newGame(2, 'nord'));
+    nord.s.money = 90000;
+    expect(place(nord, 'hangar')).not.toBeNull();
+    expect(nord.s.vehicles.find((v) => v.kind === 'tracteur')!.look % 3).toBe(2); // bleu dans le Nord
   });
 
   it('champ sans engin : travaux à la main (plus lents)', () => {
@@ -232,6 +277,33 @@ describe('simulation', () => {
     expect(ok).toBe(true);
   });
 
+  it('routes et ponts construits par le joueur', () => {
+    const sim = new Sim(newGame(8, 'limousin'));
+    sim.s.money = 50000;
+    const W = sim.s.world;
+    // une case d'eau du domaine, bordée d'une case de terre
+    let spotW: [number, number] | null = null, land: [number, number] | null = null;
+    for (let y = 1; y < 255 && !spotW; y++)
+      for (let x = 1; x < 255 && !spotW; x++) {
+        if (W.terrain[y * 256 + x] !== T.eau || !W.owned[Math.floor(y / 16) * 16 + Math.floor(x / 16)]) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+          if (!spotW && checkPath(sim, x + dx, y + dy, 'route').ok && W.terrain[(y + dy) * 256 + x + dx] !== T.chemin) {
+            spotW = [x, y];
+            land = [x + dx, y + dy];
+          }
+      }
+    expect(spotW).not.toBeNull();
+    expect(checkPath(sim, ...spotW!, 'pont').reason).toMatch(/prolonger/);
+    expect(buildPath(sim, ...land!, 'route')).toBe(true);
+    expect(W.terrain[land![1] * 256 + land![0]]).toBe(T.route);
+    expect(sim.cost('vehicle')(...land!)).toBe(1);
+    const m = sim.s.money;
+    expect(buildPath(sim, ...spotW!, 'pont')).toBe(true);
+    expect(sim.s.money).toBe(m - 450);
+    expect(sim.cost('worker')(...spotW!)).toBeLessThan(Infinity);
+    expect(checkPath(sim, ...land!, 'chemin').ok).toBe(false);
+  });
+
   it('achat de terrain contigu uniquement', () => {
     const sim = new Sim(newGame(8, 'limousin'));
     const W = sim.s.world;
@@ -256,13 +328,44 @@ describe('simulation', () => {
     expect(JSON.stringify(restored.s.stats)).toBe(JSON.stringify(sim.s.stats));
   });
 
-  it('refuse un fichier étranger, plus récent ou de la V0.1', () => {
+  it('refuse un fichier étranger ou plus récent', () => {
     expect(() => deserialize('{"format":"autre"}')).toThrow();
     const f = JSON.parse(serialize(new Sim(newGame(1)).s));
     f.version = 999;
     expect(() => deserialize(JSON.stringify(f))).toThrow();
-    f.version = 1;
-    expect(() => deserialize(JSON.stringify(f))).toThrow(/V0.1/);
+  });
+
+  it('reprend une sauvegarde de la V0.1 (argent, stocks, personnel, bâtiments)', () => {
+    const v1 = {
+      format: 'domaines-terroirs', version: 1, savedAt: '2026-11-23T00:00:00Z', label: 'Jour 5',
+      state: {
+        version: 1, seed: 1789, minute: 5 * 1440 + 600, money: 23456.5, weather: 'pluie', reputation: 61, satisfaction: 70, visitFee: 5, tutorial: 3,
+        prices: { jus: 5.2, fromage: 10 },
+        stats: { harvested: { pommes: 300, lait: 40 }, produced: { jus: 120, fromage: 6 }, sold: { jus: 80 }, batches: 24, built: 2, visitors: 90 },
+        world: { w: 96, h: 96, owned: [...Array(36)].map((_, i) => [14, 15, 20, 21, 22].includes(i)) },
+        buildings: [
+          { type: 'maison', inv: {} }, { type: 'grange', inv: { pommes: 40, jus: 30, lait: 12 } }, { type: 'pressoir', inv: {} }, { type: 'boutique', inv: { jus: 9 } }, { type: 'verger', inv: {} },
+          { type: 'enclos', inv: {} }, { type: 'fromagerie', inv: {} },
+        ],
+        workers: [{ nom: 'Lucie', role: 'cultivateur' }, { nom: 'Rémi', role: 'artisan' }, { nom: 'Odile', role: 'eleveur' }],
+      },
+    };
+    const s = deserialize(JSON.stringify(v1));
+    expect(s.version).toBe(2);
+    expect(s.world.w).toBe(256);
+    expect(s.money).toBeGreaterThanOrEqual(23456.5 + 4500); // + un lot remboursé
+    expect(s.minute).toBe(5 * 1440 + 600);
+    expect(s.workers.map((w) => w.nom)).toEqual(['Lucie', 'Rémi', 'Odile']);
+    const stock = (r: string) => s.buildings.reduce((a, b) => a + (b.inv[r] ?? 0), 0);
+    expect(stock('jus')).toBe(39);
+    expect(stock('lait_chevre')).toBe(12);
+    expect(s.buildings.some((b) => b.type === 'elevage_chevres') || s.events.some((e) => /Remboursés/.test(e.text))).toBe(true);
+    expect(s.buildings.some((b) => b.type === 'fromagerie') || s.events.some((e) => /fromagerie/i.test(e.text))).toBe(true);
+    expect(s.prices.fromage_chevre).toBe(10);
+    // la partie reprise tourne normalement
+    const sim = new Sim(s);
+    run(sim, 1440);
+    expect(sim.s.stats.batches).toBeGreaterThan(24);
   });
 });
 

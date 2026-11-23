@@ -10,14 +10,18 @@ const path = require('path');
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await b.newPage();
   p.on('pageerror', (e) => console.log('pageerror:', e.message));
-  await p.goto(`http://localhost:${PORT}/bake.html`);
-  await p.waitForFunction('window.baked', null, { timeout: 600000 });
-  const { png, json } = await p.evaluate('window.baked');
-  const out = path.join(__dirname, '../public/sprites');
-  fs.mkdirSync(out, { recursive: true });
-  fs.writeFileSync(path.join(out, 'vehicules.png'), Buffer.from(png.split(',')[1], 'base64'));
-  fs.writeFileSync(path.join(out, 'vehicules.json'), JSON.stringify(json));
-  console.log(`vehicules.png ${json.width}×${json.height}, ${Object.keys(json.frames).length} images`);
+  const sets = process.argv.slice(2).length ? process.argv.slice(2) : ['vehicules', 'vivants'];
+  for (const set of sets) {
+    await p.goto(`http://localhost:${PORT}/bake.html?set=${set}`);
+    await p.waitForFunction('window.baked', null, { timeout: 900000 });
+    const { pngs, json } = await p.evaluate('window.baked');
+    const out = path.join(__dirname, '../public/sprites');
+    fs.mkdirSync(out, { recursive: true });
+    for (const f of fs.readdirSync(out)) if (f.startsWith(set)) fs.unlinkSync(path.join(out, f));
+    pngs.forEach((png, i) => fs.writeFileSync(path.join(out, `${set}-${i}.png`), Buffer.from(png.split(',')[1], 'base64')));
+    fs.writeFileSync(path.join(out, `${set}.json`), JSON.stringify(json));
+    console.log(`${set} : ${pngs.length} planche(s), ${Object.keys(json.frames).length} images`);
+  }
   await b.close();
   srv.kill();
 })();

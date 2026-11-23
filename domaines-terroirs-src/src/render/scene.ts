@@ -7,7 +7,7 @@ import { REGION_BY_ID } from '../data/regions';
 import { hash2 } from '../core/rng';
 import { D, NEIGHBOR_CROPS, T, heightAt, isOwned, isPathLike, lotsPerRow, rasterLine, vh, type World } from '../world/terrain';
 import { defOf, doorOf, footprint } from '../sim/geom';
-import { minuteOfDay, seasonOf, type Sim } from '../sim/sim';
+import { LIVERIES, minuteOfDay, seasonOf, type Sim } from '../sim/sim';
 import type { Building, Vehicle } from '../sim/state';
 import { Atlas, MIRROR_PAINTED, TREE_SPECIES, buildGroundAtlas, buildObjectAtlas, buildStaticAtlas, type Tex } from './atlas';
 import { RES, TH, TW, setPaintRes, setPaintStyle, type Season } from './paint';
@@ -34,6 +34,8 @@ interface Desc {
   depth: number;
   mirror: boolean;
   tint: number;
+  /** 0 essentiel ; 1 petit décor (masqué au dézoom) ; 2 remplissage forestier (masqué au fort dézoom) */
+  detail: number;
 }
 
 interface Chunk {
@@ -43,6 +45,7 @@ interface Chunk {
   shade: Buffer;
   height: Buffer;
   objs: Sprite[] | null; // sprites instanciés (null = non visible)
+  objLevel: number; // niveau de détail utilisé à l'instanciation
   descs: Desc[] | null;
   x0: number;
   y0: number;
@@ -115,6 +118,7 @@ export class Scene {
   objectAtlas = new Atlas();
   staticAtlas = new Atlas();
   vehicleAtlas = new Atlas();
+  livingAtlas = new Atlas();
   season: Season = 1;
   private shader!: Shader;
   private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' } });
@@ -170,7 +174,8 @@ export class Scene {
     buildStaticAtlas(this.staticAtlas);
     buildObjectAtlas(this.objectAtlas, this.season);
     buildGroundAtlas(this.groundAtlas, this.season);
-    await this.vehicleAtlas.load('./sprites/vehicules.png', './sprites/vehicules.json').catch(() => undefined);
+    await this.vehicleAtlas.load('./sprites').catch(() => undefined);
+    await this.livingAtlas.load('./sprites', 'vivants').catch(() => undefined);
     this.smokeTex = softTexture();
     this.shader = Shader.from({ gl: { vertex: VERT, fragment: FRAG, name: 'sol-domaine' }, resources: { uTexture: this.groundAtlas.pages[0], solUniforms: this.uniforms } });
     this.buildChunks();
@@ -182,7 +187,7 @@ export class Scene {
   }
 
   tex(key: string): Tex {
-    return this.groundAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
+    return this.groundAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
   }
 
   private setTex(sp: Sprite, key: string) {
@@ -219,7 +224,7 @@ export class Scene {
         });
         const mesh = new Mesh({ geometry, shader: this.shader });
         this.ground.addChild(mesh);
-        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, objLevel: 0, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
         this.chunks.push(ch);
         this.fillChunk(ch, true);
       }
@@ -330,7 +335,7 @@ export class Scene {
       case T.mer:
         return `t:mer:${mask((n) => n === T.mer || n === -1)}`;
       case T.pont:
-        return at(1, 0) === T.route || at(-1, 0) === T.route ? 't:pont:x' : 't:pont:y';
+        return isPathLike(at(1, 0)) || isPathLike(at(-1, 0)) ? 't:pont:x' : 't:pont:y';
       case T.chemin:
         return `t:chemin:${mask((n) => isPathLike(n))}`;
       case T.route:
@@ -474,7 +479,10 @@ export class Scene {
         const key = this.decorKey(d, x, y);
         if (!key) continue;
         const big = d === D.maison || d === D.eglise;
+        const small = d === D.fleurs || d === D.lavande || d === D.rocher || d === D.buisson || d === D.meule || d === D.haie;
+        const filler = W.terrain[y * W.w + x] === T.bois && hash2(x, y, 41) > 0.45;
         out.push({
+          detail: small ? 1 : filler ? 2 : 0,
           key,
           gx: big ? x : x + 0.5,
           gy: big ? y : y + 0.5,
@@ -487,10 +495,19 @@ export class Scene {
     return out;
   }
 
+  /** niveau de détail : 0 complet, 1 sans petit décor, 2 forêts éclaircies */
+  lodBias = 0;
+  get lodLevel() {
+    return Math.min(2, (this.cam.z < 0.62 ? 1 : 0) + (this.cam.z < 0.42 ? 1 : 0) + this.lodBias);
+  }
+
   private showChunkObjects(ch: Chunk) {
     if (ch.objs) return;
     ch.objs = [];
+    const level = this.lodLevel;
+    ch.objLevel = level;
     for (const d of this.chunkDescs(ch)) {
+      if (d.detail !== 0 && d.detail <= level) continue;
       const sp = this.pool.pop() ?? new Sprite();
       this.setTex(sp, d.key);
       const [px, py] = d.key.startsWith('b:hameau') || d.key === 'b:eglise' ? [isoX(d.gx, d.gy), isoY(d.gx, d.gy) - heightAt(this.W, d.gx + 0.5, d.gy + 0.5)] : this.groundPos(d.gx, d.gy);
@@ -668,16 +685,17 @@ export class Scene {
   }
 
   private vehicleKey(v: Vehicle, d: number, f: number): string {
-    if (v.kind === 'moissonneuse') return `moissonneuse:${d}:${f}`;
-    if (v.kind === 'camionnette') return `camionnette:${d}:${f}`;
+    if (v.kind === 'moissonneuse' || v.kind === 'vendangeuse' || v.kind === 'camionnette' || v.kind === 'betaillere') return `${v.kind}:${d}:${f}`;
     if (v.kind === 'voiture') return `voiture:${v.look % 3}:${d}:${f}`;
+    const livery = LIVERIES[v.look % 3];
     let tool = v.tool;
     if (tool === 'remorque') {
       const r = v.load?.res;
       tool = !r ? 'remorque-vide' : ['pommes', 'prunes', 'mirabelles', 'raisin', 'olives', 'betterave', 'pommes_de_terre', 'legumes'].includes(r) ? 'remorque-pommes' : 'remorque-ble';
     }
-    if (!['seul', 'charrue', 'semoir', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
-    return `tracteur:rouge:${tool}:${d}:${f}`;
+    if (livery !== 'rouge' && (tool === 'remorque-pommes' || tool === 'remorque-foin')) tool = 'remorque-ble';
+    if (!['seul', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
+    return `tracteur:${livery}:${tool}:${d}:${f}`;
   }
 
   private updateAgents(alpha: number) {
@@ -691,16 +709,34 @@ export class Scene {
     };
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
     const face = (dir: number): [0 | 1, number] => (dir === 0 ? [0, 1] : dir === 1 ? [0, -1] : dir === 2 ? [1, -1] : [1, 1]);
+    // personnages 3D pré-cuits en 8 directions (repli : dessins 2D en 2 directions)
+    const has3d = this.livingAtlas.map.size > 0;
+    const headingOf = (id: string, dx: number, dy: number, dir: number) => {
+      const prev = this.agents.get(id)?.heading;
+      if (Math.abs(dx) + Math.abs(dy) > 1e-4) return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+      return prev ?? (dir === 0 ? 0 : dir === 1 ? 2 : dir === 2 ? 4 : 6);
+    };
+    const personSprite = (id: string, look: string, dir: number, dx: number, dy: number, fr: number) => {
+      if (!has3d) {
+        const [f, sx] = face(dir);
+        const o = this.agentSprite(id, `p:${look}:${f}:${fr}`);
+        o.sp.scale.x = sx;
+        return { o, front: f === 0, heading: dir * 2 };
+      }
+      const h = headingOf(id, dx, dy, dir);
+      const o = this.agentSprite(id, `pp:${look}:${h}:${fr}`);
+      o.heading = h;
+      o.sp.scale.x = 1;
+      return { o, front: h <= 3 || h === 7, heading: h };
+    };
     for (const w of s.workers) {
       const id = 'w' + w.id;
       if (w.hidden) continue;
       seen.add(id);
       const moving = w.x !== w.px || w.y !== w.py;
       const working = !moving && w.timer > 0 && ['pick', 'process', 'field', 'take', 'put'].includes(w.steps[0]?.k ?? '');
-      const [f, sx] = face(w.dir);
       const fr = moving ? walkFrame(w.id) : working ? 3 + (Math.floor(this.time / 300) % 2) : 0;
-      const o = this.agentSprite(id, `p:${w.role}:${f}:${fr}`);
-      o.sp.scale.x = sx;
+      const { o, front, heading } = personSprite(id, w.role, w.dir, w.x - w.px, w.y - w.py, fr);
       put(o, lerp(w.px, w.x), lerp(w.py, w.y));
       if (w.carry) {
         if (!o.carry) {
@@ -710,17 +746,17 @@ export class Scene {
         const t = this.tex(`carry:${w.carry.res}`);
         o.carry.texture = t.tex;
         o.carry.anchor.set(t.ax, t.ay);
-        o.carry.position.set(0, -12);
-        o.carry.visible = f === 0;
+        // la charge est portée devant le corps, dans le sens de la marche
+        const a = (heading * Math.PI) / 4;
+        o.carry.position.set(has3d ? (Math.cos(a) - Math.sin(a)) * 5 : 0, has3d ? -14 + (Math.cos(a) + Math.sin(a)) * 2.5 : -12);
+        o.carry.visible = front;
       } else if (o.carry) o.carry.visible = false;
     }
     for (const v of s.visitors) {
       const id = 'v' + v.id;
       seen.add(id);
       const moving = v.x !== v.px || v.y !== v.py;
-      const [f, sx] = face(v.dir);
-      const o = this.agentSprite(id, `p:v${v.look}:${f}:${moving ? walkFrame(v.id) : 0}`);
-      o.sp.scale.x = sx;
+      const { o } = personSprite(id, `v${v.look}`, v.dir, v.x - v.px, v.y - v.py, moving ? walkFrame(v.id) : 0);
       const j = (hash2(v.id, 3, 1) - 0.5) * 0.5;
       put(o, lerp(v.px, v.x) + j, lerp(v.py, v.y) - j);
     }
@@ -742,6 +778,17 @@ export class Scene {
       const id = 'a' + a.id;
       seen.add(id);
       const moving = a.x !== a.px || a.y !== a.py;
+      if (has3d && a.kind !== 'ruche') {
+        const h = headingOf(id, a.x - a.px, a.y - a.py, a.dir);
+        // à l'arrêt, les herbivores broutent la moitié du temps
+        const graze = !moving && hash2(a.id, Math.floor(this.time / 2600), 7) < 0.55;
+        const fr = moving ? 1 + (Math.floor(this.time / 200 + a.id) % 2) : graze ? 3 : 0;
+        const o = this.agentSprite(id, `aa:${a.kind}:${a.look}:${h}:${fr}`);
+        o.heading = h;
+        o.sp.scale.x = 1;
+        put(o, lerp(a.px, a.x) - 0.5, lerp(a.py, a.y) - 0.5, 0.01);
+        continue;
+      }
       const fr = a.kind === 'ruche' ? Math.floor(this.time / 400 + a.id) % 2 : moving ? Math.floor(this.time / 220 + a.id) % 2 : 0;
       const [f, sx] = face(a.dir);
       const o = this.agentSprite(id, a.kind === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${a.kind}:${a.look}:${a.kind === 'ruche' ? 0 : f}:${fr}`);
@@ -1005,19 +1052,29 @@ export class Scene {
     const m = 120;
     const tl = this.screenToWorld(-m, -m), br = this.screenToWorld(width + m, height + m + 120);
     if (this.viewDirty) {
-      // décor léger masqué quand on dézoome beaucoup (niveau de détail)
-      const lod = this.cam.z < 0.45;
+      // niveau de détail selon le zoom ; création des objets étalée sur plusieurs images (pas de saccade)
+      const level = this.lodLevel;
+      let budget = 2, pending = false;
       let count = 0;
       for (const ch of this.chunks) {
         const vis = ch.maxX >= tl.x && ch.minX <= br.x && ch.maxY >= tl.y && ch.minY <= br.y;
         ch.mesh.visible = vis;
         // marge supplémentaire pour les objets : on ne recrée pas au moindre déplacement
         const near = ch.maxX >= tl.x - 400 && ch.minX <= br.x + 400 && ch.maxY >= tl.y - 300 && ch.minY <= br.y + 300;
-        if (vis) this.showChunkObjects(ch);
-        else if (!near) this.hideChunkObjects(ch);
+        if (vis && ch.objs && ch.objLevel !== level) {
+          if (budget > 0) {
+            this.hideChunkObjects(ch);
+          } else pending = true;
+        }
+        if (vis && !ch.objs) {
+          if (budget > 0) {
+            this.showChunkObjects(ch);
+            budget--;
+          } else pending = true;
+        } else if (!vis && !near) this.hideChunkObjects(ch);
         if (ch.objs) {
           for (const sp of ch.objs) {
-            sp.visible = vis && sp.x >= tl.x - 60 && sp.x <= br.x + 60 && sp.y >= tl.y && sp.y <= br.y + 200 && !(lod && sp.zIndex % 1 === 0.5);
+            sp.visible = vis && sp.x >= tl.x - 60 && sp.x <= br.x + 60 && sp.y >= tl.y && sp.y <= br.y + 200;
             if (sp.visible) count++;
           }
         }
@@ -1027,7 +1084,7 @@ export class Scene {
       };
       for (const objs of this.bObjs.values()) for (const o of objs) vis(o);
       this.visibleObjects = count;
-      this.viewDirty = false;
+      this.viewDirty = pending;
     }
     for (const o of this.agents.values()) {
       const x = o.sp.x, y = o.sp.y;
@@ -1105,7 +1162,7 @@ export class Scene {
 
   destroy() {
     this.app.destroy(true, { children: true, texture: true });
-    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas]) for (const p of a.pages) p.destroy();
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas]) for (const p of a.pages) p.destroy();
   }
 }
 
@@ -1118,6 +1175,7 @@ export function fieldStage(b: Building, x: number, y: number): number {
   const done = x >= 0 && b.done.includes(y * 10000 + x);
   if (b.phase === 'mur') return done ? 5 : 4;
   if (b.phase === 'labour') return done ? 0 : 5;
+  if (b.phase === 'epandage') return 0;
   if (b.phase === 'semis') return done ? 1 : 0;
   return b.growth < 0.15 ? 1 : b.growth < 0.5 ? 2 : 3;
 }

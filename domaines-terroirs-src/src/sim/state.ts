@@ -2,7 +2,7 @@
 import type { Activity, Res, Role, Weather } from '../data/content';
 import type { World } from '../world/terrain';
 
-export type FieldOp = 'labour' | 'semis' | 'recolte';
+export type FieldOp = 'labour' | 'epandage' | 'semis' | 'traitement' | 'recolte';
 
 export type Step =
   | { k: 'go'; x: number; y: number; vehicle?: boolean }
@@ -14,6 +14,7 @@ export type Step =
   | { k: 'rest'; b: number }
   | { k: 'board'; v: number; tool: string }
   | { k: 'field'; b: number; op: FieldOp } // travail d'une case de parcelle (à pied ou en engin)
+  | { k: 'vine'; b: number } // vendange mécanique d'une case de vigne
   | { k: 'unload'; v: number; b: number }
   | { k: 'alight'; v: number }
   | { k: 'wait'; min: number; label: string }
@@ -70,7 +71,7 @@ export interface Visitor extends Agent {
   car: number; // voiture du groupe
 }
 
-export type VehicleKind = 'tracteur' | 'moissonneuse' | 'camionnette' | 'voiture';
+export type VehicleKind = 'tracteur' | 'moissonneuse' | 'vendangeuse' | 'camionnette' | 'betaillere' | 'voiture';
 
 export interface Vehicle extends Agent {
   kind: VehicleKind;
@@ -110,7 +111,9 @@ export interface Building {
   inv: Partial<Record<Res, number>>;
   ready: number; // récolte disponible
   growth: number; // 0..1 (parcelle en pousse)
-  phase: 'labour' | 'semis' | 'pousse' | 'mur'; // parcelles de culture
+  phase: 'labour' | 'epandage' | 'semis' | 'pousse' | 'mur'; // parcelles de culture
+  bonus?: number; // gain de rendement (épandage, traitement)
+  treated?: boolean; // traitement déjà passé pour cette culture
   done: number[]; // cases traitées pour l'opération en cours
   busyBy: number | null;
   priority: boolean;
@@ -170,7 +173,7 @@ export interface GameState {
   tutorial: number;
   nextId: number;
   events: { min: number; text: string; kind: 'info' | 'alerte' | 'succes' }[];
-  /** contrats négociant : seuil de stock au-delà duquel le surplus est vendu chaque matin (-1 = désactivé) */
+  /** contrats négociant : seuil de stock au-delà duquel le surplus est vendu chaque matin (-2 = automatique, -1 = désactivé) */
   autoSell: Record<Res, number>;
 }
 

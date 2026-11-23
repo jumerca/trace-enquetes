@@ -17,6 +17,9 @@ export class Game {
   version = 0; // incrémenté à chaque notification de l'interface
   private lastDay: number;
   frameTimes: number[] = [];
+  /** qualité adaptative : si l'image tombe sous 24 i/s, le décor est allégé */
+  adaptive = true;
+  private slowFor = 0;
   cpuTimes: number[] = []; // coût JS (simulation + préparation du rendu) par image
 
   constructor(state: GameState) {
@@ -51,6 +54,16 @@ export class Game {
       }
     }
     this.scene?.update(dt, this.speed > 0 ? this.acc : 1);
+    if (this.adaptive && this.scene && !document.hidden && this.frameTimes.length >= 60) {
+      const fps = this.measuredFps();
+      this.slowFor = fps < 24 ? this.slowFor + dt : 0;
+      if (this.slowFor > 4000 && this.scene.lodBias < 2) {
+        this.scene.lodBias++;
+        this.slowFor = 0;
+        this.frameTimes.length = 0;
+        this.sim.event(`Affichage allégé automatiquement (niveau ${this.scene.lodBias}) pour rester fluide.`, 'info');
+      }
+    }
     this.cpuTimes.push(performance.now() - t0);
     if (this.cpuTimes.length > 120) this.cpuTimes.shift();
     this.uiAcc += dt;
