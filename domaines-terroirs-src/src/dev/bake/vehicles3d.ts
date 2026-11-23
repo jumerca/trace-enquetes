@@ -28,7 +28,7 @@ const INK = new THREE.MeshBasicMaterial({ color: 0x2a1e14, side: THREE.BackSide 
 const OUTLINE = 0.018;
 
 /** Ajoute un maillage + sa coque d'encrage (contour). */
-function add(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, ink = true) {
+export function add(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, ink = true) {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
   parent.add(m);
@@ -42,11 +42,11 @@ function add(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Mater
   }
   return m;
 }
-const box = (p: THREE.Object3D, w: number, h: number, d: number, c: number | THREE.Material, x: number, y: number, z: number, r = 0.02) =>
+export const box = (p: THREE.Object3D, w: number, h: number, d: number, c: number | THREE.Material, x: number, y: number, z: number, r = 0.02) =>
   add(p, r > 0 ? new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2.2, h / 2.2, d / 2.2)) : new THREE.BoxGeometry(w, h, d), typeof c === 'number' ? toon(c) : c, x, y, z);
 
 /** Roue : pneu à crampons, jante, moyeu ; axe selon z. phase = rotation (animation). */
-function wheel(p: THREE.Object3D, r: number, w: number, rim: number, x: number, y: number, z: number, phase: number, lugs = true) {
+export function wheel(p: THREE.Object3D, r: number, w: number, rim: number, x: number, y: number, z: number, phase: number, lugs = true) {
   const g = new THREE.Group();
   g.position.set(x, y, z);
   p.add(g);

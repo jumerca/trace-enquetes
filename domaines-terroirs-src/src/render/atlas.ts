@@ -1,8 +1,8 @@
 // Regroupe les peintures en pages d'atlas (peu de textures GPU → peu de draw calls).
 import { CanvasSource, ImageSource, Rectangle, Texture, TextureSource } from 'pixi.js';
-import { RESOURCES } from '../data/content';
+import { BUILDINGS, RESOURCES } from '../data/content';
 import {
-  paintBuilding, paintCarry, paintFence, paintFlowers, paintGoat, paintHen, paintLavender, paintPerson, paintProp, paintRock, paintTile, paintTree,
+  paintBuilding, paintHouse, paintCarry, paintFence, paintFlowers, paintGoat, paintHen, paintLavender, paintPerson, paintProp, paintRock, paintTile, paintTree,
   RES, ROLE_LOOKS, VISITOR_LOOKS, crate, canvas, type Painted, type Season,
 } from './paint';
 import { paintAnimal, paintBale, paintBoat, paintBoulder, paintBuilding2, paintCrop, paintGround, paintSea, paintTree2, paintVine, type CropLook } from './paint2';
@@ -159,7 +159,7 @@ export class Atlas {
     const srcs: TextureSource[] = [];
     for (let i = 0; i < meta.pages; i++) {
       const img = new Image();
-      img.src = `${dir}/${name}-${i}.png`;
+      img.src = `${dir}/${name}-${i}.${meta.ext ?? 'png'}`;
       await img.decode();
       const src = new ImageSource({ resource: img, resolution: meta.res, scaleMode: 'linear' });
       this.pages.push(src);
@@ -219,16 +219,24 @@ const BUILDING_TYPES = ['maison', 'grange', 'hangar', 'remise', 'pressoir', 'fro
 const SHELTERS = ['abri', 'etable', 'bergerie', 'poulailler', 'porcherie'];
 
 function paintAny(type: string): Painted {
-  return paintBuilding2(type) ?? paintBuilding(type);
+  try {
+    return paintBuilding2(type) ?? paintBuilding(type);
+  } catch {
+    // bâtiment sans dessin 2D (repli si la planche 3D de la région ne se charge pas)
+    const size = BUILDINGS[type]?.size ?? 1;
+    return paintHouse({ size, inset: size > 1 ? 0.2 : 0.08, wallH: 22 + size * 6, roofH: 16, wall: '#d9c39a', roof: '#a8553a', shutters: '#6f93b4', stories: 1, hip: false, door: 'simple', seed: type.length * 13 });
+  }
 }
 
 /** Bâtiments au style de la région, personnages, animaux. */
-export function buildStaticAtlas(atlas: Atlas) {
-  for (const b of [...BUILDING_TYPES, ...SHELTERS, 'eglise', 'phare']) {
-    atlas.add(`b:${b}`, paintAny(b));
+export function buildStaticAtlas(atlas: Atlas, baked: (key: string) => boolean = () => false) {
+  const extra = Object.values(BUILDINGS).filter((b) => !['verger', 'champ', 'enclos'].includes(b.kind) && !BUILDING_TYPES.includes(b.id)).map((b) => b.id);
+  for (const b of [...BUILDING_TYPES, ...extra, ...SHELTERS, 'ecurie', 'clapier', 'etang', 'eglise', 'phare']) {
+    if (baked(`b:${b}`)) continue; // bâtiment 3D pré-cuit pour la région
+    atlas.add(`b:${b}`, paintAny(b === 'ecurie' ? 'etable' : b === 'clapier' || b === 'etang' ? 'abri' : b));
     if (MIRROR_PAINTED.has(b)) atlas.add(`b:${b}:m`, paintBuilding2Mirrored(b));
   }
-  for (let v = 0; v < 4; v++) atlas.add(`b:hameau${v}`, paintBuilding(`hameau${v % 2}`, v >= 2));
+  for (let v = 0; v < 4; v++) if (!baked(`b:hameau${v}`)) atlas.add(`b:hameau${v}`, paintBuilding(`hameau${v % 2}`, v >= 2));
   for (let v = 0; v < 3; v++) atlas.add(`boat:${v}`, paintBoat(v));
   for (const k of ['puits', 'foin', 'charrette'] as const) atlas.add(`prop:${k}`, paintProp(k));
   const looks = [...Object.entries(ROLE_LOOKS), ...VISITOR_LOOKS.map((l, i) => ['v' + i, l] as const)];

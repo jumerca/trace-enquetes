@@ -14,6 +14,7 @@ import { RES, TH, TW, setPaintRes, setPaintStyle, type Season } from './paint';
 import { agentDepth, buildingDepth, tileDepth } from './depth';
 
 const CHUNK = 16;
+const SERRE_CROPS = new Set(['tomates']);
 const isoX = (x: number, y: number) => (x - y) * (TW / 2);
 const isoY = (x: number, y: number) => (x + y) * (TH / 2);
 
@@ -120,6 +121,7 @@ export class Scene {
   staticAtlas = new Atlas();
   vehicleAtlas = new Atlas();
   livingAtlas = new Atlas();
+  buildingAtlas = new Atlas(); // bâtiments 3D pré-cuits dans le style de la région
   season: Season = 1;
   private shader!: Shader;
   private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' } });
@@ -181,7 +183,8 @@ export class Scene {
     this.objects.sortableChildren = true;
     this.fx.addChild(this.rain, this.night);
     this.season = seasonOf(this.sim.s.minute);
-    buildStaticAtlas(this.staticAtlas);
+    await this.buildingAtlas.load('./sprites', `batiments-${this.sim.s.region}`).catch(() => undefined);
+    buildStaticAtlas(this.staticAtlas, (k) => this.buildingAtlas.map.has(k));
     buildObjectAtlas(this.objectAtlas, this.season);
     this.objectAtlas.pack();
     buildGroundAtlas(this.groundAtlas, this.season);
@@ -194,14 +197,14 @@ export class Scene {
     this.buildRoads();
     this.syncWorld();
     // envoi de toutes les planches au GPU dès le chargement (pas d'à-coup au premier affichage)
-    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas]) this.upload(a.pages);
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas, this.buildingAtlas]) this.upload(a.pages);
     const [fx, fy] = this.sim.s.world.farm;
     this.centerOn(fx + 2, fy, window.innerWidth < 700 ? 0.8 : 1);
     this.bindInput();
   }
 
   tex(key: string): Tex {
-    return this.groundAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
+    return this.groundAtlas.map.get(key) ?? this.buildingAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
   }
 
   private setTex(sp: Sprite, key: string) {
@@ -572,7 +575,7 @@ export class Scene {
     }
     for (const [id, objs] of this.bObjs)
       if (!seen.has(id)) {
-        for (const o of objs) o.sp.destroy();
+        for (const o of objs) o.sp.destroy({ children: true });
         this.bObjs.delete(id);
         this.fieldSig.delete(id);
         this.orchardSig.delete(id);
@@ -589,6 +592,22 @@ export class Scene {
     this.viewDirty = true;
   }
 
+  /** Calque de neige sur les toits (planches 3D), affiché en hiver selon l'altitude. */
+  private roofSnow: { sp: Sprite; h: number }[] = [];
+  private snowAlt = 99999;
+  private withSnow(o: Obj, key: string, b: Building): Obj {
+    const t = this.buildingAtlas.map.get(key + ':neige');
+    if (!t) return o;
+    const sn = new Sprite(t.tex);
+    sn.anchor.set(t.ax, t.ay);
+    const h = heightAt(this.W, b.x + 0.5, b.y + 0.5);
+    sn.visible = h >= this.snowAlt;
+    o.sp.addChild(sn);
+    this.roofSnow = this.roofSnow.filter((r) => !r.sp.destroyed);
+    this.roofSnow.push({ sp: sn, h });
+    return o;
+  }
+
   private buildingObjs(b: Building): Obj[] {
     const def = defOf(b);
     const s = def.size;
@@ -597,12 +616,14 @@ export class Scene {
       const look = ORCHARDS[def.orchard!].look;
       for (const [x, y] of footprint(b)) out.push(this.makeObj(`fruit:${look}:0:${(x + y) & 1}`, x + 0.5, y + 0.5, tileDepth(x, y), look !== 'vigne' && (x * 7 + y) % 3 === 0));
     } else if (def.kind === 'champ') {
-      // sol uniquement
+      // sol, et tunnel maraîcher pour les cultures sous serre
+      if (def.crop && SERRE_CROPS.has(def.crop) && this.buildingAtlas.map.has('b:serre')) out.push(this.withSnow(this.makeObj('b:serre', b.x, b.y, buildingDepth(b.x, b.y, s), false, true), 'b:serre', b));
     } else if (def.kind === 'enclos') {
       const abri = LIVESTOCK[def.livestock!].abri;
-      if (abri !== 'rucher') out.push(this.makeObj(`b:${abri}`, b.x, b.y, abri === 'etable' || abri === 'bergerie' ? buildingDepth(b.x, b.y, 2) : tileDepth(b.x, b.y), false, true));
-    } else if (b.rot === 1 && MIRROR_PAINTED.has(b.type)) out.push(this.makeObj(`b:${b.type}:m`, b.x, b.y, buildingDepth(b.x, b.y, s), false, true));
-    else out.push(this.makeObj(`b:${b.type}`, b.x, b.y, buildingDepth(b.x, b.y, s), b.rot === 1, true));
+      const big = abri === 'etable' || abri === 'bergerie' || abri === 'ecurie';
+      if (abri !== 'rucher') out.push(this.withSnow(this.makeObj(`b:${abri}`, b.x, b.y, abri === 'etang' ? tileDepth(b.x, b.y) - 0.5 : big ? buildingDepth(b.x, b.y, 2) : tileDepth(b.x, b.y), false, true), `b:${abri}`, b));
+    } else if (b.rot === 1 && (this.buildingAtlas.map.has(`b:${b.type}:m`) || MIRROR_PAINTED.has(b.type))) out.push(this.withSnow(this.makeObj(`b:${b.type}:m`, b.x, b.y, buildingDepth(b.x, b.y, s), false, true), `b:${b.type}:m`, b));
+    else out.push(this.withSnow(this.makeObj(`b:${b.type}`, b.x, b.y, buildingDepth(b.x, b.y, s), b.rot === 1, true), `b:${b.type}`, b));
     if (def.kind === 'enclos' || (def.kind === 'verger' && ORCHARDS[def.orchard!].look !== 'vigne')) {
       const gate = this.sim.gateOf(b);
       for (const [x, y] of footprint(b)) {
@@ -732,6 +753,10 @@ export class Scene {
     if (this.season === 3) alt = s.weather === 'neige' ? -100 : region.relief.montagne > 0 ? 300 : 99999;
     else if (this.season === 0 && region.relief.montagne > 0.3) alt = 460;
     this.uniforms.uniforms.uSnowAlt = alt;
+    // les toits blanchissent un peu plus bas que le sol (neige tenue sur les pentes froides)
+    this.snowAlt = alt <= -100 ? -1e9 : alt - 40;
+    this.roofSnow = this.roofSnow.filter((r) => !r.sp.destroyed);
+    for (const r of this.roofSnow) r.sp.visible = r.h >= this.snowAlt;
   }
 
   private updateCrops() {

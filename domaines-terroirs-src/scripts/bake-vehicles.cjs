@@ -11,14 +11,17 @@ const path = require('path');
   const p = await b.newPage();
   p.on('pageerror', (e) => console.log('pageerror:', e.message));
   const sets = process.argv.slice(2).length ? process.argv.slice(2) : ['vehicules', 'vivants'];
-  for (const set of sets) {
-    await p.goto(`http://localhost:${PORT}/bake.html?set=${set}`);
+  const list = sets.flatMap((s) => (s === 'batiments' ? ['limousin', 'nord', 'beauce', 'est', 'sudouest', 'montagne', 'mer', 'provence'].map((r) => 'batiments:' + r) : [s]));
+  for (const item of list) {
+    const [kind, region] = item.split(':');
+    const set = region ? `${kind}-${region}` : kind;
+    await p.goto(`http://localhost:${PORT}/bake.html?set=${kind}${region ? '&region=' + region : ''}`);
     await p.waitForFunction('window.baked', null, { timeout: 900000 });
-    const { pngs, json } = await p.evaluate('window.baked');
+    const { pngs, json, ext } = await p.evaluate('window.baked');
     const out = path.join(__dirname, '../public/sprites');
     fs.mkdirSync(out, { recursive: true });
-    for (const f of fs.readdirSync(out)) if (f.startsWith(set)) fs.unlinkSync(path.join(out, f));
-    pngs.forEach((png, i) => fs.writeFileSync(path.join(out, `${set}-${i}.png`), Buffer.from(png.split(',')[1], 'base64')));
+    for (const f of fs.readdirSync(out)) if (f.startsWith(set + '-') || f === set + '.json') fs.unlinkSync(path.join(out, f));
+    pngs.forEach((png, i) => fs.writeFileSync(path.join(out, `${set}-${i}.${ext}`), Buffer.from(png.split(',')[1], 'base64')));
     fs.writeFileSync(path.join(out, `${set}.json`), JSON.stringify(json));
     console.log(`${set} : ${pngs.length} planche(s), ${Object.keys(json.frames).length} images`);
   }

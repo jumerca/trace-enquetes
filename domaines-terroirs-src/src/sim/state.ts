@@ -20,6 +20,8 @@ export type Step =
   | { k: 'wait'; min: number; label: string }
   | { k: 'visit'; b: number }
   | { k: 'shop'; b: number }
+  | { k: 'meal'; b: number } // repas à la ferme-auberge
+  | { k: 'stay'; b: number; until: number } // séjour au gîte ou au camping
   | { k: 'leave' };
 
 export interface Carry {
@@ -40,6 +42,7 @@ export interface Agent {
   steps: Step[];
   label: string;
   hidden: boolean;
+  inside?: number; // bâtiment où l'agent est entré (rendu : animation d'entrée/sortie)
 }
 
 export interface Worker extends Agent {
@@ -69,9 +72,10 @@ export interface Visitor extends Agent {
   visited: boolean;
   done: boolean;
   car: number; // voiture du groupe
+  guided?: boolean; // accueilli par un guide
 }
 
-export type VehicleKind = 'tracteur' | 'moissonneuse' | 'vendangeuse' | 'camionnette' | 'betaillere' | 'voiture';
+export type VehicleKind = 'tracteur' | 'moissonneuse' | 'vendangeuse' | 'camionnette' | 'betaillere' | 'voiture' | 'bus' | 'utilitaire';
 
 export interface Vehicle extends Agent {
   kind: VehicleKind;
@@ -85,6 +89,8 @@ export interface Vehicle extends Agent {
   passengers: number; // voiture : visiteurs partis à pied
   back: number; // voiture : visiteurs revenus
   slot: number; // place de parking
+  cargo?: Partial<Record<Res, number>> | null; // utilitaire du marché
+  sejour?: number; // voiture de vacanciers (id du gîte)
 }
 
 export interface Animal {

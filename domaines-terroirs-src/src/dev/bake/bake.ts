@@ -2,8 +2,12 @@
 import { LIVERIES, car, combine, grapeHarvester, livestockTruck, plough, seeder, shoot, sprayer, spreader, tractor, trailer, van, type Load, type Shot } from './vehicles3d';
 import * as THREE from 'three';
 import { PEOPLE, animal, person } from './living3d';
+import { buildingModel, buildingSize, regionStyle, shootBuilding } from './buildings3d';
+import { BUILDINGS } from '../../data/content';
+import { REGIONS } from '../../data/regions';
 
-const SET = new URLSearchParams(location.search).get('set') ?? 'vehicules';
+const Q = new URLSearchParams(location.search);
+const SET = Q.get('set') ?? 'vehicules';
 
 const RES = 1.6;
 const shots: Shot[] = [];
@@ -65,6 +69,27 @@ if (SET === 'vivants') {
   }
 }
 
+if (SET === 'batiments') {
+  // une planche par région : chaque bâtiment dans les deux orientations, plus le calque neige des toits
+  const region = REGIONS.find((r) => r.id === Q.get('region')) ?? REGIONS[0];
+  const st = regionStyle(region.architecture);
+  const types = Object.values(BUILDINGS).filter((b) => !['verger', 'champ', 'enclos'].includes(b.kind)).map((b) => b.id);
+  for (const t of types) {
+    const s = BUILDINGS[t].size;
+    shots.push(...shootBuilding(`b:${t}`, buildingModel(t, st, s, (s >> 1) + 0.5), s, RES));
+    const g = new THREE.Group();
+    const m = buildingModel(t, st, s, s - (s >> 1) - 0.5);
+    m.rotation.y = Math.PI / 2;
+    m.position.z = s;
+    g.add(m);
+    shots.push(...shootBuilding(`b:${t}:m`, g, s, RES));
+  }
+  for (const t of ['abri', 'etable', 'bergerie', 'ecurie', 'poulailler', 'porcherie', 'clapier', 'etang', 'serre', 'hameau0', 'hameau1', 'hameau2', 'hameau3']) {
+    const s = buildingSize(t);
+    shots.push(...shootBuilding(`b:${t}`, buildingModel(t, st, s, (s >> 1) + 0.5), s, RES, t !== 'etang'));
+  }
+}
+
 // empaquetage par étagères, sur plusieurs pages de 2048×2048 (limite sûre des GPU mobiles)
 const PAGE = 2048;
 shots.sort((a, b) => b.canvas.height - a.canvas.height);
@@ -104,4 +129,6 @@ if (usedH < PAGE) {
   pages[pages.length - 1] = c;
 }
 for (const p of pages) document.body.appendChild(p);
-(window as unknown as { baked: unknown }).baked = { pngs: pages.map((p) => p.toDataURL('image/png')), json: { res: RES, pages: pages.length, frames } };
+// WebP (avec transparence) : planches 5 fois plus légères que le PNG
+const EXT = SET === 'vehicules' ? 'png' : 'webp';
+(window as unknown as { baked: unknown }).baked = { ext: EXT, pngs: pages.map((p) => (EXT === 'png' ? p.toDataURL('image/png') : p.toDataURL('image/webp', 0.84))), json: { res: RES, pages: pages.length, ext: EXT, frames } };
