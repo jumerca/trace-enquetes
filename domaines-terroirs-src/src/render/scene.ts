@@ -1,7 +1,7 @@
 // Scène isométrique PixiJS : sol en maillages par chunk (relief, ombrage, neige), objets instanciés
 // seulement autour de la caméra, tri en profondeur, interpolation des déplacements, ambiance.
 // Ne modifie jamais la simulation.
-import { Application, Container, Geometry, Graphics, Mesh, Shader, Sprite, Texture, CanvasSource, UniformGroup, Buffer, BufferUsage } from 'pixi.js';
+import { Application, Container, Geometry, Graphics, Mesh, Shader, Sprite, Texture, CanvasSource, UniformGroup, Buffer, BufferUsage, BufferImageSource } from 'pixi.js';
 import { BUILDINGS, CROPS, DAYS_PER_SEASON, LIVESTOCK, LOT_SIZE, ORCHARDS } from '../data/content';
 import { REGION_BY_ID } from '../data/regions';
 import { hash2 } from '../core/rng';
@@ -15,6 +15,8 @@ import { agentDepth, buildingDepth, tileDepth } from './depth';
 
 const CHUNK = 16;
 const SERRE_CROPS = new Set(['tomates']);
+/** cultures sans tuile dédiée : aspect le plus proche */
+const CROP_ALIAS: Record<string, string> = { lin: 'lavande', houblon: 'vigne', fraises: 'legumes', melons: 'legumes' };
 const isoX = (x: number, y: number) => (x - y) * (TW / 2);
 const isoY = (x: number, y: number) => (x + y) * (TH / 2);
 
@@ -45,6 +47,7 @@ interface Chunk {
   uv: Buffer;
   shade: Buffer;
   height: Buffer;
+  world: Buffer;
   objs: Sprite[] | null; // sprites instanciés (null = non visible)
   objLevel: number; // niveau de détail utilisé à l'instanciation
   uvDirty: boolean; // UV à recalculer (changement de saison) quand le chunk redevient visible
@@ -79,9 +82,12 @@ in vec2 aPosition;
 in vec2 aUV;
 in float aShade;
 in float aHeight;
+in vec2 aWorld;
 out vec2 vUV;
 out float vShade;
+out float vBlend;
 out float vSnow;
+out vec2 vWorld;
 uniform mat3 uProjectionMatrix;
 uniform mat3 uWorldTransformMatrix;
 uniform mat3 uTransformMatrix;
@@ -90,20 +96,74 @@ void main() {
   mat3 mvp = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
   gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
   vUV = aUV;
-  vShade = aShade;
+  vShade = abs(aShade);
+  vBlend = aShade > 0.0 ? 1.0 : 0.0;
+  vWorld = aWorld;
   vSnow = clamp((aHeight - uSnowAlt) / 70.0, 0.0, 1.0);
 }`;
+// Sol continu : la couleur moyenne de chaque case (carte 256×256 filtrée) est fondue avec celle des voisines
+// le long de bords ondulés (bruit) ; l'eau est tracée par une isoligne lissée : rives arrondies, reflets, écume.
 const FRAG = `
 in vec2 vUV;
 in float vShade;
+in float vBlend;
 in float vSnow;
+in vec2 vWorld;
 uniform sampler2D uTexture;
+uniform sampler2D uMap;
+uniform sampler2D uBlur;
+uniform sampler2D uWater;
+uniform float uTime;
+uniform float uMapSize;
 out vec4 finalColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 void main() {
   vec4 c = texture(uTexture, vUV);
-  vec3 lit = c.rgb * vShade;
-  vec3 snow = vec3(0.93, 0.95, 0.98) * c.a * min(vShade * 1.05, 1.1);
-  finalColor = vec4(mix(lit, snow, vSnow * 0.9), c.a);
+  vec2 warp = vec2(noise(vWorld * 1.7), noise(vWorld * 1.7 + 31.0)) - 0.5;
+  warp += (vec2(noise(vWorld * 4.3 + 7.0), noise(vWorld * 4.3 + 53.0)) - 0.5) * 0.4;
+  vec4 flatC = texture(uMap, (floor(vWorld) + 0.5) / uMapSize);
+  flatC.a = texture(uWater, (floor(vWorld) + 0.5) / uMapSize).r;
+  vec4 sm = texture(uBlur, (vWorld + warp * 2.2) / uMapSize);
+  float nearW = texture(uWater, (vWorld + warp * 0.5) / uMapSize).r;
+  float wideW = texture(uWater, (vWorld + warp * 0.6) / uMapSize).g;
+  // terre : détail de la tuile, teinte fondue avec les voisines (plus de damier)
+  float grain = noise(vWorld * 9.0) * 0.08 - 0.04;
+  // tuile sans pré-multiplication (les bords transparents de l'atlas ne dessinent plus de quadrillage)
+  vec3 tc = c.a > 0.04 ? c.rgb / c.a : flatC.rgb;
+  vec3 land = tc + (sm.rgb - flatC.rgb) * vBlend;
+  if (flatC.a > 0.5) land = sm.rgb * (0.9 + grain * 2.0);
+  // variations naturelles à grande échelle (prairies plus ou moins grasses, zones sèches)
+  float big = noise(vWorld * 0.09) * 0.6 + noise(vWorld * 0.23 + 11.0) * 0.4;
+  land *= mix(1.0, 0.9 + 0.2 * big, vBlend);
+  land = mix(land, land * vec3(1.06, 1.02, 0.86), vBlend * smoothstep(0.62, 0.85, noise(vWorld * 0.05 + 3.0)) * 0.6);
+  // eau : isoligne du masque lissé
+  // masque : mélange du masque net et du masque flouté (rivières étroites conservées, rives arrondies)
+  float w = mix(nearW, texture(uWater, (vWorld + warp * 0.5) / uMapSize).g * 1.25, 0.6);
+  float water = smoothstep(0.36, 0.48, w);
+  float deep = smoothstep(0.6, 1.0, wideW);
+  vec3 shallow = vec3(0.36, 0.62, 0.64), deepC = vec3(0.15, 0.36, 0.52);
+  vec3 wc = mix(shallow, deepC, deep);
+  float t = uTime;
+  float rip = sin(vWorld.x * 3.1 + vWorld.y * 1.7 + t * 1.6) * sin(vWorld.y * 2.3 - vWorld.x * 0.9 + t * 1.1);
+  wc += vec3(0.05, 0.07, 0.07) * rip;
+  wc += vec3(0.6, 0.65, 0.6) * pow(max(0.0, noise(vWorld * 7.0 + vec2(t * 0.6, t * 0.3)) - 0.68), 2.0) * 2.2;
+  float foam = smoothstep(0.4, 0.44, w) * (1.0 - smoothstep(0.44, 0.52, w));
+  wc = mix(wc, vec3(0.86, 0.92, 0.9), foam * 0.45);
+  // berges humides et sable fin au bord de l'eau
+  float isW = step(0.5, flatC.a);
+  float bank = smoothstep(0.2, 0.4, w) * (1.0 - water);
+  land = mix(land, land * vec3(0.7, 0.74, 0.6), bank * 0.6);
+  vec3 col = mix(land, wc, water);
+  // près de l'eau, les sommets abaissés au niveau de l'eau ne doivent pas noircir les berges
+  float sh = mix(vShade, clamp(vShade, 0.72, 1.0), max(isW, smoothstep(0.08, 0.3, w)));
+  vec3 lit = col * mix(sh, 0.95, water * 0.7);
+  vec3 snow = vec3(0.93, 0.95, 0.98) * min(vShade * 1.05, 1.1);
+  finalColor = vec4(mix(lit, snow, vSnow * 0.9 * (1.0 - water)), 1.0);
 }`;
 
 export class Scene {
@@ -128,9 +188,19 @@ export class Scene {
   vehicleAtlas = new Atlas();
   livingAtlas = new Atlas();
   buildingAtlas = new Atlas(); // bâtiments 3D pré-cuits dans le style de la région
+  natureAtlas = new Atlas(); // arbres et vergers 3D, quatre saisons
   season: Season = 1;
   private shader!: Shader;
-  private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' } });
+  private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' }, uTime: { value: 0, type: 'f32' }, uMapSize: { value: 256, type: 'f32' } });
+  /** carte des couleurs moyennes du sol (rgb) et masque de l'eau (a), une texel par case */
+  private mapData!: Uint8Array;
+  private mapSrc!: BufferImageSource;
+  private blurData!: Uint8Array;
+  private blurSrc!: BufferImageSource;
+  private blurAt = 0;
+  private waterData!: Uint8Array;
+  private waterSrc!: BufferImageSource;
+  private mapDirty = false;
   private chunks: Chunk[] = [];
   private per = 0;
   private pool: Sprite[] = [];
@@ -190,26 +260,46 @@ export class Scene {
     this.fx.addChild(this.fog, this.rain, this.night);
     this.season = seasonOf(this.sim.s.minute);
     await this.buildingAtlas.load('./sprites', `batiments-${this.sim.s.region}`).catch(() => undefined);
+    await this.natureAtlas.load('./sprites', 'nature').catch(() => undefined);
     buildStaticAtlas(this.staticAtlas, (k) => this.buildingAtlas.map.has(k));
-    buildObjectAtlas(this.objectAtlas, this.season);
+    buildObjectAtlas(this.objectAtlas, this.season, this.natureAtlas.map.size > 0);
     this.objectAtlas.pack();
+    this.groundAtlas.measure = true;
     buildGroundAtlas(this.groundAtlas, this.season);
     this.groundAtlas.pack(1);
     await this.vehicleAtlas.load('./sprites').catch(() => undefined);
     await this.livingAtlas.load('./sprites', 'vivants').catch(() => undefined);
     this.smokeTex = softTexture();
-    this.shader = Shader.from({ gl: { vertex: VERT, fragment: FRAG, name: 'sol-domaine' }, resources: { uTexture: this.groundAtlas.pages[0], solUniforms: this.uniforms } });
+    const MW = this.sim.s.world.w;
+    this.mapData = new Uint8Array(MW * MW * 4);
+    this.mapSrc = new BufferImageSource({ resource: this.mapData, width: MW, height: MW, scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' });
+    this.uniforms.uniforms.uMapSize = MW;
+    this.blurData = new Uint8Array(MW * MW * 4);
+    this.blurSrc = new BufferImageSource({ resource: this.blurData, width: MW, height: MW, scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' });
+    this.waterData = new Uint8Array(MW * MW * 4).fill(255);
+    this.waterSrc = new BufferImageSource({ resource: this.waterData, width: MW, height: MW, scaleMode: 'linear', addressMode: 'clamp-to-edge' });
+    this.shader = Shader.from({ gl: { vertex: VERT, fragment: FRAG, name: 'sol-domaine' }, resources: { uTexture: this.groundAtlas.pages[0], uMap: this.mapSrc, uBlur: this.blurSrc, uWater: this.waterSrc, solUniforms: this.uniforms } });
     this.buildChunks();
     this.buildRoads();
     this.syncWorld();
+    this.updateCrops(); // parcelles déjà dessinées au chargement
+    // carte du sol floutée une fois au chargement (pas pendant le jeu)
+    this.dirtyBox = null;
+    this.blurMap();
+    this.mapSrc.update();
+    this.mapDirty = false;
     // envoi de toutes les planches au GPU dès le chargement (pas d'à-coup au premier affichage)
-    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas, this.buildingAtlas]) this.upload(a.pages);
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas, this.buildingAtlas, this.natureAtlas]) this.upload(a.pages);
     const [fx, fy] = this.sim.s.world.farm;
     this.centerOn(fx + 2, fy, window.innerWidth < 700 ? 0.8 : 1);
     this.bindInput();
   }
 
   tex(key: string): Tex {
+    if (key.startsWith('tree:') || key.startsWith('fruit:')) {
+      const t = this.natureAtlas.map.get(`${key}:s${this.season}`);
+      if (t) return t;
+    }
     return this.groundAtlas.map.get(key) ?? this.buildingAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
   }
 
@@ -241,13 +331,14 @@ export class Scene {
         const uv = new Buffer({ data: new Float32Array(n * 8), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
         const shade = new Buffer({ data: new Float32Array(n * 4), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
         const height = new Buffer({ data: new Float32Array(n * 4), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+        const world = new Buffer({ data: new Float32Array(n * 8), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
         const geometry = new Geometry({
-          attributes: { aPosition: { buffer: pos, format: 'float32x2' }, aUV: { buffer: uv, format: 'float32x2' }, aShade: { buffer: shade, format: 'float32' }, aHeight: { buffer: height, format: 'float32' } },
+          attributes: { aPosition: { buffer: pos, format: 'float32x2' }, aUV: { buffer: uv, format: 'float32x2' }, aShade: { buffer: shade, format: 'float32' }, aHeight: { buffer: height, format: 'float32' }, aWorld: { buffer: world, format: 'float32x2' } },
           indexBuffer: idx,
         });
         const mesh = new Mesh({ geometry, shader: this.shader });
         this.ground.addChild(mesh);
-        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, objLevel: 0, uvDirty: false, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        const ch: Chunk = { mesh, pos, uv, shade, height, world, objs: null, objLevel: 0, uvDirty: false, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
         this.chunks.push(ch);
         this.fillChunk(ch, true);
       }
@@ -256,7 +347,7 @@ export class Scene {
   /** Recalcule les sommets d'un chunk (forme, UV de chaque case, ombrage). */
   private fillChunk(ch: Chunk, geometryToo: boolean) {
     const W = this.W;
-    const P = ch.pos.data as Float32Array, U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array, Hh = ch.height.data as Float32Array;
+    const P = ch.pos.data as Float32Array, U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array, Hh = ch.height.data as Float32Array, Wd = ch.world.data as Float32Array;
     const atlas = this.groundAtlas;
     const pageW = 66, pageH = 34; // cadre d'une tuile (unités monde, marge comprise)
     const corners: [number, number, number, number][] = [
@@ -273,6 +364,7 @@ export class Scene {
         const key = inMap ? this.tileKey(tx, ty) : 't:herbe:0';
         const [u0, v0, uw, vh0] = atlas.uv.get(key) ?? atlas.uv.get('t:herbe:0')!;
         const owned = inMap && isOwned(W, tx, ty);
+        const blend = inMap ? this.writeMap(tx, ty, key) : false;
         for (let k = 0; k < 4; k++) {
           const [dx, dy, px, py] = corners[k];
           const gx = tx + dx, gy = ty + dy;
@@ -286,6 +378,8 @@ export class Scene {
             minY = Math.min(minY, sy);
             maxY = Math.max(maxY, sy);
             Hh[i * 4 + k] = h;
+            Wd[(i * 4 + k) * 2] = gx;
+            Wd[(i * 4 + k) * 2 + 1] = gy;
           }
           U[(i * 4 + k) * 2] = u0 + (px / pageW) * uw;
           U[(i * 4 + k) * 2 + 1] = v0 + (py / pageH) * vh0;
@@ -293,7 +387,7 @@ export class Scene {
           const dhx = vh(W, gx + 1, gy) - vh(W, gx - 1, gy), dhy = vh(W, gx, gy + 1) - vh(W, gx, gy - 1);
           let sh = 1 + (dhx * 0.75 + dhy * 0.35) * 0.0095;
           sh = Math.max(0.55, Math.min(1.3, sh));
-          S[i * 4 + k] = owned || !inMap ? sh : sh * 0.86;
+          S[i * 4 + k] = (owned || !inMap ? sh : sh * 0.92) * (blend ? 1 : -1);
         }
       }
     if (geometryToo) {
@@ -303,9 +397,99 @@ export class Scene {
       ch.maxY = maxY + TH;
       ch.pos.update();
       ch.height.update();
+      ch.world.update();
     }
     ch.uv.update();
     ch.shade.update();
+  }
+
+  /** Couleur moyenne d'une tuile du sol (mesurée pendant la préparation de l'atlas). */
+  private avgOf(key: string): [number, number, number] {
+    return this.groundAtlas.avg.get(key) ?? [128, 160, 70];
+  }
+
+  /** Écrit la case dans la carte du sol ; retourne vrai si sa teinte se fond avec les voisines. */
+  private writeMap(x: number, y: number, key: string): boolean {
+    const W = this.W;
+    const t = W.terrain[y * W.w + x];
+    const water = t === T.eau || t === T.mer || t === T.pont;
+    const blend = key.startsWith('t:herbe') || key.startsWith('t:pre') || key.startsWith('t:bois') || key.startsWith('t:garrigue') || key.startsWith('t:sable') || key.startsWith('t:roche') || key.startsWith('c:pre') || water;
+    const o = (y * W.w + x) * 4;
+    // les cases non fondues (champs, cours, chemins) prêtent à leurs voisines une teinte d'herbe
+    const [r, g, b] = blend && !water ? this.avgOf(key) : this.avgOf(`t:${t === T.mer ? 'sable' : 'herbe'}:${(x + y) & 1}`);
+    this.mapData[o] = r;
+    this.mapData[o + 1] = g;
+    this.mapData[o + 2] = b;
+    this.mapData[o + 3] = 255; // opaque : la transparence serait pré-multipliée par le pilote
+    this.waterData[o] = water ? 255 : 0;
+    const d = this.dirtyBox;
+    this.dirtyBox = d ? [Math.min(d[0], x), Math.min(d[1], y), Math.max(d[2], x), Math.max(d[3], y)] : [x, y, x, y];
+    this.mapDirty = true;
+    return blend;
+  }
+
+  /** Flou séparable (rayon 2) de la carte du sol, limité à la zone modifiée : transitions douces sur plusieurs cases. */
+  private dirtyBox: [number, number, number, number] | null = null;
+  private blurMap() {
+    const n = this.W.w;
+    const box = this.dirtyBox ?? [0, 0, n - 1, n - 1];
+    this.dirtyBox = null;
+    const cl = (v: number) => Math.min(n - 1, Math.max(0, v));
+    const x0 = cl(box[0] - 2), y0 = cl(box[1] - 2), x1 = cl(box[2] + 2), y1 = cl(box[3] + 2);
+    const W = x1 - x0 + 1;
+    const src = this.mapData, out = this.blurData, wd = this.waterData;
+    const K = [1, 4, 6, 4, 1];
+    // passe horizontale sur la bande élargie (y ± 2), puis verticale sur la zone
+    const ya = cl(y0 - 2), yb = cl(y1 + 2), HH = yb - ya + 1;
+    const tmp = new Float32Array(W * HH * 4);
+    for (let y = ya; y <= yb; y++)
+      for (let x = x0; x <= x1; x++) {
+        const o = ((y - ya) * W + (x - x0)) * 4;
+        for (let k = -2; k <= 2; k++) {
+          const q = (y * n + cl(x + k)) * 4, wk = K[k + 2];
+          tmp[o] += src[q] * wk;
+          tmp[o + 1] += src[q + 1] * wk;
+          tmp[o + 2] += src[q + 2] * wk;
+          tmp[o + 3] += wd[q] * wk; // masque d'eau
+        }
+      }
+    for (let y = y0; y <= y1; y++)
+      for (let x = x0; x <= x1; x++) {
+        let r = 0, g = 0, b = 0, w = 0;
+        for (let k = -2; k <= 2; k++) {
+          const yy = cl(y + k);
+          const q = ((yy - ya) * W + (x - x0)) * 4, wk = K[k + 2];
+          r += tmp[q] * wk;
+          g += tmp[q + 1] * wk;
+          b += tmp[q + 2] * wk;
+          w += tmp[q + 3] * wk;
+        }
+        const o = (y * n + x) * 4;
+        out[o] = r / 256;
+        out[o + 1] = g / 256;
+        out[o + 2] = b / 256;
+        out[o + 3] = 255;
+        wd[o + 1] = w / 256;
+      }
+    this.blurSrc.update();
+    this.waterSrc.update();
+  }
+
+  /** Met à jour l'UV, le fondu et la carte du sol d'une seule case. */
+  private refillTile(tx: number, ty: number): Chunk {
+    const ch = this.chunkOf(tx, ty);
+    const U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array;
+    const i = (ty - ch.y0) * CHUNK + (tx - ch.x0);
+    const key = this.tileKey(tx, ty);
+    const [u0, v0, uw, vh0] = this.groundAtlas.uv.get(key) ?? this.groundAtlas.uv.get('t:herbe:0')!;
+    const blend = this.writeMap(tx, ty, key);
+    const px = [33, 65, 33, 1], py = [1, 17, 33, 17];
+    for (let k = 0; k < 4; k++) {
+      U[(i * 4 + k) * 2] = u0 + (px[k] / 66) * uw;
+      U[(i * 4 + k) * 2 + 1] = v0 + (py[k] / 34) * vh0;
+      S[i * 4 + k] = Math.abs(S[i * 4 + k]) * (blend ? 1 : -1);
+    }
+    return ch;
   }
 
   private chunkOf(tx: number, ty: number) {
@@ -323,7 +507,7 @@ export class Scene {
       const d = defOf(b);
       if (d.kind === 'verger') return d.orchard === 'vigne' ? `c:vigne:2:${v & 1}` : `t:verger:${v & 1}`;
       if (d.kind === 'enclos') return d.livestock === 'ruches' ? `t:verger:${v & 1}` : `t:enclos:${v & 1}`;
-      if (d.kind === 'champ') return `c:${CROPS[d.crop!].look}:${fieldStage(b, x, y)}:${v & 1}`;
+      if (d.kind === 'champ') return `c:${CROP_ALIAS[CROPS[d.crop!].look] ?? CROPS[d.crop!].look}:${fieldStage(b, x, y)}:${v & 1}`;
       return `t:cour:${v}`;
     }
     const at = (dx: number, dy: number) => {
@@ -389,15 +573,22 @@ export class Scene {
     this.smooth.clear();
     const winter = this.season === 3;
     for (const ch of W.roads) {
-      let tiles = rasterLine(ch.pts).filter(([x, y]) => x >= 0 && y >= 0 && x < W.w && y < W.h);
+      const all = rasterLine(ch.pts).filter(([x, y]) => x >= 0 && y >= 0 && x < W.w && y < W.h);
       const isCour = (t: [number, number]) => W.terrain[t[1] * W.w + t[0]] === T.cour;
-      const first = tiles.findIndex(isCour);
-      if (first > 0) tiles = tiles.slice(0, first + 1);
-      else if (first === 0) {
-        let k = 0;
-        while (k < tiles.length - 1 && isCour(tiles[k + 1])) k++;
-        tiles = tiles.slice(k);
+      // tronçons entre les cours traversées (chacun raccordé à la cour par une case)
+      const runs: [number, number][][] = [];
+      let cur: [number, number][] = [];
+      for (const t of all) {
+        if (isCour(t)) {
+          if (cur.length && !isCour(cur[cur.length - 1])) {
+            cur.push(t);
+            runs.push(cur);
+          }
+          cur = [t];
+        } else cur.push(t);
       }
+      if (cur.length > 1 || (cur.length && !isCour(cur[0]))) runs.push(cur);
+      for (const tiles of runs) {
       if (tiles.length < 2) continue;
       for (const [x, y] of tiles) {
         const t = W.terrain[y * W.w + x];
@@ -463,6 +654,7 @@ export class Scene {
         else flush();
       }
       flush();
+      }
     }
     this.drawParking(); // par-dessus la route : l'allée du parking n'a pas de marquage routier
   }
@@ -746,8 +938,9 @@ export class Scene {
     const next = ((this.season + 1) % 4) as Season;
     if (this.nextSeason?.season === next) return;
     const g = new Atlas(), o = new Atlas();
+    g.measure = true;
     buildGroundAtlas(g, next);
-    buildObjectAtlas(o, next);
+    buildObjectAtlas(o, next, this.natureAtlas.map.size > 0);
     this.nextSeason = { season: next, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
   }
 
@@ -773,8 +966,9 @@ export class Scene {
     let n = this.nextSeason;
     if (!n || n.season !== s) {
       const g = new Atlas(), o = new Atlas();
+      g.measure = true;
       buildGroundAtlas(g, s);
-      buildObjectAtlas(o, s);
+      buildObjectAtlas(o, s, this.natureAtlas.map.size > 0);
       n = { season: s, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
     }
     this.nextSeason = null;
@@ -822,6 +1016,13 @@ export class Scene {
     }
     t = this.mark('saison', t);
     this.updateSnow();
+    this.uniforms.uniforms.uTime = (this.time / 1000) % 1000;
+    if (this.mapDirty && this.time - this.blurAt > 250) {
+      this.mapDirty = false;
+      this.blurAt = this.time;
+      this.mapSrc.update();
+      this.blurMap();
+    }
     this.updateCrops();
     t = this.mark('cultures', t);
     this.updateAgents(alpha);
@@ -860,9 +1061,13 @@ export class Scene {
         const sig = `${b.phase}:${fieldStage(b, -1, -1)}:${b.done.length}`;
         if (this.fieldSig.get(b.id) !== sig) {
           this.fieldSig.set(b.id, sig);
+          // seules les cases de la parcelle changent : mise à jour ciblée (pas tout le chunk)
           const seen = new Set<Chunk>();
-          for (const [x, y] of footprint(b)) seen.add(this.chunkOf(x, y));
-          for (const ch of seen) this.fillChunk(ch, false);
+          for (const [x, y] of footprint(b)) seen.add(this.refillTile(x, y));
+          for (const ch of seen) {
+            ch.uv.update();
+            ch.shade.update();
+          }
         }
       } else if (d.kind === 'verger') {
         const o = ORCHARDS[d.orchard!];

@@ -110,10 +110,8 @@ export function grassTexture(ctx: Ctx, seed: number, season: Season, kind: 'herb
   const P = SEASON_GRASS[season];
   const r = rnd(seed);
   const base = kind === 'pre' ? mix(P.base, '#c7b55a', 0.22) : kind === 'bois' ? mix(P.dark, '#5b4a2e', 0.35) : kind === 'verger' ? mix(P.base, P.light, 0.18) : kind === 'enclos' ? mix(P.base, '#a08a5a', 0.35) : P.base;
-  const g = ctx.createLinearGradient(0, 0, TW, TH);
-  g.addColorStop(0, shade(base, 0.06));
-  g.addColorStop(1, shade(base, -0.05));
-  ctx.fillStyle = g;
+  // fond uni : les variations de teinte à grande échelle sont faites par le shader du sol (pas de damier)
+  ctx.fillStyle = base;
   ctx.fillRect(-4, -4, TW + 8, TH + 8);
   // taches douces
   for (let i = 0; i < 5; i++) {

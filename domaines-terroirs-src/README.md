@@ -1,6 +1,8 @@
-# Domaines & Terroirs — JLG Creative (V0.4.1)
+# Domaines & Terroirs — JLG Creative (V0.5)
 
 Jeu de gestion d'un domaine rural français en 2,5D isométrique. PWA installable, jouable au toucher et à la souris, entièrement en français.
+
+**V0.5** : paysages continus — le sol n'est plus un damier de cases : prairies, sous-bois, garrigue et pâtures se fondent avec des lisières irrégulières et des variations naturelles ; cours d'eau, étangs et mer aux rives arrondies, avec reflets animés, écume et berges humides ; arbres et vergers modélisés en 3D pour les quatre saisons (floraison, fruits mûrs, couleurs d'automne, branches nues, neige sur les sapins), 13 essences du paysage et 11 vergers (dont cerisiers, abricotiers, poiriers, châtaigniers, truffiers, vignes palissées) ; lisières de forêt naturelles.
 
 **V0.4.1** : routes départementales goudronnées (rives et axe pointillé) pour les visiteurs, vrai parking goudronné à places marquées avec panneau « P », chemins de terre à ornières qui relient le domaine aux fermes voisines (une dizaine de fermes sur la carte) et les fermes entre elles ; tracés lissés. Engins et véhicules 3D plus détaillés : tracteur (capot profilé, garde-boue arrondis, masses avant, phares, rétroviseurs, attelage), remorque, moissonneuse (échelle, grilles, broyeur, gyrophare), voitures, fourgon et bétaillère à vraies silhouettes.
 

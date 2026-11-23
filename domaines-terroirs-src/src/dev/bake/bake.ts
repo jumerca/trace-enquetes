@@ -2,6 +2,7 @@
 import { LIVERIES, car, coach, pickup, tedder, lifter, combine, grapeHarvester, livestockTruck, plough, seeder, shoot, sprayer, spreader, tractor, trailer, van, type Load, type Shot } from './vehicles3d';
 import * as THREE from 'three';
 import { PEOPLE, animal, person } from './living3d';
+import { fruitTree, tree } from './nature3d';
 import { buildingModel, buildingSize, regionStyle, shootBuilding } from './buildings3d';
 import { BUILDINGS } from '../../data/content';
 import { REGIONS } from '../../data/regions';
@@ -97,6 +98,24 @@ if (SET === 'batiments') {
   for (const t of ['abri', 'etable', 'bergerie', 'ecurie', 'poulailler', 'porcherie', 'clapier', 'etang', 'serre', 'hameau0', 'hameau1', 'hameau2', 'hameau3']) {
     const s = buildingSize(t);
     shots.push(...shootBuilding(`b:${t}`, buildingModel(t, st, s, (s >> 1) + 0.5), s, RES, t !== 'etang'));
+  }
+}
+
+if (SET === 'nature') {
+  // arbres du paysage et des vergers, pour chaque saison
+  const SPECIES: Record<string, number> = { chene: 3, chataignier: 3, noyer: 2, pin: 2, bouleau: 2, buisson: 3, cypres: 1, sapin: 2, epicea: 2, hetre: 2, peuplier: 2, olivier: 2, haie: 2 };
+  const LOOKS = ['pommier', 'poirier', 'prunier', 'mirabellier', 'cerisier', 'abricotier', 'noyer', 'chataignier', 'truffier', 'olivier', 'vigne'];
+  for (const season of [0, 1, 2, 3] as const) {
+    for (const [sp, n] of Object.entries(SPECIES)) for (let v = 0; v < n; v++) {
+      const t = tree(sp, v, season);
+      t.scale.setScalar(sp === 'buisson' || sp === 'haie' ? 1.25 : 1.4);
+      shots.push(shoot(`tree:${sp}:${v}:s${season}`, t, 0, RES));
+    }
+    for (const look of LOOKS) for (let f = 0; f < 4; f++) for (let v = 0; v < 2; v++) {
+      const t = fruitTree(look, f, v, season);
+      t.scale.setScalar(look === 'vigne' ? 1 : 1.2);
+      shots.push(shoot(`fruit:${look}:${f}:${v}:s${season}`, t, 0, RES));
+    }
   }
 }
 

@@ -37,6 +37,7 @@ export interface AtlasJob {
   sources: TextureSource[] | null; // textures prêtes (avant l'échange)
   map: Map<string, Tex> | null;
   uv: Map<string, [number, number, number, number]> | null;
+  avg: Map<string, [number, number, number]>;
   done: boolean;
 }
 
@@ -46,6 +47,9 @@ export class Atlas {
   /** coordonnées UV des cadres (sol en maillage) */
   uv = new Map<string, [number, number, number, number]>();
   private items: Item[] = [];
+  /** couleur moyenne de chaque élément (sol : fondu des cases voisines) */
+  avg = new Map<string, [number, number, number]>();
+  measure = false;
 
   /** Ajoute un élément ; la peinture peut être différée (fonction) pour une préparation progressive. */
   add(key: string, p: Paintable | (() => Paintable)) {
@@ -53,7 +57,7 @@ export class Atlas {
   }
 
   start(maxPages = 99): AtlasJob {
-    const job: AtlasJob = { items: this.items, maxPages, i: 0, placed: null, pages: [], d: 0, heights: [], sources: null, map: null, uv: null, done: false };
+    const job: AtlasJob = { items: this.items, maxPages, i: 0, placed: null, pages: [], d: 0, heights: [], sources: null, map: null, uv: null, avg: new Map(), done: false, measure: this.measure } as AtlasJob & { measure: boolean };
     this.items = [];
     return job;
   }
@@ -69,6 +73,18 @@ export class Atlas {
         it.c = p.canvas;
         it.ax = (p.ax * RES) / p.canvas.width;
         it.ay = (p.ay * RES) / p.canvas.height;
+      }
+      if ((job as AtlasJob & { measure?: boolean }).measure) {
+        const d = it.c.getContext('2d')!.getImageData(0, 0, it.c.width, it.c.height).data;
+        let R = 0, G = 0, B = 0, n = 0;
+        for (let o = 0; o < d.length; o += 8)
+          if (d[o + 3] > 200) {
+            R += d[o];
+            G += d[o + 1];
+            B += d[o + 2];
+            n++;
+          }
+        if (n) job.avg.set(it.key, [R / n, G / n, B / n]);
       }
       if (performance.now() - t0 > budgetMs) return false;
     }
@@ -145,6 +161,7 @@ export class Atlas {
     this.pages = job.sources!;
     this.map = job.map!;
     this.uv = job.uv!;
+    this.avg = job.avg;
     return old; // anciennes pages : à détruire quand plus aucun sprite ne les utilise
   }
 
@@ -194,10 +211,11 @@ export const TREE_SPECIES: Record<string, { n: number; v2?: boolean }> = {
 };
 
 /** Décor végétal et arbres de verger — selon la saison. */
-export function buildObjectAtlas(atlas: Atlas, season: Season) {
-  for (const [sp, d] of Object.entries(TREE_SPECIES)) for (let v = 0; v < d.n; v++) atlas.add(`tree:${sp}:${v}`, () => d.v2 ? paintTree2(sp, v, season) : paintTree(sp as never, v, season));
+export function buildObjectAtlas(atlas: Atlas, season: Season, treesBaked = false) {
+  // arbres et vergers : planche 3D pré-cuite si disponible, sinon dessinés
+  if (!treesBaked) for (const [sp, d] of Object.entries(TREE_SPECIES)) for (let v = 0; v < d.n; v++) atlas.add(`tree:${sp}:${v}`, () => d.v2 ? paintTree2(sp, v, season) : paintTree(sp as never, v, season));
   const fruitSeason = season === 1 || season === 2;
-  for (let f = 0; f < 4; f++)
+  for (let f = 0; f < 4 && !treesBaked; f++)
     for (let v = 0; v < 2; v++) {
       atlas.add(`fruit:pommier:${f}:${v}`, () => paintTree('pommier', v, season, fruitSeason ? f : 0));
       for (const sp of ['prunier', 'mirabellier', 'olivier'] as const) atlas.add(`fruit:${sp}:${f}:${v}`, () => paintTree2(sp, v, season, sp === 'olivier' || fruitSeason ? f : 0));

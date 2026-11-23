@@ -1,4 +1,16 @@
-# Rapport — V0.4.1 (état au 23/11/2026)
+# Rapport — V0.5 (état au 23/11/2026)
+
+## Nouveautés V0.5 (faites et testées)
+
+- **Sol continu** : une carte des couleurs moyennes du sol (une valeur par case, floutée sur ±2 cases) est fondue dans le shader avec des bords ondulés (bruit), plus des variations naturelles à grande échelle ; le quadrillage des tuiles a disparu (fond de tuile uni, couleurs non pré-multipliées). Les champs, cours et chemins gardent des bords nets.
+- **Eau** : isoligne lissée d'un masque d'eau (net + flouté) : rives arrondies, eau plus profonde au centre, reflets et ondulations animés, écume, berges humides ; plus de « dents » noires aux angles.
+- **Arbres et vergers 3D** pour les 4 saisons : 13 essences du paysage, 11 vergers × 4 stades de fruits (464 images, planche WebP de 0,7 Mo). Les vergers ajoutés en V0.4 (cerisier, abricotier, poirier, châtaignier, truffier) ont enfin leurs propres arbres.
+- **Lisières** : arbres avancés et buissons hors de la forêt, trouées en bordure.
+- Les chemins traversant une cour sont dessinés en tronçons lissés (plus de chemins « en escalier »).
+- Mesures (processeur bridé ×4, rendu logiciel) : 4 à 7 ms de calcul JS par image ; bascule de saison 9 ms ; aucun pic après le chargement (le flou de la carte est limité à la zone modifiée et fait au chargement).
+- Limites : le shader du sol est plus coûteux pour la carte graphique (6 lectures de texture et du bruit par pixel) — non mesuré sur un vrai téléphone ; les cultures dans les champs restent dessinées en 2D (le lin, le houblon, les fraises et les melons empruntent l'aspect de cultures proches).
+- Captures : `docs/captures/v05-ferme-ete.jpg`, `v05-hiver-montagne.jpg`, `v05-provence-lac.jpg`, `v05-bord-de-mer.jpg`.
+
 
 ## Nouveautés V0.4.1 (faites et testées)
 

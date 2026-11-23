@@ -432,15 +432,26 @@ export function generateWorld(seed: number, regionId = 'limousin', size = MAP_SI
       if (world.decor[i]) continue;
       const t = world.terrain[i];
       const r = hash2(x, y, seed + 7), r2 = hash2(x, y, seed + 13);
+      // densité de forêt alentour (5×5) : lisières irrégulières plutôt qu'en escalier
+      let nb = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (tAt(Math.min(w - 1, Math.max(0, x + dx)), Math.min(h - 1, Math.max(0, y + dy))) === T.bois) nb++;
+      const dens = nb / 25, edgeN = valueNoise(x, y, 3, seed + 21);
       if (t === T.bois) {
         const alt = vh(world, x, y);
-        if (r < 0.72) {
+        if (dens < 0.7 && edgeN < 0.45 - dens * 0.3) {
+          if (r < 0.18) world.decor[i] = D.buisson; // trouée en lisière
+        } else if (r < 0.72) {
           let sp = species[Math.floor(r2 * species.length)];
           if (alt > 300 && region.essences.includes('sapin')) sp = r2 < 0.5 ? D.sapin : D.epicea;
           world.decor[i] = sp;
         } else if (r < 0.8) world.decor[i] = D.buisson;
       } else if (t === T.herbe || t === T.pre || t === T.garrigue) {
         if (farmClear(x, y, 11)) continue;
+        // arbres avancés et buissons de lisière
+        if (dens > 0 && r < dens * (0.35 + edgeN * 0.5)) {
+          world.decor[i] = r2 < 0.6 ? species[Math.floor(r2 * species.length)] : D.buisson;
+          continue;
+        }
         const n = valueNoise(x, y, 5, seed + 3);
         if (r < 0.02 + n * 0.035) world.decor[i] = r2 < 0.7 ? species[Math.floor(r2 * species.length)] : D.buisson;
         else if (r < 0.08 && t === T.pre) world.decor[i] = D.fleurs;
