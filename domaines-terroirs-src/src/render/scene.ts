@@ -16,7 +16,7 @@ import { agentDepth, buildingDepth, tileDepth } from './depth';
 const CHUNK = 16;
 const SERRE_CROPS = new Set(['tomates']);
 /** cultures sans tuile dédiée : aspect le plus proche */
-const CROP_ALIAS: Record<string, string> = { lin: 'lavande', houblon: 'vigne', fraises: 'legumes', melons: 'legumes' };
+const CROP_ALIAS: Record<string, string> = { lin: 'lavande', houblon: 'vigne', fraises: 'legumes', melons: 'legumes', fleurs: 'colza', riz: 'pre', chanvre: 'mais' };
 const isoX = (x: number, y: number) => (x - y) * (TW / 2);
 const isoY = (x: number, y: number) => (x + y) * (TH / 2);
 
@@ -1252,7 +1252,7 @@ export class Scene {
       }
       const fr = a.kind === 'ruche' ? Math.floor(this.time / 400 + a.id) % 2 : moving ? Math.floor(this.time / 220 + a.id) % 2 : 0;
       const [f, sx] = face(a.dir);
-      const k2 = ({ limousine: 'vache', cheval: 'vache', ane: 'chevre', oie: 'canard', lapin: 'poule' } as Record<string, string>)[a.kind] ?? a.kind;
+      const k2 = ({ limousine: 'vache', cheval: 'vache', ane: 'chevre', oie: 'canard', lapin: 'poule', dinde: 'canard', pintade: 'poule', caille: 'poule', alpaga: 'chevre', cerf: 'chevre' } as Record<string, string>)[a.kind] ?? a.kind;
       const o = this.agentSprite(id, k2 === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${k2}:${a.look}:${k2 === 'ruche' ? 0 : f}:${fr}`);
       o.sp.scale.x = a.kind === 'ruche' ? 1 : a.kind === 'poule' ? (a.dir === 1 || a.dir === 2 ? -1 : 1) : sx;
       put(o, lerp(a.px, a.x) - 0.5, lerp(a.py, a.y) - 0.5, 0.01);

@@ -243,6 +243,51 @@ export function animal(kind: string, look: number, frame: number) {
       e.rotation.z = 0.25;
     }
     mesh(g, sphere(0.022), 0xf4f0ea, -0.1, 0.1 + hop, 0, false);
+  } else if (kind === 'dinde' || kind === 'pintade' || kind === 'caille') {
+    const sc = kind === 'dinde' ? 1.9 : kind === 'pintade' ? 1.3 : 0.8;
+    const body = kind === 'dinde' ? [0x3a3030, 0x5a4a40, 0xe8e0d8][look % 3] : kind === 'pintade' ? 0x4a5060 : [0x8a6a4a, 0x7a5a3a, 0x9a7a5a][look % 3];
+    for (const z of [0.025, -0.025]) mesh(g, rbox(0.014, 0.06, 0.014, 0.005), 0xc89a6a, (z > 0 ? step : -step) * 0.04, 0.03 * sc, z * sc, false);
+    mesh(g, sphere(0.07 * sc, 1.35, 1.05, 1), body, 0, 0.11 * sc, 0);
+    if (kind === 'dinde') {
+      // roue de la queue
+      const tail = new THREE.CircleGeometry(0.11, 12, Math.PI * 0.15, Math.PI * 0.7);
+      const t = new THREE.Mesh(tail, new THREE.MeshToonMaterial({ color: 0x5a4030, side: THREE.DoubleSide }));
+      t.position.set(-0.08, 0.15, 0);
+      t.rotation.y = Math.PI / 2;
+      g.add(t);
+      mesh(g, sphere(0.014, 1, 1.6, 1), 0xd8302a, graze ? 0.12 : 0.1, graze ? 0.08 : 0.17, 0, false);
+    }
+    if (kind === 'pintade') for (let k = 0; k < 10; k++) mesh(g, sphere(0.008), 0xf4f4f4, Math.sin(k * 2.3) * 0.06, 0.12 + Math.abs(Math.sin(k * 1.7)) * 0.05, Math.cos(k * 3.1) * 0.06, false);
+    mesh(g, sphere(0.032 * sc), kind === 'pintade' ? 0x5a7ad8 : body, graze ? 0.1 * sc : 0.07 * sc, graze ? 0.06 * sc : 0.17 * sc, 0);
+    mesh(g, new THREE.ConeGeometry(0.01, 0.025, 4).rotateZ(-Math.PI / 2), 0xe8a030, graze ? 0.13 * sc : 0.1 * sc, graze ? 0.05 * sc : 0.17 * sc, 0, false);
+  } else if (kind === 'alpaga') {
+    const coat = [0xf0e8d8, 0xc89a6a, 0x5a4a40][look % 3];
+    legs([0.12, -0.11], 0.07, 0.22, 0.025, coat);
+    mesh(g, sphere(0.15, 1.5, 1, 1), coat, 0, 0.32, 0);
+    const neck = mesh(g, new THREE.CapsuleGeometry(0.05, 0.22, 4, 8), coat, 0.16, graze ? 0.3 : 0.48, 0);
+    neck.rotation.z = graze ? -1.2 : -0.2;
+    mesh(g, sphere(0.06, 1.2, 1.1, 1), coat, graze ? 0.32 : 0.21, graze ? 0.2 : 0.62, 0);
+    for (const z of [0.03, -0.03]) mesh(g, new THREE.ConeGeometry(0.012, 0.06, 4), coat, graze ? 0.31 : 0.2, graze ? 0.25 : 0.69, z, false);
+    mesh(g, sphere(0.01), 0x1a1210, graze ? 0.37 : 0.27, graze ? 0.2 : 0.63, 0.03, false);
+  } else if (kind === 'cerf') {
+    const coat = look % 3 === 2 ? 0x9a6a3a : 0x8a5a32;
+    legs([0.17, -0.16], 0.07, 0.3, 0.022, coat);
+    mesh(g, rbox(0.46, 0.2, 0.2, 0.08), coat, 0, 0.42, 0);
+    mesh(g, sphere(0.05), 0xf0e8d8, -0.24, 0.44, 0, false);
+    const head = new THREE.Group();
+    head.position.set(0.26, graze ? 0.25 : 0.6, 0);
+    head.rotation.z = graze ? -1 : 0.2;
+    g.add(head);
+    mesh(head, rbox(0.1, 0.24, 0.08, 0.03), coat, -0.02, -0.06, 0);
+    mesh(head, rbox(0.14, 0.07, 0.07, 0.03), coat, 0.05, 0.06, 0);
+    if (look !== 1)
+      for (const z of [0.035, -0.035]) {
+        // bois (mâles)
+        const a = mesh(head, new THREE.CylinderGeometry(0.008, 0.012, 0.2, 5), 0xd8c8a8, 0.0, 0.18, z, false);
+        a.rotation.x = z > 0 ? 0.4 : -0.4;
+        const b2 = mesh(head, new THREE.CylinderGeometry(0.006, 0.008, 0.1, 5), 0xd8c8a8, 0.04, 0.22, z * 2.2, false);
+        b2.rotation.z = -0.6;
+      }
   } else if (kind === 'chevre') {
     const coat = [0xf2ede2, 0xc9a27a, 0x6a5040][look % 3];
     legs([0.13, -0.12], 0.06, 0.18, 0.022, coat);

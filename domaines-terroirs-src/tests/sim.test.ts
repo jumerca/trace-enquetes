@@ -494,3 +494,78 @@ describe('routes, parking et chemins (V0.4.1)', () => {
     expect(dirt).toBeGreaterThan(150);
   });
 });
+
+describe('gestion avancée (V0.6)', () => {
+  const rich = (id = 'limousin', seed = 5) => {
+    const sim = new Sim(newGame(seed, id));
+    sim.s.money = 1e6;
+    sim.s.reputation = 70;
+    return sim;
+  };
+
+  it('les cours du marché varient et le négociant les applique', async () => {
+    const { wholesaleOf } = await import('../src/sim/economy');
+    const sim = rich();
+    run(sim, 10 * 1440);
+    const vals = Object.values(sim.s.market) as number[];
+    expect(vals.length).toBeGreaterThan(20);
+    expect(Math.max(...vals) - Math.min(...vals)).toBeGreaterThan(0.05);
+    for (const v of vals) expect(v).toBeGreaterThanOrEqual(0.7);
+    sim.s.market.ble = 1.3;
+    expect(wholesaleOf(sim.s, 'ble')).toBeCloseTo(0.5 * 0.9 * 1.3, 2);
+  });
+
+  it('une campagne augmente la fréquentation ; le salon vend des produits', async () => {
+    const { launchCampaign, visitorMult } = await import('../src/sim/economy');
+    const sim = rich();
+    const k0 = visitorMult(sim);
+    expect(launchCampaign(sim, 'radio')).toBeNull();
+    expect(visitorMult(sim)).toBeGreaterThan(k0 * 1.5);
+    expect(launchCampaign(sim, 'radio')).toBe('Déjà en cours');
+    const g = sim.s.buildings.find((b) => b.type === 'grange')!;
+    g.inv.confiture = 80;
+    const m0 = sim.s.money;
+    expect(launchCampaign(sim, 'salon')).toBeNull();
+    expect(sim.s.money).toBeGreaterThan(m0 - 1500 + 100);
+  });
+
+  it('label bio : prix acceptés plus hauts après la conversion', async () => {
+    const { buyLabel, priceBonus } = await import('../src/sim/economy');
+    const sim = rich();
+    expect(buyLabel(sim, 'bio')).toBeNull();
+    expect(priceBonus(sim.s)).toBe(1);
+    run(sim, 15 * 1440);
+    expect(priceBonus(sim.s)).toBeCloseTo(1.15, 2);
+  });
+
+  it('emprunt : capital versé puis remboursé chaque jour', async () => {
+    const { borrow } = await import('../src/sim/economy');
+    const sim = new Sim(newGame(5, 'limousin'));
+    const m0 = sim.s.money;
+    expect(borrow(sim, 0)).toBeNull();
+    expect(sim.s.money).toBe(m0 + 10000);
+    run(sim, 3 * 1440);
+    expect(sim.s.loans[0].left).toBe(25);
+    expect(sim.s.ledger.flatMap((d) => d.lines).some((l) => l.label.startsWith('Remboursement'))).toBe(true);
+  });
+
+  it('équipements, attractions et nouvelles filières fonctionnent', () => {
+    const sim = rich('provence', 3);
+    for (const t of ['accueil', 'boutique', 'eolienne', 'stand', 'musee', 'salle_reception', 'cueillette', 'verger_amandier', 'nougaterie', 'elevage_alpagas', 'elevage_escargots']) expect(place(sim, t), t).toBeTruthy();
+    const g = sim.s.buildings.find((b) => b.type === 'grange')!;
+    g.inv.miel = 60;
+    sim.hire('eleveur');
+    run(sim, 8 * 1440);
+    const lines = sim.s.ledger.flatMap((d) => d.lines.map((l) => l.label));
+    expect(lines.some((l) => l.startsWith('Électricité éolienne'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('Étal de bord de route'))).toBe(true);
+    expect(lines).toContain('Musée de la vie rurale');
+    expect(lines.some((l) => l.startsWith('Aides PAC'))).toBe(true);
+    expect((sim.s.stats.harvested.laine ?? 0) + (sim.s.stats.harvested.escargots ?? 0)).toBeGreaterThan(0);
+  });
+
+  it('chaque nouveau bâtiment, culture, verger et élevage est disponible dans au moins une région', () => {
+    const all = new Set(REGIONS.flatMap((r) => [...regionBuildings(r)]));
+    for (const id of ['champ_riz', 'champ_safran', 'champ_lentilles', 'champ_piments', 'verger_citronnier', 'verger_myrtillier', 'verger_noisetier', 'verger_figuier', 'elevage_brebis_lait', 'elevage_cerfs', 'nougaterie', 'distillerie_fruits', 'labyrinthe', 'methaniseur']) expect(all.has(id), id).toBe(true);
+  });
+});

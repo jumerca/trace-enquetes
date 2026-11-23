@@ -2,7 +2,8 @@ import { useState, type ComponentType } from 'react';
 import { ACTIVITIES, BUILDINGS, CATEGORIES, CROPS, LIVESTOCK, LOT_SIZE, ORCHARDS, RESOURCES, RES_IDS, ROLES, type Activity, type BuildCategory, type Res, type Role } from '../data/content';
 import { aptitude, regionBuildings } from '../data/regions';
 import { lotsPerRow } from '../world/terrain';
-import { VOIES, canBuyLot, buyLot, createOrder, setPrice, wholesalePrice, type Voie } from '../sim/actions';
+import { VOIES, canBuyLot, buyLot, createOrder, setPrice, type Voie } from '../sim/actions';
+import { CAMPAIGNS, LABELS, LOANS, borrow, buyLabel, labelActive, launchCampaign, marketOf, priceBonus, recipeCost, visitorMult, wholesaleOf } from '../sim/economy';
 import { defOf } from '../sim/geom';
 import { productOf, round2, type Sim } from '../sim/sim';
 import type { Building } from '../sim/state';
@@ -20,7 +21,7 @@ interface PanelProps {
 
 const qty = (r: Res, q: number) => `${round2(q).toLocaleString('fr-FR')} ${RESOURCES[r].unite}${q >= 2 && RESOURCES[r].unite.length > 2 ? 's' : ''}`;
 
-function Gestion({ sim }: PanelProps) {
+function Bilan({ sim }: PanelProps) {
   const s = sim.s;
   const days = s.ledger.slice(-8);
   const cur = days[days.length - 1];
@@ -318,7 +319,7 @@ function Personnel({ sim, game }: PanelProps) {
   );
 }
 
-function Commerce({ sim, game }: PanelProps) {
+function Ventes({ sim, game }: PanelProps) {
   const s = sim.s;
   const shop = s.buildings.find((b) => defOf(b).kind === 'boutique');
   const [res, setRes] = useState<Res>(() => RES_IDS.find((r) => sim.stockOf(r) > 0) ?? 'jus');
@@ -347,7 +348,16 @@ function Commerce({ sim, game }: PanelProps) {
                 <button className="mini" aria-label="Baisser" onClick={() => (setPrice(sim, r, s.prices[r] - 0.1), game.notify())}>
                   −
                 </button>
-                <span className={s.prices[r] > RESOURCES[r].prix * 1.15 ? 'neg' : s.prices[r] < RESOURCES[r].prix * 0.9 ? 'pos' : ''}>{eur(s.prices[r], 2)}</span>
+                {/* prix libre : saisie directe */}
+                <input
+                  className={'price-input ' + (s.prices[r] > RESOURCES[r].prix * 1.15 * priceBonus(s) ? 'neg' : s.prices[r] < RESOURCES[r].prix * 0.9 ? 'pos' : '')}
+                  type="number"
+                  step="0.1"
+                  min={0.1}
+                  value={s.prices[r]}
+                  onChange={(e) => (setPrice(sim, r, +e.target.value || s.prices[r]), game.notify())}
+                  aria-label={'Prix ' + RESOURCES[r].nom}
+                />
                 <button className="mini" aria-label="Augmenter" onClick={() => (setPrice(sim, r, s.prices[r] + 0.1), game.notify())}>
                   +
                 </button>
@@ -358,7 +368,7 @@ function Commerce({ sim, game }: PanelProps) {
           ))}
         </tbody>
       </table>
-      <p className="muted">Seuls les produits déjà présents au domaine sont listés. Chaque visiteur a un prix maximum : trop cher, il n'achète pas.</p>
+      <p className="muted">Prix libres (de 20 % à 5 fois le prix de référence). Chaque visiteur a un prix maximum, plus élevé avec un label : trop cher, il n'achète pas. En rouge : au-dessus de ce que la plupart accepteront.</p>
       {s.buildings.some((b) => defOf(b).kind === 'accueil') && (
         <div className="row">
           <span>Tarif de la visite</span>
@@ -374,6 +384,10 @@ function Commerce({ sim, game }: PanelProps) {
         </div>
       )}
       <h3>Contrats négociant (surplus vendus chaque matin)</h3>
+      <label className="row">
+        <span>Attendre un cours ≥ 100 % avant de vendre (sauf stocks débordants)</span>
+        <input type="checkbox" checked={s.waitMarket} onChange={(e) => ((s.waitMarket = e.target.checked), game.notify())} />
+      </label>
       <table className="table">
         <tbody>
           {RES_IDS.filter((r) => sim.stockOf(r) > 0 || (s.stats.harvested[r] ?? 0) > 0 || (s.stats.produced[r] ?? 0) > 0).map((r) => (
@@ -397,7 +411,7 @@ function Commerce({ sim, game }: PanelProps) {
         <select value={res} onChange={(e) => setRes(e.target.value as Res)} aria-label="Produit">
           {RES_IDS.filter((r) => sim.stockOf(r) > 0 || r === res).map((r) => (
             <option key={r} value={r}>
-              {RESOURCES[r].nom} — {eur(wholesalePrice(r), 2)}/{RESOURCES[r].unite}
+              {RESOURCES[r].nom} — {eur(wholesaleOf(s, r), 2)}/{RESOURCES[r].unite}
             </option>
           ))}
         </select>
@@ -410,7 +424,7 @@ function Commerce({ sim, game }: PanelProps) {
           }}
           data-testid="commander-negociant"
         >
-          Vendre {eur(n * wholesalePrice(res))}
+          Vendre {eur(n * wholesaleOf(s, res))}
         </button>
       </div>
       <small className="muted">
@@ -469,6 +483,261 @@ function Territoire({ sim, game }: PanelProps) {
       </div>
       <p className="muted">Grille vue de dessus autour du domaine (la carte compte {per}×{per} lots). Les limites s'affichent sur la carte tant que ce panneau est ouvert.</p>
       {msg && <p>{msg}</p>}
+    </div>
+  );
+}
+
+function Tabs<T extends string>({ tabs, cur, set }: { tabs: [T, string][]; cur: T; set: (t: T) => void }) {
+  return (
+    <div className="tabs" role="tablist">
+      {tabs.map(([id, nom]) => (
+        <button key={id} className={cur === id ? 'on' : ''} onClick={() => set(id)} data-testid={'sous-onglet-' + id}>
+          {nom}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Gestion(p: PanelProps) {
+  const [t, setT] = useState<'bilan' | 'calculs' | 'finances'>('bilan');
+  return (
+    <div>
+      <Tabs tabs={[['bilan', 'Bilan'], ['calculs', 'Calculs de rentabilité'], ['finances', 'Banque & aides']]} cur={t} set={setT} />
+      {t === 'bilan' ? <Bilan {...p} /> : t === 'calculs' ? <Calculs {...p} /> : <Finances {...p} />}
+    </div>
+  );
+}
+
+function Commerce(p: PanelProps) {
+  const [t, setT] = useState<'ventes' | 'marche' | 'com'>('ventes');
+  return (
+    <div>
+      <Tabs tabs={[['ventes', 'Prix & ventes'], ['marche', 'Cours du marché'], ['com', 'Communication & labels']]} cur={t} set={setT} />
+      {t === 'ventes' ? <Ventes {...p} /> : t === 'marche' ? <Marche {...p} /> : <Communication {...p} />}
+    </div>
+  );
+}
+
+/** Coût de revient et marge de chaque recette d'atelier, et calculatrice de vente. */
+function Calculs({ sim }: PanelProps) {
+  const s = sim.s;
+  const ateliers = Object.values(BUILDINGS).filter((b) => b.recettes && regionBuildings(sim.region).has(b.id));
+  const [res, setRes] = useState<Res>(() => RES_IDS.find((r) => RESOURCES[r].boutique) ?? 'jus');
+  const [q, setQ] = useState(100);
+  const [prix, setPrix] = useState(() => s.prices[res]);
+  return (
+    <div>
+      <h3>Marges des ateliers (par unité produite)</h3>
+      <p className="muted">Coût de revient = matière première au prix du négociant + consommables, sans la main-d'œuvre.</p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Revient</th>
+            <th>Boutique</th>
+            <th>Marge</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ateliers.flatMap((b) =>
+            b.recettes!.map((r, i) => {
+              const cost = recipeCost(s, r.input, r.inQty, r.outQty, r.consommables);
+              const sale = s.prices[r.output];
+              const m = sale - cost;
+              return (
+                <tr key={b.id + i}>
+                  <td>
+                    {RESOURCES[r.output].nom}
+                    <small className="muted"> ({b.nom.toLowerCase()}, {r.inQty} {RESOURCES[r.input].nom.toLowerCase()})</small>
+                  </td>
+                  <td>{eur(cost, 2)}</td>
+                  <td>{eur(sale, 2)}</td>
+                  <td className={m < 0 ? 'neg' : 'pos'}>{Math.round((m / Math.max(0.01, sale)) * 100)} %</td>
+                </tr>
+              );
+            }),
+          )}
+        </tbody>
+      </table>
+      <h3>Calculatrice de vente</h3>
+      <div className="wholesale">
+        <select value={res} onChange={(e) => (setRes(e.target.value as Res), setPrix(s.prices[e.target.value as Res]))} aria-label="Produit à calculer">
+          {RES_IDS.map((r) => (
+            <option key={r} value={r}>
+              {RESOURCES[r].nom}
+            </option>
+          ))}
+        </select>
+        <input type="number" min={1} value={q} onChange={(e) => setQ(Math.max(1, +e.target.value || 1))} aria-label="Quantité" />
+        <input type="number" step="0.1" min={0} value={prix} onChange={(e) => setPrix(+e.target.value || 0)} aria-label="Prix unitaire" />
+      </div>
+      <ul className="lines">
+        <li>
+          <span>Vente au prix choisi</span>
+          <b>{eur(q * prix)}</b>
+        </li>
+        <li>
+          <span>Même quantité au négociant (cours du jour)</span>
+          <b>{eur(q * wholesaleOf(s, res))}</b>
+        </li>
+        <li>
+          <span>Stock actuel</span>
+          <b>{qty(res, sim.stockOf(res))}</b>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function Finances({ sim, game }: PanelProps) {
+  const s = sim.s;
+  const [msg, setMsg] = useState('');
+  const lots = s.world.owned.filter(Boolean).length;
+  const elevages = s.buildings.filter((b) => defOf(b).livestock).length;
+  return (
+    <div>
+      <h3>Emprunts bancaires</h3>
+      <ul className="cards">
+        {LOANS.map((o, i) => (
+          <li key={i} className="row">
+            <span>
+              <b>{eur(o.montant)}</b> remboursés en {o.jours} jours <small className="muted">(coût total {Math.round(o.taux * 100)} %, {eur((o.montant * (1 + o.taux)) / o.jours, 2)}/jour)</small>
+            </span>
+            <button className="btn small" onClick={() => (setMsg(borrow(sim, i) ?? 'Prêt accordé.'), game.notify())} data-testid={'emprunt-' + i}>
+              Emprunter
+            </button>
+          </li>
+        ))}
+      </ul>
+      {msg && <p className="muted">{msg}</p>}
+      {s.loans.length > 0 && (
+        <ul className="lines">
+          {s.loans.map((l) => (
+            <li key={l.id}>
+              <span>{l.nom}</span>
+              <b>
+                {eur(l.daily, 2)}/jour · {l.left} j
+              </b>
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>Aides de la PAC</h3>
+      <p>
+        Versées au début de chaque saison : {eur(140)} par lot de terrain ({lots}), {eur(35)} par élevage ({elevages}){labelActive(s, 'bio') ? ', + 400 € (bio)' : ''}. Prochain versement estimé :{' '}
+        <b>{eur(140 * lots + 35 * elevages + (labelActive(s, 'bio') ? 400 : 0))}</b>.
+      </p>
+    </div>
+  );
+}
+
+function Marche({ sim }: PanelProps) {
+  const s = sim.s;
+  const list = RES_IDS.filter((r) => sim.stockOf(r) > 0 || (s.stats.harvested[r] ?? 0) + (s.stats.produced[r] ?? 0) > 0);
+  return (
+    <div>
+      <p className="muted">Les cours varient chaque jour (saisons, abondance, crises). Vendez au négociant quand le cours est haut ; l'option « attendre un cours ≥ 100 % » des contrats le fait pour vous.</p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Cours</th>
+            <th>Négociant</th>
+            <th>Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(list.length ? list : RES_IDS.slice(0, 12)).map((r) => {
+            const m = marketOf(s, r);
+            return (
+              <tr key={r}>
+                <td>{RESOURCES[r].nom}</td>
+                <td className={m >= 1.05 ? 'pos' : m <= 0.95 ? 'neg' : ''}>
+                  {m >= 1.05 ? '▲' : m <= 0.95 ? '▼' : '='} {Math.round(m * 100)} %
+                </td>
+                <td>
+                  {eur(wholesaleOf(s, r), 2)}
+                  <small className="muted">/{RESOURCES[r].unite}</small>
+                </td>
+                <td>{Math.floor(sim.stockOf(r))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Communication({ sim, game }: PanelProps) {
+  const s = sim.s;
+  const [msg, setMsg] = useState('');
+  const active = s.campaigns.filter((c) => s.minute < c.until);
+  return (
+    <div>
+      <div className="kpis">
+        <div>
+          <small>Réputation</small>
+          <b>{Math.round(s.reputation)}/100</b>
+        </div>
+        <div>
+          <small>Fréquentation</small>
+          <b>×{visitorMult(sim).toFixed(2)}</b>
+        </div>
+        <div>
+          <small>Prix acceptés</small>
+          <b>×{priceBonus(s).toFixed(2)}</b>
+        </div>
+      </div>
+      <h3>Campagnes de communication</h3>
+      <ul className="cards">
+        {Object.entries(CAMPAIGNS).map(([id, c]) => {
+          const on = active.find((x) => x.id === id);
+          return (
+            <li key={id} className="row">
+              <span>
+                <b>{c.nom}</b> — {eur(c.cout)}
+                <br />
+                <small className="muted">
+                  {c.desc} {c.jours > 0 ? `Fréquentation ×${c.visiteurs} pendant ${c.jours} j.` : ''} {c.reputation ? `Réputation +${c.reputation}.` : ''} {c.minRep ? `(réputation ${c.minRep} requise)` : ''}
+                </small>
+              </span>
+              <button className="btn small" disabled={!!on} onClick={() => (setMsg(launchCampaign(sim, id) ?? ''), game.notify())} data-testid={'campagne-' + id}>
+                {on ? `en cours (${Math.ceil((on.until - s.minute) / 1440)} j)` : 'Lancer'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {msg && <p className="neg">{msg}</p>}
+      <h3>Labels et réseaux</h3>
+      <ul className="cards">
+        {Object.entries(LABELS).map(([id, l]) => {
+          const since = s.labels[id];
+          return (
+            <li key={id} className="row">
+              <span>
+                <b>{l.nom}</b> — {eur(l.cout)} puis {eur(l.quotidien)}/jour
+                <br />
+                <small className="muted">{l.desc}</small>
+              </span>
+              <button className="btn small" disabled={since != null} onClick={() => (setMsg(buyLabel(sim, id) ?? ''), game.notify())} data-testid={'label-' + id}>
+                {since == null ? 'S\'engager' : s.minute >= since ? 'obtenu' : `dans ${Math.ceil((since - s.minute) / 1440)} j`}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <h3>Revue de presse</h3>
+      {s.press.length === 0 && <p className="muted">Aucun article pour l'instant : la réputation et les campagnes attirent les journalistes.</p>}
+      <ul className="events">
+        {[...s.press].reverse().map((a, i) => (
+          <li key={i} className={a.bon ? 'succes' : 'alerte'}>
+            <b>{a.journal}</b> : « {a.titre} »
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 // Actions du joueur : toutes validées ici (l'interface ne fait que les appeler).
-import { BRIDGE_COST, BUILDINGS, LEVEL_COST, LOT_PRICE, LOT_SIZE, PATH_COST, ROAD_COST, RESOURCES, TREE_CLEAR_COST, wholesaleFactor, type Res } from '../data/content';
+import { BRIDGE_COST, BUILDINGS, LEVEL_COST, LOT_PRICE, LOT_SIZE, PATH_COST, ROAD_COST, RESOURCES, TREE_CLEAR_COST, type Res } from '../data/content';
 import { regionBuildings } from '../data/regions';
 import { DECOR_IS_TREE, D, HSCALE, T, flattenRect, inside, isBuildableGround, isOwned, isPathLike, lotOf, lotsPerRow, slopeOf } from '../world/terrain';
 import { defOf, doorOf, footprint, isParcel } from './geom';
@@ -203,12 +203,10 @@ export { lotOf };
 
 export function setPrice(sim: Sim, res: Res, price: number) {
   const base = RESOURCES[res].prix;
-  sim.s.prices[res] = round2(Math.max(base * 0.5, Math.min(base * 2, price)));
+  // prix libre : de 20 % à 5 fois le prix de référence
+  sim.s.prices[res] = round2(Math.max(base * 0.2, Math.min(base * 5, price)));
 }
 
-export function wholesalePrice(res: Res) {
-  return round2(RESOURCES[res].prix * wholesaleFactor(res));
-}
 
 /** Vente au négociant : la marchandise est réservée tout de suite, payée à l'enlèvement par la camionnette. */
 export function createOrder(sim: Sim, res: Res, qty: number): boolean {

@@ -211,21 +211,46 @@ const FRUIT: Record<string, { c: number; size: number; season: Season[] }> = {
   noyer: { c: 0x6a8a3a, size: 0.035, season: [2] },
   chataignier: { c: 0xa8b040, size: 0.045, season: [2] },
   truffier: { c: 0x3a3028, size: 0.0, season: [] },
+  noisetier: { c: 0x9a7a3a, size: 0.03, season: [2] },
+  pecher: { c: 0xf0884a, size: 0.045, season: [1] },
+  figuier: { c: 0x6a3a5a, size: 0.04, season: [1, 2] },
+  amandier: { c: 0x8aa860, size: 0.035, season: [1, 2] },
+  citronnier: { c: 0xf0d830, size: 0.045, season: [0, 1, 2, 3] },
 };
+
+/** Rangs d'arbustes à petits fruits (framboisiers palissés, myrtilliers en touffes). */
+function berries(look: string, f: number, v: number, season: Season): THREE.Group {
+  const p = new THREE.Group();
+  const r = rand(71 + v * 7 + look.length);
+  const rasp = look === 'framboisier';
+  const L = leaves('feuillu', season, 5 + v);
+  const c = L.bare ? [0x7a5a48, 0x8a6a52] : rasp ? L.c : season === 2 ? [0xc8402a, 0xa83a2a] : [0x3a7a4a, 0x4a8a52];
+  for (const z of [-0.24, 0.22]) {
+    if (rasp) for (const x of [-0.42, 0.42]) add(p, new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5), toon(0x8a6a42), x, 0.25, z, false);
+    for (let k = 0; k < 4; k++) {
+      const x = -0.33 + k * 0.22;
+      blob(p, rasp ? 0.13 : 0.15, c[k % c.length], x, rasp ? 0.28 : 0.13, z, 90 + k + v * 3 + (z > 0 ? 5 : 0), rasp ? 1.4 : 0.8);
+      const ripe = (season === 1 || (rasp && season === 2)) && f > 0;
+      if (ripe) for (let j = 0; j < f * 3; j++) add(p, new THREE.SphereGeometry(0.022, 5, 4), toon(rasp ? 0xd82a5a : 0x3a3a8a), x + (r() - 0.5) * 0.22, (rasp ? 0.22 : 0.1) + r() * 0.15, z + (z > 0 ? 0.1 : -0.1), false);
+    }
+  }
+  return p;
+}
 
 export function fruitTree(look: string, f: number, v: number, season: Season): THREE.Group {
   const p = new THREE.Group();
   const seed = look.length * 97 + v * 31 + 3;
   const r = rand(seed);
   if (look === 'vigne') return vine(f, v, season);
+  if (look === 'framboisier' || look === 'myrtillier') return berries(look, f, v, season);
   if (look === 'olivier') {
     olive(p, seed, 0.85 + v * 0.1, f, season);
     return p;
   }
-  const big = look === 'noyer' || look === 'chataignier' || look === 'truffier';
+  const big = look === 'noyer' || look === 'chataignier' || look === 'truffier' || look === 'figuier';
   const s = (big ? 0.85 : 0.7) + v * 0.08;
   const fr = FRUIT[look] ?? FRUIT.pommier;
-  const kind = look === 'truffier' ? 'feuillu' : 'fruitier';
+  const kind = look === 'truffier' || look === 'noisetier' || look === 'figuier' ? 'feuillu' : look === 'citronnier' ? 'persistant' : 'fruitier';
   trunk(p, 0.42 * s, 0.05 * s, look === 'cerisier' ? 0x7a4a3a : 0x6a4a2e);
   // tuteur et paillage au pied
   if (!big) add(p, new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5), toon(0xb89a6a), 0.07, 0.25, 0.02, false);
@@ -234,7 +259,7 @@ export function fruitTree(look: string, f: number, v: number, season: Season): T
   if (L.bare) bare(p, 0.42 * s + 0.12, 0.28 * s, 5, seed);
   else {
     // les fruitiers ne fleurissent pas tous de la même couleur
-    if (L.blossom != null) L.blossom = look === 'pommier' || look === 'cerisier' || look === 'abricotier' ? 0xf8d0e0 : 0xfaf4f0;
+    if (L.blossom != null) L.blossom = look === 'pommier' || look === 'cerisier' || look === 'abricotier' || look === 'pecher' ? 0xf8c0d8 : 0xfaf4f0;
     crown(p, 0.55 * s, 0.4 * s, 0.32 * s, 5, look === 'poirier' ? { ...L, c: L.c.map((c) => shade(c, 0.95)) } : L, seed);
     const ripe = fr.season.includes(season) ? f : 0;
     for (let k = 0; k < ripe * 9; k++) {

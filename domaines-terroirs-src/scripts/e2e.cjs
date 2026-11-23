@@ -174,7 +174,18 @@ const findWater = (page) =>
     const st0 = await page.evaluate('window.__dt.sim.stockOf("jus")');
     await page.click('[data-testid=commander-negociant]');
     ok('commande au négociant : stock réservé', (await page.evaluate('window.__dt.sim.stockOf("jus")')) === st0 - 5);
+    // communication : une campagne lancée depuis le panneau
+    await page.click('[data-testid=sous-onglet-com]');
+    const argent0 = await page.evaluate('window.__dt.sim.s.money');
+    await page.click('[data-testid=campagne-affiches]');
+    ok('communication : campagne d\'affichage lancée et payée', (await page.evaluate('window.__dt.sim.s.campaigns.some((c) => c.id === "affiches")')) && (await page.evaluate('window.__dt.sim.s.money')) < argent0);
+    await page.click('[data-testid=sous-onglet-marche]');
+    ok('cours du marché affichés', (await page.locator('.panel table tbody tr').count()) > 0);
     await page.click('[data-testid=onglet-commerce]');
+    await page.click('[data-testid=onglet-gestion]');
+    await page.click('[data-testid=sous-onglet-calculs]');
+    ok('calculs de rentabilité des ateliers', (await page.locator('.panel table tbody tr').count()) > 0);
+    await page.click('[data-testid=onglet-gestion]');
 
     // route empierrée tracée par le joueur
     await page.click('[data-testid=onglet-construire]');
