@@ -15,6 +15,19 @@ Championnat : 10 écuries (9 IA + la vôtre), 20 pilotes titulaires, agents libr
 (Port-Azur, Lac d'Argent, Brumevent, Valbrune, Montclair, Rocheval, Lumen de nuit, Kharam),
 barème 25-18-15-12-10-8-6-4-2-1.
 
+### V0.9.1 — équilibrage de la difficulté
+* Le talent des pilotes compte davantage : un point de note vaut ≈ 0,12 s au tour (≈ 0,05 s avant), un point de
+  voiture ≈ 0,2 s.
+* Difficulté appliquée aux adversaires en piste : pilotes IA −2,5 pts et voitures IA −0,7 pt en facile, −0,5 pt de
+  pilotes en normale, +0,6 / +0,3 en difficile (s'applique aussi aux parties en cours).
+* Nouvelle carrière en facile : voiture parmi les 3 meilleures ; objectif des actionnaires recalculé.
+* Réglage de base proposé par l'ingénieur au début du week-end (70 % du chemin vers l'optimum en facile, 40 % en
+  normale, aucun en difficile).
+* Onglet Pilotes : niveau moyen et meilleur des titulaires adverses, à comparer aux vôtres.
+* Simulation de 8 GP sans essais ni investissement (2 pilotes libres à 12–13/20) : facile ≈ 8ᵉ de moyenne, meilleur
+  résultat par GP souvent entre 2ᵉ et 6ᵉ, 0 à 4 podiums par saison (contre ≈ 10ᵉ et 0 à 2 podiums avant) ; normale ≈ 13ᵉ ;
+  difficile ≈ 17ᵉ.
+
 ### Nouveautés V0.9 — modèles 3D
 * Monoplaces modélisées en 3D (`src/render/models3d.ts`, three.js) : monocoque, nez, pontons sculptés, capot et
   prise d'air, aileron de requin, halo, rétroviseurs, ailerons avant (3 éléments) et arrière (volet + dérives),
