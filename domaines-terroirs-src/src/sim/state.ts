@@ -181,6 +181,15 @@ export interface GameState {
   events: { min: number; text: string; kind: 'info' | 'alerte' | 'succes' }[];
   /** contrats négociant : seuil de stock au-delà duquel le surplus est vendu chaque matin (-2 = automatique, -1 = désactivé) */
   autoSell: Record<Res, number>;
+  /** cours du marché par produit (1 = prix de référence) */
+  market: Partial<Record<Res, number>>;
+  /** contrats négociant : attendre un cours ≥ 100 % pour vendre */
+  waitMarket: boolean;
+  campaigns: { id: string; until: number; visiteurs: number }[];
+  /** labels : minute d'obtention (certification en cours tant qu'elle n'est pas atteinte) */
+  labels: Record<string, number>;
+  loans: { id: number; nom: string; daily: number; left: number }[];
+  press: { min: number; journal: string; titre: string; bon: boolean }[];
 }
 
 export const SAVE_VERSION = 2;

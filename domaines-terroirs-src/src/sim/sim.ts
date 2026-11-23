@@ -1,4 +1,5 @@
 // Moteur de simulation : pas fixe d'une minute de jeu, RNG déterministe, aucune dépendance au rendu.
+import { economyDaily, ensureEconomy, labelActive, priceBonus, visitorMult, wholesaleOf } from './economy';
 import {
   BUILDINGS, CARRY, CROPS, DAY_MIN, DAYS_PER_SEASON, FIRST_NAMES, LIVESTOCK, ORCHARDS, RESOURCES, RES_IDS, ROLES, SEASONS, VISIT_END, VISIT_FEE_DEFAULT,
   VISIT_START, WEATHER, WORK_END, WORK_START, wholesaleFactor, FUMURE_COST, TRAITEMENT_COST,
@@ -68,7 +69,7 @@ export function newGame(seed = 1789, regionId = 'limousin'): GameState {
     version: SAVE_VERSION, seed, region: region.id, rng: 0, minute: 7 * 60, money: region.depart.argent, weather: 'soleil', reputation: 35, satisfaction: 60, satSamples: [],
     world, buildings: [], workers: [], visitors: [], vehicles: [], animals: [], orders: [],
     prices: Object.fromEntries(RES_IDS.map((r) => [r, RESOURCES[r].prix])) as Record<Res, number>,
-    visitFee: VISIT_FEE_DEFAULT, ledger: [], stats: { harvested: {}, produced: {}, sold: {}, batches: 0, built: 0, visitors: 0 },
+    visitFee: VISIT_FEE_DEFAULT, market: {}, waitMarket: false, campaigns: [], labels: {}, loans: [], press: [], ledger: [], stats: { harvested: {}, produced: {}, sold: {}, batches: 0, built: 0, visitors: 0 },
     tutorial: 0, nextId: 1, events: [], autoSell: Object.fromEntries(RES_IDS.map((r) => [r, -2])),
   };
   const [cx, cy] = world.farm;
@@ -148,6 +149,7 @@ export class Sim {
   constructor(public s: GameState) {
     this.rng = new Rng(s.rng || s.seed);
     this.region = REGION_BY_ID[s.region] ?? REGION_BY_ID.limousin;
+    ensureEconomy(s);
     this.refresh();
   }
 
@@ -374,7 +376,7 @@ export class Sim {
 
   private producers(mod: number) {
     const season = seasonOf(this.s.minute);
-    const wf = WEATHER[this.s.weather].rendement;
+    const wf = this.weatherYield();
     for (const b of this.s.buildings) {
       const d = defOf(b);
       if (d.orchard && mod >= 6 * 60 && mod < 20 * 60) {
@@ -384,8 +386,9 @@ export class Sim {
         const l = LIVESTOCK[d.livestock];
         if (!l.produit) continue;
         // l'étang produit sans animaux visibles ; les autres élevages au prorata des bêtes présentes
-        const rate = l.abri === 'etang' ? 1.4 : this.s.animals.filter((a) => a.pen === b.id).length * l.tauxParTete;
-        b.ready = Math.min(l.cap, b.ready + (rate * l.saisons[season] * aptitude(this.region, l.id)) / 60);
+        const rate = l.nombre === 0 ? 1.4 : this.s.animals.filter((a) => a.pen === b.id).length * l.tauxParTete;
+        const traite = ['vaches', 'chevres', 'brebis_lait'].includes(l.id) && this.has('robot_traite') ? 1.25 : 1;
+        b.ready = Math.min(l.cap, b.ready + (rate * traite * l.saisons[season] * aptitude(this.region, l.id)) / 60);
       }
     }
   }
@@ -416,6 +419,7 @@ export class Sim {
         this.book('general', round2(45 * sun * [0.9, 1.2, 0.8, 0.5][seasonOf(s.minute - 1)]), 'Électricité solaire revendue');
       }
     }
+    economyDaily(this);
     s.minute = save;
     if (s.satSamples.length) {
       s.satisfaction = Math.round(s.satSamples.reduce((a, b) => a + b, 0) / s.satSamples.length);
@@ -433,11 +437,11 @@ export class Sim {
       if (!d.crop || b.phase !== 'pousse') continue;
       const c = CROPS[d.crop];
       const irrigue = this.irrigated(b);
-      b.growth = Math.min(1, b.growth + c.croissance[season] * WEATHER[s.weather].rendement * (irrigue ? 1.25 : 1));
+      b.growth = Math.min(1, b.growth + c.croissance[season] * this.weatherYield() * (irrigue ? 1.25 : 1));
       if (b.growth >= 1) {
         b.phase = 'mur';
         b.done = [];
-        b.ready = round2(c.rendement * aptitude(this.region, c.id) * (1 + (b.bonus ?? 0) + (irrigue ? 0.15 : 0)));
+        b.ready = round2(c.rendement * aptitude(this.region, c.id) * (1 + (b.bonus ?? 0) + (irrigue ? 0.15 : 0) + (this.has('drone') ? 0.08 : 0)));
         this.event(`${d.nom} : récolte possible (${Math.round(b.ready)} ${RESOURCES[c.produit].unite}).`, 'succes');
       }
     }
@@ -452,6 +456,12 @@ export class Sim {
     if (!['maison', 'stock', 'atelier', 'boutique', 'accueil', 'gite', 'auberge', 'hangar', 'remise', 'garage'].includes(k)) return;
     a.hidden = true;
     a.inside = b.id;
+  }
+
+  /** Rendement météo ; la station météo divise les pertes par deux. */
+  weatherYield() {
+    const r = WEATHER[this.s.weather].rendement;
+    return r < 1 && this.has('station_meteo') ? 1 - (1 - r) / 2 : r;
   }
 
   /** Parcelle à moins de 14 cases d'une réserve d'irrigation. */
@@ -1065,7 +1075,7 @@ export class Sim {
       else if (op === 'epandage') {
         b.phase = 'semis';
         b.bonus = round2((b.bonus ?? 0) + 0.15);
-        this.book(defOf(b).activite, -FUMURE_COST, 'Fumure (épandage)');
+        if (!this.has('compost')) this.book(defOf(b).activite, -FUMURE_COST, 'Fumure (épandage)');
       } else if (op === 'traitement') {
         b.treated = true;
         b.bonus = round2((b.bonus ?? 0) + 0.1);
@@ -1108,7 +1118,7 @@ export class Sim {
     const accueil = s.buildings.some((b) => defOf(b).kind === 'accueil');
     if (!shop && !accueil) return;
     const season = seasonOf(s.minute);
-    const perHour = (0.5 + s.reputation / 40) * WEATHER[s.weather].visiteurs * (accueil ? 1.7 : 1) * this.region.tourisme * (season === 1 ? 1.3 : season === 3 ? 0.6 : 1);
+    const perHour = (0.5 + s.reputation / 40) * WEATHER[s.weather].visiteurs * (accueil ? 1.7 : 1) * this.region.tourisme * (season === 1 ? 1.3 : season === 3 ? 0.6 : 1) * visitorMult(this);
     if (!this.rng.chance(perHour / 60)) return;
     const used = new Set(s.vehicles.filter((v) => v.kind === 'voiture').map((v) => v.slot));
     const slot = s.world.parking.findIndex((_, i) => !used.has(i));
@@ -1177,6 +1187,19 @@ export class Sim {
         if (kids) steps.push({ k: 'go', ...xy(doorOf(pedago!)) }, { k: 'visit', b: pedago!.id });
         if (fun) steps.push({ k: 'go', ...xy(this.gateOf(fun)) }, { k: 'visit', b: fun.id });
         if (eat) steps.push({ k: 'go', ...xy(doorOf(auberge!)) }, { k: 'meal', b: auberge!.id });
+        // attractions payantes (musée, labyrinthe) et cueillette dans les vergers
+        const attr = s.buildings.filter((b) => defOf(b).tarif);
+        if (attr.length && this.rng.chance(0.6)) {
+          const a = this.rng.pick(attr);
+          steps.push({ k: 'go', ...xy(doorOf(a)) }, { k: 'visit', b: a.id });
+        }
+        if (this.has('cueillette') && this.rng.chance(0.5)) {
+          const vg = s.buildings.filter((b) => defOf(b).kind === 'verger' && b.ready >= 2 && RESOURCES[ORCHARDS[defOf(b).orchard!].produit].boutique);
+          if (vg.length) {
+            const g = this.rng.pick(vg);
+            steps.push({ k: 'go', ...xy(this.gateOf(g)) }, { k: 'visit', b: g.id });
+          }
+        }
       }
       if (shopB) steps.push({ k: 'go', ...xy(doorOf(shopB)) }, { k: 'shop', b: shopB.id });
       steps.push({ k: 'go', x: px, y: py }, { k: 'leave' });
@@ -1255,6 +1278,28 @@ export class Sim {
           v.label = loisir.nom;
           return;
         }
+        if (d?.tarif) {
+          this.book('accueil', d.tarif, d.nom);
+          v.visited = true;
+          v.timer = d.effet === 'labyrinthe' ? 35 : 25;
+          v.label = d.nom;
+          if (d.effet === 'musee') this.enter(v, b!);
+          return;
+        }
+        if (d?.kind === 'verger' && b) {
+          // cueillette par les visiteurs : 2 unités au prix boutique
+          const o = ORCHARDS[d.orchard!];
+          const q = Math.min(2, Math.floor(b.ready));
+          if (q > 0) {
+            b.ready -= q;
+            this.book(RESOURCES[o.produit].activite, round2(q * this.s.prices[o.produit] * priceBonus(this.s)), `Cueillette — ${RESOURCES[o.produit].nom}`);
+            this.s.stats.sold[o.produit] = round2((this.s.stats.sold[o.produit] ?? 0) + q);
+            v.visited = true;
+          }
+          v.timer = 20;
+          v.label = 'Cueillette';
+          return;
+        }
         if (b?.type === 'pedagogique') {
           if (this.rng.chance(0.85)) {
             this.book('accueil', 6, 'Ateliers de la ferme pédagogique');
@@ -1329,6 +1374,9 @@ export class Sim {
         if (v.waited) sat -= 30;
         if (v.visited) sat += 12;
         if (v.guided) sat += 8;
+        if (this.has('mare')) sat += 5;
+        if (this.has('aire_jeux')) sat += 6;
+        if (labelActive(this.s, 'bienvenue')) sat += 3;
         this.s.satSamples.push(Math.max(0, Math.min(100, Math.round(sat))));
         const car = this.s.vehicles.find((c) => c.id === v.car);
         if (car) car.back++;
@@ -1348,7 +1396,7 @@ export class Sim {
       const d = defOf(g);
       if (d.kind !== 'gite' || !d.lits) continue;
       const camping = g.type === 'camping';
-      const occ = Math.min(0.95, (0.2 + s.reputation / 130) * this.region.tourisme * WEATHER[s.weather].visiteurs * (camping ? [0.6, 1.6, 0.5, 0.05][season] : [0.9, 1.35, 0.8, 0.5][season]));
+      const occ = Math.min(0.95, (0.2 + s.reputation / 130) * Math.sqrt(visitorMult(this)) * this.region.tourisme * WEATHER[s.weather].visiteurs * (camping ? [0.6, 1.6, 0.5, 0.05][season] : [0.9, 1.35, 0.8, 0.5][season]));
       const present = s.visitors.filter((v) => v.steps.some((x) => x.k === 'stay' && x.b === g.id)).length + s.vehicles.filter((c) => c.sejour === g.id && c.label === 'Visiteurs en route').reduce((a, c) => a + c.passengers, 0);
       const want = Math.round(d.lits * occ);
       if (present + 2 > want || !this.rng.chance(1 / 40)) continue;
@@ -1432,7 +1480,7 @@ export class Sim {
     let total = 0;
     for (const [r, q] of Object.entries(v.cargo ?? {})) {
       if (!q) continue;
-      const amount = round2(q * this.s.prices[r] * 0.9);
+      const amount = round2(q * this.s.prices[r] * 0.9 * priceBonus(this.s));
       total += amount;
       this.s.stats.sold[r] = round2((this.s.stats.sold[r] ?? 0) + q);
       this.book(RESOURCES[r].activite, amount, `Marché — ${RESOURCES[r].nom}`);
@@ -1445,7 +1493,7 @@ export class Sim {
     const s = this.s;
     for (const wsh of v.wishes) {
       const price = s.prices[wsh.res];
-      if (price > wsh.maxPrice) continue;
+      if (price > wsh.maxPrice * priceBonus(s)) continue;
       const q = Math.min(wsh.qty, Math.floor(shop.inv[wsh.res] ?? 0), Math.floor((v.budget - v.spent) / price));
       if (q <= 0) continue;
       this.remove(shop, wsh.res, q);
@@ -1470,6 +1518,8 @@ export class Sim {
     for (const res of RES_IDS) {
       const seuil = this.sellThreshold(res);
       if (seuil < 0) continue;
+      // option : attendre un cours au moins égal au prix de référence (sauf si les stocks débordent)
+      if (this.s.waitMarket && (this.s.market[res] ?? 1) < 1 && this.stockOf(res) < seuil * 2.5) continue;
       const surplus = Math.floor(this.stockOf(res) - seuil);
       if (surplus >= 5) this.order(res, surplus, true);
     }
@@ -1482,7 +1532,7 @@ export class Sim {
     let left = qty;
     for (const b of this.storages()) left -= this.remove(b, res, left);
     const delay = 40 + Math.floor(this.rng.next() * 50);
-    const price = round2(RESOURCES[res].prix * wholesaleFactor(res));
+    const price = wholesaleOf(this.s, res);
     this.s.orders.push({ id: this.s.nextId++, res, qty, price, status: 'attente', createdMin: this.s.minute, dueMin: this.s.minute + delay });
     this.event(`${auto ? 'Contrat négociant' : 'Commande négociant'} : ${qty} ${RESOURCES[res].unite} de ${RESOURCES[res].nom.toLowerCase()}, enlèvement d'ici ${delay} min.`, 'info');
     return true;

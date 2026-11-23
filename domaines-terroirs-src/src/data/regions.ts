@@ -38,6 +38,10 @@ export interface RegionDef {
 const COMMUNS = [
   'grange', 'hangar', 'remise', 'boutique', 'accueil', 'silo', 'chambre_froide', 'garage_quad', 'garage_utilitaire', 'garage_bus', 'telescopique',
   'irrigation', 'solaire', 'gite', 'camping', 'auberge', 'pedagogique', 'champ_tomates', 'champ_prairie', 'elevage_chevaux', 'elevage_anes',
+  // V0.6 : équipements, commerce, loisirs, filières présentes partout
+  'eolienne', 'methaniseur', 'robot_traite', 'drone', 'station_meteo', 'compost', 'stand', 'magasin', 'salle_reception', 'musee', 'labyrinthe', 'aire_jeux', 'cueillette', 'jardin', 'mare',
+  'champ_courges', 'champ_fleurs', 'verger_framboisier', 'elevage_dindes', 'elevage_pintades', 'elevage_cailles', 'elevage_escargots', 'elevage_alpagas', 'elevage_cerfs',
+  'patisserie', 'glacerie', 'savonnerie', 'filature', 'boucherie',
 ];
 
 export const REGIONS: RegionDef[] = [
@@ -126,6 +130,23 @@ export const REGIONS: RegionDef[] = [
 export const REGION_BY_ID: Record<string, RegionDef> = Object.fromEntries(REGIONS.map((r) => [r.id, r]));
 
 /** Bâtiments constructibles dans une région. */
+// V0.6 : spécialités régionales supplémentaires
+const EXTRA: Record<string, Partial<Pick<RegionDef, 'cultures' | 'vergers' | 'elevages' | 'ateliers'>>> = {
+  limousin: { cultures: ['lentilles', 'safran', 'chanvre'], vergers: ['noisetier', 'myrtillier'], elevages: ['brebis_lait'], ateliers: ['nougaterie', 'distillerie_fruits', 'conserverie'] },
+  nord: { cultures: ['chanvre', 'lentilles'], vergers: ['cerisier'], elevages: ['brebis_lait'], ateliers: ['distillerie_fruits', 'beurrerie'] },
+  beauce: { cultures: ['lentilles', 'chanvre', 'safran'], vergers: ['cerisier'], elevages: ['porcs'], ateliers: ['patisserie'] },
+  est: { cultures: ['chanvre'], vergers: ['myrtillier', 'noisetier'], elevages: ['brebis_lait', 'chevres'], ateliers: ['distillerie_fruits'] },
+  sudouest: { cultures: ['piments'], vergers: ['noisetier', 'pecher', 'figuier', 'poirier'], elevages: ['brebis_lait', 'chevres'], ateliers: ['distillerie_fruits', 'nougaterie'] },
+  montagne: { cultures: ['lentilles'], vergers: ['myrtillier', 'noisetier'], elevages: ['brebis_lait', 'oies'], ateliers: ['distillerie_fruits'] },
+  mer: { cultures: ['chanvre', 'lentilles'], vergers: ['cerisier'], elevages: ['brebis_lait', 'chevres', 'canards'], ateliers: ['distillerie_fruits'] },
+  provence: { cultures: ['riz', 'safran', 'piments'], vergers: ['amandier', 'figuier', 'pecher', 'citronnier', 'noisetier'], elevages: ['brebis_lait', 'porcs'], ateliers: ['nougaterie', 'distillerie_fruits', 'conserverie'] },
+};
+for (const r of REGIONS) {
+  const e = EXTRA[r.id];
+  if (!e) continue;
+  for (const k of ['cultures', 'vergers', 'elevages', 'ateliers'] as const) for (const v of e[k] ?? []) if (!r[k].includes(v)) r[k].push(v);
+}
+
 export function regionBuildings(r: RegionDef): Set<string> {
   return new Set([...COMMUNS, ...(r.vergers.includes('vigne') ? ['remise_viti'] : []), ...r.cultures.map((c) => 'champ_' + c), ...r.vergers.map((v) => 'verger_' + v), ...r.elevages.map((e) => 'elevage_' + e), ...r.ateliers]);
 }

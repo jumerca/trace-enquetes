@@ -72,7 +72,7 @@
  {
   "name": "le temps avance à ×4",
   "ok": true,
-  "info": "15 min de jeu en 1,5 s"
+  "info": "14 min de jeu en 1,5 s"
  },
  {
   "name": "pause : le temps est figé",
@@ -155,6 +155,21 @@
   "info": ""
  },
  {
+  "name": "communication : campagne d'affichage lancée et payée",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "cours du marché affichés",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "calculs de rentabilité des ateliers",
+  "ok": true,
+  "info": ""
+ },
+ {
   "name": "route empierrée tracée",
   "ok": true,
   "info": ""
@@ -162,7 +177,7 @@
  {
   "name": "mesure FPS (rendu logiciel, indicatif)",
   "ok": true,
-  "info": "10 i/s ; coût JS moyen 0.40 ms/image"
+  "info": "10 i/s ; coût JS moyen 0.44 ms/image"
  },
  {
   "name": "export JSON téléchargé",
@@ -172,42 +187,42 @@
  {
   "name": "partie rechargée à l'identique",
   "ok": true,
-  "info": "{\"m\":17214.4,\"t\":1402,\"b\":7,\"w\":4}"
+  "info": "{\"m\":17154.2,\"t\":1404,\"b\":7,\"w\":4}"
  },
  {
   "name": "région « nord » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"nord\",\"b\":5,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"nord\",\"b\":5,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "région « beauce » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"beauce\",\"b\":10,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"beauce\",\"b\":10,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "région « est » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"est\",\"b\":6,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"est\",\"b\":6,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "région « sudouest » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"sudouest\",\"b\":5,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"sudouest\",\"b\":5,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "région « montagne » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"montagne\",\"b\":5,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"montagne\",\"b\":5,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "région « mer » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"mer\",\"b\":6,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"mer\",\"b\":6,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "région « provence » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",
   "ok": true,
-  "info": "{\"region\":\"provence\",\"b\":6,\"veh\":608,\"vivants\":1696,\"batiments\":162,\"nature\":464}"
+  "info": "{\"region\":\"provence\",\"b\":6,\"veh\":608,\"vivants\":2176,\"batiments\":230,\"nature\":688}"
  },
  {
   "name": "mobile : pincement = zoom",

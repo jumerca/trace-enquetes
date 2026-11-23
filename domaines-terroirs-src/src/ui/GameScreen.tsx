@@ -26,7 +26,7 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
   const toolRef = useRef<Tool>(null);
   const [menu, setMenu] = useState<null | 'pause' | 'save' | 'load' | 'reglages'>(null);
   const [toast, setToast] = useState('');
-  const [tutoOpen, setTutoOpen] = useState(() => window.innerWidth > 700);
+  const [tutoOpen, setTutoOpen] = useState(false); // replié par défaut : la carte reste dégagée
   const [loadError, setLoadError] = useState('');
   useSyncExternalStore(
     (l) => game.subscribe(l),
@@ -186,7 +186,7 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
   const today = s.ledger[s.ledger.length - 1];
   const todayNet = today ? Object.values(today.rev).reduce((a, b) => a + (b ?? 0), 0) - Object.values(today.cost).reduce((a, b) => a + (b ?? 0), 0) : 0;
   game.adaptive = settings.adaptive;
-  const recentEvents = s.events.slice(-3).filter((e) => s.minute - e.min < 240);
+  const recentEvents = s.events.slice(-2).filter((e) => s.minute - e.min < 120);
 
   const buildTool = tool?.kind === 'build' ? tool : null;
   const check = buildTool ? checkBuild(sim, buildTool.type, buildTool.x, buildTool.y, buildTool.rot) : null;

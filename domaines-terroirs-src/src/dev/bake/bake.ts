@@ -75,7 +75,7 @@ for (let d = 0; d < 8 && SET === 'vehicules'; d++) {
 if (SET === 'vivants') {
   for (let d = 0; d < 8; d++) {
     for (const [k, look] of Object.entries(PEOPLE)) for (let fr = 0; fr < 5; fr++) shots.push(shoot(`pp:${k}:${d}:${fr}`, person(look, fr), d, RES));
-    for (const kind of ['vache', 'limousine', 'chevre', 'brebis', 'cochon', 'canard', 'poule', 'cheval', 'ane', 'oie', 'lapin'])
+    for (const kind of ['vache', 'limousine', 'chevre', 'brebis', 'cochon', 'canard', 'poule', 'cheval', 'ane', 'oie', 'lapin', 'dinde', 'pintade', 'caille', 'alpaga', 'cerf'])
       for (let l = 0; l < 3; l++) for (let fr = 0; fr < 4; fr++) shots.push(shoot(`aa:${kind}:${l}:${d}:${fr}`, animal(kind, l, fr), d, RES));
   }
 }
@@ -104,7 +104,7 @@ if (SET === 'batiments') {
 if (SET === 'nature') {
   // arbres du paysage et des vergers, pour chaque saison
   const SPECIES: Record<string, number> = { chene: 3, chataignier: 3, noyer: 2, pin: 2, bouleau: 2, buisson: 3, cypres: 1, sapin: 2, epicea: 2, hetre: 2, peuplier: 2, olivier: 2, haie: 2 };
-  const LOOKS = ['pommier', 'poirier', 'prunier', 'mirabellier', 'cerisier', 'abricotier', 'noyer', 'chataignier', 'truffier', 'olivier', 'vigne'];
+  const LOOKS = ['pommier', 'poirier', 'prunier', 'mirabellier', 'cerisier', 'abricotier', 'noyer', 'chataignier', 'truffier', 'olivier', 'vigne', 'noisetier', 'pecher', 'figuier', 'amandier', 'framboisier', 'myrtillier', 'citronnier'];
   for (const season of [0, 1, 2, 3] as const) {
     for (const [sp, n] of Object.entries(SPECIES)) for (let v = 0; v < n; v++) {
       const t = tree(sp, v, season);
@@ -113,7 +113,7 @@ if (SET === 'nature') {
     }
     for (const look of LOOKS) for (let f = 0; f < 4; f++) for (let v = 0; v < 2; v++) {
       const t = fruitTree(look, f, v, season);
-      t.scale.setScalar(look === 'vigne' ? 1 : 1.2);
+      t.scale.setScalar(look === 'vigne' || look === 'framboisier' || look === 'myrtillier' ? 1 : 1.2);
       shots.push(shoot(`fruit:${look}:${f}:${v}:s${season}`, t, 0, RES));
     }
   }

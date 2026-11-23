@@ -95,6 +95,37 @@ export const RESOURCES: Record<Res, ResDef> = Object.fromEntries(
     R('truites', 'Truites', 'kg', 12, 'elevage', true, '#8a9aa8'),
     R('truite_fumee', 'Truite fumée', 'paquet', 9.5, 'elevage', true, '#e88a5a'),
     R('foin', 'Foin', 'botte', 3, 'general', false, '#d8b860'),
+    // V0.6 : nouvelles filières
+    R('chanvre', 'Chanvre', 'kg', 0.7, 'grandes', false, '#7a9a4a'),
+    R('lentilles', 'Lentilles vertes', 'kg', 3.2, 'cereales', true, '#6a7a3a'),
+    R('riz', 'Riz de Camargue', 'kg', 2.6, 'cereales', true, '#f0ead8'),
+    R('safran', 'Safran', 'gramme', 28, 'maraichage', true, '#d8502a'),
+    R('courges', 'Courges et potirons', 'pièce', 2.8, 'maraichage', true, '#e8882a'),
+    R('piments', 'Piments d\'Espelette', 'kg', 14, 'maraichage', true, '#c8201a'),
+    R('bouquets', 'Bouquets de fleurs', 'bouquet', 7, 'maraichage', true, '#e870a8'),
+    R('noisettes', 'Noisettes', 'kg', 6, 'verger', true, '#a8783a'),
+    R('peches', 'Pêches', 'kg', 3.2, 'verger', true, '#f0985a'),
+    R('figues', 'Figues', 'kg', 5.5, 'verger', true, '#6a3a5a'),
+    R('amandes', 'Amandes', 'kg', 9, 'verger', true, '#d8b888'),
+    R('framboises', 'Framboises', 'barquette', 4.2, 'verger', true, '#d82a5a'),
+    R('myrtilles', 'Myrtilles', 'barquette', 5, 'verger', true, '#3a3a7a'),
+    R('citrons', 'Citrons de Menton', 'kg', 5, 'verger', true, '#f0d83a'),
+    R('dindes', 'Dindes fermières', 'tête', 38, 'elevage', false, '#5a4a4a'),
+    R('pintades', 'Pintades', 'tête', 17, 'elevage', false, '#5a6a7a'),
+    R('oeufs_caille', 'Œufs de caille', 'boîte de 12', 3.5, 'elevage', true, '#e8d8b8'),
+    R('escargots', 'Escargots', 'douzaine', 6, 'elevage', true, '#8a7a5a'),
+    R('laine', 'Laine brute', 'kg', 8, 'elevage', false, '#efe8da'),
+    R('venaison', 'Cervidés (venaison)', 'tête', 260, 'elevage', false, '#8a5a3a'),
+    R('lait_brebis', 'Lait de brebis', 'L', 1.8, 'lait', true, '#f8f4ea'),
+    R('fromage_brebis', 'Fromage de brebis', 'pièce', 13, 'lait', true, '#ecd890'),
+    R('glaces', 'Glaces fermières', 'pot', 5.5, 'lait', true, '#f4c8d8'),
+    R('savons', 'Savons au lait', 'pièce', 6, 'lait', true, '#d8e0f0'),
+    R('pelotes', 'Pelotes de laine', 'pelote', 9, 'elevage', true, '#c8a8d8'),
+    R('eau_de_vie', 'Eau-de-vie de fruits', 'bouteille', 29, 'verger', true, '#e8e8f0'),
+    R('nougat', 'Nougat', 'barre', 7.5, 'verger', true, '#f4ecd8'),
+    R('pate_tartiner', 'Pâte à tartiner aux noisettes', 'pot', 7, 'verger', true, '#6a3a1a'),
+    R('biscuits', 'Biscuits et sablés', 'paquet', 5, 'cereales', true, '#d8a860'),
+    R('escargots_bocal', 'Escargots préparés', 'bocal', 11, 'elevage', true, '#7a6a3a'),
   ].map((r) => [r.id, r]),
 );
 export const RES_IDS = Object.keys(RESOURCES) as Res[];
@@ -103,7 +134,7 @@ export const RES_IDS = Object.keys(RESOURCES) as Res[];
 export const wholesaleFactor = (r: Res) => (RESOURCES[r].boutique ? 0.7 : 0.9);
 
 // ————— cultures annuelles (parcelles) —————
-export type PlantLook = 'cereale' | 'mais' | 'tournesol' | 'colza' | 'betterave' | 'patate' | 'lavande' | 'legumes' | 'lin' | 'houblon' | 'fraises' | 'melons' | 'pre';
+export type PlantLook = 'cereale' | 'mais' | 'tournesol' | 'colza' | 'betterave' | 'patate' | 'lavande' | 'legumes' | 'lin' | 'houblon' | 'fraises' | 'melons' | 'pre' | 'fleurs' | 'riz' | 'chanvre';
 export interface CropDef {
   id: string;
   nom: string;
@@ -135,11 +166,18 @@ export const CROPS: Record<string, CropDef> = {
   asperges: { id: 'asperges', nom: 'Aspergeraie', produit: 'asperges', rendement: 80, croissance: [0.3, 0.06, 0.02, 0], recolte: 'main', semence: 0, vivace: true, look: 'legumes', cout: 1700 },
   prairie: { id: 'prairie', nom: 'Prairie de fauche (foin)', produit: 'foin', rendement: 90, croissance: [0.26, 0.2, 0.1, 0.02], recolte: 'tracteur', semence: 0, vivace: true, look: 'pre', cout: 500 },
   tomates: { id: 'tomates', nom: 'Serre de tomates', produit: 'tomates', rendement: 150, croissance: [0.22, 0.22, 0.2, 0.16], recolte: 'main', semence: 25, look: 'legumes', cout: 7200 },
+  chanvre: { id: 'chanvre', nom: 'Chanvre', produit: 'chanvre', rendement: 420, croissance: [0.14, 0.18, 0.05, 0], recolte: 'moissonneuse', semence: 22, look: 'chanvre', cout: 900 },
+  lentilles: { id: 'lentilles', nom: 'Lentilles vertes', produit: 'lentilles', rendement: 110, croissance: [0.16, 0.18, 0.04, 0], recolte: 'moissonneuse', semence: 24, look: 'cereale', cout: 1000 },
+  riz: { id: 'riz', nom: 'Rizière', produit: 'riz', rendement: 180, croissance: [0.1, 0.18, 0.08, 0], recolte: 'moissonneuse', semence: 26, look: 'riz', cout: 1600 },
+  safran: { id: 'safran', nom: 'Safranière', produit: 'safran', rendement: 30, croissance: [0.06, 0.05, 0.3, 0], recolte: 'main', semence: 0, vivace: true, look: 'lavande', cout: 2200 },
+  courges: { id: 'courges', nom: 'Courges et potirons', produit: 'courges', rendement: 160, croissance: [0.12, 0.16, 0.14, 0], recolte: 'main', semence: 18, look: 'melons', cout: 1000 },
+  piments: { id: 'piments', nom: 'Piments d\'Espelette', produit: 'piments', rendement: 40, croissance: [0.08, 0.2, 0.12, 0], recolte: 'main', semence: 30, look: 'legumes', cout: 1500 },
+  fleurs: { id: 'fleurs', nom: 'Champ de fleurs à couper', produit: 'bouquets', rendement: 120, croissance: [0.2, 0.22, 0.1, 0], recolte: 'main', semence: 35, look: 'fleurs', cout: 1300 },
   legumes: { id: 'legumes', nom: 'Potager de maraîchage', produit: 'legumes', rendement: 150, croissance: [0.3, 0.32, 0.22, 0.06], recolte: 'main', semence: 18, look: 'legumes', cout: 1100 },
 };
 
 // ————— vergers et vignes (arbres pérennes) —————
-export type TreeLook = 'pommier' | 'prunier' | 'mirabellier' | 'noyer' | 'olivier' | 'vigne' | 'cerisier' | 'abricotier' | 'poirier' | 'chataignier' | 'truffier';
+export type TreeLook = 'pommier' | 'prunier' | 'mirabellier' | 'noyer' | 'olivier' | 'vigne' | 'cerisier' | 'abricotier' | 'poirier' | 'chataignier' | 'truffier' | 'noisetier' | 'pecher' | 'figuier' | 'amandier' | 'framboisier' | 'myrtillier' | 'citronnier';
 export interface OrchardDef {
   id: string;
   nom: string;
@@ -161,11 +199,18 @@ export const ORCHARDS: Record<string, OrchardDef> = {
   poirier: { id: 'poirier', nom: 'Verger de poiriers', produit: 'poires', taux: 5.5, cap: 170, saisons: [0, 0.7, 1.4, 0], look: 'poirier', cout: 2000 },
   chataigneraie: { id: 'chataigneraie', nom: 'Châtaigneraie', produit: 'chataignes', taux: 2.8, cap: 120, saisons: [0, 0, 2, 0.2], look: 'chataignier', cout: 2200 },
   truffiere: { id: 'truffiere', nom: 'Truffière (chênes truffiers)', produit: 'truffes', taux: 0.06, cap: 3, saisons: [0, 0, 0.6, 1.8], look: 'truffier', cout: 4800 },
+  noisetier: { id: 'noisetier', nom: 'Noiseraie', produit: 'noisettes', taux: 2.2, cap: 90, saisons: [0, 0.3, 1.8, 0], look: 'noisetier', cout: 2200 },
+  pecher: { id: 'pecher', nom: 'Verger de pêchers', produit: 'peches', taux: 4.6, cap: 140, saisons: [0, 1.7, 0.2, 0], look: 'pecher', cout: 2200 },
+  figuier: { id: 'figuier', nom: 'Figueraie', produit: 'figues', taux: 2.8, cap: 90, saisons: [0, 1, 1.2, 0], look: 'figuier', cout: 2100 },
+  amandier: { id: 'amandier', nom: 'Amanderaie', produit: 'amandes', taux: 1.6, cap: 70, saisons: [0, 0.6, 1.4, 0], look: 'amandier', cout: 2600 },
+  framboisier: { id: 'framboisier', nom: 'Framboiseraie', produit: 'framboises', taux: 4, cap: 110, saisons: [0.2, 1.6, 0.6, 0], look: 'framboisier', cout: 1600 },
+  myrtillier: { id: 'myrtillier', nom: 'Myrtilleraie', produit: 'myrtilles', taux: 3, cap: 90, saisons: [0, 1.6, 0.5, 0], look: 'myrtillier', cout: 1800 },
+  citronnier: { id: 'citronnier', nom: 'Citronneraie', produit: 'citrons', taux: 3.2, cap: 110, saisons: [0.8, 0.4, 0.6, 1.2], look: 'citronnier', cout: 3200 },
   vigne: { id: 'vigne', nom: 'Vigne', produit: 'raisin', taux: 7.04, cap: 210, saisons: [0, 0.4, 1.8, 0], look: 'vigne', cout: 2300 },
 };
 
 // ————— élevages —————
-export type AnimalLook = 'chevre' | 'vache' | 'brebis' | 'poule' | 'canard' | 'cochon' | 'ruche' | 'limousine' | 'cheval' | 'ane' | 'oie' | 'lapin' | 'truite';
+export type AnimalLook = 'chevre' | 'vache' | 'brebis' | 'poule' | 'canard' | 'cochon' | 'ruche' | 'limousine' | 'cheval' | 'ane' | 'oie' | 'lapin' | 'truite' | 'dinde' | 'pintade' | 'caille' | 'escargot' | 'alpaga' | 'cerf';
 export interface LivestockDef {
   id: string;
   nom: string;
@@ -194,6 +239,13 @@ export const LIVESTOCK: Record<string, LivestockDef> = {
   oies: { id: 'oies', nom: 'Parc à oies', animal: 'oie', nombre: 10, produit: 'oies', tauxParTete: 0.006, cap: 20, saisons: [0.7, 0.7, 1.4, 1.2], entretien: 12, cout: 2600, abri: 'poulailler' },
   lapins: { id: 'lapins', nom: 'Clapier', animal: 'lapin', nombre: 12, produit: 'lapins', tauxParTete: 0.012, cap: 40, saisons: [1.2, 1, 0.9, 0.8], entretien: 6, cout: 1400, abri: 'clapier' },
   truites: { id: 'truites', nom: 'Étang de pisciculture (truites)', animal: 'truite', nombre: 0, produit: 'truites', tauxParTete: 0, cap: 90, saisons: [1, 0.8, 1, 0.7], entretien: 9, cout: 5600, abri: 'etang', visite: { nom: 'Pêche à l\'étang', prix: 9 } },
+  brebis_lait: { id: 'brebis_lait', nom: 'Bergerie laitière', animal: 'brebis', nombre: 10, produit: 'lait_brebis', tauxParTete: 0.12, cap: 70, saisons: [1.3, 1, 0.8, 0.5], entretien: 18, cout: 4200, abri: 'bergerie' },
+  dindes: { id: 'dindes', nom: 'Parc à dindes', animal: 'dinde', nombre: 8, produit: 'dindes', tauxParTete: 0.006, cap: 16, saisons: [0.7, 0.8, 1.2, 1.6], entretien: 12, cout: 2400, abri: 'poulailler' },
+  pintades: { id: 'pintades', nom: 'Parc à pintades', animal: 'pintade', nombre: 12, produit: 'pintades', tauxParTete: 0.0075, cap: 24, saisons: [1, 1, 1.1, 1], entretien: 9, cout: 1900, abri: 'poulailler' },
+  cailles: { id: 'cailles', nom: 'Volière de cailles', animal: 'caille', nombre: 16, produit: 'oeufs_caille', tauxParTete: 0.01, cap: 40, saisons: [1.1, 1.1, 0.9, 0.6], entretien: 5, cout: 1300, abri: 'clapier' },
+  escargots: { id: 'escargots', nom: 'Héliciculture (escargots)', animal: 'escargot', nombre: 0, produit: 'escargots', tauxParTete: 0, cap: 80, saisons: [1, 1.3, 0.8, 0], entretien: 5, cout: 2200, abri: 'abri' },
+  alpagas: { id: 'alpagas', nom: 'Élevage d\'alpagas', animal: 'alpaga', nombre: 5, produit: 'laine', tauxParTete: 0.012, cap: 30, saisons: [1.5, 1.2, 0.6, 0.4], entretien: 16, cout: 6800, abri: 'abri', visite: { nom: 'Balade avec les alpagas', prix: 9 } },
+  cerfs: { id: 'cerfs', nom: 'Parc à cervidés', animal: 'cerf', nombre: 6, produit: 'venaison', tauxParTete: 0.0009, cap: 4, saisons: [0.8, 0.8, 1.6, 1], entretien: 18, cout: 7800, abri: 'abri', visite: { nom: 'Observation des cerfs', prix: 5 } },
   ruches: { id: 'ruches', nom: 'Rucher', animal: 'ruche', nombre: 6, produit: 'miel', tauxParTete: 0.0192, cap: 56, saisons: [1.3, 1.4, 0.4, 0], entretien: 3, cout: 1500, abri: 'rucher' },
 };
 
@@ -210,26 +262,32 @@ export interface Recipe {
 const rc = (input: Res, inQty: number, output: Res, outQty: number, minutes: number, consommables: number, consoLabel: string): Recipe => ({ input, inQty, output, outQty, minutes, consommables, consoLabel });
 export const WORKSHOPS: Record<string, { nom: string; desc: string; cout: number; entretien: number; recettes: Recipe[] }> = {
   pressoir: { nom: 'Pressoir', desc: 'Presse les pommes en jus mis en bouteille.', cout: 3600, entretien: 6, recettes: [rc('pommes', 8, 'jus', 5, 50, 2, 'bouteilles et bouchons')] },
-  fromagerie: { nom: 'Fromagerie', desc: 'Fromages de chèvre et tommes de vache.', cout: 5200, entretien: 9, recettes: [rc('lait_chevre', 10, 'fromage_chevre', 3, 80, 1.2, 'présure et sel'), rc('lait', 20, 'tomme', 2, 140, 2, 'présure, sel, toile')] },
+  fromagerie: { nom: 'Fromagerie', desc: 'Fromages de chèvre et tommes de vache.', cout: 5200, entretien: 9, recettes: [rc('lait_chevre', 10, 'fromage_chevre', 3, 80, 1.2, 'présure et sel'), rc('lait', 20, 'tomme', 2, 140, 2, 'présure, sel, toile'), rc('lait_brebis', 12, 'fromage_brebis', 3, 120, 1.5, 'présure et sel')] },
   moulin: { nom: 'Moulin', desc: 'Moud le blé en farine.', cout: 6000, entretien: 10, recettes: [rc('ble', 50, 'farine', 38, 50, 2, 'entretien des meules')] },
   boulangerie: { nom: 'Boulangerie', desc: 'Four à bois : pains de campagne.', cout: 4600, entretien: 8, recettes: [rc('farine', 5, 'pain', 12, 70, 3, 'bois de four, levain, sel')] },
   brasserie: { nom: 'Brasserie', desc: 'Bière de la ferme à partir de l\'orge.', cout: 7800, entretien: 12, recettes: [rc('orge', 20, 'biere', 30, 150, 9, 'houblon, bouteilles, capsules')] },
   chai: { nom: 'Chai', desc: 'Vinification et mise en bouteille.', cout: 8200, entretien: 12, recettes: [rc('raisin', 15, 'vin', 10, 110, 6, 'bouteilles, bouchons, étiquettes')] },
   huilerie: { nom: 'Huilerie', desc: 'Presse olives, noix, tournesol et colza.', cout: 6400, entretien: 10, recettes: [rc('olives', 10, 'huile_olive', 3, 70, 1.6, 'bouteilles'), rc('noix', 8, 'huile_noix', 3, 70, 1.6, 'bouteilles'), rc('tournesol', 15, 'huile', 6, 60, 2.4, 'bouteilles'), rc('colza', 15, 'huile', 6, 60, 2.4, 'bouteilles')] },
   distillerie: { nom: 'Distillerie de lavande', desc: 'Alambic : huile essentielle de lavande.', cout: 6800, entretien: 10, recettes: [rc('lavande', 20, 'essence', 8, 100, 3, 'flacons, bois de chauffe')] },
-  conserverie: { nom: 'Conserverie', desc: 'Pruneaux, confitures, bocaux et confits.', cout: 5600, entretien: 9, recettes: [rc('prunes', 10, 'pruneaux', 6, 90, 1.5, 'sachets'), rc('mirabelles', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('legumes', 8, 'bocaux', 6, 60, 3, 'bocaux et sel'), rc('canards', 1, 'confit', 4, 120, 4, 'bocaux et sel'), rc('oies', 1, 'foie_gras', 3, 150, 5, 'bocaux et sel')] },
+  conserverie: { nom: 'Conserverie', desc: 'Pruneaux, confitures, bocaux et confits.', cout: 5600, entretien: 9, recettes: [rc('escargots', 6, 'escargots_bocal', 4, 90, 3, 'beurre persillé, bocaux'), rc('figues', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('prunes', 10, 'pruneaux', 6, 90, 1.5, 'sachets'), rc('mirabelles', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('legumes', 8, 'bocaux', 6, 60, 3, 'bocaux et sel'), rc('canards', 1, 'confit', 4, 120, 4, 'bocaux et sel'), rc('oies', 1, 'foie_gras', 3, 150, 5, 'bocaux et sel')] },
   cidrerie: { nom: 'Cidrerie', desc: 'Cidre fermier (pommes ou poires).', cout: 5400, entretien: 8, recettes: [rc('pommes', 10, 'cidre', 7, 120, 3, 'bouteilles, bouchons'), rc('poires', 10, 'cidre', 7, 120, 3, 'bouteilles, bouchons')] },
   beurrerie: { nom: 'Beurrerie', desc: 'Baratte : beurre fermier.', cout: 4800, entretien: 7, recettes: [rc('lait', 22, 'beurre', 8, 70, 1.5, 'papier, sel')] },
   creperie: { nom: 'Galetterie', desc: 'Moulin à meule et billig : galettes de sarrasin.', cout: 4400, entretien: 7, recettes: [rc('sarrasin', 12, 'galettes', 10, 80, 3, 'œufs, sel, emballages')] },
-  confiserie: { nom: 'Confiserie', desc: 'Crème de marrons et confitures de fruits.', cout: 5200, entretien: 8, recettes: [rc('chataignes', 6, 'creme_marrons', 6, 90, 3.5, 'sucre, vanille, pots'), rc('cerises', 5, 'confiture', 8, 70, 4, 'sucre et pots'), rc('abricots', 6, 'confiture', 8, 70, 4, 'sucre et pots')] },
+  confiserie: { nom: 'Confiserie', desc: 'Crème de marrons et confitures de fruits.', cout: 5200, entretien: 8, recettes: [rc('chataignes', 6, 'creme_marrons', 6, 90, 3.5, 'sucre, vanille, pots'), rc('cerises', 5, 'confiture', 8, 70, 4, 'sucre et pots'), rc('abricots', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('framboises', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('myrtilles', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('peches', 6, 'confiture', 8, 70, 4, 'sucre et pots'), rc('citrons', 6, 'confiture', 8, 70, 4, 'sucre et pots')] },
   fumoir: { nom: 'Fumoir', desc: 'Truites fumées au bois de hêtre.', cout: 4600, entretien: 7, recettes: [rc('truites', 5, 'truite_fumee', 6, 180, 3, 'bois de fumage, sel')] },
-  boucherie: { nom: 'Atelier de découpe', desc: 'Viande en caissettes (veaux, lapins).', cout: 8600, entretien: 14, recettes: [rc('veaux', 1, 'viande', 95, 300, 25, 'emballages sous vide'), rc('lapins', 3, 'viande', 4, 60, 2, 'emballages')] },
+  boucherie: { nom: 'Atelier de découpe', desc: 'Viande en caissettes (veaux, lapins).', cout: 8600, entretien: 14, recettes: [rc('veaux', 1, 'viande', 95, 300, 25, 'emballages sous vide'), rc('lapins', 3, 'viande', 4, 60, 2, 'emballages'), rc('dindes', 1, 'viande', 5, 60, 2, 'emballages'), rc('pintades', 2, 'viande', 3, 50, 2, 'emballages'), rc('venaison', 1, 'viande', 22, 180, 8, 'emballages sous vide')] },
+  nougaterie: { nom: 'Nougaterie', desc: 'Nougat au miel et aux amandes ; pâte à tartiner aux noisettes.', cout: 5600, entretien: 8, recettes: [rc('amandes', 3, 'nougat', 10, 90, 5, 'miel, sucre, papier azyme'), rc('noisettes', 4, 'pate_tartiner', 8, 80, 4, 'cacao, sucre, pots')] },
+  glacerie: { nom: 'Glacerie fermière', desc: 'Glaces au lait de la ferme.', cout: 6200, entretien: 10, recettes: [rc('lait', 16, 'glaces', 14, 90, 5, 'sucre, fruits, pots'), rc('lait_brebis', 10, 'glaces', 12, 90, 5, 'sucre, fruits, pots')] },
+  savonnerie: { nom: 'Savonnerie', desc: 'Savons au lait de chèvre ou d\'ânesse, à la lavande.', cout: 4800, entretien: 6, recettes: [rc('lait_chevre', 6, 'savons', 14, 100, 4, 'huiles, soude, étiquettes'), rc('lavande', 4, 'savons', 6, 60, 3, 'huiles, soude, étiquettes')] },
+  filature: { nom: 'Filature', desc: 'Lavage, cardage et filage de la laine en pelotes.', cout: 5800, entretien: 7, recettes: [rc('laine', 4, 'pelotes', 10, 120, 2, 'teintures naturelles')] },
+  distillerie_fruits: { nom: 'Distillerie d\'eau-de-vie', desc: 'Alambic : eaux-de-vie de poire, mirabelle, prune ou cerise.', cout: 9400, entretien: 12, recettes: [rc('poires', 15, 'eau_de_vie', 3, 160, 5, 'bouteilles, bois de chauffe'), rc('mirabelles', 15, 'eau_de_vie', 3, 160, 5, 'bouteilles, bois de chauffe'), rc('prunes', 15, 'eau_de_vie', 3, 160, 5, 'bouteilles, bois de chauffe'), rc('cerises', 12, 'eau_de_vie', 3, 160, 5, 'bouteilles, bois de chauffe')] },
+  patisserie: { nom: 'Biscuiterie', desc: 'Sablés, galettes et biscuits à la farine du domaine.', cout: 4600, entretien: 7, recettes: [rc('farine', 6, 'biscuits', 12, 70, 5, 'beurre, sucre, œufs, sachets')] },
   charcuterie: { nom: 'Atelier de charcuterie', desc: 'Jambons, saucissons et pâtés.', cout: 7200, entretien: 12, recettes: [rc('porcs', 1, 'charcuterie', 38, 240, 14, 'sel, épices, boyaux')] },
 };
 
 // ————— bâtiments —————
-export type BuildingKind = 'maison' | 'stock' | 'hangar' | 'remise' | 'garage' | 'verger' | 'champ' | 'enclos' | 'atelier' | 'boutique' | 'accueil' | 'gite' | 'auberge' | 'equipement';
-export type BuildCategory = 'base' | 'engins' | 'cultures' | 'vergers' | 'elevages' | 'ateliers' | 'accueil' | 'equipements';
+export type BuildingKind = 'maison' | 'stock' | 'hangar' | 'remise' | 'garage' | 'verger' | 'champ' | 'enclos' | 'atelier' | 'boutique' | 'accueil' | 'gite' | 'auberge' | 'equipement' | 'attraction';
+export type BuildCategory = 'base' | 'engins' | 'cultures' | 'vergers' | 'elevages' | 'ateliers' | 'accueil' | 'loisirs' | 'equipements';
 
 export interface BuildingDef {
   id: string;
@@ -254,7 +312,10 @@ export interface BuildingDef {
   lits?: number;
   nuitee?: number;
   /** équipement : effet */
-  effet?: 'irrigation' | 'solaire' | 'telescopique';
+  effet?: 'irrigation' | 'solaire' | 'telescopique' | 'eolien' | 'methaniseur' | 'traite' | 'drone' | 'stand' | 'magasin' | 'reception' | 'musee' | 'labyrinthe' | 'jeux' | 'cueillette' | 'jardin' | 'mare' | 'station_meteo' | 'compost';
+  /** attraction : supplément payé par visiteur et attrait (multiplicateur de fréquentation) */
+  tarif?: number;
+  attrait?: number;
 }
 
 const B: BuildingDef[] = [
@@ -277,6 +338,24 @@ const B: BuildingDef[] = [
   { id: 'pedagogique', nom: 'Ferme pédagogique', desc: 'Ateliers pour les enfants : plus de familles et une visite à 6 €.', kind: 'accueil', categorie: 'accueil', size: 2, cout: 5400, entretien: 8, activite: 'accueil', constructible: true },
   { id: 'boutique', nom: 'Boutique de la ferme', desc: 'Vente directe aux visiteurs. Un membre du personnel doit tenir la caisse.', kind: 'boutique', categorie: 'accueil', size: 2, cout: 3200, entretien: 4, activite: 'general', capacite: 140, constructible: true },
   { id: 'accueil', nom: 'Accueil des visiteurs', desc: 'Attire davantage de visiteurs et propose une visite de la ferme (tarif réglable).', kind: 'accueil', categorie: 'accueil', size: 2, cout: 3800, entretien: 9, activite: 'accueil', constructible: true },
+  // équipements et énergie
+  { id: 'eolienne', nom: 'Petite éolienne', desc: 'Électricité revendue : jusqu\'à 40 € par jour, surtout par temps venteux (nuages, pluie, orage).', kind: 'equipement', categorie: 'equipements', size: 2, cout: 11000, entretien: 3, activite: 'general', effet: 'eolien', constructible: true },
+  { id: 'methaniseur', nom: 'Méthaniseur', desc: 'Valorise le fumier des élevages : 22 € par jour et par élevage (au moins un élevage).', kind: 'equipement', categorie: 'equipements', size: 3, cout: 24000, entretien: 15, activite: 'general', effet: 'methaniseur', constructible: true },
+  { id: 'robot_traite', nom: 'Robot de traite', desc: 'Traite automatique : +25 % de lait (vaches, chèvres, brebis).', kind: 'equipement', categorie: 'engins', size: 2, cout: 16000, entretien: 10, activite: 'lait', effet: 'traite', constructible: true },
+  { id: 'drone', nom: 'Drone agricole', desc: 'Surveillance des cultures : +8 % de rendement sur toutes les parcelles.', kind: 'equipement', categorie: 'engins', size: 2, cout: 6500, entretien: 4, activite: 'grandes', effet: 'drone', constructible: true },
+  { id: 'station_meteo', nom: 'Station météo', desc: 'Prévisions : les mauvais jours abîment moins les récoltes (pertes météo divisées par deux).', kind: 'equipement', categorie: 'equipements', size: 2, cout: 2400, entretien: 1, activite: 'general', effet: 'station_meteo', constructible: true },
+  { id: 'compost', nom: 'Aire de compostage', desc: 'Compost maison : la fumure des parcelles ne coûte plus rien.', kind: 'equipement', categorie: 'equipements', size: 2, cout: 1800, entretien: 1, activite: 'general', effet: 'compost', constructible: true },
+  // commerce
+  { id: 'stand', nom: 'Étal au bord de la route', desc: 'Les automobilistes s\'arrêtent : vend chaque jour jusqu\'à 15 produits de la grange au prix boutique, sans vendeur.', kind: 'equipement', categorie: 'accueil', size: 2, cout: 1600, entretien: 1, activite: 'general', effet: 'stand', constructible: true },
+  { id: 'magasin', nom: 'Magasin de producteurs', desc: 'Dépôt-vente partagé avec les fermes voisines : 40 produits par jour à 85 % du prix boutique.', kind: 'equipement', categorie: 'accueil', size: 2, cout: 9800, entretien: 9, activite: 'general', effet: 'magasin', constructible: true },
+  // loisirs et attractions
+  { id: 'salle_reception', nom: 'Salle de réception', desc: 'Mariages et fêtes de famille le week-end (600 à 1 400 € selon la réputation).', kind: 'attraction', categorie: 'loisirs', size: 3, cout: 22000, entretien: 16, activite: 'accueil', effet: 'reception', constructible: true },
+  { id: 'musee', nom: 'Musée de la vie rurale', desc: 'Outils anciens et métiers d\'autrefois : attire du monde (+15 %) et rapporte 4 € par visiteur.', kind: 'attraction', categorie: 'loisirs', size: 2, cout: 8800, entretien: 6, activite: 'accueil', effet: 'musee', tarif: 4, attrait: 0.15, constructible: true },
+  { id: 'labyrinthe', nom: 'Labyrinthe de maïs', desc: 'Attraction d\'été (+30 % de visiteurs en été), 6 € par visiteur.', kind: 'attraction', categorie: 'loisirs', size: 4, cout: 2600, entretien: 3, activite: 'accueil', effet: 'labyrinthe', tarif: 6, attrait: 0.3, constructible: true },
+  { id: 'aire_jeux', nom: 'Aire de jeux', desc: 'Les familles restent plus longtemps et repartent ravies (satisfaction +10).', kind: 'attraction', categorie: 'loisirs', size: 2, cout: 3200, entretien: 2, activite: 'accueil', effet: 'jeux', attrait: 0.08, constructible: true },
+  { id: 'cueillette', nom: 'Cueillette à la ferme', desc: 'Les visiteurs cueillent eux-mêmes fruits et légumes mûrs (2 kg chacun) au prix boutique.', kind: 'attraction', categorie: 'loisirs', size: 2, cout: 1400, entretien: 1, activite: 'accueil', effet: 'cueillette', attrait: 0.1, constructible: true },
+  { id: 'jardin', nom: 'Jardin fleuri', desc: 'Massifs et potager d\'agrément : +1 de réputation par semaine (jusqu\'à 80).', kind: 'attraction', categorie: 'loisirs', size: 2, cout: 900, entretien: 1, activite: 'accueil', effet: 'jardin', constructible: true },
+  { id: 'mare', nom: 'Mare naturelle', desc: 'Biodiversité, libellules et grenouilles : satisfaction des visiteurs +5.', kind: 'attraction', categorie: 'loisirs', size: 2, cout: 700, entretien: 0, activite: 'accueil', effet: 'mare', constructible: true },
   ...Object.values(CROPS).map((c): BuildingDef => ({
     id: 'champ_' + c.id, nom: ['legumes', 'tomates', 'prairie', 'houblon', 'fraises', 'asperges'].includes(c.id) ? c.nom : `Parcelle — ${c.nom.toLowerCase()}`, kind: 'champ', categorie: 'cultures', size: 4, cout: c.cout, entretien: 3, activite: RESOURCES[c.produit].activite, crop: c.id, constructible: true,
     desc: `Rendement ≈ ${c.rendement} ${RESOURCES[c.produit].unite}. ${c.vivace ? 'Culture vivace : repousse chaque année.' : `Labour puis semis (${c.semence} € de semences)`}${c.recolte === 'moissonneuse' ? ' ; récolte à la moissonneuse (ou à la main, lentement).' : c.recolte === 'tracteur' ? ' ; arrachage au tracteur (ou à la main).' : ' ; récolte à la main.'}`,
@@ -286,13 +365,13 @@ const B: BuildingDef[] = [
     desc: `16 ${o.id === 'vigne' ? 'rangs de ceps' : 'arbres'}. Récolte à la main ; production surtout en ${['printemps', 'été', 'automne', 'hiver'][o.saisons.indexOf(Math.max(...o.saisons))]}.`,
   })),
   ...Object.values(LIVESTOCK).map((l): BuildingDef => ({
-    id: 'elevage_' + l.id, nom: l.nom, kind: 'enclos', categorie: l.visite && !l.produit ? 'accueil' : 'elevages', size: ['ruches', 'poules', 'lapins'].includes(l.id) ? 3 : 4, cout: l.cout, entretien: l.entretien, activite: l.produit ? RESOURCES[l.produit].activite : 'accueil', livestock: l.id, constructible: true,
-    desc: `${l.nombre ? `${l.nombre} ${l.animal === 'ruche' ? 'ruches' : 'animaux'}` : 'Bassin empoissonné'}${l.produit ? ` ; produit : ${RESOURCES[l.produit].nom.toLowerCase()}` : ''}${l.visite ? ` ; ${l.visite.nom.toLowerCase()} pour les visiteurs (${l.visite.prix} €)` : ''}. Soins quotidiens par un éleveur.`,
+    id: 'elevage_' + l.id, nom: l.nom, kind: 'enclos', categorie: l.visite && !l.produit ? 'accueil' : 'elevages', size: ['ruches', 'poules', 'lapins', 'cailles', 'escargots'].includes(l.id) ? 3 : 4, cout: l.cout, entretien: l.entretien, activite: l.produit ? RESOURCES[l.produit].activite : 'accueil', livestock: l.id, constructible: true,
+    desc: `${l.nombre ? `${l.nombre} ${l.animal === 'ruche' ? 'ruches' : 'animaux'}` : l.animal === 'escargot' ? 'Parcs grillagés' : 'Bassin empoissonné'}${l.produit ? ` ; produit : ${RESOURCES[l.produit].nom.toLowerCase()}` : ''}${l.visite ? ` ; ${l.visite.nom.toLowerCase()} pour les visiteurs (${l.visite.prix} €)` : ''}. Soins quotidiens par un éleveur.`,
   })),
   ...Object.entries(WORKSHOPS).map(([id, w]): BuildingDef => ({ id, nom: w.nom, desc: w.desc, kind: 'atelier', categorie: 'ateliers', size: 2, cout: w.cout, entretien: w.entretien, activite: RESOURCES[w.recettes[0].output].activite, recettes: w.recettes, constructible: true })),
 ];
 export const BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(B.map((b) => [b.id, b]));
-export const CATEGORIES: Record<BuildCategory, string> = { base: 'Domaine & stockage', engins: 'Engins', cultures: 'Cultures', vergers: 'Vergers & vignes', elevages: 'Élevages', ateliers: 'Ateliers', accueil: 'Commerce & tourisme', equipements: 'Équipements' };
+export const CATEGORIES: Record<BuildCategory, string> = { base: 'Domaine & stockage', engins: 'Engins', cultures: 'Cultures', vergers: 'Vergers & vignes', elevages: 'Élevages', ateliers: 'Ateliers', accueil: 'Commerce & tourisme', loisirs: 'Loisirs & attractions', equipements: 'Équipements' };
 
 export const FUMURE_COST = 30; // € par parcelle (fumier, engrais)
 export const TRAITEMENT_COST = 20; // € par parcelle

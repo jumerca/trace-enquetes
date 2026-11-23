@@ -1,4 +1,18 @@
-# Rapport — V0.5 (état au 23/11/2026)
+# Rapport — V0.6 (état au 23/11/2026)
+
+## Nouveautés V0.6 (faites et testées)
+
+- **Interface** : objectif du tutoriel replié par défaut (une seule ligne en haut à gauche) ; notifications petites, en bas à gauche, 2 au plus.
+- **Prix libres** en boutique (saisie directe, de 20 % à 5 fois le prix de référence).
+- **Cours du marché** quotidiens par produit (tendance saisonnière, marche aléatoire, flambées et chutes annoncées) appliqués au négociant ; option « attendre un cours ≥ 100 % » pour les contrats.
+- **Calculs** : marge de chaque recette d'atelier (coût de revient matière + consommables) et calculatrice de vente (prix choisi contre négociant).
+- **Communication** : 7 campagnes (affiches, réseaux sociaux, journal, portes ouvertes, radio, salon de l'agriculture avec ventes sur stand, reportage TV), revue de presse avec articles positifs (+visiteurs) ou critiques (−réputation) ; **labels** bio, IGP/AOP, « Bienvenue à la ferme ».
+- **Finances** : 3 offres de prêt, remboursements quotidiens ; aides PAC à chaque saison.
+- **Contenu** : 7 cultures, 7 vergers, 7 élevages, 6 ateliers, 6 équipements, 2 commerces, 7 loisirs, tous modélisés en 3D (bâtiments par région, arbres 4 saisons, animaux 8 directions).
+- Tests unitaires : **65/65** (6 nouveaux : cours, campagnes et salon, label bio, emprunt, équipements et attractions, disponibilité régionale). E2E : **49/49** (campagne lancée, cours affichés, calculs).
+- Limites : les nouvelles cultures riz, chanvre et fleurs empruntent l'aspect d'une culture proche dans les champs ; l'équilibre économique des nouveautés est vérifié en simulation accélérée, pas en longues parties.
+- Captures : `docs/captures/v06-communication.jpg`, `v06-calculs.jpg`.
+
 
 ## Nouveautés V0.5 (faites et testées)
 

@@ -859,6 +859,169 @@ export function buildingModel(type: string, st: Style, size: number, dx: number)
       }
       break;
     }
+    // ————— V0.6 : énergie, équipements, commerce, loisirs —————
+    case 'eolienne': {
+      box(p, 0.6, 0.12, 0.6, 0x9a968e, 1, 0.06, 1, 0.02);
+      add(p, new THREE.CylinderGeometry(0.05, 0.1, 3.0, 12), toon(0xf4f4f0), 1, 1.55, 1);
+      box(p, 0.32, 0.14, 0.16, 0xf4f4f0, 1.06, 3.08, 1, 0.04);
+      const hub = new THREE.Group();
+      hub.position.set(1.24, 3.08, 1);
+      p.add(hub);
+      add(hub, new THREE.SphereGeometry(0.06, 10, 8), toon(0xe8e8e4));
+      for (let k = 0; k < 3; k++) {
+        const bl = box(hub, 0.02, 0.85, 0.07, 0xf8f8f4, 0, 0.42, 0, 0.01);
+        bl.position.set(0, Math.cos((k * 2 * Math.PI) / 3 + 0.3) * 0.42, Math.sin((k * 2 * Math.PI) / 3 + 0.3) * 0.42);
+        bl.rotation.x = -((k * 2 * Math.PI) / 3 + 0.3);
+      }
+      break;
+    }
+    case 'methaniseur': {
+      for (const [x, z, r] of [[0.9, 0.9, 0.62], [2.05, 1.9, 0.5]] as const) {
+        add(p, new THREE.CylinderGeometry(r, r, 0.4, 24), wallMat('pierre', 0xa8a49a), x, 0.2, z);
+        markRoof(add(p, new THREE.SphereGeometry(r * 1.02, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), toon(0x5a7a4a), x, 0.4, z));
+      }
+      house(p, st, { x0: 1.9, z0: 0.3, w: 0.8, d: 0.7, h: 0.6, rise: 0.25, along: 'x', door: 'simple', doorAt: 2.3, floors: 1, wall: wallMat('tole', 0xc8ccd0), roof: roofMatOf('tole', 0x8a9298, false) });
+      const pipe = new THREE.CylinderGeometry(0.04, 0.04, 1.4, 8);
+      pipe.rotateZ(Math.PI / 2);
+      add(p, pipe, toon(0xd8a030), 1.5, 0.3, 1.35).rotation.y = -0.7;
+      break;
+    }
+    case 'robot_traite':
+      house(p, st, { x0: m, z0: m + 0.1, w: W, d: W - 0.25, h: 0.8, rise: 0.3, along: 'x', door: 'garage', doorAt: dx, winX: [0.9], floors: 1, wall: wallMat('tole', 0xe0e4e8), roof: roofMatOf('tole', 0x6a8aa8, false) });
+      sign(p, 'z', [dx, s - m - 0.13], 0.68, 'ROBOT DE TRAITE', 0x2a5a8a, '#fff', 0.6);
+      break;
+    case 'drone': {
+      box(p, 1.2, 0.05, 1.2, 0x5a5e62, 1, 0.025, 1.05, 0.02);
+      add(p, new THREE.TorusGeometry(0.4, 0.03, 6, 24).rotateX(Math.PI / 2), toon(0xf0d030), 1, 0.06, 1.05, false);
+      const d = new THREE.Group();
+      d.position.set(1, 0.5, 1.05);
+      p.add(d);
+      box(d, 0.2, 0.06, 0.2, 0xf0f0ec, 0, 0, 0, 0.03);
+      for (let k = 0; k < 4; k++) {
+        const a = Math.PI / 4 + (k * Math.PI) / 2;
+        box(d, 0.3, 0.02, 0.03, 0x3a3a3a, Math.cos(a) * 0.12, 0, Math.sin(a) * 0.12, 0).rotation.y = -a;
+        add(d, new THREE.CylinderGeometry(0.07, 0.07, 0.01, 12), toon(0x8a8a8a), Math.cos(a) * 0.24, 0.03, Math.sin(a) * 0.24, false);
+      }
+      walls(p, 0.2, 0.2, 0.6, 0.5, 0.5, wallMat('tole', 0xc8ccd0));
+      shed(p, 0.2, 0.2, 0.6, 0.5, 0.58, 0.5, roofMatOf('tole', 0x8a9298, false));
+      break;
+    }
+    case 'station_meteo': {
+      add(p, new THREE.CylinderGeometry(0.025, 0.03, 1.6, 8), toon(0xc8ccd0), 0.7, 0.8, 0.7);
+      for (let k = 0; k < 3; k++) {
+        const a = (k * 2 * Math.PI) / 3;
+        add(p, new THREE.SphereGeometry(0.05, 8, 6, 0, Math.PI), toon(0x3a3a3a), 0.7 + Math.cos(a) * 0.14, 1.62, 0.7 + Math.sin(a) * 0.14, false);
+      }
+      box(p, 0.42, 0.42, 0.36, 0xf4f4f0, 1.4, 0.8, 1.3, 0.02);
+      for (let k = 0; k < 5; k++) box(p, 0.44, 0.012, 0.37, 0xd8d8d4, 1.4, 0.64 + k * 0.08, 1.3, 0);
+      for (const [x, z] of [[1.24, 1.16], [1.56, 1.16], [1.24, 1.44], [1.56, 1.44]]) box(p, 0.03, 0.6, 0.03, 0xe8e8e4, x, 0.3, z, 0);
+      box(p, 0.3, 0.02, 0.22, toon(0x1e3050), 0.75, 1.2, 0.95, 0.005).rotation.x = -0.6;
+      fenceRow(p, 0.2, 1.85, 1.85, 1.85, 0xe8e8e4);
+      break;
+    }
+    case 'compost':
+      for (let k = 0; k < 3; k++) {
+        const x = 0.4 + k * 0.6;
+        for (const z of [0.6, 1.3]) box(p, 0.5, 0.36, 0.04, 0x9a7a52, x, 0.18, z, 0.005);
+        for (const xx of [x - 0.25, x + 0.25]) box(p, 0.04, 0.36, 0.7, 0x8a6a42, xx, 0.18, 0.95, 0.005);
+        add(p, new THREE.SphereGeometry(0.26, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7 + k * 0.2, 1.2), toon([0x5a4030, 0x6a5038, 0x4a3828][k]), x, 0.12, 0.95);
+      }
+      break;
+    case 'stand': {
+      for (const [x, z] of [[0.4, 0.7], [1.6, 0.7], [0.4, 1.4], [1.6, 1.4]]) box(p, 0.05, 0.8, 0.05, 0x8a6a42, x, 0.4, z, 0.005);
+      box(p, 1.3, 0.05, 0.75, 0x9a7a52, 1, 0.45, 1.05, 0.01);
+      for (let k = 0; k < 5; k++) {
+        const a = box(p, 0.28, 0.03, 0.9, k % 2 ? 0xf0ece0 : 0x3a7a3a, 0.45 + k * 0.27, 0.86, 1.05, 0);
+        a.rotation.x = 0.15;
+      }
+      for (const [x, c] of [[0.6, 0xd84a3a], [0.95, 0xe8c040], [1.3, 0x6aa040], [0.8, 0xe8882a]] as const) crate(p, x, 1.05 + (x > 1 ? 0.1 : -0.1), c, 0.47);
+      sign(p, 'z', [1, 1.5], 0.68, 'PRODUITS DE LA FERME', 0x3a6a3a, '#f4ead0', 0.95);
+      break;
+    }
+    case 'magasin':
+      atelier('PRODUCTEURS', (f) => {
+        crate(p, dx - 0.5, f + 0.25, 0xd84a3a);
+        crate(p, dx + 0.5, f + 0.25, 0x6aa040);
+      }, { along: 'x', h: 0.9 } as Partial<HouseSpec>);
+      break;
+    case 'salle_reception': {
+      house(p, st, { x0: 0.25, z0: 0.3, w: 2.5, d: 1.5, h: 1.0, rise: 0.6, along: 'x', door: 'vitree', doorAt: dx, winZ: [0.55, 0.95, 2.05, 2.45], winX: [0.8, 1.4], floors: 1 });
+      // arche fleurie et guirlandes
+      for (const x of [dx - 0.35, dx + 0.35]) box(p, 0.05, 0.7, 0.05, 0xf0ece0, x, 0.35, 2.3, 0.005);
+      add(p, new THREE.TorusGeometry(0.35, 0.05, 6, 16, Math.PI), toon(0xf4f0f0), dx, 0.7, 2.3);
+      flowers(p, dx, 2.3, 6, 33);
+      for (let k = 0; k < 7; k++) add(p, new THREE.SphereGeometry(0.025, 6, 4), toon(0xfff0a0, { emissive: 0x806020 }), 0.4 + k * 0.38, 0.95 - Math.sin((k / 6) * Math.PI) * 0.08, 1.86, false);
+      sign(p, 'z', [dx, 1.82], 0.85, 'RÉCEPTIONS', 0x6a3a5a, '#f4ead0', 0.55);
+      break;
+    }
+    case 'musee':
+      atelier('MUSÉE RURAL', (f) => {
+        // vieille charrette et charrue à l'entrée
+        for (const z of [f + 0.25, f + 0.55]) wheel(p, 0.14, 0.04, 0x8a6a42, s - 0.35, 0.14, z, 0, false);
+        box(p, 0.5, 0.06, 0.34, 0x8a6a42, s - 0.35, 0.2, f + 0.4, 0.01);
+        box(p, 0.06, 0.25, 0.02, 0x6a6a6a, 0.45, 0.12, f + 0.25, 0);
+      }, { wall: st.stone } as Partial<HouseSpec>);
+      break;
+    case 'labyrinthe': {
+      // haies de maïs disposées en dédale
+      const corn = toon(0x6a9a3a), corn2 = toon(0x7aaa42);
+      const segs: [number, number, number, number][] = [[0.2, 0.2, 3.8, 0.2], [0.2, 0.2, 0.2, 3.8], [3.8, 0.2, 3.8, 3.8], [0.2, 3.8, 1.6, 3.8], [2.4, 3.8, 3.8, 3.8], [0.9, 0.9, 3.1, 0.9], [0.9, 0.9, 0.9, 3.1], [0.9, 3.1, 2.2, 3.1], [3.1, 1.6, 3.1, 3.1], [1.6, 1.6, 2.4, 1.6], [1.6, 1.6, 1.6, 2.4], [2.4, 2.3, 3.1, 2.3]];
+      segs.forEach(([x0, z0, x1, z1], i) => {
+        const len = Math.hypot(x1 - x0, z1 - z0) + 0.2;
+        const g = new THREE.BoxGeometry(x1 !== x0 ? len : 0.22, 0.55, z1 !== z0 ? len : 0.22);
+        add(p, g, i % 2 ? corn : corn2, (x0 + x1) / 2, 0.28, (z0 + z1) / 2, true);
+      });
+      for (let k = 0; k < 40; k++) add(p, new THREE.ConeGeometry(0.03, 0.12, 4), toon(0xe8c840), 0.2 + ((k * 0.37) % 3.6), 0.6, 0.2 + ((k * 0.61) % 3.6), false);
+      sign(p, 'z', [2, 4.0], 0.4, 'LABYRINTHE', 0x7a5a2a, '#f4ead0', 0.7);
+      break;
+    }
+    case 'aire_jeux': {
+      // portique, toboggan, bac à sable
+      for (const x of [0.35, 1.25]) {
+        const l1 = box(p, 0.04, 0.85, 0.04, 0xc8402a, x, 0.4, 0.45, 0);
+        l1.rotation.x = 0.2;
+        const l2 = box(p, 0.04, 0.85, 0.04, 0xc8402a, x, 0.4, 0.75, 0);
+        l2.rotation.x = -0.2;
+      }
+      box(p, 0.95, 0.04, 0.04, 0xc8402a, 0.8, 0.82, 0.6, 0);
+      for (const x of [0.6, 1.0]) {
+        box(p, 0.01, 0.5, 0.01, 0x3a3a3a, x, 0.56, 0.6, 0);
+        box(p, 0.16, 0.03, 0.1, 0xf0c030, x, 0.3, 0.6, 0.01);
+      }
+      box(p, 0.3, 0.6, 0.3, 0x3a7ad8, 1.5, 0.3, 1.4, 0.02);
+      const sl = box(p, 0.7, 0.04, 0.24, 0xf0c030, 1.5, 0.35, 1.0, 0.01);
+      sl.rotation.x = -0.65;
+      box(p, 0.6, 0.06, 0.6, 0xd8c080, 0.55, 0.03, 1.45, 0.02);
+      fenceRow(p, 0.1, 1.9, 1.9, 1.9, 0xf0ece0);
+      break;
+    }
+    case 'cueillette':
+      house(p, st, { x0: 0.3, z0: 0.3, w: 0.9, d: 0.7, h: 0.6, rise: 0.3, along: 'x', door: 'simple', doorAt: 0.75, floors: 1, wall: wallMat('bois', 0x9a7a52) });
+      for (let k = 0; k < 4; k++) add(p, new THREE.CylinderGeometry(0.09, 0.07, 0.1, 10), toon(0xb8925a), 1.4 + (k % 2) * 0.25, 0.05, 0.6 + Math.floor(k / 2) * 0.3);
+      crate(p, 1.5, 1.4, 0xd82a3a);
+      sign(p, 'z', [0.9, 1.35], 0.5, 'CUEILLETTE', 0xc8402a, '#fff', 0.7);
+      break;
+    case 'jardin': {
+      for (const [x, z, sd] of [[0.5, 0.5, 41], [1.4, 0.5, 42], [0.5, 1.4, 43], [1.4, 1.4, 44]] as const) {
+        box(p, 0.6, 0.06, 0.6, 0x6a5038, x, 0.03, z, 0.01);
+        flowers(p, x, z, 8, sd);
+      }
+      add(p, new THREE.CylinderGeometry(0.18, 0.22, 0.2, 14), wallMat('pierre', 0xc8c0b0), 0.95, 0.1, 0.95);
+      add(p, new THREE.CylinderGeometry(0.15, 0.15, 0.02, 14), toon(0x4ab0d0, { emissive: 0x103040 }), 0.95, 0.21, 0.95, false);
+      bench(p, 0.95, 1.85);
+      break;
+    }
+    case 'mare': {
+      add(p, new THREE.CylinderGeometry(0.78, 0.78, 0.03, 24).scale(1, 1, 0.8), toon(0x7a6a48), 1, 0.01, 1, false);
+      add(p, new THREE.CylinderGeometry(0.7, 0.7, 0.03, 24).scale(1, 1, 0.78), toon(0x3a6a78, { emissive: 0x0a2030 }), 1, 0.025, 1, false);
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2;
+        add(p, new THREE.ConeGeometry(0.03, 0.3, 4), toon(0x5a8a3a), 1 + Math.cos(a) * 0.78, 0.15, 1 + Math.sin(a) * 0.62, false);
+      }
+      for (const [x, z] of [[0.8, 0.9], [1.2, 1.1], [1.0, 0.75]]) add(p, new THREE.CylinderGeometry(0.07, 0.07, 0.01, 10), toon(0x4a9a4a), x, 0.045, z, false);
+      add(p, new THREE.SphereGeometry(0.03, 6, 4), toon(0xf0a0c0), 1.2, 0.06, 1.1, false);
+      break;
+    }
     // ————— abris des élevages (posés au coin de l'enclos) —————
     case 'abri':
       walls(p, 0.1, 0.1, 1.0, 0.06, 0.5, wallMat('bois', 0x8a6a4a));
@@ -925,8 +1088,17 @@ export function buildingModel(type: string, st: Style, size: number, dx: number)
       if (v === 1) flowers(p, 1.2, 1.62, 4, 21);
       break;
     }
-    default:
-      atelier(type.toUpperCase(), () => undefined);
+    default: {
+      const LBL: Record<string, string> = { nougaterie: 'NOUGATERIE', glacerie: 'GLACES', savonnerie: 'SAVONNERIE', filature: 'FILATURE', distillerie_fruits: 'EAU-DE-VIE', patisserie: 'BISCUITERIE' };
+      atelier(LBL[type] ?? type.toUpperCase().replace(/_/g, ' '), (f) => {
+        if (type === 'distillerie_fruits') {
+          add(p, new THREE.SphereGeometry(0.18, 12, 10), toon(0xc87a3a), s - 0.35, 0.22, f + 0.25);
+          barrel(p, 0.45, f + 0.25, 0, true);
+        } else if (type === 'glacerie') parasol(p, s - 0.4, f + 0.35, 0xf4a0c0);
+        else if (type === 'filature') for (let k = 0; k < 3; k++) add(p, new THREE.SphereGeometry(0.06, 8, 6), toon([0xc8a8d8, 0xe8d8a8, 0xa8c8e8][k]), 0.4 + k * 0.14, 0.06, f + 0.2, false);
+        else crate(p, s - 0.4, f + 0.25, 0xe8c040);
+      });
+    }
   }
   return p;
 }
@@ -1052,7 +1224,7 @@ export function shootBuilding(key: string, obj: THREE.Object3D, size: number, re
 }
 
 export function buildingSize(type: string): number {
-  if (type === 'serre' || type === 'etang') return 4;
+  if (type === 'serre' || type === 'etang' || type === 'labyrinthe') return 4;
   if (['abri', 'poulailler', 'porcherie', 'clapier'].includes(type)) return 2;
   if (['etable', 'bergerie', 'ecurie'].includes(type)) return 3;
   if (type.startsWith('hameau')) return 2;
