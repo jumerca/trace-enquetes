@@ -18,13 +18,17 @@ export interface SaveFile {
 }
 
 export function serialize(s: GameState): string {
-  const state = { ...s, world: { ...s.world, terrain: toB64(s.world.terrain), decor: toB64(s.world.decor) } };
+  const state = { ...s, world: { ...s.world, terrain: toB64(s.world.terrain), decor: toB64(s.world.decor), height: toB64(s.world.height), field: toB64(s.world.field) } };
   const file: SaveFile = { format: 'domaines-terroirs', version: SAVE_VERSION, savedAt: new Date().toISOString(), label: dateLabel(s.minute), state };
   return JSON.stringify(file);
 }
 
 /** Migrations successives : chaque version future ajoutera une étape ici. */
-const MIGRATIONS: Record<number, (st: any) => any> = {};
+const MIGRATIONS: Record<number, (st: any) => any> = {
+  1: () => {
+    throw new Error('Sauvegarde de la V0.1 : la carte et le contenu ont changé (V0.2), elle ne peut pas être reprise');
+  },
+};
 
 export function deserialize(json: string): GameState {
   const f = JSON.parse(json) as SaveFile;
@@ -34,9 +38,11 @@ export function deserialize(json: string): GameState {
   for (let v = f.version; v < SAVE_VERSION; v++) st = MIGRATIONS[v]?.(st) ?? st;
   st.world.terrain = fromB64(st.world.terrain);
   st.world.decor = fromB64(st.world.decor);
+  st.world.height = fromB64(st.world.height);
+  st.world.field = fromB64(st.world.field);
   st.version = SAVE_VERSION;
   const n = st.world.w * st.world.h;
-  if (st.world.terrain.length !== n || st.world.decor.length !== n) throw new Error('Sauvegarde corrompue (carte)');
+  if (st.world.terrain.length !== n || st.world.decor.length !== n || st.world.height.length !== (st.world.w + 1) * (st.world.h + 1)) throw new Error('Sauvegarde corrompue (carte)');
   if (!Array.isArray(st.buildings) || typeof st.money !== 'number') throw new Error('Sauvegarde corrompue');
   return st as GameState;
 }

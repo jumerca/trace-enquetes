@@ -28,13 +28,39 @@ async function waitServer() {
 
 const GL = ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 
-async function startGame(page) {
+async function startGame(page, region = 'limousin') {
   await page.goto(URL);
   await page.click('[data-testid=nouvelle-partie]');
+  await page.click(`[data-testid=region-${region}]`);
+  await page.click('[data-testid=commencer]');
   await page.waitForFunction('window.__dt && window.__dt.scene', null, { timeout: 60000 });
   await page.waitForTimeout(800);
 }
 const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.tileToScreen(x, y), [x, y]);
+/** Emplacement valide (coin haut de l'emprise) pour un type, près de la ferme ; renvoie la case à toucher (centre). */
+const findSpot = (page, type) =>
+  page.evaluate((type) => {
+    const sim = window.__dt.sim, A = window.__dtActions;
+    const [cx, cy] = sim.s.world.farm;
+    const size = { champ_ble: 4, champ_legumes: 4 }[type] ?? 4;
+    for (let r = 4; r < 22; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          if (A.checkBuild(sim, type, cx + dx, cy + dy, 0).ok) return [cx + dx + (size >> 1), cy + dy + (size >> 1)];
+        }
+    return null;
+  }, type);
+const findWater = (page) =>
+  page.evaluate(() => {
+    const W = window.__dt.sim.s.world;
+    const [cx, cy] = W.farm;
+    for (let r = 2; r < 40; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const t = W.terrain[(cy + dy) * W.w + cx + dx];
+      if ((t === 3 || t === 8) && W.owned[Math.floor((cy + dy) / 16) * 16 + Math.floor((cx + dx) / 16)]) return [cx + dx, cy + dy];
+    }
+    return null;
+  });
 
 (async () => {
   const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
@@ -59,6 +85,7 @@ const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.t
     await startGame(page);
     ok('partie : la scène est rendue', await page.locator('canvas').count());
     ok('partie : argent affiché', /18\s?000/.test(await page.textContent('[data-testid=argent]')));
+    ok('carte immense (256×256) et région choisie', (await page.evaluate('window.__dt.sim.s.world.w')) === 256 && (await page.evaluate('window.__dt.sim.s.region')) === 'limousin');
     await page.screenshot({ path: path.join(OUT, '02-domaine-zoom-normal.jpg'), quality: 85 });
 
     // vitesses
@@ -91,11 +118,12 @@ const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.t
     const cam3 = await page.evaluate('({...window.__dt.scene.cam})');
     ok('la caméra reste immobile pendant la simulation', cam3.x === cam2.x && cam3.y === cam2.y && cam3.z === cam2.z);
     await page.click('[data-testid=vitesse-0]');
-    await page.evaluate('window.__dt.scene.centerOn(47, 46, 1)');
+    await page.evaluate('window.__dt.scene.centerOn(window.__dt.sim.s.world.farm[0], window.__dt.sim.s.world.farm[1], 1)');
     await page.waitForTimeout(150);
 
     // fiche bâtiment
-    const [hx, hy] = await tileScreen(page, 44, 41);
+    const home = await page.evaluate('[window.__dt.sim.s.buildings[0].x + 1, window.__dt.sim.s.buildings[0].y + 1]');
+    const [hx, hy] = await tileScreen(page, home[0], home[1]);
     await page.mouse.click(hx, hy);
     await page.waitForTimeout(250);
     ok('toucher la maison ouvre sa fiche', (await page.textContent('[data-testid=fiche-batiment]').catch(() => '')).includes('Maison du domaine'));
@@ -103,14 +131,23 @@ const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.t
 
     // construction invalide (eau) puis valide (champ de blé)
     await page.click('[data-testid=onglet-construire]');
-    await page.click('[data-testid=construire-champ]');
+    await page.click('[data-testid=categorie-cultures]');
+    await page.click('[data-testid=construire-champ_ble]');
     const nb0 = await page.evaluate('window.__dt.sim.s.buildings.length');
-    const [wx, wy] = await tileScreen(page, 36, 60);
-    await page.mouse.move(wx, wy);
-    await page.mouse.click(wx, wy);
-    await page.waitForTimeout(200);
-    ok('construction refusée sur l\'eau', (await page.evaluate('window.__dt.sim.s.buildings.length')) === nb0);
-    const [fx, fy] = await tileScreen(page, 50, 52);
+    const water = await findWater(page);
+    if (water) {
+      await page.evaluate(([x, y]) => window.__dt.scene.centerOn(x, y, 1), water);
+      await page.waitForTimeout(100);
+      const [wx, wy] = await tileScreen(page, water[0], water[1]);
+      await page.mouse.move(wx, wy);
+      await page.mouse.click(wx, wy);
+      await page.waitForTimeout(200);
+    }
+    ok('construction refusée sur l\'eau', water && (await page.evaluate('window.__dt.sim.s.buildings.length')) === nb0);
+    const spot = await findSpot(page, 'champ_ble');
+    await page.evaluate(([x, y]) => window.__dt.scene.centerOn(x, y, 1), spot);
+    await page.waitForTimeout(150);
+    const [fx, fy] = await tileScreen(page, spot[0], spot[1]);
     await page.mouse.move(fx, fy);
     await page.waitForTimeout(100);
     await page.screenshot({ path: path.join(OUT, '03-placement-fantome.jpg'), quality: 85 });
@@ -132,6 +169,7 @@ const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.t
     await page.click('[data-testid=embaucher-vendeur]');
     ok('embauche d\'un vendeur', (await page.evaluate('window.__dt.sim.s.workers.length')) === w0 + 1);
     await page.click('[data-testid=onglet-commerce]');
+    await page.selectOption('.wholesale select', 'jus');
     await page.fill('.wholesale input', '5');
     const st0 = await page.evaluate('window.__dt.sim.stockOf("jus")');
     await page.click('[data-testid=commander-negociant]');
@@ -163,10 +201,26 @@ const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.t
     ok('export JSON téléchargé', /domaines-terroirs-jour\d+\.json/.test(file.suggestedFilename()), file.suggestedFilename());
     await page.reload();
     await page.getByRole('button', { name: 'Charger', exact: true }).click();
+    await page.waitForTimeout(300);
     await page.getByRole('button', { name: /Emplacement 1/ }).click();
     await page.waitForFunction('window.__dt && window.__dt.scene', null, { timeout: 60000 });
     const loaded = await page.evaluate('JSON.stringify({m: window.__dt.sim.s.money, t: window.__dt.sim.s.minute, b: window.__dt.sim.s.buildings.length, w: window.__dt.sim.s.workers.length})');
     ok('partie rechargée à l\'identique', saved === loaded, loaded);
+
+    // ——— Toutes les régions démarrent, avec leurs engins et voitures dessinés ———
+    for (const region of ['nord', 'beauce', 'est', 'sudouest', 'montagne', 'mer', 'provence']) {
+      const rp = await ctx.newPage();
+      rp.on('pageerror', (e) => errors.push(region + ': ' + e.message));
+      await startGame(rp, region);
+      const info = await rp.evaluate(() => ({ region: window.__dt.sim.s.region, b: window.__dt.sim.s.buildings.length, veh: window.__dt.scene.vehicleAtlas.map.size }));
+      ok(`région « ${region} » : partie lancée`, info.region === region && info.b >= 5 && info.veh > 100, JSON.stringify(info));
+      if (region === 'montagne' || region === 'mer' || region === 'beauce') {
+        await rp.evaluate('window.__dt.scene.zoomBy(0.5)');
+        await rp.waitForTimeout(800);
+        await rp.screenshot({ path: path.join(OUT, `08-region-${region}.jpg`), quality: 85 });
+      }
+      await rp.close();
+    }
     await ctx.close();
 
     // ——— Téléphone (émulation Pixel 5, tactile) ———
@@ -192,12 +246,15 @@ const tileScreen = (page, x, y) => page.evaluate(([x, y]) => window.__dt.scene.t
     });
     const cz2 = await m.evaluate('window.__dt.scene.cam.z');
     ok('mobile : pincement = zoom', cz2 > cz * 1.3, `z ${cz.toFixed(2)} → ${cz2.toFixed(2)}`);
-    await m.evaluate('window.__dt.scene.centerOn(47, 47, 0.8)');
     await m.tap('[data-testid=onglet-construire]');
     await m.screenshot({ path: path.join(OUT, '07-mobile-construire.jpg'), quality: 85 });
-    await m.tap('[data-testid=construire-champ]');
+    await m.tap('[data-testid=categorie-cultures]');
+    await m.tap('[data-testid=construire-champ_ble]');
     const mb0 = await m.evaluate('window.__dt.sim.s.buildings.length');
-    const [tx, ty] = await tileScreen(m, 50, 52);
+    const mspot = await findSpot(m, 'champ_ble');
+    await m.evaluate(([x, y]) => window.__dt.scene.centerOn(x, y, 0.8), mspot);
+    await m.waitForTimeout(150);
+    const [tx, ty] = await tileScreen(m, mspot[0], mspot[1]);
     await m.touchscreen.tap(tx, ty);
     await m.waitForTimeout(200);
     ok('mobile : un toucher place le fantôme sans construire', (await m.evaluate('window.__dt.sim.s.buildings.length')) === mb0);

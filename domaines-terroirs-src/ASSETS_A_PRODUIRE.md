@@ -1,5 +1,7 @@
 # Illustrations à produire pour atteindre le niveau des concept arts
 
+> V0.2 : les **véhicules** sont désormais produits par une chaîne 3D (`src/dev/bake/vehicles3d.ts` → `public/sprites/vehicules.png`). Pour les améliorer encore : remplacer les primitives par des modèles détaillés (glTF), ou des rendus de modèles commandés, sous la même caméra (élévation 30°, azimut 45°, 8 directions) ; la planche se régénère avec `npm run bake:vehicules`.
+
 Le moteur affiche des **sprites isolés** (PNG transparents) regroupés en atlas ; chaque élément ci-dessous remplace une peinture procédurale de `src/render/paint.ts` sous la même clé d'atlas. Contraintes communes : projection isométrique 2:1 (case = 64×32 px à zoom 1, fournir en 2× : 128×64), lumière haut-gauche, ombre douce intégrée vers le bas-droite, point d'ancrage = sommet haut de l'emprise (bâtiments) ou pied (objets, personnages), palette des références (pierre calcaire chaude, tuiles terre cuite, volets bleu-gris, verts saturés).
 
 ## Priorité 1 — ce qui se voit le plus
@@ -10,7 +12,9 @@ Le moteur affiche des **sprites isolés** (PNG transparents) regroupés en atlas
 ## Priorité 2 — vie du domaine
 - **Personnages** (8 directions ou 4 + miroir) : marche 6–8 images, repos, actions métier (cueillir, traire, porter une caisse, presser, pétrir, encaisser) pour cultivateur, éleveur, artisan, vendeur ; 6 visiteurs dont 2 enfants.
 - **Animaux** : chèvre (3 robes ; marche, broute, couchée), poule (picore), à ajouter : vache, mouton, cheval, canards sur l'étang.
-- **Véhicules** (4 directions) : tracteur + remorque vide/chargée, camionnette du négociant, voitures de visiteurs.
+- **Véhicules** : chaîne 3D en place ; à enrichir (arracheuse, épandeur, pulvérisateur, vendangeuse, bétaillère, tracteurs de plusieurs gabarits, quad de l'éleveur).
+- **Styles régionaux** : maisons de brique du Nord, colombages alsaciens, mas provençaux, longères bretonnes, burons auvergnats, fermes gasconnes (une famille de bâtiments par région).
+- **Animaux** : vaches (3 robes), brebis, cochons, canards, chèvres, poules, ruches — en 4 directions avec marche, broutage, repos.
 
 ## Priorité 3 — finitions
 - Décor : puits, charrette, bottes de foin, caisses, tonneaux, pots fleuris, lavande (4 saisons), clôtures (15 raccords), rochers, fleurs.

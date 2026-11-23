@@ -1,6 +1,7 @@
 // Actions du joueur : toutes validées ici (l'interface ne fait que les appeler).
-import { BUILDINGS, LOT_PRICE, LOT_SIZE, PATH_COST, RESOURCES, TREE_CLEAR_COST, WHOLESALE_FACTOR, GOATS_PER_PEN, type Res } from '../data/content';
-import { DECOR_IS_TREE, D, T, inside, isBuildableGround, isOwned, isPathLike, lotOf } from '../world/terrain';
+import { BUILDINGS, LEVEL_COST, LOT_PRICE, PATH_COST, RESOURCES, TREE_CLEAR_COST, wholesaleFactor, type Res } from '../data/content';
+import { regionBuildings } from '../data/regions';
+import { DECOR_IS_TREE, D, HSCALE, T, flattenRect, inside, isBuildableGround, isOwned, isPathLike, lotOf, lotsPerRow, slopeOf } from '../world/terrain';
 import { defOf, doorOf, footprint, isParcel } from './geom';
 import { dayOf, round2, type Sim } from './sim';
 import type { Building } from './state';
@@ -8,63 +9,78 @@ import type { Building } from './state';
 export interface BuildCheck {
   ok: boolean;
   reason: string;
-  cost: number; // coût total (bâtiment + défrichage)
+  cost: number; // coût total (bâtiment + défrichage + terrassement)
   clear: number; // arbres à défricher
+  level: number; // volume de terre à déplacer
+}
+
+/** Volume de terrassement nécessaire pour aplanir une emprise (unités de hauteur). */
+function levelVolume(sim: Sim, x: number, y: number, s: number) {
+  const W = sim.s.world;
+  let sum = 0, n = 0;
+  for (let yy = y; yy <= y + s; yy++) for (let xx = x; xx <= x + s; xx++) (sum += W.height[yy * (W.w + 1) + xx]), n++;
+  const avg = sum / n;
+  let v = 0;
+  for (let yy = y; yy <= y + s; yy++) for (let xx = x; xx <= x + s; xx++) v += Math.abs(W.height[yy * (W.w + 1) + xx] - avg);
+  return Math.round(v);
 }
 
 export function checkBuild(sim: Sim, type: string, x: number, y: number, rot: 0 | 1): BuildCheck {
   const def = BUILDINGS[type];
   const W = sim.s.world;
-  const res = (ok: boolean, reason: string, clear = 0): BuildCheck => ({ ok, reason, cost: def ? def.cout + clear * TREE_CLEAR_COST : 0, clear });
+  const res = (ok: boolean, reason: string, clear = 0, level = 0): BuildCheck => ({ ok, reason, cost: def ? def.cout + clear * TREE_CLEAR_COST + level * LEVEL_COST : 0, clear, level });
   if (!def || !def.constructible) return res(false, 'Bâtiment inconnu');
+  if (!regionBuildings(sim.region).has(type)) return res(false, 'Non adapté à cette région');
   if (def.unique && sim.s.buildings.some((b) => b.type === type)) return res(false, 'Déjà construit');
-  let clear = 0;
+  let clear = 0, steep = 0;
   for (const [fx, fy] of footprint({ x, y, type })) {
     if (!inside(W, fx, fy)) return res(false, 'Hors de la carte');
     if (!isOwned(W, fx, fy)) return res(false, 'Terrain non acquis (menu Territoire)');
     const i = fy * W.w + fx;
     if (sim.occ[i] >= 0) return res(false, 'Emplacement occupé');
     const t = W.terrain[i];
-    if (!isBuildableGround(t)) return res(false, t === T.eau ? 'Impossible sur l\'eau' : isPathLike(t) ? 'Impossible sur un chemin' : 'Sol incompatible (bois)');
+    if (!isBuildableGround(t)) return res(false, t === T.eau || t === T.mer ? 'Impossible sur l\'eau' : isPathLike(t) ? 'Impossible sur un chemin' : t === T.roche ? 'Terrain rocheux' : t === T.sable ? 'Impossible sur la plage' : 'Sol incompatible (bois)');
     const d = W.decor[i];
-    if (d === D.rocher || d === D.maisonHameau) return res(false, 'Rocher ou construction existante');
+    if (d === D.rocher || d === D.rocherGros || d === D.maison || d === D.eglise) return res(false, 'Rocher ou construction existante');
     if (DECOR_IS_TREE(d)) clear++;
+    steep = Math.max(steep, slopeOf(W, fx, fy));
   }
-  // accès : la porte (ou une barrière de parcelle) doit donner sur un chemin, une route ou la cour
+  const level = isParcel(type) && BUILDINGS[type].kind !== 'enclos' ? 0 : levelVolume(sim, x, y, def.size);
+  if (isParcel(type) && steep > 30) return res(false, 'Pente trop forte pour une parcelle', clear);
+  if (level * HSCALE > 160 * def.size) return res(false, 'Pente trop forte (terrassement impossible)', clear, level);
   if (isParcel(type)) {
     const s = def.size;
     let access = false;
     for (let k = 0; k < s && !access; k++)
       for (const [ax, ay] of [[x + k, y + s], [x + s, y + k], [x + k, y - 1], [x - 1, y + k]])
         if (inside(W, ax, ay) && isPathLike(W.terrain[ay * W.w + ax])) access = true;
-    if (!access) return res(false, 'Doit longer un chemin (accès)', clear);
+    if (!access) return res(false, 'Doit longer un chemin (accès)', clear, level);
   } else {
     const [dx, dy] = doorOf({ x, y, type, rot });
-    if (!inside(W, dx, dy) || !isPathLike(W.terrain[dy * W.w + dx]) || sim.occ[dy * W.w + dx] >= 0) return res(false, 'La porte doit donner sur un chemin', clear);
+    if (!inside(W, dx, dy) || !isPathLike(W.terrain[dy * W.w + dx]) || sim.occ[dy * W.w + dx] >= 0) return res(false, 'La porte doit donner sur un chemin', clear, level);
   }
-  const cost = def.cout + clear * TREE_CLEAR_COST;
-  if (sim.s.money < cost) return { ok: false, reason: 'Fonds insuffisants', cost, clear };
-  return { ok: true, reason: clear ? `Défrichage de ${clear} arbre(s) inclus` : 'Emplacement valide', cost, clear };
+  const c = res(true, '', clear, level);
+  if (sim.s.money < c.cost) return { ...c, ok: false, reason: 'Fonds insuffisants' };
+  const extra = [clear ? `défrichage de ${clear} arbre(s)` : '', level ? `terrassement ${level * LEVEL_COST} €` : ''].filter(Boolean).join(', ');
+  return { ...c, reason: extra ? `Valide — ${extra} inclus` : 'Emplacement valide' };
 }
 
 export function build(sim: Sim, type: string, x: number, y: number, rot: 0 | 1): Building | null {
   const c = checkBuild(sim, type, x, y, rot);
   if (!c.ok) return null;
   const W = sim.s.world;
-  for (const [fx, fy] of footprint({ x, y, type })) W.decor[fy * W.w + fx] = D.none;
   const def = BUILDINGS[type];
-  const b: Building = { id: sim.s.nextId++, type, x, y, rot, inv: {}, ready: 0, growth: 0, reaped: [], busyBy: null, priority: false, batches: 0, builtDay: dayOf(sim.s.minute) };
+  for (const [fx, fy] of footprint({ x, y, type })) W.decor[fy * W.w + fx] = D.none;
+  if (c.level) flattenRect(W, x, y, x + def.size - 1, y + def.size - 1);
+  const b: Building = { id: sim.s.nextId++, type, x, y, rot, inv: {}, ready: 0, growth: 0, phase: 'labour', done: [], busyBy: null, priority: false, batches: 0, builtDay: dayOf(sim.s.minute) };
   sim.s.buildings.push(b);
   sim.book(def.activite, -def.cout, `Construction — ${def.nom}`, true);
   if (c.clear) sim.book('general', -c.clear * TREE_CLEAR_COST, 'Défrichage', true);
+  if (c.level) sim.book('general', -c.level * LEVEL_COST, 'Terrassement', true);
   sim.refresh();
-  if (def.kind === 'enclos') for (let i = 0; i < GOATS_PER_PEN; i++) sim.addAnimal('chevre', b.id);
-  if (def.kind === 'hangar') {
-    const [dx, dy] = doorOf(b);
-    sim.s.vehicles.push({ id: sim.s.nextId++, x: dx, y: dy, px: dx, py: dy, path: [], dir: 1, moving: false, timer: 0, steps: [], label: 'Tracteur', hidden: false, kind: 'tracteur', home: b.id, load: null, cap: 400, driver: null, order: null });
-  }
+  sim.onBuilt(b);
   sim.s.stats.built++;
-  sim.event(`${def.nom} construit (${def.cout + c.clear * TREE_CLEAR_COST} €).`, 'succes');
+  sim.event(`${def.nom} construit (${c.cost} €).`, 'succes');
   return b;
 }
 
@@ -74,9 +90,8 @@ export function demolish(sim: Sim, id: number): boolean {
   const def = defOf(b);
   if (def.kind === 'stock') {
     const others = sim.storages().filter((x) => x !== b);
-    const content = sim.used(b);
     const room = others.reduce((a, x) => a + sim.space(x), 0);
-    if (content > room) {
+    if (sim.used(b) > room) {
       sim.event('Démolition impossible : le contenu de la grange ne tient pas ailleurs.', 'alerte');
       return false;
     }
@@ -89,8 +104,8 @@ export function demolish(sim: Sim, id: number): boolean {
       }
     }
   }
-  if (def.kind === 'hangar' && sim.s.vehicles.some((v) => v.home === b.id && v.driver != null)) {
-    sim.event('Le tracteur est en service : démolition reportée.', 'alerte');
+  if ((def.kind === 'hangar' || def.kind === 'remise') && sim.s.vehicles.some((v) => v.home === b.id && v.driver != null)) {
+    sim.event('L\'engin est en service : démolition reportée.', 'alerte');
     return false;
   }
   for (const w of sim.s.workers) if (w.steps.some((st) => 'b' in st && st.b === id)) sim.abort(w);
@@ -112,9 +127,10 @@ export function checkPath(sim: Sim, x: number, y: number): { ok: boolean; reason
   const t = W.terrain[i];
   if (sim.occ[i] >= 0) return { ok: false, reason: 'Occupé par un bâtiment', cost: 0 };
   if (isPathLike(t)) return { ok: false, reason: 'Déjà praticable', cost: 0 };
-  if (t === T.eau) return { ok: false, reason: 'Pas de pont en V0.1', cost: 0 };
+  if (t === T.eau || t === T.mer) return { ok: false, reason: 'Pas de pont en V0.2', cost: 0 };
+  if (slopeOf(W, x, y) > 40) return { ok: false, reason: 'Pente trop forte', cost: 0 };
   const d = W.decor[i];
-  if (d === D.rocher || d === D.maisonHameau) return { ok: false, reason: 'Rocher', cost: 0 };
+  if (d === D.rocher || d === D.rocherGros || d === D.maison || d === D.eglise) return { ok: false, reason: 'Obstacle', cost: 0 };
   const cost = PATH_COST + (DECOR_IS_TREE(d) ? TREE_CLEAR_COST : 0);
   if (sim.s.money < cost) return { ok: false, reason: 'Fonds insuffisants', cost };
   return { ok: true, reason: 'Chemin de terre', cost };
@@ -134,12 +150,12 @@ export function buildPath(sim: Sim, x: number, y: number): boolean {
 
 export function lotPrice(sim: Sim) {
   const owned = sim.s.world.owned.filter(Boolean).length;
-  return LOT_PRICE + Math.max(0, owned - 4) * 1500;
+  return LOT_PRICE + Math.max(0, owned - 9) * 1500;
 }
 
 export function canBuyLot(sim: Sim, lot: number): { ok: boolean; reason: string; cost: number } {
   const W = sim.s.world;
-  const per = Math.ceil(W.w / LOT_SIZE);
+  const per = lotsPerRow(W);
   const cost = lotPrice(sim);
   if (W.owned[lot]) return { ok: false, reason: 'Déjà acquis', cost };
   const lx = lot % per, ly = Math.floor(lot / per);
@@ -167,19 +183,12 @@ export function setPrice(sim: Sim, res: Res, price: number) {
 }
 
 export function wholesalePrice(res: Res) {
-  return round2(RESOURCES[res].prix * WHOLESALE_FACTOR);
+  return round2(RESOURCES[res].prix * wholesaleFactor(res));
 }
 
 /** Vente au négociant : la marchandise est réservée tout de suite, payée à l'enlèvement par la camionnette. */
 export function createOrder(sim: Sim, res: Res, qty: number): boolean {
-  qty = Math.floor(qty);
-  if (qty <= 0 || sim.stockOf(res) < qty) return false;
-  let left = qty;
-  for (const b of sim.storages()) left -= sim.remove(b, res, left);
-  const delay = 40 + Math.floor(sim.rng.next() * 50);
-  sim.s.orders.push({ id: sim.s.nextId++, res, qty, price: wholesalePrice(res), status: 'attente', createdMin: sim.s.minute, dueMin: sim.s.minute + delay });
-  sim.event(`Commande négociant : ${qty} ${RESOURCES[res].unite} de ${RESOURCES[res].nom.toLowerCase()}, enlèvement d'ici ${delay} min.`, 'info');
-  return true;
+  return sim.order(res, qty);
 }
 
 export function togglePriority(sim: Sim, id: number) {

@@ -1,22 +1,22 @@
 // Moteur de simulation : pas fixe d'une minute de jeu, RNG déterministe, aucune dépendance au rendu.
 import {
-  BUILDINGS, CARRY, DAY_MIN, DAYS_PER_SEASON, FIRST_NAMES, MILK_PER_GOAT_H, MILK_SEASON, ORCHARD_CAP, ORCHARD_RATE,
-  ORCHARD_SEASON, PEN_MILK_CAP, RESOURCES, RES_IDS, ROLES, SEASONS, VISIT_END, VISIT_FEE_DEFAULT, VISIT_START, WEATHER, WEATHER_TABLE,
-  WHEAT_GROWTH, WHEAT_SEED_COST, WHEAT_YIELD, WORK_END, WORK_START,
-  type Activity, type Res, type Role, type Season, type Weather,
+  BUILDINGS, CARRY, CROPS, DAY_MIN, DAYS_PER_SEASON, FIRST_NAMES, LIVESTOCK, ORCHARDS, RESOURCES, RES_IDS, ROLES, SEASONS, VISIT_END, VISIT_FEE_DEFAULT,
+  VISIT_START, WEATHER, WORK_END, WORK_START, wholesaleFactor,
+  type Activity, type Recipe, type Res, type Role, type Season, type Weather,
 } from '../data/content';
+import { REGION_BY_ID, aptitude, type RegionDef } from '../data/regions';
 import { Rng } from '../core/rng';
 import { findPath } from '../nav/astar';
-import { ENTRY_EAST, PARKING, generateWorld, isPathLike, T } from '../world/terrain';
+import { D, FARM, generateWorld, isPathLike, T } from '../world/terrain';
 import { buildOccupancy, defOf, doorOf, footprint, makeCost, type NavKind } from './geom';
 import {
-  SAVE_VERSION, type Agent, type Animal, type Building, type GameState, type LedgerDay, type Order, type Step, type Vehicle, type Visitor, type Worker,
+  SAVE_VERSION, type Agent, type Animal, type Building, type FieldOp, type GameState, type LedgerDay, type Order, type Step, type Vehicle, type VehicleKind, type Visitor, type Worker,
 } from './state';
 
-export const SPEED = { worker: 0.35, visitor: 0.3, tracteur: 0.5, camionnette: 0.8, chevre: 0.05, poule: 0.06 };
-const START_SEASON = 1;
+export const SPEED = { worker: 0.35, visitor: 0.3, tracteur: 0.55, moissonneuse: 0.4, camionnette: 2, voiture: 2.2, animal: 0.05 };
+const START_SEASON = 1; // la partie commence en été
 /** Au-delà de ce stock de produit fini, l'atelier ne tourne plus (sauf priorité) : on produit pour vendre. */
-export const PROCESS_TARGET = 80; // la partie commence en été
+export const PROCESS_TARGET = 80;
 
 export function dayOf(min: number) {
   return Math.floor(min / DAY_MIN);
@@ -36,45 +36,94 @@ export function dateLabel(min: number) {
   return `Jour ${d + 1} · ${SEASONS[seasonOf(min)]} (${(d % DAYS_PER_SEASON) + 1}/${DAYS_PER_SEASON})`;
 }
 export const round2 = (v: number) => Math.round(v * 100) / 100;
+const xy = (p: [number, number]) => ({ x: p[0], y: p[1] });
 
 function newAgent(id: number, x: number, y: number): Agent {
   return { id, x, y, px: x, py: y, path: [], dir: 0, moving: false, timer: 0, steps: [], label: '', hidden: false };
 }
 
-export function newGame(seed = 1789): GameState {
-  const world = generateWorld(seed);
+function newBuilding(id: number, type: string, x: number, y: number, rot: 0 | 1, day: number): Building {
+  return { id, type, x, y, rot, inv: {}, ready: 0, growth: 0, phase: 'labour', done: [], busyBy: null, priority: false, batches: 0, builtDay: day };
+}
+
+/** Produit principal d'un bâtiment de production. */
+export function productOf(b: Building): Res | null {
+  const d = defOf(b);
+  if (d.crop) return CROPS[d.crop].produit;
+  if (d.orchard) return ORCHARDS[d.orchard].produit;
+  if (d.livestock) return LIVESTOCK[d.livestock].produit;
+  return null;
+}
+
+export function newGame(seed = 1789, regionId = 'limousin'): GameState {
+  const region = REGION_BY_ID[regionId] ?? REGION_BY_ID.limousin;
+  const world = generateWorld(seed, region.id);
   const rng = new Rng(seed ^ 0x5eed);
   const s: GameState = {
-    version: SAVE_VERSION, seed, rng: 0, minute: 7 * 60, money: 18000, weather: 'soleil', reputation: 35, satisfaction: 60, satSamples: [],
+    version: SAVE_VERSION, seed, region: region.id, rng: 0, minute: 7 * 60, money: region.depart.argent, weather: 'soleil', reputation: 35, satisfaction: 60, satSamples: [],
     world, buildings: [], workers: [], visitors: [], vehicles: [], animals: [], orders: [],
     prices: Object.fromEntries(RES_IDS.map((r) => [r, RESOURCES[r].prix])) as Record<Res, number>,
     visitFee: VISIT_FEE_DEFAULT, ledger: [], stats: { harvested: {}, produced: {}, sold: {}, batches: 0, built: 0, visitors: 0 },
-    tutorial: 0, nextId: 1, events: [],
+    tutorial: 0, nextId: 1, events: [], autoSell: Object.fromEntries(RES_IDS.map((r) => [r, 150])),
   };
-  const add = (type: string, x: number, y: number, rot: 0 | 1) => {
-    const b: Building = { id: s.nextId++, type, x, y, rot, inv: {}, ready: 0, growth: 0, reaped: [], busyBy: null, priority: false, batches: 0, builtDay: 0 };
+  const [cx, cy] = world.farm;
+  const add = (type: string, rel: [number, number], rot: 0 | 1) => {
+    const b = newBuilding(s.nextId++, type, cx + rel[0], cy + rel[1], rot, 0);
+    for (const [x, y] of footprint(b)) {
+      world.decor[y * world.w + x] = D.none;
+      if (!isPathLike(world.terrain[y * world.w + x])) world.terrain[y * world.w + x] = T.herbe;
+    }
     s.buildings.push(b);
     return b;
   };
-  add('maison', 43, 40, 0);
-  const grange = add('grange', 48, 40, 0);
-  grange.inv = { pommes: 30, jus: 12 };
-  add('pressoir', 39, 44, 1);
-  const shop = add('boutique', 54, 41, 0);
-  shop.inv = { jus: 8, pommes: 10 };
-  const verger = add('verger', 43, 49, 0);
-  verger.ready = 46;
+  add('maison', FARM.maison, 0);
+  const grange = add('grange', FARM.grange, 0);
+  const shop = add('boutique', FARM.boutique, 0);
+  const parcel = add(region.depart.parcelle, FARM.parcelle, 0);
+  const atelier = add(region.depart.atelier, FARM.atelier, 1);
+  if (region.depart.second) add(region.depart.second, FARM.second, 1);
+  // une seconde parcelle (deux de plus en Beauce) pour les départs en cultures et vergers
+  const extra = defOf(parcel).kind === 'enclos' ? 0 : region.id === 'beauce' ? 2 : 1;
+  const extras = FARM.parcelles.slice(0, extra).map((p) => add(region.depart.parcelle, p, 0));
+  if (region.depart.hangar) {
+    add('hangar', FARM.hangar, 1);
+    add('remise', FARM.remise, 1);
+  }
+  // stocks de départ cohérents avec la spécialité de la région
+  const rec = defOf(atelier).recettes!.find((r) => r.input === productOf(parcel)) ?? defOf(atelier).recettes![0];
+  grange.inv = { [rec.input]: Math.max(rec.inQty * 3, 24), [rec.output]: rec.outQty * 3 };
+  if (RESOURCES[rec.output].boutique) shop.inv[rec.output] = Math.min(10, rec.outQty * 2);
+  if (RESOURCES[rec.input].boutique) shop.inv[rec.input] = 8;
+  const pd = defOf(parcel);
+  for (const e of extras) {
+    e.phase = pd.kind === 'champ' ? 'pousse' : e.phase;
+    e.growth = 0.35;
+  }
+  if (pd.kind === 'verger') parcel.ready = 46;
+  if (pd.kind === 'enclos') parcel.ready = LIVESTOCK[pd.livestock!].cap * 0.4;
+  if (pd.kind === 'champ') {
+    if (pd.crop === 'ble' || pd.crop === 'orge') {
+      parcel.phase = 'mur';
+      parcel.ready = CROPS[pd.crop].rendement;
+      parcel.growth = 1;
+    } else {
+      parcel.phase = 'pousse';
+      parcel.growth = 0.8;
+    }
+  }
   s.ledger.push(emptyDay(0));
   const names = [...FIRST_NAMES];
   const pickName = () => names.splice(rng.int(0, names.length - 1), 1)[0];
   const sim = new Sim(s);
   sim.rng = rng;
-  sim.hire('cultivateur', pickName(), true);
+  for (const b of s.buildings) sim.onBuilt(b, true);
+  sim.hire(pd.kind === 'enclos' ? 'eleveur' : 'cultivateur', pickName(), true);
   sim.hire('artisan', pickName(), true);
+  sim.hire('vendeur', pickName(), true);
   for (let i = 0; i < 5; i++) sim.addAnimal('poule', -1);
   s.rng = rng.state;
   s.events = [];
-  sim.event('Bienvenue au domaine ! Récoltez, transformez et vendez pour le faire prospérer.', 'info');
+  sim.event(`Bienvenue au domaine — ${region.nom} ! ${region.specialites}`, 'info');
   return s;
 }
 
@@ -86,12 +135,14 @@ export class Sim {
   rng: Rng;
   occ!: Int32Array;
   byId = new Map<number, Building>();
+  region: RegionDef;
   private costCache = new Map<string, (x: number, y: number) => number>();
   /** compteur incrémenté à chaque modification du monde (bâtiments, terrain) : le rendu s'y synchronise */
   worldRev = 0;
 
   constructor(public s: GameState) {
     this.rng = new Rng(s.rng || s.seed);
+    this.region = REGION_BY_ID[s.region] ?? REGION_BY_ID.limousin;
     this.refresh();
   }
 
@@ -149,7 +200,7 @@ export class Sim {
   }
   used(b: Building) {
     let n = 0;
-    for (const r of RES_IDS) n += b.inv[r] ?? 0;
+    for (const v of Object.values(b.inv)) n += v ?? 0;
     return n;
   }
   space(b: Building) {
@@ -174,8 +225,8 @@ export class Sim {
     return t;
   }
 
-  nearest<T extends Building>(list: T[], x: number, y: number): T | null {
-    let best: T | null = null, bd = Infinity;
+  nearest<B extends Building>(list: B[], x: number, y: number): B | null {
+    let best: B | null = null, bd = Infinity;
     for (const b of list) {
       const [dx, dy] = doorOf(b);
       const d = Math.abs(dx - x) + Math.abs(dy - y);
@@ -187,7 +238,28 @@ export class Sim {
     return best;
   }
 
-  // ————— personnel, animaux —————
+  // ————— constructions, personnel, animaux —————
+  /** Effets d'une construction : animaux, engins. */
+  onBuilt(b: Building, initial = false) {
+    const d = defOf(b);
+    if (d.livestock) {
+      const l = LIVESTOCK[d.livestock];
+      for (let i = 0; i < l.nombre; i++) this.addAnimal(l.animal, b.id, i);
+    }
+    if (d.kind === 'hangar') this.addVehicle('tracteur', b);
+    if (d.kind === 'remise') this.addVehicle('moissonneuse', b);
+    if (!initial && d.crop) b.phase = 'labour';
+  }
+
+  addVehicle(kind: VehicleKind, home: Building | null, x?: number, y?: number): Vehicle {
+    const [dx, dy] = home ? doorOf(home) : [x!, y!];
+    const v: Vehicle = { ...newAgent(this.s.nextId++, dx, dy), kind, home: home?.id ?? -1, load: null, cap: kind === 'moissonneuse' ? 260 : 400, driver: null, order: null, tool: 'seul', look: 0, passengers: 0, back: 0, slot: -1 };
+    v.dir = 1;
+    v.label = kind === 'tracteur' ? 'Tracteur' : kind === 'moissonneuse' ? 'Moissonneuse-batteuse' : kind === 'voiture' ? 'Voiture de visiteurs' : 'Camionnette';
+    this.s.vehicles.push(v);
+    return v;
+  }
+
   hire(role: Role, nom?: string, free = false): Worker | null {
     const home = this.s.buildings.find((b) => b.type === 'maison');
     if (!home) return null;
@@ -205,12 +277,10 @@ export class Sim {
     if (!w) return false;
     this.abort(w);
     if (w.vehicle != null) this.alight(w);
-    // la charge éventuelle est rendue au stock le plus proche
     if (w.carry) {
       const st = this.nearest(this.storages().filter((b) => this.space(b) > 0), w.x, w.y);
       if (st) this.add(st, w.carry.res, Math.min(w.carry.qty, this.space(st)));
     }
-    // salaire dû au prorata de la journée
     const worked = Object.values(w.minutes).reduce((a, b) => a + (b ?? 0), 0);
     if (worked > 0) this.paySalary(w);
     this.s.workers = this.s.workers.filter((x) => x !== w);
@@ -218,17 +288,25 @@ export class Sim {
     return true;
   }
 
-  addAnimal(kind: 'chevre' | 'poule', pen: number) {
-    let x = 46, y = 45;
+  addAnimal(kind: string, pen: number, index = 0) {
+    let x = 0, y = 0;
+    const [cx, cy] = this.s.world.farm;
     if (pen >= 0) {
       const b = this.byId.get(pen)!;
-      x = b.x + 1 + this.rng.next() * 2;
-      y = b.y + 1 + this.rng.next() * 2;
+      const s = defOf(b).size;
+      if (kind === 'ruche') {
+        // ruches alignées
+        x = b.x + 0.6 + (index % 3) * ((s - 1.2) / 2);
+        y = b.y + 0.9 + Math.floor(index / 3) * ((s - 1.4) / 1);
+      } else {
+        x = b.x + 1 + this.rng.next() * (s - 2);
+        y = b.y + 1 + this.rng.next() * (s - 2);
+      }
     } else {
-      x = 44 + this.rng.next() * 8;
-      y = 44 + this.rng.next() * 4;
+      x = cx - 3 + this.rng.next() * 9;
+      y = cy - 2 + this.rng.next() * 4;
     }
-    const a: Animal = { id: this.s.nextId++, kind, pen, x, y, px: x, py: y, tx: x, ty: y, dir: 0, pause: 0, look: this.rng.int(0, 2) };
+    const a: Animal = { id: this.s.nextId++, kind, pen, x, y, px: x, py: y, tx: x, ty: y, dir: 0, pause: kind === 'ruche' ? 1e9 : 0, look: this.rng.int(0, 2) };
     this.s.animals.push(a);
   }
 
@@ -238,18 +316,19 @@ export class Sim {
     s.minute++;
     const mod = minuteOfDay(s.minute);
     if (mod === 0) this.endOfDay();
-    for (const a of [...s.workers, ...s.visitors, ...s.vehicles, ...s.animals]) {
-      a.px = a.x;
-      a.py = a.y;
-    }
+    for (const a of s.workers) (a.px = a.x), (a.py = a.y);
+    for (const a of s.visitors) (a.px = a.x), (a.py = a.y);
+    for (const a of s.vehicles) (a.px = a.x), (a.py = a.y);
+    for (const a of s.animals) (a.px = a.x), (a.py = a.y);
     this.producers(mod);
-    if (mod >= VISIT_START && mod < VISIT_END) this.spawnVisitors();
+    if (mod >= VISIT_START - 120 && mod < VISIT_END - 90) this.spawnVisitors(mod);
+    if (mod === 8 * 60) this.autoSell();
     this.processOrders();
     for (const w of s.workers) this.updateWorker(w, mod);
     for (const v of s.visitors) this.updateVisitor(v);
     s.visitors = s.visitors.filter((v) => !v.done);
     for (const v of s.vehicles) this.updateVehicle(v);
-    s.vehicles = s.vehicles.filter((v) => !(v.kind === 'camionnette' && v.order === null && !v.steps.length && !v.moving && v.timer <= 0));
+    s.vehicles = s.vehicles.filter((v) => !((v.kind === 'camionnette' || v.kind === 'voiture') && v.order === -2));
     for (const a of s.animals) this.updateAnimal(a);
     this.checkTutorial();
     s.rng = this.rng.state;
@@ -259,11 +338,14 @@ export class Sim {
     const season = seasonOf(this.s.minute);
     const wf = WEATHER[this.s.weather].rendement;
     for (const b of this.s.buildings) {
-      const k = defOf(b).kind;
-      if (k === 'verger' && mod >= 6 * 60 && mod < 20 * 60) b.ready = Math.min(ORCHARD_CAP, b.ready + (ORCHARD_RATE * ORCHARD_SEASON[season] * wf) / 60);
-      else if (k === 'enclos') {
-        const goats = this.s.animals.filter((a) => a.pen === b.id).length;
-        b.ready = Math.min(PEN_MILK_CAP, b.ready + (goats * MILK_PER_GOAT_H * MILK_SEASON[season]) / 60);
+      const d = defOf(b);
+      if (d.orchard && mod >= 6 * 60 && mod < 20 * 60) {
+        const o = ORCHARDS[d.orchard];
+        b.ready = Math.min(o.cap, b.ready + (o.taux * o.saisons[season] * wf * aptitude(this.region, o.id)) / 60);
+      } else if (d.livestock) {
+        const l = LIVESTOCK[d.livestock];
+        const n = this.s.animals.filter((a) => a.pen === b.id).length;
+        b.ready = Math.min(l.cap, b.ready + (n * l.tauxParTete * l.saisons[season] * aptitude(this.region, l.id)) / 60);
       }
     }
   }
@@ -271,32 +353,33 @@ export class Sim {
   private endOfDay() {
     const s = this.s;
     const prevDay = dayOf(s.minute) - 1;
-    // Salaires et entretien du jour écoulé (inscrits sur le jour écoulé)
     const l = s.ledger[s.ledger.length - 1];
     const save = s.minute;
     if (l && l.day === prevDay) s.minute -= 1; // comptabilise sur la veille
     for (const w of s.workers) this.paySalary(w);
     for (const b of s.buildings) this.book(defOf(b).activite, -defOf(b).entretien, `Entretien — ${defOf(b).nom}`);
     s.minute = save;
-    // Satisfaction et réputation
     if (s.satSamples.length) {
       s.satisfaction = Math.round(s.satSamples.reduce((a, b) => a + b, 0) / s.satSamples.length);
       s.reputation = round2(Math.max(0, Math.min(100, s.reputation + (s.satisfaction - s.reputation) * 0.18 + Math.min(3, s.satSamples.length * 0.1))));
       s.satSamples = [];
     } else s.reputation = round2(Math.max(0, s.reputation - 0.5));
-    // Météo du jour et cultures
     const season = seasonOf(s.minute);
-    const table = WEATHER_TABLE[season];
+    const table = this.region.meteo[season];
     const kinds: Weather[] = ['soleil', 'nuageux', 'pluie', 'orage', 'neige'];
     let r = this.rng.next(), wi = 0;
     while (wi < 4 && r >= table[wi]) r -= table[wi++];
     s.weather = kinds[wi];
     for (const b of s.buildings) {
-      if (defOf(b).kind !== 'champ' || b.ready > 0) continue;
-      b.growth = Math.min(1, b.growth + WHEAT_GROWTH[season] * WEATHER[s.weather].rendement);
+      const d = defOf(b);
+      if (!d.crop || b.phase !== 'pousse') continue;
+      const c = CROPS[d.crop];
+      b.growth = Math.min(1, b.growth + c.croissance[season] * WEATHER[s.weather].rendement);
       if (b.growth >= 1) {
-        b.ready = WHEAT_YIELD;
-        this.event(`Le blé de la parcelle n°${b.id} est mûr : moisson possible.`, 'succes');
+        b.phase = 'mur';
+        b.done = [];
+        b.ready = round2(c.rendement * aptitude(this.region, c.id));
+        this.event(`${d.nom} : récolte possible (${Math.round(b.ready)} ${RESOURCES[c.produit].unite}).`, 'succes');
       }
     }
     if (dayOf(s.minute) % DAYS_PER_SEASON === 0) this.event(`Nouvelle saison : ${SEASONS[season]}.`, 'info');
@@ -308,15 +391,13 @@ export class Sim {
     const sal = ROLES[w.role].salaire;
     const total = Object.values(w.minutes).reduce((a, b) => a + (b ?? 0), 0);
     if (total <= 0) this.book('general', -sal, `Salaires — ${ROLES[w.role].nom}`);
-    else
-      for (const [a, m] of Object.entries(w.minutes) as [Activity, number][]) if (m > 0) this.book(a, (-sal * m) / total, `Salaires — ${ROLES[w.role].nom}`);
+    else for (const [a, m] of Object.entries(w.minutes) as [Activity, number][]) if (m > 0) this.book(a, (-sal * m) / total, `Salaires — ${ROLES[w.role].nom}`);
     w.minutes = {};
   }
 
   // ————— déplacements —————
-  private navTo(a: Agent, kind: NavKind, tx: number, ty: number, field = -1): boolean {
-    const sx = Math.round(a.x), sy = Math.round(a.y);
-    const p = findPath(this.s.world.w, this.s.world.h, sx, sy, tx, ty, this.cost(kind, field));
+  navTo(a: Agent, kind: NavKind, tx: number, ty: number, field = -1): boolean {
+    const p = findPath(this.s.world.w, this.s.world.h, Math.round(a.x), Math.round(a.y), tx, ty, this.cost(kind, field));
     if (!p) return false;
     a.path = p;
     a.moving = p.length > 0;
@@ -360,22 +441,23 @@ export class Sim {
     w.timer = 0;
   }
 
+  vehicleOf(w: Worker) {
+    return w.vehicle != null ? this.s.vehicles.find((x) => x.id === w.vehicle) ?? null : null;
+  }
+
   private updateWorker(w: Worker, mod: number) {
     const working = mod >= WORK_START && mod < WORK_END;
     if (working && (!w.hidden || w.vehicle != null)) w.minutes[w.activity] = (w.minutes[w.activity] ?? 0) + 1;
-    if (w.vehicle != null) {
-      const v = this.s.vehicles.find((x) => x.id === w.vehicle);
-      if (v) {
-        w.x = v.x;
-        w.y = v.y;
-      }
+    const v = this.vehicleOf(w);
+    if (v) {
+      w.x = v.x;
+      w.y = v.y;
     }
     if (w.moving) {
-      const v = w.vehicle != null ? this.s.vehicles.find((x) => x.id === w.vehicle) : null;
       if (v) {
         v.path = w.path;
         v.moving = true;
-        const arrived = this.move(v, SPEED.tracteur);
+        const arrived = this.move(v, SPEED[v.kind as 'tracteur'] * (v.tool === 'charrue' || v.tool === 'semoir' ? 0.7 : 1));
         w.path = v.path;
         w.x = v.x;
         w.y = v.y;
@@ -393,17 +475,16 @@ export class Sim {
       return;
     }
     if (!w.steps.length) {
-      // fin de journée : rentrer à la maison
       if (!working && w.vehicle == null) {
         const home = this.s.buildings.find((b) => b.type === 'maison');
         if (w.hidden) return;
         if (home) {
           w.activity = 'general';
-          w.steps = w.carry ? [...this.depositSteps(w), { k: 'go', ...xy(doorOf(home)) }, { k: 'rest', b: home.id }] : [{ k: 'go', ...xy(doorOf(home)) }, { k: 'rest', b: home.id }];
+          w.steps = [...this.depositSteps(w), { k: 'go', ...xy(doorOf(home)) }, { k: 'rest', b: home.id }];
           w.label = 'Rentre au logis';
         }
       } else {
-        if (w.hidden) w.hidden = false;
+        if (w.hidden && w.vehicle == null) w.hidden = false;
         this.plan(w);
       }
       if (!w.steps.length) return;
@@ -420,40 +501,53 @@ export class Sim {
 
   /** Choix d'une tâche selon le rôle : priorités explicites, testables. */
   plan(w: Worker) {
-    const steps: Step[] = [];
-    const set = (a: Activity, label: string, st: Step[]) => {
-      w.activity = a;
-      w.label = label;
-      steps.push(...st);
-    };
+    if (w.vehicle != null) {
+      w.steps = this.vehicleHome(w);
+      return;
+    }
     if (w.carry) {
       const dep = this.depositSteps(w);
-      if (dep.length) set('general', 'Dépose sa charge', dep);
-      else set('general', 'Stock plein : attend de la place', [{ k: 'wait', min: 30, label: 'Stock plein' }]);
-      w.steps = steps;
+      w.activity = 'general';
+      w.label = dep.length ? 'Dépose sa charge' : 'Stock plein : attend de la place';
+      w.steps = dep.length ? dep : [{ k: 'wait', min: 30, label: 'Stock plein' }];
       return;
     }
     const order: Record<Role, string[]> = {
-      cultivateur: ['wheat', 'orchard', 'restock', 'tendUrgent'],
-      eleveur: ['milk', 'orchard', 'wheat', 'tendUrgent'],
+      cultivateur: ['harvest', 'fieldwork', 'orchard', 'restock', 'tendUrgent'],
+      eleveur: ['animals', 'orchard', 'harvest', 'tendUrgent'],
       artisan: ['tendUrgent', 'process', 'restock', 'tend'],
       vendeur: ['tendUrgent', 'restock', 'tend'],
     };
     for (const task of order[w.role]) {
       const st = this.tryTask(w, task);
       if (st) {
-        set(st.a, st.label, st.steps);
-        break;
+        w.activity = st.a;
+        w.label = st.label;
+        w.steps = st.steps;
+        return;
       }
     }
-    if (!steps.length) {
-      const home = this.s.buildings.find((b) => b.type === 'maison');
-      const [hx, hy] = home ? doorOf(home) : [Math.round(w.x), Math.round(w.y)];
-      const tx = hx + this.rng.int(-2, 2), ty = hy + this.rng.int(0, 3);
-      const ok = isFinite(this.cost('worker')(tx, ty));
-      set('general', 'En attente de travail', ok ? [{ k: 'go', x: tx, y: ty }, { k: 'wait', min: 20, label: 'En attente' }] : [{ k: 'wait', min: 20, label: 'En attente' }]);
-    }
-    w.steps = steps;
+    const home = this.s.buildings.find((b) => b.type === 'maison');
+    const [hx, hy] = home ? doorOf(home) : [Math.round(w.x), Math.round(w.y)];
+    const tx = hx + this.rng.int(-2, 2), ty = hy + this.rng.int(0, 3);
+    w.activity = 'general';
+    w.label = 'En attente de travail';
+    w.steps = isFinite(this.cost('worker')(tx, ty)) ? [{ k: 'go', x: tx, y: ty }, { k: 'wait', min: 20, label: 'En attente' }] : [{ k: 'wait', min: 20, label: 'En attente' }];
+  }
+
+  /** Engin disponible pour une opération de parcelle. */
+  private machineFor(op: FieldOp, cropId: string): Vehicle | null {
+    const c = CROPS[cropId];
+    const kind: VehicleKind = op === 'recolte' && c.recolte === 'moissonneuse' ? 'moissonneuse' : 'tracteur';
+    if (op === 'recolte' && c.recolte === 'main') return null;
+    return this.s.vehicles.find((v) => v.kind === kind && v.driver == null && this.byId.has(v.home)) ?? null;
+  }
+
+  private tileOrder(f: Building) {
+    const todo = footprint(f).filter(([x, y]) => !f.done.includes(y * 10000 + x));
+    // ordre en serpentin, plausible pour un engin
+    todo.sort((a, b) => a[1] - b[1] || ((a[1] - f.y) % 2 ? b[0] - a[0] : a[0] - b[0]));
+    return todo;
   }
 
   private tryTask(w: Worker, task: string): { a: Activity; label: string; steps: Step[] } | null {
@@ -461,77 +555,83 @@ export class Sim {
     const spaceTotal = this.totalSpace();
     if (task === 'orchard') {
       if (spaceTotal < 5) return null;
-      const list = B.filter((b) => defOf(b).kind === 'verger' && (b.ready >= (b.priority ? 3 : 12)));
+      const list = B.filter((b) => defOf(b).kind === 'verger' && b.ready >= (b.priority ? 3 : 12));
       if (!list.length) return null;
       list.sort((a, b) => Number(b.priority) - Number(a.priority) || b.ready - a.ready);
       const b = list[0];
       const s = defOf(b).size;
       const tx = b.x + this.rng.int(0, s - 1), ty = b.y + this.rng.int(0, s - 1);
-      return { a: 'pomme', label: `Récolte au verger`, steps: [{ k: 'go', x: tx, y: ty }, { k: 'pick', b: b.id }, ...this.depositPlaceholder()] };
+      return { a: defOf(b).activite, label: `Récolte : ${defOf(b).nom.toLowerCase()}`, steps: [{ k: 'go', x: tx, y: ty }, { k: 'pick', b: b.id }, { k: 'put', b: -1 }] };
     }
-    if (task === 'milk') {
-      const list = B.filter((b) => defOf(b).kind === 'enclos' && b.ready >= (b.priority ? 2 : 8));
-      if (!list.length || spaceTotal < 5) return null;
-      list.sort((a, b) => Number(b.priority) - Number(a.priority) || b.ready - a.ready);
+    if (task === 'animals') {
+      const list = B.filter((b) => defOf(b).kind === 'enclos' && b.ready >= (b.priority ? 1 : Math.max(1, LIVESTOCK[defOf(b).livestock!].cap * 0.15)));
+      if (!list.length || spaceTotal < 3) return null;
+      list.sort((a, b) => Number(b.priority) - Number(a.priority) || b.ready / LIVESTOCK[defOf(b).livestock!].cap - a.ready / LIVESTOCK[defOf(a).livestock!].cap);
       const b = list[0];
-      return { a: 'chevre', label: 'Traite des chèvres', steps: [{ k: 'go', ...xy(this.gateOf(b)) }, { k: 'pick', b: b.id }, ...this.depositPlaceholder()] };
+      return { a: defOf(b).activite, label: `Soins et collecte : ${defOf(b).nom.toLowerCase()}`, steps: [{ k: 'go', ...xy(this.gateOf(b)) }, { k: 'pick', b: b.id }, { k: 'put', b: -1 }] };
     }
-    if (task === 'wheat') {
-      const fields = B.filter((b) => defOf(b).kind === 'champ' && b.ready > 0 && b.busyBy == null);
-      if (!fields.length || spaceTotal < 10) return null;
+    if (task === 'harvest' || task === 'fieldwork') {
+      const want = (b: Building) => (task === 'harvest' ? b.phase === 'mur' : b.phase === 'labour' || b.phase === 'semis');
+      const fields = B.filter((b) => defOf(b).crop && b.busyBy == null && want(b));
+      if (!fields.length) return null;
+      if (task === 'harvest' && spaceTotal < 10) return null;
       const f = fields.sort((a, b) => Number(b.priority) - Number(a.priority))[0];
-      const todo = footprint(f).filter(([x, y]) => !f.reaped.includes(y * 1000 + x));
-      // ordre en serpentin pour une moisson plausible
-      todo.sort((a, b) => a[1] - b[1] || ((a[1] - f.y) % 2 ? b[0] - a[0] : a[0] - b[0]));
-      const tractor = this.s.vehicles.find((v) => v.kind === 'tracteur' && v.driver == null);
-      const hangar = tractor ? this.byId.get(tractor.home) : null;
-      const st = this.nearest(this.storages(), f.x, f.y);
-      if (tractor && hangar && st) {
-        // trajet à pied jusqu'au tracteur, puis conduite
-        const steps: Step[] = [{ k: 'go', ...xy(doorOf(hangar)) }, { k: 'board', v: tractor.id }];
-        for (const [x, y] of todo) steps.push({ k: 'go', x, y, vehicle: true }, { k: 'reapTile', b: f.id });
-        steps.push({ k: 'go', ...xy(doorOf(st)), vehicle: true }, { k: 'unload', v: tractor.id, b: st.id }, { k: 'go', ...xy(doorOf(hangar)), vehicle: true }, { k: 'alight', v: tractor.id });
+      const crop = CROPS[defOf(f).crop!];
+      const op: FieldOp = f.phase === 'mur' ? 'recolte' : f.phase === 'labour' ? 'labour' : 'semis';
+      const todo = this.tileOrder(f);
+      if (!todo.length) return null;
+      const machine = this.machineFor(op, crop.id);
+      const home = machine ? this.byId.get(machine.home) : null;
+      const opName = op === 'labour' ? 'Labour' : op === 'semis' ? 'Semis' : 'Récolte';
+      if (machine && home) {
+        const tool = op === 'labour' ? 'charrue' : op === 'semis' ? 'semoir' : machine.kind === 'tracteur' ? 'remorque' : 'seul';
+        const steps: Step[] = [{ k: 'go', ...xy(doorOf(home)) }, { k: 'board', v: machine.id, tool }];
+        for (const [x, y] of todo) steps.push({ k: 'go', x, y, vehicle: true }, { k: 'field', b: f.id, op });
         f.busyBy = w.id;
-        return { a: 'ble', label: 'Moissonne au tracteur', steps };
+        steps.push(...this.vehicleReturn(machine, op === 'recolte'));
+        return { a: defOf(f).activite, label: `${opName} ${machine.kind === 'moissonneuse' ? 'à la moissonneuse' : 'au tracteur'}`, steps };
       }
-      // moisson manuelle : quelques cases par voyage (charge limitée)
-      const per = f.ready / Math.max(1, todo.length);
-      const n = Math.max(1, Math.min(todo.length, Math.floor(CARRY / Math.max(1, per))));
+      // travail à la main : quelques cases par voyage
+      const per = op === 'recolte' ? f.ready / Math.max(1, todo.length) : 0;
+      const n = op === 'recolte' ? Math.max(1, Math.min(todo.length, Math.floor(CARRY / Math.max(1, per)))) : Math.min(todo.length, 4);
       const steps: Step[] = [];
-      for (const [x, y] of todo.slice(0, n)) steps.push({ k: 'go', x, y }, { k: 'reapTile', b: f.id });
-      steps.push(...this.depositPlaceholder());
-      return { a: 'ble', label: 'Moisson à la faux', steps };
+      for (const [x, y] of todo.slice(0, n)) steps.push({ k: 'go', x, y }, { k: 'field', b: f.id, op });
+      if (op === 'recolte') steps.push({ k: 'put', b: -1 });
+      return { a: defOf(f).activite, label: `${opName} à la main`, steps };
     }
     if (task === 'process') {
-      const ateliers = B.filter((b) => defOf(b).kind === 'atelier' && b.busyBy == null);
-      const cands = ateliers
-        .map((b) => ({ b, r: defOf(b).recette!, have: this.stockOf(defOf(b).recette!.input) }))
-        .filter((c) => c.have >= c.r.inQty && this.totalSpace() + c.r.inQty >= c.r.outQty && (c.b.priority || this.stockOf(c.r.output) < PROCESS_TARGET))
-        // l'atelier dont le produit fini manque le plus en stock passe en premier (équilibre entre filières)
-        .sort((a, b) => Number(b.b.priority) - Number(a.b.priority) || this.stockOf(a.r.output) / a.r.outQty - this.stockOf(b.r.output) / b.r.outQty || b.have / b.r.inQty - a.have / a.r.inQty);
+      const cands: { b: Building; r: Recipe; ri: number; score: number }[] = [];
+      for (const b of B) {
+        const d = defOf(b);
+        if (d.kind !== 'atelier' || b.busyBy != null) continue;
+        d.recettes!.forEach((r, ri) => {
+          const have = this.stockOf(r.input);
+          if (have < r.inQty || this.totalSpace() + r.inQty < r.outQty) return;
+          if (!b.priority && this.stockOf(r.output) >= PROCESS_TARGET) return;
+          cands.push({ b, r, ri, score: (b.priority ? -1e6 : 0) + this.stockOf(r.output) / r.outQty - have / r.inQty / 100 });
+        });
+      }
       if (!cands.length) return null;
-      const { b, r } = cands[0];
+      cands.sort((a, b) => a.score - b.score);
+      const { b, r, ri } = cands[0];
       const src = this.nearest(this.storages().filter((s) => (s.inv[r.input] ?? 0) >= r.inQty), b.x, b.y);
       if (!src) return null;
       b.busyBy = w.id;
       return {
         a: RESOURCES[r.output].activite,
         label: `${defOf(b).nom} : ${RESOURCES[r.output].nom.toLowerCase()}`,
-        steps: [{ k: 'go', ...xy(doorOf(src)) }, { k: 'take', b: src.id, res: r.input, qty: r.inQty }, { k: 'go', ...xy(doorOf(b)) }, { k: 'process', b: b.id }, ...this.depositPlaceholder()],
+        steps: [{ k: 'go', ...xy(doorOf(src)) }, { k: 'take', b: src.id, res: r.input, qty: r.inQty }, { k: 'go', ...xy(doorOf(b)) }, { k: 'process', b: b.id, r: ri }, { k: 'put', b: -1 }],
       };
     }
     if (task === 'restock') {
-      const shops = B.filter((b) => defOf(b).kind === 'boutique');
-      for (const shop of shops) {
+      for (const shop of B.filter((b) => defOf(b).kind === 'boutique')) {
         const free = this.space(shop);
         if (free < 4) continue;
-        // produit le moins présent en rayon (et disponible en stock)
         let best: Res | null = null, bestQ = Infinity;
         for (const r of RES_IDS) {
           if (!RESOURCES[r].boutique) continue;
           const q = shop.inv[r] ?? 0;
-          const stock = this.stockOf(r);
-          if (q < 12 && stock >= 1 && q < bestQ) {
+          if (q < 12 && this.stockOf(r) >= 1 && q < bestQ) {
             best = r;
             bestQ = q;
           }
@@ -545,7 +645,6 @@ export class Sim {
       return null;
     }
     if (task === 'tendUrgent') {
-      // des clients attendent à une caisse que personne ne tient
       const waiting = B.find((b) => defOf(b).kind === 'boutique' && b.busyBy == null && this.s.visitors.some((v) => v.steps[0]?.k === 'shop' && (v.steps[0] as { b: number }).b === b.id && !v.moving));
       if (!waiting) return null;
       waiting.busyBy = w.id;
@@ -562,13 +661,30 @@ export class Sim {
     return null;
   }
 
-  /** Le dépôt est résolu au moment de partir (stock le plus proche ayant de la place). */
-  private depositPlaceholder(): Step[] {
-    return [{ k: 'put', b: -1 }];
+  /** Fin de tournée d'un engin : déchargement (si récolte) puis retour au hangar. */
+  private vehicleReturn(v: Vehicle, unload: boolean): Step[] {
+    const home = this.byId.get(v.home);
+    const steps: Step[] = [];
+    if (unload) {
+      const st = this.nearest(this.storages(), v.x, v.y);
+      if (st) steps.push({ k: 'go', ...xy(doorOf(st)), vehicle: true }, { k: 'unload', v: v.id, b: st.id });
+    }
+    if (home) steps.push({ k: 'go', ...xy(doorOf(home)), vehicle: true });
+    steps.push({ k: 'alight', v: v.id });
+    return steps;
+  }
+
+  /** Ramène l'engin conduit au hangar (en déchargeant d'abord si besoin). */
+  vehicleHome(w: Worker): Step[] {
+    const v = this.vehicleOf(w);
+    if (!v || !this.byId.get(v.home)) {
+      this.alight(w);
+      return [];
+    }
+    return this.vehicleReturn(v, !!v.load);
   }
 
   gateOf(b: Building): [number, number] {
-    // case praticable voisine de la parcelle, de préférence un chemin
     const s = defOf(b).size;
     const cands: [number, number][] = [];
     for (let i = 0; i < s; i++) cands.push([b.x + i, b.y + s], [b.x + s, b.y + i], [b.x + i, b.y - 1], [b.x - 1, b.y + i]);
@@ -583,8 +699,7 @@ export class Sim {
     const fail = (why: string) => {
       this.abort(w);
       w.label = why;
-      w.steps = [{ k: 'wait', min: 15, label: why }];
-      if (w.vehicle != null) w.steps = this.tractorHome(w);
+      w.steps = w.vehicle != null ? this.vehicleHome(w) : [{ k: 'wait', min: 15, label: why }];
     };
     switch (st.k) {
       case 'go': {
@@ -593,13 +708,13 @@ export class Sim {
           return;
         }
         if (st.vehicle) {
-          const v = this.s.vehicles.find((x) => x.id === w.vehicle);
-          const field = this.s.buildings.find((b) => b.busyBy === w.id && defOf(b).kind === 'champ');
-          if (!v) return fail('Véhicule introuvable');
+          const v = this.vehicleOf(w);
+          const field = this.s.buildings.find((b) => b.busyBy === w.id && defOf(b).crop);
+          if (!v) return fail('Engin introuvable');
           const p = findPath(this.s.world.w, this.s.world.h, Math.round(v.x), Math.round(v.y), st.x, st.y, this.cost('vehicle', field ? field.id : -1));
           if (!p) {
-            this.event(`${w.nom} : le tracteur ne trouve pas de route praticable.`, 'alerte');
-            this.alight(w); // tracteur laissé sur place : il repartira de là
+            this.event(`${w.nom} : l'engin ne trouve pas de route praticable.`, 'alerte');
+            this.alight(w);
             this.abort(w);
             w.steps = [{ k: 'wait', min: 15, label: 'Route impraticable' }];
             return;
@@ -615,14 +730,15 @@ export class Sim {
       }
       case 'pick': {
         const b = this.byId.get(st.b);
-        if (!b || b.ready < 1) return fail('Rien à récolter');
-        const isPen = defOf(b).kind === 'enclos';
+        const res = b && productOf(b);
+        if (!b || !res || b.ready < 1) return fail('Rien à récolter');
         const q = Math.min(CARRY, Math.floor(b.ready), this.totalSpace());
         if (q < 1) return fail('Stock plein');
         b.ready -= q;
-        w.carry = { res: isPen ? 'lait' : 'pommes', qty: q };
-        w.timer = Math.ceil(q * (isPen ? 1.6 : 1.2));
-        w.label = isPen ? 'Traite' : 'Cueille des pommes';
+        w.carry = { res, qty: q };
+        const animal = defOf(b).kind === 'enclos';
+        w.timer = Math.ceil(Math.max(8, q * (animal ? (RESOURCES[res].unite === 'tête' ? 20 : 1.4) : 1.2)));
+        w.label = animal ? 'Soigne les animaux' : 'Cueille';
         return;
       }
       case 'take': {
@@ -637,7 +753,6 @@ export class Sim {
       }
       case 'put': {
         if (st.b === -1) {
-          // résolution tardive du dépôt
           const dep = this.depositSteps(w);
           w.steps.shift();
           if (!w.carry) return;
@@ -654,8 +769,7 @@ export class Sim {
           w.steps.shift();
           return;
         }
-        const room = this.space(b);
-        const q = Math.min(room, w.carry.qty);
+        const q = Math.min(this.space(b), w.carry.qty);
         if (q > 0) this.add(b, w.carry.res, q);
         w.carry.qty = round2(w.carry.qty - q);
         if (w.carry.qty <= 0) w.carry = null;
@@ -664,7 +778,7 @@ export class Sim {
       }
       case 'process': {
         const b = this.byId.get(st.b);
-        const r = b && defOf(b).recette;
+        const r = b && defOf(b).recettes?.[st.r];
         if (!b || !r || !w.carry || w.carry.res !== r.input || w.carry.qty < r.inQty) return fail('Intrants manquants');
         w.timer = r.minutes;
         w.label = `${defOf(b).nom} : en production`;
@@ -678,50 +792,48 @@ export class Sim {
         w.label = 'Tient la boutique';
         return;
       }
-      case 'rest': {
+      case 'rest':
         w.hidden = true;
         w.label = 'Au repos';
         w.steps.shift();
         return;
-      }
       case 'board': {
         const v = this.s.vehicles.find((x) => x.id === st.v);
-        if (!v || v.driver != null) return fail('Tracteur indisponible');
+        if (!v || v.driver != null) return fail('Engin indisponible');
         v.driver = w.id;
+        v.tool = st.tool;
         w.vehicle = v.id;
         w.hidden = true;
         w.x = v.x;
         w.y = v.y;
-        w.timer = 2;
+        w.timer = 3; // attelage, mise en route
         return;
       }
-      case 'reapTile': {
+      case 'field': {
         const b = this.byId.get(st.b);
-        if (!b || b.ready <= 0) {
-          // parcelle déjà terminée : on saute directement au déchargement / dépôt
-          const k = w.steps.findIndex((x) => x.k === 'unload' || x.k === 'put');
-          w.steps = k < 0 ? [] : w.steps.slice(w.steps[k].k === 'unload' ? k - 1 : k);
-          if (!w.steps.length && w.vehicle != null) w.steps = this.tractorHome(w);
+        const want = st.op === 'recolte' ? 'mur' : st.op;
+        if (!b || b.phase !== want) {
+          // opération déjà terminée : l'engin rentre (en déchargeant), le travailleur dépose sa charge
+          w.steps = w.vehicle != null ? this.vehicleHome(w) : w.carry ? [{ k: 'put', b: -1 }] : [];
           return;
         }
-        w.timer = w.vehicle != null ? 4 : 9;
-        w.label = w.vehicle != null ? 'Moissonne au tracteur' : 'Moissonne à la faux';
+        const v = this.vehicleOf(w);
+        const crop = CROPS[defOf(b).crop!];
+        w.timer = v ? (st.op === 'labour' ? 3 : st.op === 'semis' ? 2 : v.kind === 'moissonneuse' ? 3 : 4) : st.op === 'labour' ? 14 : st.op === 'semis' ? 8 : crop.look === 'lavande' || crop.look === 'legumes' ? 7 : 10;
+        w.label = `${st.op === 'labour' ? 'Laboure' : st.op === 'semis' ? 'Sème' : 'Récolte'}${v ? (v.kind === 'moissonneuse' ? ' (moissonneuse)' : ' (tracteur)') : ' à la main'}`;
         return;
       }
-      case 'unload': {
+      case 'unload':
         w.timer = 8;
-        w.label = 'Décharge la remorque';
+        w.label = 'Décharge';
         return;
-      }
-      case 'alight': {
-        w.timer = 1;
+      case 'alight':
+        w.timer = 2;
         return;
-      }
-      case 'wait': {
+      case 'wait':
         w.timer = st.min;
         w.label = st.label;
         return;
-      }
       default:
         w.steps.shift();
     }
@@ -734,10 +846,9 @@ export class Sim {
       this.s.stats.harvested[w.carry.res] = round2((this.s.stats.harvested[w.carry.res] ?? 0) + w.carry.qty);
     } else if (st.k === 'process') {
       const b = this.byId.get(st.b);
-      const r = b && defOf(b).recette;
-      if (b && r && w.carry && w.carry.qty >= r.inQty) {
+      const r = b && defOf(b).recettes?.[st.r];
+      if (b && r && w.carry && w.carry.res === r.input && w.carry.qty >= r.inQty) {
         w.carry.qty = round2(w.carry.qty - r.inQty);
-        // un éventuel reliquat d'intrant est rapporté au stock lors d'un prochain dépôt
         const rest = w.carry.qty > 0 ? { ...w.carry } : null;
         w.carry = { res: r.output, qty: r.outQty };
         if (rest) {
@@ -753,29 +864,8 @@ export class Sim {
     } else if (st.k === 'tend') {
       const b = this.byId.get(st.b);
       if (b && b.busyBy === w.id) b.busyBy = null;
-    } else if (st.k === 'reapTile') {
-      const b = this.byId.get(st.b);
-      if (b && b.ready > 0) {
-        const left = footprint(b).filter(([x, y]) => !b.reaped.includes(y * 1000 + x));
-        const tx = Math.round(w.x), ty = Math.round(w.y);
-        const here = left.find(([x, y]) => x === tx && y === ty) ?? left[0];
-        const q = round2(b.ready / Math.max(1, left.length));
-        if (here) b.reaped.push(here[1] * 1000 + here[0]);
-        b.ready = round2(b.ready - q);
-        if (w.vehicle != null) {
-          const v = this.s.vehicles.find((x) => x.id === w.vehicle)!;
-          v.load = { res: 'ble', qty: round2((v.load?.qty ?? 0) + q) };
-        } else w.carry = { res: 'ble', qty: round2((w.carry?.qty ?? 0) + q) };
-        this.s.stats.harvested.ble = round2((this.s.stats.harvested.ble ?? 0) + q);
-        if (b.reaped.length >= footprint(b).length || b.ready <= 0.01) {
-          b.ready = 0;
-          b.growth = 0;
-          b.reaped = [];
-          b.busyBy = null;
-          this.book('ble', -WHEAT_SEED_COST, 'Semences de blé');
-          this.event('Moisson terminée : la parcelle est ressemée.', 'info');
-        }
-      }
+    } else if (st.k === 'field') {
+      this.fieldTile(w, st.b, st.op);
     } else if (st.k === 'unload') {
       const v = this.s.vehicles.find((x) => x.id === st.v);
       const b = this.byId.get(st.b);
@@ -784,80 +874,125 @@ export class Sim {
         this.add(b, v.load.res, q);
         v.load.qty = round2(v.load.qty - q);
         if (v.load.qty <= 0) v.load = null;
-        else this.event('Remorque non entièrement déchargée : grange pleine.', 'alerte');
+        else this.event('Benne non entièrement vidée : grange pleine.', 'alerte');
       }
-      for (const f of this.s.buildings) if (f.busyBy === w.id && defOf(f).kind === 'champ') f.busyBy = null;
-    } else if (st.k === 'alight') {
-      this.alight(w);
-    }
+      for (const f of this.s.buildings) if (f.busyBy === w.id && defOf(f).crop) f.busyBy = null;
+    } else if (st.k === 'alight') this.alight(w);
   }
 
-  /** Ramène le tracteur au hangar (en déchargeant d'abord la remorque si besoin). */
-  tractorHome(w: Worker): Step[] {
-    const v = this.s.vehicles.find((x) => x.id === w.vehicle);
-    const hangar = v ? this.byId.get(v.home) : null;
-    if (!v || !hangar) {
-      this.alight(w);
-      return [];
+  /** Une case de parcelle travaillée : labour, semis ou récolte. */
+  private fieldTile(w: Worker, id: number, op: FieldOp) {
+    const b = this.byId.get(id);
+    if (!b) return;
+    const crop = CROPS[defOf(b).crop!];
+    const tiles = footprint(b);
+    const left = tiles.filter(([x, y]) => !b.done.includes(y * 10000 + x));
+    const tx = Math.round(w.x), ty = Math.round(w.y);
+    const here = left.find(([x, y]) => x === tx && y === ty) ?? left[0];
+    if (!here) return;
+    if (op === 'recolte') {
+      if (b.phase !== 'mur') return;
+      const q = round2(b.ready / Math.max(1, left.length));
+      b.ready = round2(b.ready - q);
+      const v = this.vehicleOf(w);
+      if (v) v.load = { res: crop.produit, qty: round2((v.load?.qty ?? 0) + q) };
+      else w.carry = { res: crop.produit, qty: round2((w.carry?.qty ?? 0) + q) };
+      this.s.stats.harvested[crop.produit] = round2((this.s.stats.harvested[crop.produit] ?? 0) + q);
+    } else if (b.phase !== op) return;
+    b.done.push(here[1] * 10000 + here[0]);
+    if (b.done.length >= tiles.length) {
+      b.done = [];
+      if (op === 'labour') b.phase = 'semis';
+      else if (op === 'semis') {
+        b.phase = 'pousse';
+        b.growth = 0;
+        this.book(defOf(b).activite, -crop.semence, `Semences — ${crop.nom}`);
+      } else {
+        b.ready = 0;
+        b.growth = 0;
+        b.phase = crop.vivace ? 'pousse' : 'labour';
+        if (b.busyBy === w.id && !this.vehicleOf(w)) b.busyBy = null;
+        this.event(`${defOf(b).nom} : récolte terminée.`, 'info');
+      }
+      if (op !== 'recolte' && b.busyBy === w.id && !this.vehicleOf(w)) b.busyBy = null;
     }
-    const steps: Step[] = [];
-    const st = v.load ? this.nearest(this.storages().filter((b) => this.space(b) > 0), v.x, v.y) : null;
-    if (st) steps.push({ k: 'go', ...xy(doorOf(st)), vehicle: true }, { k: 'unload', v: v.id, b: st.id });
-    steps.push({ k: 'go', ...xy(doorOf(hangar)), vehicle: true }, { k: 'alight', v: v.id });
-    return steps;
   }
 
   alight(w: Worker) {
-    const v = this.s.vehicles.find((x) => x.id === w.vehicle);
-    if (v) v.driver = null;
-    w.vehicle = null;
-    w.hidden = false;
+    const v = this.vehicleOf(w);
     if (v) {
+      v.driver = null;
+      v.tool = 'seul';
       w.x = Math.round(v.x);
       w.y = Math.round(v.y);
     }
-    for (const f of this.s.buildings) if (f.busyBy === w.id && defOf(f).kind === 'champ') f.busyBy = null;
+    w.vehicle = null;
+    w.hidden = false;
+    for (const f of this.s.buildings) if (f.busyBy === w.id && defOf(f).crop) f.busyBy = null;
   }
 
-  // ————— visiteurs —————
-  private spawnVisitors() {
+  // ————— visiteurs (en voiture) —————
+  private spawnVisitors(mod: number) {
     const s = this.s;
     const shop = s.buildings.some((b) => defOf(b).kind === 'boutique');
     const accueil = s.buildings.some((b) => defOf(b).kind === 'accueil');
-    const perHour = (0.5 + s.reputation / 35) * WEATHER[s.weather].visiteurs * (accueil ? 1.7 : 1) * (shop ? 1 : 0.3);
     if (!shop && !accueil) return;
-    if (s.visitors.length >= 16 || !this.rng.chance(perHour / 60)) return;
-    const [ex, ey] = PARKING;
-    const v: Visitor = { ...newAgent(s.nextId++, ex, ey), look: this.rng.int(0, 5), budget: Math.round(this.rng.range(15, 60)), wishes: [], spent: 0, bought: 0, wanted: 0, waited: 0, visited: false, done: false };
+    const season = seasonOf(s.minute);
+    const perHour = (0.5 + s.reputation / 40) * WEATHER[s.weather].visiteurs * (accueil ? 1.7 : 1) * this.region.tourisme * (season === 1 ? 1.3 : season === 3 ? 0.6 : 1);
+    if (!this.rng.chance(perHour / 60)) return;
+    const used = new Set(s.vehicles.filter((v) => v.kind === 'voiture').map((v) => v.slot));
+    const slot = s.world.parking.findIndex((_, i) => !used.has(i));
+    if (slot < 0) return;
+    const [ex, ey] = s.world.entry;
+    const car = this.addVehicle('voiture', null, ex, ey);
+    car.look = this.rng.int(0, 2);
+    car.slot = slot;
+    car.passengers = this.rng.int(1, 3);
+    // trajet impossible, ou arrivée trop tardive pour la boutique : la famille ne vient pas
+    if (!this.navTo(car, 'vehicle', ...s.world.parking[slot]) || mod + car.path.length / SPEED.voiture > VISIT_END - 60) {
+      s.vehicles = s.vehicles.filter((v) => v !== car);
+      return;
+    }
+    car.steps = [{ k: 'go', ...xy(s.world.parking[slot]) }];
+    car.label = 'Visiteurs en route';
+  }
+
+  /** La voiture est garée : la famille descend et part visiter. */
+  private unloadCar(car: Vehicle) {
+    const s = this.s;
+    const [px, py] = s.world.parking[car.slot];
     const catalog = RES_IDS.filter((r) => RESOURCES[r].boutique);
-    // les visiteurs connaissent surtout ce que le domaine propose déjà (bouche-à-oreille)
     const shopB = s.buildings.find((b) => defOf(b).kind === 'boutique');
     const offer = catalog.filter((r) => (shopB?.inv[r] ?? 0) > 0 || this.stockOf(r) > 0);
-    const n = this.rng.int(1, 3);
-    for (let i = 0; i < n; i++) {
-      const r = offer.length && this.rng.chance(0.75) ? this.rng.pick(offer) : this.rng.pick(catalog);
-      if (v.wishes.some((x) => x.res === r)) continue;
-      const qty = this.rng.int(1, r === 'pommes' || r === 'farine' ? 5 : r === 'fromage' ? 2 : 4);
-      v.wishes.push({ res: r, qty, maxPrice: round2(RESOURCES[r].prix * this.rng.range(0.85, 1.5)) });
-      v.wanted += qty;
-    }
-    const steps: Step[] = [];
     const acc = s.buildings.find((b) => defOf(b).kind === 'accueil');
-    if (acc) {
-      steps.push({ k: 'go', ...xy(doorOf(acc)) }, { k: 'visit', b: acc.id });
-      const pois = s.buildings.filter((b) => ['verger', 'enclos', 'champ'].includes(defOf(b).kind));
-      if (pois.length) {
-        const p = this.rng.pick(pois);
-        steps.push({ k: 'go', ...xy(this.gateOf(p)) }, { k: 'wait', min: this.rng.int(8, 16), label: 'Admire le domaine' });
+    const pois = s.buildings.filter((b) => ['verger', 'enclos', 'champ'].includes(defOf(b).kind));
+    for (let k = 0; k < car.passengers; k++) {
+      const v: Visitor = { ...newAgent(s.nextId++, px, py), look: this.rng.int(0, 5), budget: Math.round(this.rng.range(15, 60)), wishes: [], spent: 0, bought: 0, wanted: 0, waited: 0, visited: false, done: false, car: car.id };
+      const n = this.rng.int(1, 3);
+      for (let i = 0; i < n; i++) {
+        const r = offer.length && this.rng.chance(0.75) ? this.rng.pick(offer) : this.rng.pick(catalog);
+        if (v.wishes.some((x) => x.res === r)) continue;
+        const u = RESOURCES[r].unite;
+        const qty = this.rng.int(1, u === 'kg' ? 5 : RESOURCES[r].prix > 10 ? 2 : 4);
+        v.wishes.push({ res: r, qty, maxPrice: round2(RESOURCES[r].prix * this.rng.range(0.85, 1.5)) });
+        v.wanted += qty;
       }
+      const steps: Step[] = [];
+      if (acc) {
+        steps.push({ k: 'go', ...xy(doorOf(acc)) }, { k: 'visit', b: acc.id });
+        if (pois.length) {
+          const p = this.rng.pick(pois);
+          steps.push({ k: 'go', ...xy(this.gateOf(p)) }, { k: 'wait', min: this.rng.int(8, 16), label: 'Admire le domaine' });
+        }
+      }
+      if (shopB) steps.push({ k: 'go', ...xy(doorOf(shopB)) }, { k: 'shop', b: shopB.id });
+      steps.push({ k: 'go', x: px, y: py }, { k: 'leave' });
+      v.steps = steps;
+      v.label = 'Visiteur';
+      s.visitors.push(v);
+      s.stats.visitors++;
     }
-    const boutique = s.buildings.find((b) => defOf(b).kind === 'boutique');
-    if (boutique) steps.push({ k: 'go', ...xy(doorOf(boutique)) }, { k: 'shop', b: boutique.id });
-    steps.push({ k: 'go', x: ex, y: ey }, { k: 'leave' });
-    v.steps = steps;
-    v.label = 'Visiteur';
-    s.visitors.push(v);
-    s.stats.visitors++;
+    car.label = 'Garée';
   }
 
   private updateVisitor(v: Visitor) {
@@ -869,7 +1004,6 @@ export class Sim {
       v.timer--;
       const st = v.steps[0];
       if (st?.k === 'shop') {
-        // attente d'un vendeur : l'achat a lieu dès que la caisse est tenue
         const b = this.byId.get(st.b);
         if (b && b.busyBy != null && this.s.workers.some((w) => w.id === b.busyBy && !w.moving && w.steps[0]?.k === 'tend')) {
           this.buy(v, b);
@@ -894,11 +1028,10 @@ export class Sim {
     switch (st.k) {
       case 'go':
         if (!this.navTo(v, 'visitor', st.x, st.y)) {
-          // destination inaccessible : le visiteur repart, déçu
           const exit = [...v.steps].reverse().find((x) => x.k === 'go') as Extract<Step, { k: 'go' }>;
           v.waited = 1;
           if (st === exit || !this.navTo(v, 'visitor', exit.x, exit.y)) {
-            v.done = true;
+            v.steps = [{ k: 'leave' }];
             return;
           }
           v.steps = [exit, { k: 'leave' }];
@@ -908,8 +1041,7 @@ export class Sim {
         return;
       case 'visit': {
         const b = this.byId.get(st.b);
-        const willing = this.rng.range(2, 9);
-        if (b && this.s.visitFee <= willing) {
+        if (b && this.s.visitFee <= this.rng.range(2, 9)) {
           this.book('accueil', this.s.visitFee, 'Visites de la ferme');
           v.visited = true;
         }
@@ -931,6 +1063,8 @@ export class Sim {
         if (v.waited) sat -= 30;
         if (v.visited) sat += 12;
         this.s.satSamples.push(Math.max(0, Math.min(100, Math.round(sat))));
+        const car = this.s.vehicles.find((c) => c.id === v.car);
+        if (car) car.back++;
         v.done = true;
         return;
       }
@@ -944,8 +1078,7 @@ export class Sim {
     for (const wsh of v.wishes) {
       const price = s.prices[wsh.res];
       if (price > wsh.maxPrice) continue;
-      const have = shop.inv[wsh.res] ?? 0;
-      const q = Math.min(wsh.qty, Math.floor(have), Math.floor((v.budget - v.spent) / price));
+      const q = Math.min(wsh.qty, Math.floor(shop.inv[wsh.res] ?? 0), Math.floor((v.budget - v.spent) / price));
       if (q <= 0) continue;
       this.remove(shop, wsh.res, q);
       v.spent = round2(v.spent + q * price);
@@ -955,28 +1088,50 @@ export class Sim {
     }
   }
 
+  /** Contrats négociant : chaque matin, les stocks au-delà du seuil choisi sont vendus en gros. */
+  private autoSell() {
+    for (const [res, seuil] of Object.entries(this.s.autoSell)) {
+      if (seuil == null || seuil < 0) continue;
+      const surplus = Math.floor(this.stockOf(res) - seuil);
+      if (surplus >= 5) this.order(res, surplus, true);
+    }
+  }
+
+  /** Vente au négociant : la marchandise est réservée tout de suite, payée à l'enlèvement. */
+  order(res: Res, qty: number, auto = false): boolean {
+    qty = Math.floor(qty);
+    if (qty <= 0 || this.stockOf(res) < qty) return false;
+    let left = qty;
+    for (const b of this.storages()) left -= this.remove(b, res, left);
+    const delay = 40 + Math.floor(this.rng.next() * 50);
+    const price = round2(RESOURCES[res].prix * wholesaleFactor(res));
+    this.s.orders.push({ id: this.s.nextId++, res, qty, price, status: 'attente', createdMin: this.s.minute, dueMin: this.s.minute + delay });
+    this.event(`${auto ? 'Contrat négociant' : 'Commande négociant'} : ${qty} ${RESOURCES[res].unite} de ${RESOURCES[res].nom.toLowerCase()}, enlèvement d'ici ${delay} min.`, 'info');
+    return true;
+  }
+
   // ————— négociant (vente en gros) —————
   private processOrders() {
     const s = this.s;
     for (const o of s.orders) {
       if (o.status !== 'attente' || s.minute < o.dueMin) continue;
-      const st = this.nearest(this.storages(), ENTRY_EAST[0], ENTRY_EAST[1]);
-      const van: Vehicle = { ...newAgent(s.nextId++, ENTRY_EAST[0], ENTRY_EAST[1]), kind: 'camionnette', home: -1, load: null, cap: 400, driver: null, order: o.id };
+      const [ex, ey] = s.world.entry;
+      const st = this.nearest(this.storages(), ex, ey);
+      const van = this.addVehicle('camionnette', null, ex, ey);
+      van.order = o.id;
       if (!st || !this.navTo(van, 'vehicle', ...doorOf(st))) {
+        s.vehicles = s.vehicles.filter((v) => v !== van);
         this.cancelOrder(o, 'la camionnette ne peut pas atteindre la grange');
         continue;
       }
-      // le premier trajet est déjà calculé (navTo) : l'étape « go » sera retirée à l'arrivée
-      van.steps = [{ k: 'go', ...xy(doorOf(st)) }, { k: 'wait', min: 15, label: 'Chargement' }, { k: 'go', x: ENTRY_EAST[0], y: ENTRY_EAST[1] }];
+      van.steps = [{ k: 'go', ...xy(doorOf(st)) }, { k: 'wait', min: 15, label: 'Chargement' }, { k: 'go', x: ex, y: ey }];
       van.label = 'Camionnette du négociant';
       o.status = 'en route';
-      s.vehicles.push(van);
     }
     s.orders = s.orders.filter((o) => o.status === 'attente' || o.status === 'en route' || o.status === 'chargement' || s.minute - o.createdMin < DAY_MIN);
   }
 
   cancelOrder(o: Order, why: string) {
-    // la marchandise réservée retourne en stock
     let left = o.qty;
     for (const b of this.storages()) {
       const q = Math.min(left, this.space(b));
@@ -988,9 +1143,20 @@ export class Sim {
   }
 
   private updateVehicle(v: Vehicle) {
-    if (v.kind === 'tracteur') return; // conduit par un travailleur
+    if (v.kind === 'tracteur' || v.kind === 'moissonneuse') return; // conduits par un travailleur
     if (v.moving) {
-      if (this.move(v, SPEED.camionnette)) v.steps.shift();
+      if (this.move(v, SPEED[v.kind])) {
+        v.steps.shift();
+        if (v.kind === 'voiture' && v.label === 'Visiteurs en route') this.unloadCar(v);
+      }
+      return;
+    }
+    if (v.kind === 'voiture' && v.label === 'Garée') {
+      if (v.back >= v.passengers) {
+        v.label = 'Repart';
+        if (!this.navTo(v, 'vehicle', ...this.s.world.entry)) v.order = -2;
+        v.steps = [{ k: 'go', ...xy(this.s.world.entry) }];
+      }
       return;
     }
     if (v.timer > 0) {
@@ -1010,20 +1176,15 @@ export class Sim {
     }
     const st = v.steps[0];
     if (!st) {
-      v.order = null;
+      v.order = -2; // arrivé hors carte : retiré
       return;
     }
     if (st.k === 'go') {
       if (Math.round(v.x) === st.x && Math.round(v.y) === st.y) {
         v.steps.shift();
-        if (!v.steps.length) v.order = null;
         return;
       }
-      if (!this.navTo(v, 'vehicle', st.x, st.y)) {
-        v.steps = [];
-        v.order = null;
-        return;
-      }
+      if (!this.navTo(v, 'vehicle', st.x, st.y)) v.order = -2;
       return;
     }
     if (st.k === 'wait') {
@@ -1042,7 +1203,7 @@ export class Sim {
     }
     const dx = a.tx - a.x, dy = a.ty - a.y;
     const d = Math.hypot(dx, dy);
-    const sp = a.kind === 'chevre' ? SPEED.chevre : SPEED.poule;
+    const sp = SPEED.animal * (a.kind === 'poule' || a.kind === 'canard' ? 1.2 : a.kind === 'vache' ? 0.7 : 1);
     if (d < sp) {
       a.x = a.tx;
       a.y = a.ty;
@@ -1051,11 +1212,12 @@ export class Sim {
         const b = this.byId.get(a.pen);
         if (!b) return;
         const s = defOf(b).size;
-        a.tx = b.x + 0.25 + this.rng.next() * (s - 1.5);
-        a.ty = b.y + 0.9 + this.rng.next() * (s - 1.2);
+        a.tx = b.x + 0.35 + this.rng.next() * (s - 1.6);
+        a.ty = b.y + 1.1 + this.rng.next() * (s - 1.5);
       } else {
-        a.tx = 44 + this.rng.next() * 9;
-        a.ty = 44.2 + this.rng.next() * 3.6;
+        const [cx, cy] = this.s.world.farm;
+        a.tx = cx - 4 + this.rng.next() * 10;
+        a.ty = cy - 2.8 + this.rng.next() * 4.6;
       }
       return;
     }
@@ -1067,13 +1229,8 @@ export class Sim {
   // ————— tutoriel —————
   private checkTutorial() {
     const s = this.s;
-    const ok = [
-      () => (s.stats.harvested.pommes ?? 0) >= 20,
-      () => s.stats.batches >= 1,
-      () => (s.stats.produced.jus ?? 0) >= 20,
-      () => (s.stats.sold.jus ?? 0) >= 10,
-      () => s.stats.built >= 1,
-    ];
+    const sum = (o: Partial<Record<Res, number>>) => Object.values(o).reduce((a: number, b) => a + (b ?? 0), 0);
+    const ok = [() => sum(s.stats.harvested) >= 20, () => s.stats.batches >= 1, () => sum(s.stats.produced) >= 20, () => sum(s.stats.sold) >= 10, () => s.stats.built >= 1];
     while (s.tutorial < ok.length && ok[s.tutorial]()) {
       s.tutorial++;
       this.event(s.tutorial >= ok.length ? 'Tutoriel terminé : le domaine est à vous !' : 'Objectif atteint !', 'succes');
@@ -1082,20 +1239,16 @@ export class Sim {
 }
 
 export const TUTORIAL = [
-  { titre: 'Récolter', texte: 'Récoltez 20 kg de pommes. Le cultivateur s\'en charge ; touchez le verger et activez « Priorité » pour l\'y envoyer.' },
-  { titre: 'Produire', texte: 'Lancez un premier lot au pressoir : l\'artisan va chercher les pommes en grange.' },
-  { titre: 'Transformer', texte: 'Produisez 20 bouteilles de jus de pomme.' },
-  { titre: 'Vendre', texte: 'Vendez 10 bouteilles de jus (boutique ou négociant, menu Commerce).' },
-  { titre: 'Investir', texte: 'Construisez un nouveau bâtiment (menu Construire) : enclos, champ, grange…' },
+  { titre: 'Récolter', texte: 'Récoltez 20 unités (fruits, lait, œufs, grain…). Le personnel s\'en charge ; touchez une parcelle et activez « Priorité » pour l\'y envoyer.' },
+  { titre: 'Produire', texte: 'Lancez un premier lot dans votre atelier : l\'artisan va chercher la matière première à la grange.' },
+  { titre: 'Transformer', texte: 'Produisez 20 unités de produits transformés.' },
+  { titre: 'Vendre', texte: 'Vendez 10 produits (boutique ou négociant, menu Commerce).' },
+  { titre: 'Investir', texte: 'Construisez un nouveau bâtiment (menu Construire) : culture, élevage, atelier, matériel…' },
 ];
-
-function xy(p: [number, number]) {
-  return { x: p[0], y: p[1] };
-}
 
 /** Direction écran : 0 = vers le bas-droite (+x), 1 = bas-gauche (+y), 2 = haut-gauche (−x), 3 = haut-droite (−y). */
 export function dirOf(dx: number, dy: number): number {
-  const sx = dx - dy, sy = dx + dy; // repère écran
+  const sx = dx - dy, sy = dx + dy;
   if (sy >= 0) return sx >= 0 ? 0 : 1;
   return sx < 0 ? 2 : 3;
 }

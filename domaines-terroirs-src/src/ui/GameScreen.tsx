@@ -108,7 +108,7 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
       if (!alive) return;
       setReady(true);
       // accès de test et de diagnostic (Playwright)
-      Object.assign(window, { __dt: game, __dtActions: { build, buildPath, demolish } });
+      Object.assign(window, { __dt: game, __dtActions: { build, buildPath, demolish, checkBuild } });
     });
     const vis = () => {
       if (document.hidden) saveSlot('auto', game.sim.s).catch(() => undefined);
@@ -224,7 +224,7 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
           {speedBtn(4, '×4')}
         </div>
         <div className="hud-group tools">
-          <button className="icon-btn" title="Recentrer sur la ferme" aria-label="Recentrer" onClick={() => game.scene?.centerOn(47, 46)}>
+          <button className="icon-btn" title="Recentrer sur la ferme" aria-label="Recentrer" onClick={() => game.scene?.centerOn(game.sim.s.world.farm[0] + 2, game.sim.s.world.farm[1])}>
             <Icon name="target" />
           </button>
           <button
