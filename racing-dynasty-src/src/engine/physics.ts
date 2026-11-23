@@ -16,8 +16,8 @@ export function physicsFor(e: Pick<CarEntry, 'driver' | 'car' | 'setup'>, track:
   const suspDev = Math.abs(st.suspension - track.def.suspOpt) / 100;
   const wet = weather === 'pluie';
   return {
-    aMech: 10.5 * (1 + 0.0022 * (c.chassis - 10)) * (1 + 0.0018 * (d.vitesse - 10)) * (1 - 0.035 * suspDev) * (wet ? 0.74 : 1),
-    cAero: 0.0034 * (1 + 0.007 * (c.aero - 10)) * (1 + 0.17 * (aero - 0.5) - 0.22 * (aero - 0.5) * (aero - 0.5)) * (1 + 0.0014 * (d.vitesse - 10)) * (wet ? 0.8 : 1),
+    aMech: 10.5 * (1 + 0.0022 * (c.chassis - 10)) * (1 + 0.0045 * (d.vitesse - 10)) * (1 - 0.035 * suspDev) * (wet ? 0.74 : 1),
+    cAero: 0.0034 * (1 + 0.007 * (c.aero - 10)) * (1 + 0.17 * (aero - 0.5) - 0.22 * (aero - 0.5) * (aero - 0.5)) * (1 + 0.0035 * (d.vitesse - 10)) * (wet ? 0.8 : 1),
     vTop: 88 * (1 + 0.0024 * (c.moteur - 10)) * (1 - 0.05 * (aero - 0.5)) * (1 + 0.05 * (gear - 0.5)),
     aAcc: 13 * (1 + 0.005 * (c.moteur - 10)) * (1 - 0.045 * (gear - 0.5) - 0.09 * (gear - 0.5) * (gear - 0.5)) * (1 - 0.06 * (aero - 0.5)) * (wet ? 0.85 : 1),
     brake: 15.5 * (1 + 0.002 * (c.chassis - 10)) * (wet ? 0.8 : 1),

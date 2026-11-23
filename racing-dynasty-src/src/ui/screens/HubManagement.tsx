@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { GameApi } from '../App';
 import {
   driverById, freeAgents, hireDriver, playerTeam, releaseCost, releaseDriver, signingFee, teamById, teamDrivers, teamStandings,
-  UPGRADE_LABEL, MAX_SPONSORS,
+  UPGRADE_LABEL, MAX_SPONSORS, AI_SKILL,
 } from '../../game/career';
 import {
   academyDrivers, extendContract, extensionDemand, hireStaff, MAX_ACADEMY, maxProjects, moraleLabel, moraleOf, negotiateSponsor,
@@ -17,6 +17,26 @@ import { DriverCard } from './Hub';
 import { FacilitiesPanel } from './HubCareer';
 
 // ================================================================ Pilotes
+
+/** Repère : vos pilotes comparés aux titulaires adverses, tels qu'ils roulent selon la difficulté. */
+function GridLevel({ api }: { api: GameApi }) {
+  const c = api.career;
+  const others = c.drivers.filter((d) => d.teamId && d.teamId !== c.playerTeamId && (d.role ?? 'titulaire') === 'titulaire');
+  if (!others.length) return null;
+  const avg = others.reduce((a, d) => a + driverRating(d.stats), 0) / others.length;
+  const best = Math.max(...others.map((d) => driverRating(d.stats)));
+  const mine = teamDrivers(c, c.playerTeamId);
+  const myAvg = mine.length ? mine.reduce((a, d) => a + driverRating(d.stats), 0) / mine.length : 0;
+  const delta = AI_SKILL[c.difficulty];
+  return (
+    <p className="muted">
+      Titulaires adverses : moyenne <b>{avg.toFixed(1)}</b>/20, meilleur <b>{best.toFixed(1)}</b>
+      {mine.length ? <> · les vôtres : <b>{myAvg.toFixed(1)}</b></> : null}
+      {delta ? <> · en course, difficulté {c.difficulty} : adversaires {delta > 0 ? '+' : ''}{delta.toString().replace('.', ',')} pt</> : null}.
+      {' '}Un point de pilote vaut environ 0,1 s au tour, un point de voiture environ 0,2 s.
+    </p>
+  );
+}
 
 export function DriversTab({ api }: { api: GameApi }) {
   const c = api.career;
@@ -36,6 +56,7 @@ export function DriversTab({ api }: { api: GameApi }) {
       {locked && <p className="panel warn">Week-end en cours : le marché et les changements de rôle sont fermés.</p>}
       <section className="panel">
         <h2>Titulaires ({mine.length}/2)</h2>
+        <GridLevel api={api} />
         <div className="cards">
           {mine.map((d) => (
             <DriverCard key={d.id} d={d}>

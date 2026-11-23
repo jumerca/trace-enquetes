@@ -32,9 +32,9 @@ export type Difficulty = 'facile' | 'normale' | 'difficile';
 export type BudgetProfile = 'serre' | 'equilibre' | 'investisseur';
 
 export const DIFFICULTY_INFO: Record<Difficulty, { label: string; carLevel: number; budget: number; reputation: number; text: string }> = {
-  facile: { label: 'Facile', carLevel: 13.5, budget: 1.3, reputation: 35, text: 'Voiture de milieu de grille, budget confortable.' },
+  facile: { label: 'Facile', carLevel: 15.5, budget: 1.3, reputation: 35, text: 'Bonne voiture, budget confortable, adversaires moins incisifs.' },
   normale: { label: 'Normale', carLevel: 11.5, budget: 1, reputation: 22, text: 'Voiture de fond de peloton, tout reste à construire.' },
-  difficile: { label: 'Difficile', carLevel: 9.5, budget: 0.75, reputation: 12, text: 'Petite structure, voiture lente, chaque euro compte.' },
+  difficile: { label: 'Difficile', carLevel: 9.5, budget: 0.75, reputation: 12, text: 'Petite structure, voiture lente, adversaires redoutables.' },
 };
 
 export const BUDGET_INFO: Record<BudgetProfile, { label: string; amount: number; text: string }> = {
@@ -247,7 +247,7 @@ export function seasonCalendar(): { round: number; trackId: string }[] {
 export function computeObjective(c: Pick<Career, 'teams' | 'playerTeamId' | 'difficulty'>): number {
   const ranked = [...c.teams].sort((a, b) => carRating(b.car) - carRating(a.car));
   const rank = ranked.findIndex((t) => t.id === c.playerTeamId) + 1;
-  const bonus = c.difficulty === 'facile' ? 2 : c.difficulty === 'normale' ? 1 : 0;
+  const bonus = c.difficulty === 'normale' ? 1 : 0; // en facile, la voiture est déjà parmi les meilleures
   return Math.max(1, Math.min(10, rank - bonus));
 }
 
@@ -427,7 +427,10 @@ export function startWeekend(c: Career): string | null {
     if (!d.teamId || !isRaceDriver(d)) continue;
     const team = teamById(c, d.teamId);
     if (team.isPlayer) {
-      setups[d.id] = { aileron: 50, suspension: 50, boite: 50 };
+      // réglage de base proposé par l'ingénieur : plus ou moins proche de l'optimum selon la difficulté
+      const k = ENGINEER_BASE[c.difficulty];
+      const cl = (v: number) => Math.max(0, Math.min(100, Math.round(v / 5) * 5));
+      setups[d.id] = { aileron: cl(50 + (opt.aileron - 50) * k), suspension: cl(50 + (opt.suspension - 50) * k), boite: cl(50 + (opt.boite - 50) * k) };
       practice[d.id] = { runs: [], knowledge: 0 };
     } else {
       // Les écuries IA approchent l'optimum selon leur niveau technique.
@@ -443,9 +446,37 @@ export function startWeekend(c: Career): string | null {
   return null;
 }
 
+/** Part du chemin vers le réglage optimal déjà faite par l'ingénieur au début du week-end. */
+export const ENGINEER_BASE: Record<Difficulty, number> = { facile: 0.7, normale: 0.4, difficile: 0 };
+
+/** Écart de niveau des pilotes IA selon la difficulté (points sur 20, appliqué à toutes leurs caractéristiques en piste). */
+export const AI_SKILL: Record<Difficulty, number> = { facile: -2.5, normale: -0.5, difficile: 0.6 };
+
+/** Caractéristiques en piste d'un pilote : celles des pilotes IA sont ajustées selon la difficulté. */
+export function trackStats(c: Career, d: Driver): DriverStats {
+  const team = d.teamId ? teamById(c, d.teamId) : null;
+  const delta = team && !team.isPlayer ? AI_SKILL[c.difficulty] : 0;
+  if (!delta) return d.stats;
+  const out = { ...d.stats };
+  for (const k of Object.keys(out) as (keyof DriverStats)[]) out[k] = Math.max(1, Math.min(20, out[k] + delta));
+  return out;
+}
+
+/** Écart de performance des voitures IA selon la difficulté (points sur 20 ; la fiabilité n'est pas touchée). */
+export const AI_CAR: Record<Difficulty, number> = { facile: -0.7, normale: 0, difficile: 0.3 };
+
+/** Voiture en piste : celle des écuries IA ajustée selon la difficulté, celle du joueur avec son bonus de fiabilité. */
+export function trackCar(c: Career, team: Team): CarStats {
+  if (team.isPlayer) return { ...team.car, fiabilite: Math.max(1, Math.min(20, team.car.fiabilite + reliabilityBonus(c))) };
+  const k = AI_CAR[c.difficulty];
+  if (!k) return team.car;
+  const cl = (v: number) => Math.max(1, Math.min(20, v + k));
+  return { moteur: cl(team.car.moteur), aero: cl(team.car.aero), chassis: cl(team.car.chassis), fiabilite: team.car.fiabilite };
+}
+
 function entryFor(c: Career, d: Driver, w: Weekend): Pick<CarEntry, 'driver' | 'car' | 'setup'> {
   const team = teamById(c, d.teamId!);
-  return { driver: d.stats, car: team.car, setup: w.setups[d.id] };
+  return { driver: trackStats(c, d), car: trackCar(c, team), setup: w.setups[d.id] };
 }
 
 export function setSetup(c: Career, driverId: string, setup: CarSetup): void {
@@ -593,8 +624,8 @@ export function raceConfig(c: Career): RaceConfig {
     return {
       id: d.id, name: `${d.first} ${d.last}`, short: d.short, number: d.number,
       teamId: team.id, teamName: team.name, color: team.color, color2: team.color2,
-      driver: d.stats, setup: w.setups[d.id], pitCrew: team.pitCrew,
-      car: team.isPlayer ? { ...team.car, fiabilite: Math.max(1, Math.min(20, team.car.fiabilite + reliabilityBonus(c))) } : team.car,
+      driver: trackStats(c, d), setup: w.setups[d.id], pitCrew: team.pitCrew,
+      car: trackCar(c, team),
       startCompound: st.start, pitPlan: st.plan, isPlayer: team.isPlayer, form: formFactor(d),
     };
   });
