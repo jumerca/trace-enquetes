@@ -91,36 +91,85 @@ export const LIVERIES: Record<string, Livery> = {
   bleu: { body: 0x2a5ea8, rim: 0xf0ece2, roof: 0xf0ece2, stripe: 0x8a96a6 },
 };
 
+// ————— aides de modélisation —————
+/** Profil latéral (x, y) extrudé sur la largeur (z), centré. */
+export function profile(p: THREE.Object3D, pts: [number, number][], width: number, c: number | THREE.Material, x = 0, y = 0, z = 0, bevel = 0.015) {
+  const sh = new THREE.Shape(pts.map(([a, b]) => new THREE.Vector2(a, b)));
+  const g = new THREE.ExtrudeGeometry(sh, { depth: width - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2 });
+  g.computeBoundingBox();
+  const bb = g.boundingBox!;
+  const cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2, cz = (bb.min.z + bb.max.z) / 2;
+  g.translate(-cx, -cy, -cz);
+  return add(p, g, typeof c === 'number' ? toon(c) : c, x + cx, y + cy, z);
+}
+/** Garde-boue en arc au-dessus d'une roue (axe z). */
+function fender(p: THREE.Object3D, r: number, w: number, x: number, y: number, z: number, c: number) {
+  const g = new THREE.CylinderGeometry(r, r, w, 20, 1, true, -Math.PI / 2 - 0.15, Math.PI + 0.3);
+  g.rotateX(Math.PI / 2);
+  g.rotateZ(Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshToonMaterial({ color: c, side: THREE.DoubleSide, gradientMap: (toon(0xffffff) as THREE.MeshToonMaterial).gradientMap }));
+  m.position.set(x, y, z);
+  p.add(m);
+  return m;
+}
+const lamp = (p: THREE.Object3D, x: number, y: number, z: number, c = 0xfff4c8) => box(p, 0.03, 0.035, 0.06, toon(c, { emissive: c === 0xfff4c8 ? 0x605020 : 0x501010 }), x, y, z, 0.008);
+const GLASS = () => toon(0x8cc0dc, { glass: true });
+
 // ————— tracteur —————
 export function tractor(lv: Livery, phase: number) {
   const t = new THREE.Group();
-  wheel(t, 0.27, 0.17, lv.rim, -0.3, 0.27, 0.31, phase);
-  wheel(t, 0.27, 0.17, lv.rim, -0.3, 0.27, -0.31, phase);
-  wheel(t, 0.165, 0.11, lv.rim, 0.36, 0.165, 0.27, phase * 1.6);
-  wheel(t, 0.165, 0.11, lv.rim, 0.36, 0.165, -0.27, phase * 1.6);
-  box(t, 0.86, 0.1, 0.26, 0x3a3632, 0.02, 0.22, 0, 0.01); // châssis
-  box(t, 0.5, 0.24, 0.3, lv.body, 0.3, 0.38, 0, 0.05); // capot
-  box(t, 0.04, 0.17, 0.24, 0x2c2a28, 0.56, 0.37, 0, 0.01); // calandre
-  for (let k = 0; k < 4; k++) box(t, 0.01, 0.012, 0.2, 0x8a8680, 0.585, 0.31 + k * 0.035, 0, 0);
-  for (const z of [-0.1, 0.1]) box(t, 0.02, 0.04, 0.06, toon(0xfff4c8, { emissive: 0x605020 }), 0.58, 0.46, z, 0.005);
-  box(t, 0.5, 0.025, 0.31, lv.stripe, 0.3, 0.44, 0, 0.005); // filet décoratif
-  // garde-boue arrière
-  for (const z of [-0.31, 0.31]) {
-    box(t, 0.52, 0.04, 0.22, lv.body, -0.3, 0.57, z, 0.015);
-    box(t, 0.04, 0.2, 0.22, lv.body, -0.05, 0.47, z, 0.01);
+  // roues : grandes à l'arrière, directrices à l'avant
+  wheel(t, 0.28, 0.17, lv.rim, -0.3, 0.28, 0.32, phase);
+  wheel(t, 0.28, 0.17, lv.rim, -0.3, 0.28, -0.32, phase);
+  wheel(t, 0.17, 0.11, lv.rim, 0.38, 0.17, 0.27, phase * 1.6);
+  wheel(t, 0.17, 0.11, lv.rim, 0.38, 0.17, -0.27, phase * 1.6);
+  // châssis, pont avant, masses
+  box(t, 0.92, 0.1, 0.24, 0x3a3632, 0.04, 0.24, 0, 0.01);
+  box(t, 0.06, 0.06, 0.5, 0x3a3632, 0.38, 0.17, 0, 0.01);
+  for (let k = 0; k < 4; k++) box(t, 0.05, 0.13, 0.28, k % 2 ? 0x2c2a28 : 0x45413c, 0.62 + k * 0.035, 0.24, 0, 0.012);
+  box(t, 0.04, 0.04, 0.32, lv.body, 0.62, 0.32, 0, 0.01);
+  // capot profilé (s'abaisse vers l'avant), grilles d'aération et calandre
+  profile(t, [[0, 0], [0.5, 0], [0.5, 0.2], [0.44, 0.25], [0, 0.27]], 0.3, lv.body, 0.06, 0.27, 0);
+  for (const z of [0.152, -0.152]) for (let k = 0; k < 4; k++) box(t, 0.12, 0.012, 0.006, 0x2c2a28, 0.4, 0.33 + k * 0.03, z, 0);
+  box(t, 0.025, 0.17, 0.25, 0x2c2a28, 0.565, 0.37, 0, 0.008);
+  for (let k = 0; k < 5; k++) box(t, 0.008, 0.008, 0.22, 0x8a8680, 0.58, 0.31 + k * 0.03, 0, 0);
+  for (const z of [-0.1, 0.1]) lamp(t, 0.575, 0.47, z);
+  box(t, 0.5, 0.022, 0.305, lv.stripe, 0.31, 0.45, 0, 0.005);
+  box(t, 0.12, 0.05, 0.006, 0xf0ece2, 0.4, 0.4, 0.153, 0); // plaque de marque
+  box(t, 0.12, 0.05, 0.006, 0xf0ece2, 0.4, 0.4, -0.153, 0);
+  // pot d'échappement et prise d'air
+  add(t, new THREE.CylinderGeometry(0.022, 0.026, 0.42, 10), toon(0x2c2a28), 0.42, 0.66, -0.11);
+  add(t, new THREE.CylinderGeometry(0.03, 0.03, 0.03, 10), toon(0x6a6660), 0.42, 0.88, -0.11, false);
+  add(t, new THREE.CylinderGeometry(0.03, 0.03, 0.28, 10), toon(lv.body), 0.42, 0.62, 0.11);
+  // garde-boue arrière arrondis et ailes avant
+  for (const z of [-0.32, 0.32]) {
+    fender(t, 0.32, 0.2, -0.3, 0.28, z, lv.body);
+    fender(t, 0.2, 0.12, 0.38, 0.17, z * 0.84, lv.body);
+    lamp(t, -0.62, 0.42, z * 0.85, 0xe83a2a);
   }
-  // cabine
-  box(t, 0.44, 0.12, 0.44, lv.body, -0.25, 0.42, 0, 0.02);
-  for (const [x, z] of [[-0.45, -0.21], [-0.45, 0.21], [-0.05, -0.21], [-0.05, 0.21]]) box(t, 0.035, 0.36, 0.035, 0x2c2a28, x, 0.66, z, 0.008);
-  box(t, 0.4, 0.33, 0.42, toon(0x9cc8e0, { glass: true }), -0.25, 0.66, 0, 0.01);
+  // cabine : montants, vitrage, toit débordant, gyrophare, phares de travail, rétroviseurs
+  box(t, 0.46, 0.12, 0.46, lv.body, -0.25, 0.42, 0, 0.02);
+  for (const [x, z] of [[-0.47, -0.22], [-0.47, 0.22], [-0.03, -0.22], [-0.03, 0.22]]) box(t, 0.035, 0.38, 0.035, 0x2c2a28, x, 0.67, z, 0.008);
+  box(t, 0.42, 0.34, 0.42, GLASS(), -0.25, 0.67, 0, 0.01);
+  box(t, 0.012, 0.3, 0.012, 0x2c2a28, -0.2, 0.66, 0.216, 0); // montant de porte
+  box(t, 0.035, 0.012, 0.012, 0xc8c4bc, -0.15, 0.6, 0.218, 0); // poignée
   box(t, 0.12, 0.16, 0.14, 0x3a3632, -0.33, 0.58, 0, 0.02); // siège
-  box(t, 0.52, 0.05, 0.5, lv.roof, -0.25, 0.86, 0, 0.02); // toit
-  box(t, 0.04, 0.03, 0.1, toon(0xf0a020, { emissive: 0x804000 }), -0.25, 0.9, 0, 0.01); // gyrophare
-  // échappement
-  const ex = new THREE.CylinderGeometry(0.022, 0.022, 0.36, 10);
-  add(t, ex, toon(0x2c2a28), 0.44, 0.62, -0.11);
-  // attelage arrière
-  box(t, 0.12, 0.05, 0.08, 0x2c2a28, -0.5, 0.25, 0, 0.01);
+  add(t, new THREE.TorusGeometry(0.06, 0.01, 6, 14).rotateY(Math.PI / 2).rotateZ(0.6), toon(0x2c2a28), -0.1, 0.65, 0, false); // volant
+  box(t, 0.56, 0.05, 0.52, lv.roof, -0.25, 0.875, 0, 0.025);
+  box(t, 0.04, 0.035, 0.1, toon(0xf0a020, { emissive: 0x804000 }), -0.3, 0.915, 0.12, 0.01);
+  for (const z of [-0.18, 0.18]) lamp(t, 0.03, 0.86, z);
+  for (const z of [-0.28, 0.28]) {
+    box(t, 0.02, 0.02, 0.08, 0x2c2a28, -0.04, 0.78, z * 0.93, 0);
+    box(t, 0.015, 0.07, 0.05, 0x2c2a28, -0.04, 0.78, z * 1.08, 0.005);
+  }
+  // marchepied, attelage trois points, prise de force
+  for (let k = 0; k < 2; k++) box(t, 0.08, 0.012, 0.06, 0x2c2a28, -0.12, 0.2 + k * 0.1, 0.24, 0);
+  box(t, 0.12, 0.05, 0.08, 0x2c2a28, -0.52, 0.25, 0, 0.01);
+  for (const z of [-0.08, 0.08]) {
+    const arm = box(t, 0.16, 0.025, 0.025, 0x2c2a28, -0.57, 0.2, z, 0);
+    arm.rotation.z = 0.25;
+  }
+  add(t, new THREE.CylinderGeometry(0.015, 0.015, 0.06, 8).rotateZ(Math.PI / 2), toon(0xe0b020), -0.6, 0.3, 0, false);
   return t;
 }
 
@@ -136,8 +185,15 @@ export function trailer(load: Load, phase: number) {
   box(t, L, H, 0.035, side, 0, y0 + H / 2, -W / 2, 0.01);
   box(t, 0.035, H, W, side, L / 2, y0 + H / 2, 0, 0.01);
   box(t, 0.035, H, W, side, -L / 2, y0 + H / 2, 0, 0.01);
-  for (const x of [-0.25, 0, 0.25]) for (const z of [W / 2 + 0.02, -W / 2 - 0.02]) box(t, 0.02, H, 0.012, 0x7a2a22, x, y0 + H / 2, z, 0);
+  for (const x of [-0.3, -0.1, 0.1, 0.3]) for (const z of [W / 2 + 0.02, -W / 2 - 0.02]) box(t, 0.02, H, 0.012, 0x7a2a22, x, y0 + H / 2, z, 0);
+  for (const z of [W / 2 + 0.021, -W / 2 - 0.021]) box(t, L, 0.012, 0.01, 0x7a2a22, 0, y0 + H * 0.55, z, 0);
+  box(t, L + 0.04, 0.025, W + 0.06, 0x2c2a28, 0, y0 + H + 0.005, 0, 0.005); // ridelles
+  box(t, L, 0.06, 0.12, 0x2c2a28, 0, y0 - 0.06, 0, 0.01); // longeron
   for (const x of [-0.13, 0.13]) for (const z of [0.33, -0.33]) wheel(t, 0.15, 0.09, 0xd8d2c4, x, 0.15, z, phase, false);
+  for (const z of [0.33, -0.33]) {
+    box(t, 0.48, 0.02, 0.12, 0x2c2a28, 0, 0.31, z, 0.005);
+    lamp(t, -L / 2 - 0.02, y0, z * 0.8, 0xe83a2a);
+  }
   if (load === 'ble' || load === 'mais') {
     const g = new THREE.SphereGeometry(0.5, 20, 12);
     g.scale(0.85, 0.22, 0.56);
@@ -249,8 +305,14 @@ export function livestockTruck(phase: number) {
   const t = new THREE.Group();
   for (const [x, z] of [[0.62, 0.3], [0.62, -0.3], [-0.35, 0.3], [-0.35, -0.3], [-0.6, 0.3], [-0.6, -0.3]]) wheel(t, 0.14, 0.1, 0xb8b8b8, x, 0.14, z, phase, false);
   box(t, 1.7, 0.08, 0.6, 0x3a3632, -0.05, 0.27, 0, 0.01);
-  box(t, 0.38, 0.42, 0.62, 0x2a5ea8, 0.65, 0.5, 0, 0.06);
-  box(t, 0.04, 0.2, 0.54, toon(0x9cc8e0, { glass: true }), 0.84, 0.6, 0, 0.02);
+  profile(t, [[0.46, 0.3], [0.86, 0.3], [0.88, 0.5], [0.8, 0.76], [0.46, 0.78]], 0.62, 0x2a5ea8, 0, 0, 0, 0.03);
+  profile(t, [[0.82, 0.54], [0.865, 0.54], [0.8, 0.73], [0.78, 0.73]], 0.56, GLASS(), 0, 0, 0, 0.004);
+  for (const z of [0.311, -0.311]) {
+    box(t, 0.16, 0.16, 0.01, GLASS(), 0.68, 0.62, z, 0);
+    box(t, 0.02, 0.06, 0.05, 0x2c2a28, 0.8, 0.62, z * 1.12, 0.005);
+  }
+  box(t, 0.03, 0.1, 0.5, 0x8a8680, 0.88, 0.36, 0, 0.01);
+  for (const z of [-0.2, 0.2]) lamp(t, 0.885, 0.42, z);
   box(t, 1.15, 0.5, 0.64, 0xd8c8a8, -0.3, 0.58, 0, 0.03);
   for (let k = 0; k < 6; k++) for (const z of [0.325, -0.325]) box(t, 1.13, 0.03, 0.012, 0x6b4a2c, -0.3, 0.42 + k * 0.07, z, 0);
   box(t, 1.17, 0.04, 0.66, 0x8a8680, -0.3, 0.85, 0, 0.01);
@@ -268,6 +330,18 @@ export function combine(phase: number) {
   box(t, 0.9, 0.22, 0.62, light, -0.2, 1.0, 0, 0.04); // trémie à grain
   box(t, 0.5, 0.06, 0.64, body, -0.2, 1.14, 0, 0.02);
   box(t, 0.04, 0.3, 0.6, 0x2c2a28, -0.76, 0.6, 0, 0.01);
+  // grilles latérales, échelle d'accès, broyeur de paille, feux
+  for (const z of [0.302, -0.302]) {
+    for (let k = 0; k < 6; k++) box(t, 0.5, 0.012, 0.006, 0x8a2a22, -0.35, 0.48 + k * 0.045, z, 0);
+    box(t, 0.6, 0.03, 0.006, light, -0.12, 0.82, z, 0);
+    lamp(t, -0.76, 0.85, z * 0.85, 0xe83a2a);
+  }
+  for (let k = 0; k < 6; k++) box(t, 0.06, 0.012, 0.012, 0x2c2a28, 0.3, 0.3 + k * 0.1, 0.33, 0);
+  for (const z of [0.3, 0.36]) box(t, 0.012, 0.6, 0.012, 0x2c2a28, 0.3, 0.55, z, 0);
+  box(t, 0.14, 0.12, 0.5, 0x3a3632, -0.82, 0.44, 0, 0.02);
+  add(t, new THREE.CylinderGeometry(0.035, 0.035, 0.03, 10), toon(0xf0a020, { emissive: 0x804000 }), 0.48, 1.35, 0, false);
+  for (const z of [-0.18, 0.18]) lamp(t, 0.68, 1.27, z);
+  for (const z of [-0.3, 0.3]) box(t, 0.015, 0.08, 0.05, 0x2c2a28, 0.63, 1.12, z, 0.005);
   // cabine avant
   box(t, 0.34, 0.08, 0.42, body, 0.48, 0.92, 0, 0.02);
   box(t, 0.3, 0.32, 0.4, toon(0x9cc8e0, { glass: true }), 0.48, 1.12, 0, 0.02);
@@ -300,15 +374,39 @@ export function combine(phase: number) {
 export function van(phase: number) {
   const t = new THREE.Group();
   for (const [x, z] of [[0.42, 0.29], [0.42, -0.29], [-0.4, 0.29], [-0.4, -0.29]]) wheel(t, 0.12, 0.09, 0xb8b8b8, x, 0.12, z, phase, false);
-  box(t, 1.2, 0.5, 0.6, 0xf0eee8, -0.05, 0.42, 0, 0.06);
-  box(t, 0.36, 0.28, 0.58, 0xf0eee8, 0.5, 0.3, 0, 0.06); // nez
-  box(t, 0.04, 0.2, 0.52, toon(0x9cc8e0, { glass: true }), 0.4, 0.55, 0, 0.02); // pare-brise
+  // fourgon : profil avec capot court et pare-brise incliné
+  profile(t, [[-0.62, 0.12], [0.62, 0.12], [0.66, 0.3], [0.6, 0.38], [0.42, 0.44], [0.34, 0.68], [-0.62, 0.7]], 0.6, 0xf0eee8, 0, 0, 0, 0.03);
+  profile(t, [[0.36, 0.45], [0.44, 0.45], [0.36, 0.64]], 0.56, GLASS(), 0, 0, 0, 0.005);
   for (const z of [0.301, -0.301]) {
-    box(t, 0.2, 0.16, 0.01, toon(0x9cc8e0, { glass: true }), 0.3, 0.55, z, 0);
-    box(t, 0.7, 0.07, 0.012, 0x3f6a8a, -0.2, 0.42, z, 0);
-    box(t, 0.7, 0.025, 0.012, 0xd9a441, -0.2, 0.36, z, 0);
+    box(t, 0.16, 0.14, 0.01, GLASS(), 0.25, 0.56, z, 0);
+    box(t, 0.6, 0.07, 0.012, 0x3f6a8a, -0.22, 0.44, z, 0);
+    box(t, 0.6, 0.022, 0.012, 0xd9a441, -0.22, 0.38, z, 0);
+    box(t, 0.006, 0.4, 0.012, 0xc8c4bc, 0.1, 0.42, z, 0); // porte latérale
+    box(t, 0.02, 0.05, 0.06, 0x2c2a28, 0.4, 0.5, z * 1.12, 0.005); // rétroviseurs
   }
-  for (const z of [-0.2, 0.2]) box(t, 0.02, 0.04, 0.08, toon(0xfff4c8, { emissive: 0x605020 }), 0.69, 0.3, z, 0.005);
+  box(t, 0.025, 0.08, 0.4, 0x2c2a28, 0.65, 0.22, 0, 0.01); // pare-chocs
+  for (const z of [-0.2, 0.2]) {
+    lamp(t, 0.655, 0.32, z);
+    lamp(t, -0.63, 0.3, z, 0xe83a2a);
+  }
+  return t;
+}
+
+export function car(color: number, phase: number) {
+  const t = new THREE.Group();
+  for (const [x, z] of [[0.3, 0.24], [0.3, -0.24], [-0.3, 0.24], [-0.3, -0.24]]) wheel(t, 0.1, 0.07, 0xc8c8c8, x, 0.1, z, phase, false);
+  // carrosserie : capot, habitacle, coffre
+  profile(t, [[-0.48, 0.09], [0.48, 0.09], [0.5, 0.2], [0.44, 0.27], [0.18, 0.29], [-0.38, 0.3], [-0.48, 0.26]], 0.5, color, 0, 0, 0, 0.03);
+  profile(t, [[0.17, 0.29], [0.02, 0.45], [-0.26, 0.45], [-0.38, 0.3]], 0.44, color, 0, 0, 0, 0.02);
+  profile(t, [[0.15, 0.3], [0.03, 0.43], [-0.25, 0.43], [-0.35, 0.3]], 0.455, GLASS(), 0, 0, 0, 0.004);
+  for (const z of [0.229, -0.229]) box(t, 0.02, 0.15, 0.01, color, -0.06, 0.37, z, 0); // montant central
+  box(t, 0.02, 0.06, 0.48, 0x2c2a28, 0.5, 0.14, 0, 0.01);
+  box(t, 0.02, 0.06, 0.48, 0x2c2a28, -0.49, 0.14, 0, 0.01);
+  for (const z of [-0.17, 0.17]) {
+    lamp(t, 0.49, 0.22, z);
+    lamp(t, -0.48, 0.22, z, 0xe83a2a);
+  }
+  for (const z of [-0.27, 0.27]) box(t, 0.03, 0.03, 0.04, color, 0.14, 0.33, z, 0.005);
   return t;
 }
 
@@ -367,16 +465,6 @@ export function pickup(phase: number) {
   box(t, 0.8, 0.36, 0.56, 0x3a6a4a, -0.24, 0.46, 0, 0.05); // bâche
   box(t, 0.5, 0.1, 0.565, 0xf0e8d0, -0.24, 0.5, 0, 0.01); // bandeau « produits de la ferme »
   for (const z of [-0.2, 0.2]) box(t, 0.02, 0.04, 0.08, toon(0xfff4c8, { emissive: 0x605020 }), 0.64, 0.3, z, 0.005);
-  return t;
-}
-
-export function car(color: number, phase: number) {
-  const t = new THREE.Group();
-  for (const [x, z] of [[0.3, 0.24], [0.3, -0.24], [-0.3, 0.24], [-0.3, -0.24]]) wheel(t, 0.1, 0.07, 0xc8c8c8, x, 0.1, z, phase, false);
-  box(t, 0.95, 0.2, 0.5, color, 0, 0.22, 0, 0.06);
-  box(t, 0.52, 0.18, 0.46, color, -0.08, 0.4, 0, 0.06);
-  box(t, 0.54, 0.14, 0.47, toon(0x9cc8e0, { glass: true }), -0.08, 0.4, 0, 0.04);
-  for (const z of [-0.17, 0.17]) box(t, 0.015, 0.04, 0.08, toon(0xfff4c8, { emissive: 0x605020 }), 0.475, 0.25, z, 0.005);
   return t;
 }
 

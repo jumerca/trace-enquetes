@@ -403,8 +403,10 @@ export class Scene {
         const t = W.terrain[y * W.w + x];
         if (t === T.route || t === T.chemin || t === T.pont) this.smooth.add(y * W.w + x);
       }
-      let pts = tiles.map(([x, y]) => [x + 0.5, y + 0.5] as [number, number]);
-      for (let it = 0; it < 3; it++) {
+      // tracé lissé : un point sur trois (supprime l'escalier des cases), puis Chaikin
+      const step = tiles.length > 8 ? 3 : 1;
+      let pts = tiles.filter((_, i) => i % step === 0 || i === tiles.length - 1).map(([x, y]) => [x + 0.5, y + 0.5] as [number, number]);
+      for (let it = 0; it < 4; it++) {
         const out: [number, number][] = [pts[0]];
         for (let i = 0; i < pts.length - 1; i++) {
           const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
@@ -420,13 +422,20 @@ export class Scene {
         g.stroke({ width, color, alpha, cap: 'round', join: 'round' });
       };
       if (ch.road) {
-        stroke(30, 0x6f7a4a, 0.5);
-        stroke(25, winter ? 0xb9b2a0 : 0xc8bca0);
-        stroke(9, 0xd8cfb6, 0.7);
+        // route départementale goudronnée : accotements, enrobé, rives et axe pointillé
+        stroke(32, 0x5f6a40, 0.45);
+        stroke(28, winter ? 0xb8b4a8 : 0xa89a7a);
+        stroke(23, 0x55575a);
+        stroke(21, 0x606266);
+        stroke(19.5, 0xe8e6de, 0.75);
+        stroke(18, 0x5e6064);
+        this.dashes(scr, 11, 9, 1.6, 0xf0eee6);
       } else {
-        stroke(19, 0x6c8c30, 0.5);
-        stroke(15, winter ? 0xa8977c : 0xb8956a);
-        stroke(4, 0xcaa97c, 0.6);
+        // chemin de terre : deux ornières et une bande d'herbe au milieu
+        stroke(19, 0x6c8c30, 0.45);
+        stroke(15, winter ? 0xa8977c : 0xb08a5e);
+        stroke(9, winter ? 0x98876c : 0x9c7850, 0.5);
+        stroke(3.2, winter ? 0xd8dcd8 : 0x7f9a46, 0.85);
       }
       // ponts
       let run: [number, number][] = [];
@@ -455,6 +464,85 @@ export class Scene {
       }
       flush();
     }
+    this.drawParking(); // par-dessus la route : l'allée du parking n'a pas de marquage routier
+  }
+
+  /** Ligne pointillée le long d'une polyligne écran. */
+  private dashes(pts: [number, number][], on: number, off: number, width: number, color: number) {
+    const g = this.roads;
+    let acc = 0, draw = true;
+    for (let i = 0; i < pts.length - 1; i++) {
+      let [ax, ay] = pts[i];
+      const [bx, by] = pts[i + 1];
+      let L = Math.hypot(bx - ax, by - ay);
+      while (L > 0) {
+        const left = (draw ? on : off) - acc;
+        const step = Math.min(left, L);
+        const nx = ax + ((bx - ax) / L) * step, ny = ay + ((by - ay) / L) * step;
+        if (draw) g.moveTo(ax, ay).lineTo(nx, ny);
+        acc += step;
+        L -= step;
+        ax = nx;
+        ay = ny;
+        if (acc >= (draw ? on : off)) {
+          acc = 0;
+          draw = !draw;
+        }
+      }
+    }
+    g.stroke({ width, color, alpha: 0.9 });
+  }
+
+  /** Parking des visiteurs : enrobé, bordures, marquage des places, panneau « P ». */
+  private parkingSign: Sprite | null = null;
+  private drawParking() {
+    const W = this.W;
+    let lot = W.parkingLot;
+    if (!lot && W.parking.length) {
+      const xs = W.parking.map((p) => p[0]), ys = W.parking.map((p) => p[1]);
+      lot = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    }
+    if (!lot) return;
+    const g = this.roads;
+    const [x0, y0, x1, y1] = lot;
+    const P = (x: number, y: number) => this.groundPos(x, y);
+    const quad = (a: number, b: number, c: number, d: number) => [P(a, b), P(c, b), P(c, d), P(a, d)].flat();
+    g.poly(quad(x0 - 0.1, y0 - 0.1, x1 + 1.1, y1 + 1.1)).fill({ color: 0xc8c4b8 }); // bordures
+    g.poly(quad(x0, y0, x1 + 1, y1 + 1)).fill({ color: 0x5c5e62 });
+    // places : traits blancs perpendiculaires aux deux rangées
+    for (const [ya, yb] of [[y0, y0 + 1], [y1, y1 + 1]]) {
+      for (let x = x0; x <= x1 + 1; x++) {
+        const [ax, ay] = P(x, ya), [bx, by] = P(x, yb);
+        g.moveTo(ax, ay).lineTo(bx, by);
+      }
+      const [ax, ay] = P(x0, ya === y0 ? yb : ya), [bx, by] = P(x1 + 1, ya === y0 ? yb : ya);
+      g.moveTo(ax, ay).lineTo(bx, by);
+    }
+    g.stroke({ width: 1.4, color: 0xf0eee6, alpha: 0.9 });
+    if (!this.parkingSign) {
+      const c = document.createElement('canvas');
+      c.width = 40;
+      c.height = 70;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = '#6a6e72';
+      ctx.fillRect(18, 24, 4, 44);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(4, 2, 32, 28);
+      ctx.fillStyle = '#2a5ea8';
+      ctx.fillRect(6, 4, 28, 24);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('P', 20, 24);
+      const sp = new Sprite(new Texture({ source: new CanvasSource({ resource: c }) }));
+      sp.anchor.set(0.5, 0.97);
+      sp.scale.set(0.55);
+      this.objects.addChild(sp);
+      this.parkingSign = sp;
+    }
+    const [sx, sy] = P(x0 - 0.3, y0 + (y1 - y0) / 2 + 0.5);
+    this.parkingSign.position.set(sx, sy);
+    this.parkingSign.zIndex = agentDepth(x0 - 0.5, y0 + (y1 - y0) / 2, 0.05);
   }
 
   // ————— objets du décor, instanciés par chunk visible —————

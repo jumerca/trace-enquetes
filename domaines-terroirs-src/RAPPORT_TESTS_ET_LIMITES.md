@@ -1,4 +1,12 @@
-# Rapport — V0.4 (état au 23/11/2026)
+# Rapport — V0.4.1 (état au 23/11/2026)
+
+## Nouveautés V0.4.1 (faites et testées)
+
+- Routes goudronnées (accotements, rives, axe pointillé), parking goudronné à 14 places marquées et panneau « P », abords dégagés ; chemins de terre (ornières, bande d'herbe) vers une dizaine de fermes voisines et entre elles ; tracés lissés (plus d'escaliers). Capture : `docs/captures/v041-parking-routes.jpg`.
+- Modèles 3D des engins et véhicules retravaillés (tracteur, remorque, moissonneuse, voitures, fourgon, bétaillère).
+- Tests unitaires : **59/59** (8 nouveaux, un par région : parking accessible en voiture depuis l'entrée de la carte, au moins 10 places, chemins de terre présents). E2E : 46/46.
+- Limite : les parties sauvegardées avant la V0.4.1 gardent leur ancienne carte (petit parking, pas de fermes voisines) ; le nouveau dessin des routes s'y applique quand même.
+
 
 ## Nouveautés V0.4 (faites et testées)
 

@@ -479,3 +479,18 @@ describe('domaine étendu (V0.4)', () => {
     expect(sim.s.stats.harvested.foin ?? 0).toBeGreaterThan(0);
   });
 });
+
+describe('routes, parking et chemins (V0.4.1)', () => {
+  it.each(REGIONS.map((r) => r.id))('%s : parking goudronné desservi par la route, chemins de terre vers les fermes voisines', (id) => {
+    const sim = new Sim(newGame(6, id));
+    const W = sim.s.world;
+    expect(W.parkingLot).toBeDefined();
+    expect(W.parking.length).toBeGreaterThanOrEqual(10);
+    // chaque place est accessible en voiture depuis l'entrée de la carte
+    for (const p of W.parking.slice(0, 3)) expect(findPath(256, 256, ...W.entry, ...p, sim.cost('vehicle'))).not.toBeNull();
+    expect(W.roads.filter((r) => !r.road).length).toBeGreaterThan(5);
+    let dirt = 0;
+    for (let i = 0; i < W.terrain.length; i++) if (W.terrain[i] === T.chemin) dirt++;
+    expect(dirt).toBeGreaterThan(150);
+  });
+});

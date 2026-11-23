@@ -41,6 +41,7 @@ export interface World {
   farm: [number, number];
   entry: [number, number]; // arrivée de la route principale au bord de la carte
   parking: [number, number][]; // places de stationnement des visiteurs
+  parkingLot?: [number, number, number, number]; // emprise du parking goudronné (x0, y0, x1, y1)
   roads: Road[];
 }
 
@@ -336,6 +337,63 @@ export function generateWorld(seed: number, regionId = 'limousin', size = MAP_SI
     for (let y = vy - 2; y <= vy + 2; y++) for (let x = vx - 2; x <= vx + 2; x++) if (inside(world, x, y) && tAt(x, y) === T.herbe && !world.decor[y * w + x] && hash2(x, y, seed) < 0.25) set(x, y, T.cour);
   }
 
+  // ——— fermes voisines, reliées par des chemins de terre ———
+  const roadTiles: [number, number][] = [];
+  for (const r of world.roads) if (r.road) for (const t of rasterLine(r.pts)) if (inside(world, t[0], t[1]) && tAt(t[0], t[1]) === T.route) roadTiles.push(t);
+  const farmsteads: [number, number][] = [];
+  for (let k = 0; k < 80 && farmsteads.length < 11; k++) {
+    const x = rng.int(14, w - 14), y = rng.int(14, h - 14);
+    if (Math.hypot(x - cx, y - cy) < 30 || isOwned(world, x, y)) continue;
+    if (farmsteads.some(([a, b]) => Math.hypot(a - x, b - y) < 32) || villages.some(([a, b]) => Math.hypot(a - x, b - y) < 22)) continue;
+    let ok = true;
+    for (let dy = -3; dy <= 3 && ok; dy++) for (let dx = -3; dx <= 3 && ok; dx++) {
+      const t = tAt(x + dx, y + dy);
+      if (isWater(t) || isPathLike(t) || t === T.roche || slopeOf(world, x + dx, y + dy) > 14) ok = false;
+    }
+    if (!ok) continue;
+    farmsteads.push([x, y]);
+    // cour en terre battue, corps de ferme, grange et meules
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 3; dx++) {
+      set(x + dx, y + dy, T.cour);
+      world.decor[(y + dy) * w + x + dx] = D.none;
+    }
+    for (const [dx, dy] of [[-3, -3], [1, -3], [-3, 1]] as [number, number][]) {
+      if (isWater(tAt(x + dx, y + dy))) continue;
+      set(x + dx, y + dy, T.herbe);
+      world.decor[(y + dy) * w + x + dx] = D.maison;
+    }
+    world.decor[(y + 1) * w + x + 2] = D.meule;
+    world.decor[(y + 2) * w + x + 3] = D.meule;
+  }
+  // chemin de terre de chaque ferme vers la route la plus proche
+  const firstTrack = world.roads.length;
+  for (const [fx, fy] of farmsteads) {
+    let best: [number, number] | null = null, bd = 1e9;
+    for (const t of roadTiles) {
+      const d = Math.hypot(t[0] - fx, t[1] - fy);
+      if (d < bd) (bd = d), (best = t);
+    }
+    if (best && bd < 90) world.roads.push({ pts: wander([fx + 3, fy], best, Math.max(4, Math.round(bd / 7)), Math.min(10, bd / 4)), road: false });
+  }
+  // chemins d'exploitation de propriété en propriété (domaine ↔ voisins, voisins entre eux)
+  const near = (p: [number, number], list: [number, number][]) => list.filter((q) => q !== p).sort((a, b) => Math.hypot(a[0] - p[0], a[1] - p[1]) - Math.hypot(b[0] - p[0], b[1] - p[1]));
+  const linked = new Set<string>();
+  for (const f of farmsteads) {
+    const q = near(f, farmsteads)[0];
+    if (!q || Math.hypot(q[0] - f[0], q[1] - f[1]) > 75) continue;
+    const key = [f, q].map((p) => p.join(',')).sort().join('|');
+    if (linked.has(key)) continue;
+    linked.add(key);
+    world.roads.push({ pts: wander([f[0] - 2, f[1] + 2], [q[0] - 2, q[1] + 2], 8, 14), road: false });
+  }
+  for (const q of near([cx, cy], farmsteads).slice(0, 2)) world.roads.push({ pts: wander([cx - 6, cy + 18], [q[0], q[1] + 2], 9, 16), road: false });
+  for (const r of world.roads.slice(firstTrack)) {
+    const tiles = rasterLine(r.pts);
+    const k = tiles.findIndex(([x, y]) => inside(world, x, y) && tAt(x, y) === T.mer);
+    if (k >= 0) r.pts = r.pts.slice(0, 2);
+    lay(r.pts, T.chemin);
+  }
+
   // ——— champs des fermes voisines (hors domaine) ———
   const crops = region.champsVoisins.map((c) => NEIGHBOR_CROPS.indexOf(c)).filter((i) => i >= 0);
   for (let k = 0; k < 220; k++) {
@@ -429,15 +487,19 @@ export function generateWorld(seed: number, regionId = 'limousin', size = MAP_SI
   world.decor[(cy - 4) * w + cx + 4] = D.foin;
   world.decor[(cy + 1) * w + cx + 7] = D.charrette;
   for (const [dx, dy] of [[-5, -6], [-5, -5], [-5, -4], [-1, -7], [0, -7]] as [number, number][]) world.decor[(cy + dy) * w + cx + dx] = D.lavande;
-  // parking le long de la route principale, à l'entrée du domaine
+  // parking goudronné le long de la route principale, à l'entrée du domaine (deux rangées de places)
   const pk = main.map(([x, y]) => [x, y] as [number, number]).find(([x, y]) => Math.hypot(x - cx, y - cy) < 24 && Math.hypot(x - cx, y - cy) > 15) ?? [cx + 16, cy + 3];
+  world.parkingLot = [pk[0] - 3, pk[1] - 2, pk[0] + 3, pk[1] + 2];
   for (let y = pk[1] - 2; y <= pk[1] + 2; y++)
-    for (let x = pk[0] - 2; x <= pk[0] + 2; x++)
+    for (let x = pk[0] - 3; x <= pk[0] + 3; x++)
       if (inside(world, x, y) && !isWater(tAt(x, y)) && tAt(x, y) !== T.route) {
         set(x, y, T.cour);
         world.decor[y * w + x] = D.none;
       }
-  for (let y = pk[1] - 2; y <= pk[1] + 2; y += 2) for (let x = pk[0] - 2; x <= pk[0] + 2; x += 2) if (inside(world, x, y) && tAt(x, y) === T.cour) world.parking.push([x, y]);
+  // abords dégagés (pas d'arbre qui mange les places)
+  for (let y = pk[1] - 4; y <= pk[1] + 3; y++) for (let x = pk[0] - 5; x <= pk[0] + 4; x++) if (inside(world, x, y) && DECOR_IS_TREE(world.decor[y * w + x])) world.decor[y * w + x] = D.none;
+  for (const y of [pk[1] - 2, pk[1] + 2]) for (let x = pk[0] - 3; x <= pk[0] + 3; x++) if (inside(world, x, y) && tAt(x, y) === T.cour) world.parking.push([x, y]);
+  flattenRect(world, pk[0] - 3, pk[1] - 2, pk[0] + 3, pk[1] + 2);
   // terrain plat sous la cour
   flattenRect(world, cx + C.x0 - 1, cy - 8, cx + C.x1 + 6, cy + 9);
   return world;
