@@ -232,8 +232,8 @@ const findWater = (page) =>
       const rp = await ctx.newPage();
       rp.on('pageerror', (e) => errors.push(region + ': ' + e.message));
       await startGame(rp, region);
-      const info = await rp.evaluate(() => ({ region: window.__dt.sim.s.region, b: window.__dt.sim.s.buildings.length, veh: window.__dt.scene.vehicleAtlas.map.size, vivants: window.__dt.scene.livingAtlas.map.size }));
-      ok(`région « ${region} » : partie lancée (engins et personnages 3D chargés)`, info.region === region && info.b >= 5 && info.veh > 400 && info.vivants > 900, JSON.stringify(info));
+      const info = await rp.evaluate(() => ({ region: window.__dt.sim.s.region, b: window.__dt.sim.s.buildings.length, veh: window.__dt.scene.vehicleAtlas.map.size, vivants: window.__dt.scene.livingAtlas.map.size, batiments: window.__dt.scene.buildingAtlas.map.size, nature: window.__dt.scene.natureAtlas.map.size }));
+      ok(`région « ${region} » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)`, info.region === region && info.b >= 5 && info.veh > 400 && info.vivants > 1500 && info.batiments > 150 && info.nature > 400, JSON.stringify(info));
       if (region === 'montagne' || region === 'mer' || region === 'beauce') {
         await rp.evaluate('window.__dt.scene.zoomBy(0.5)');
         await rp.waitForTimeout(800);

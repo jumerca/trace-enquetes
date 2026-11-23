@@ -1,6 +1,12 @@
-# Domaines & Terroirs — JLG Creative (V0.3)
+# Domaines & Terroirs — JLG Creative (V0.5)
 
 Jeu de gestion d'un domaine rural français en 2,5D isométrique. PWA installable, jouable au toucher et à la souris, entièrement en français.
+
+**V0.5** : paysages continus — le sol n'est plus un damier de cases : prairies, sous-bois, garrigue et pâtures se fondent avec des lisières irrégulières et des variations naturelles ; cours d'eau, étangs et mer aux rives arrondies, avec reflets animés, écume et berges humides ; arbres et vergers modélisés en 3D pour les quatre saisons (floraison, fruits mûrs, couleurs d'automne, branches nues, neige sur les sapins), 13 essences du paysage et 11 vergers (dont cerisiers, abricotiers, poiriers, châtaigniers, truffiers, vignes palissées) ; lisières de forêt naturelles.
+
+**V0.4.1** : routes départementales goudronnées (rives et axe pointillé) pour les visiteurs, vrai parking goudronné à places marquées avec panneau « P », chemins de terre à ornières qui relient le domaine aux fermes voisines (une dizaine de fermes sur la carte) et les fermes entre elles ; tracés lissés. Engins et véhicules 3D plus détaillés : tracteur (capot profilé, garde-boue arrondis, masses avant, phares, rétroviseurs, attelage), remorque, moissonneuse (échelle, grilles, broyeur, gyrophare), voitures, fourgon et bétaillère à vraies silhouettes.
+
+**V0.4** : bâtiments modélisés en 3D dans le style de chaque région (colombages, briques, pierre, lauzes, ardoise, tuiles), neige sur les toits en hiver ; on voit les gens **entrer et sortir** des bâtiments (ouvriers à la grange, aux ateliers, à la maison ; touristes à la boutique, à l'accueil, à l'auberge, au gîte) ; personnages retravaillés (visages, mains, coiffures, tenues) et nouveaux profils (saisonnier, guide, enfants, randonneurs) ; chevaux, ânes, oies, lapins, vaches limousines ; ombres de nuages, brume du matin, feuilles d'automne, éclairs. Contenu : 10 nouvelles cultures (dont prairie de fauche, serre de tomates), 5 vergers, 6 élevages (centre équestre, ânes, oies, lapins, pisciculture, vaches allaitantes), 6 ateliers, gîte, camping, ferme-auberge, ferme pédagogique, navette touristique du week-end, utilitaire de marché, quad, chargeur télescopique, silo, chambre froide, irrigation, panneaux solaires ; faneuse et arracheuse.
 
 **V0.3** : nouveaux engins (épandeur, pulvérisateur, vendangeuse, bétaillère, tracteurs de trois couleurs), personnages et animaux 3D, routes et ponts, économie équilibrée dans les 8 régions, reprise des sauvegardes V0.1, niveau de détail et qualité adaptative, compteur de performances.
 

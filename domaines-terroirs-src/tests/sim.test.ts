@@ -407,3 +407,90 @@ describe('contenu', () => {
     for (const r of REGIONS) for (const id of regionBuildings(r)) expect(BUILDINGS[id], `${r.id} → ${id}`).toBeDefined();
   });
 });
+
+describe('domaine étendu (V0.4)', () => {
+  const rich = (id = 'limousin', seed = 5) => {
+    const sim = new Sim(newGame(seed, id));
+    sim.s.money = 1e6;
+    sim.s.reputation = 80;
+    return sim;
+  };
+
+  it('les produits servis à l\'auberge existent', async () => {
+    const { MEAL_FOODS } = await import('../src/sim/sim');
+    expect(MEAL_FOODS.filter((r) => RESOURCES[r]).length).toBeGreaterThan(15);
+  });
+
+  it('le silo n\'accepte que les grains', () => {
+    const sim = rich('beauce');
+    const silo = place(sim, 'silo')!;
+    expect(silo).toBeTruthy();
+    expect(sim.canStore(silo, 'ble')).toBe(true);
+    expect(sim.canStore(silo, 'lait')).toBe(false);
+    const grange = sim.s.buildings.find((b) => b.type === 'grange')!;
+    expect(sim.canStore(grange, 'lait')).toBe(true);
+  });
+
+  it('les gens entrent dans les bâtiments (invisibles dedans) et en ressortent', () => {
+    const sim = rich();
+    let inside = 0, out = 0;
+    const seen = new Set<number>();
+    for (let i = 0; i < 1440; i++) {
+      sim.tick();
+      for (const w of sim.s.workers) {
+        if (w.hidden && w.vehicle == null && w.inside != null) {
+          inside++;
+          seen.add(w.id);
+        } else if (seen.has(w.id) && !w.hidden) out++;
+      }
+    }
+    expect(inside).toBeGreaterThan(50);
+    expect(out).toBeGreaterThan(50);
+  });
+
+  it('gîte, auberge, navette, centre équestre et ferme pédagogique rapportent', () => {
+    const sim = rich('limousin', 9);
+    for (const t of ['accueil', 'gite', 'auberge', 'garage_bus', 'pedagogique', 'elevage_chevaux']) expect(place(sim, t), t).toBeTruthy();
+    sim.hire('guide');
+    // un peu de stock pour la cuisine
+    const g = sim.s.buildings.find((b) => b.type === 'grange')!;
+    for (const r of ['tomme', 'legumes', 'viande', 'oeufs', 'pain']) if (RESOURCES[r]) g.inv[r] = 60;
+    run(sim, 8 * 1440);
+    const lines = sim.s.ledger.flatMap((d) => d.lines.map((l) => l.label));
+    for (const l of ['Nuitées — Gîte rural', 'Repas à la ferme-auberge', 'Balade à cheval', 'Ateliers de la ferme pédagogique']) expect(lines, l).toContain(l);
+    expect(sim.s.stats.visitors).toBeGreaterThan(40);
+  });
+
+  it('l\'utilitaire vend au marché tous les 3 jours', () => {
+    const sim = rich('est', 3);
+    expect(place(sim, 'garage_utilitaire')).toBeTruthy();
+    const g = sim.s.buildings.find((b) => b.type === 'grange')!;
+    g.inv.confiture = 50;
+    run(sim, 4 * 1440);
+    expect(sim.s.ledger.flatMap((d) => d.lines).some((l) => l.label.startsWith('Marché'))).toBe(true);
+  });
+
+  it('la prairie donne du foin récolté au tracteur', () => {
+    const sim = rich('limousin', 2);
+    expect(place(sim, 'hangar')).toBeTruthy();
+    const p = place(sim, 'champ_prairie')!;
+    expect(p).toBeTruthy();
+    run(sim, 20 * 1440);
+    expect(sim.s.stats.harvested.foin ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe('routes, parking et chemins (V0.4.1)', () => {
+  it.each(REGIONS.map((r) => r.id))('%s : parking goudronné desservi par la route, chemins de terre vers les fermes voisines', (id) => {
+    const sim = new Sim(newGame(6, id));
+    const W = sim.s.world;
+    expect(W.parkingLot).toBeDefined();
+    expect(W.parking.length).toBeGreaterThanOrEqual(10);
+    // chaque place est accessible en voiture depuis l'entrée de la carte
+    for (const p of W.parking.slice(0, 3)) expect(findPath(256, 256, ...W.entry, ...p, sim.cost('vehicle'))).not.toBeNull();
+    expect(W.roads.filter((r) => !r.road).length).toBeGreaterThan(5);
+    let dirt = 0;
+    for (let i = 0; i < W.terrain.length; i++) if (W.terrain[i] === T.chemin) dirt++;
+    expect(dirt).toBeGreaterThan(150);
+  });
+});

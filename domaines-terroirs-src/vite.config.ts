@@ -26,7 +26,9 @@ function pwa(): Plugin {
     closeBundle() {
       const files = walk(outDir)
         .map((p) => relative(outDir, p).split('\\').join('/'))
-        .filter((f) => f !== 'sw.js' && f !== 'version.json' && !f.endsWith('.map') && f !== 'vercel.json');
+        .filter((f) => f !== 'sw.js' && f !== 'version.json' && !f.endsWith('.map') && f !== 'vercel.json')
+        // planches de bâtiments : seule celle de la région jouée est téléchargée (puis mise en cache)
+        .filter((f) => !/sprites\/batiments-/.test(f));
       const sw = readFileSync('src/sw.tpl.js', 'utf8')
         .replace('__BUILD__', `${pkg.version}-${BUILD}`)
         .replace('__ASSETS__', JSON.stringify(['./', ...files.filter((f) => f !== 'index.html'), 'index.html']));

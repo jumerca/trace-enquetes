@@ -229,7 +229,10 @@ export function statusLine(sim: Sim, b: Building): string {
     }
     case 'enclos': {
       const l = LIVESTOCK[d.livestock!];
-      return `${sim.s.animals.filter((a) => a.pen === b.id).length} ${l.animal === 'ruche' ? 'ruches' : 'animaux'} · ${b.ready.toFixed(1)} ${RESOURCES[l.produit].unite} de ${RESOURCES[l.produit].nom.toLowerCase()} à collecter${b.priority ? ' · prioritaire' : ''}`;
+      const n = sim.s.animals.filter((a) => a.pen === b.id).length;
+      if (!l.produit) return `${n} animaux · ${l.visite ? `${l.visite.nom} : ${l.visite.prix} € par visiteur` : 'agrément du domaine'}`;
+      const head = l.abri === 'etang' ? 'Étang empoissonné' : `${n} ${l.animal === 'ruche' ? 'ruches' : 'animaux'}`;
+      return `${head} · ${b.ready.toFixed(1)} ${RESOURCES[l.produit].unite} de ${RESOURCES[l.produit].nom.toLowerCase()} à collecter${l.visite ? ` · ${l.visite.nom} ${l.visite.prix} €` : ''}${b.priority ? ' · prioritaire' : ''}`;
     }
     case 'champ': {
       const c = CROPS[d.crop!];

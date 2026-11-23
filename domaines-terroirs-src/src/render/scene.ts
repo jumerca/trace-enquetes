@@ -1,7 +1,7 @@
 // Scène isométrique PixiJS : sol en maillages par chunk (relief, ombrage, neige), objets instanciés
 // seulement autour de la caméra, tri en profondeur, interpolation des déplacements, ambiance.
 // Ne modifie jamais la simulation.
-import { Application, Container, Geometry, Graphics, Mesh, Shader, Sprite, Texture, CanvasSource, UniformGroup, Buffer, BufferUsage } from 'pixi.js';
+import { Application, Container, Geometry, Graphics, Mesh, Shader, Sprite, Texture, CanvasSource, UniformGroup, Buffer, BufferUsage, BufferImageSource } from 'pixi.js';
 import { BUILDINGS, CROPS, DAYS_PER_SEASON, LIVESTOCK, LOT_SIZE, ORCHARDS } from '../data/content';
 import { REGION_BY_ID } from '../data/regions';
 import { hash2 } from '../core/rng';
@@ -14,6 +14,9 @@ import { RES, TH, TW, setPaintRes, setPaintStyle, type Season } from './paint';
 import { agentDepth, buildingDepth, tileDepth } from './depth';
 
 const CHUNK = 16;
+const SERRE_CROPS = new Set(['tomates']);
+/** cultures sans tuile dédiée : aspect le plus proche */
+const CROP_ALIAS: Record<string, string> = { lin: 'lavande', houblon: 'vigne', fraises: 'legumes', melons: 'legumes' };
 const isoX = (x: number, y: number) => (x - y) * (TW / 2);
 const isoY = (x: number, y: number) => (x + y) * (TH / 2);
 
@@ -44,6 +47,7 @@ interface Chunk {
   uv: Buffer;
   shade: Buffer;
   height: Buffer;
+  world: Buffer;
   objs: Sprite[] | null; // sprites instanciés (null = non visible)
   objLevel: number; // niveau de détail utilisé à l'instanciation
   uvDirty: boolean; // UV à recalculer (changement de saison) quand le chunk redevient visible
@@ -78,9 +82,12 @@ in vec2 aPosition;
 in vec2 aUV;
 in float aShade;
 in float aHeight;
+in vec2 aWorld;
 out vec2 vUV;
 out float vShade;
+out float vBlend;
 out float vSnow;
+out vec2 vWorld;
 uniform mat3 uProjectionMatrix;
 uniform mat3 uWorldTransformMatrix;
 uniform mat3 uTransformMatrix;
@@ -89,20 +96,74 @@ void main() {
   mat3 mvp = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
   gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
   vUV = aUV;
-  vShade = aShade;
+  vShade = abs(aShade);
+  vBlend = aShade > 0.0 ? 1.0 : 0.0;
+  vWorld = aWorld;
   vSnow = clamp((aHeight - uSnowAlt) / 70.0, 0.0, 1.0);
 }`;
+// Sol continu : la couleur moyenne de chaque case (carte 256×256 filtrée) est fondue avec celle des voisines
+// le long de bords ondulés (bruit) ; l'eau est tracée par une isoligne lissée : rives arrondies, reflets, écume.
 const FRAG = `
 in vec2 vUV;
 in float vShade;
+in float vBlend;
 in float vSnow;
+in vec2 vWorld;
 uniform sampler2D uTexture;
+uniform sampler2D uMap;
+uniform sampler2D uBlur;
+uniform sampler2D uWater;
+uniform float uTime;
+uniform float uMapSize;
 out vec4 finalColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 void main() {
   vec4 c = texture(uTexture, vUV);
-  vec3 lit = c.rgb * vShade;
-  vec3 snow = vec3(0.93, 0.95, 0.98) * c.a * min(vShade * 1.05, 1.1);
-  finalColor = vec4(mix(lit, snow, vSnow * 0.9), c.a);
+  vec2 warp = vec2(noise(vWorld * 1.7), noise(vWorld * 1.7 + 31.0)) - 0.5;
+  warp += (vec2(noise(vWorld * 4.3 + 7.0), noise(vWorld * 4.3 + 53.0)) - 0.5) * 0.4;
+  vec4 flatC = texture(uMap, (floor(vWorld) + 0.5) / uMapSize);
+  flatC.a = texture(uWater, (floor(vWorld) + 0.5) / uMapSize).r;
+  vec4 sm = texture(uBlur, (vWorld + warp * 2.2) / uMapSize);
+  float nearW = texture(uWater, (vWorld + warp * 0.5) / uMapSize).r;
+  float wideW = texture(uWater, (vWorld + warp * 0.6) / uMapSize).g;
+  // terre : détail de la tuile, teinte fondue avec les voisines (plus de damier)
+  float grain = noise(vWorld * 9.0) * 0.08 - 0.04;
+  // tuile sans pré-multiplication (les bords transparents de l'atlas ne dessinent plus de quadrillage)
+  vec3 tc = c.a > 0.04 ? c.rgb / c.a : flatC.rgb;
+  vec3 land = tc + (sm.rgb - flatC.rgb) * vBlend;
+  if (flatC.a > 0.5) land = sm.rgb * (0.9 + grain * 2.0);
+  // variations naturelles à grande échelle (prairies plus ou moins grasses, zones sèches)
+  float big = noise(vWorld * 0.09) * 0.6 + noise(vWorld * 0.23 + 11.0) * 0.4;
+  land *= mix(1.0, 0.9 + 0.2 * big, vBlend);
+  land = mix(land, land * vec3(1.06, 1.02, 0.86), vBlend * smoothstep(0.62, 0.85, noise(vWorld * 0.05 + 3.0)) * 0.6);
+  // eau : isoligne du masque lissé
+  // masque : mélange du masque net et du masque flouté (rivières étroites conservées, rives arrondies)
+  float w = mix(nearW, texture(uWater, (vWorld + warp * 0.5) / uMapSize).g * 1.25, 0.6);
+  float water = smoothstep(0.36, 0.48, w);
+  float deep = smoothstep(0.6, 1.0, wideW);
+  vec3 shallow = vec3(0.36, 0.62, 0.64), deepC = vec3(0.15, 0.36, 0.52);
+  vec3 wc = mix(shallow, deepC, deep);
+  float t = uTime;
+  float rip = sin(vWorld.x * 3.1 + vWorld.y * 1.7 + t * 1.6) * sin(vWorld.y * 2.3 - vWorld.x * 0.9 + t * 1.1);
+  wc += vec3(0.05, 0.07, 0.07) * rip;
+  wc += vec3(0.6, 0.65, 0.6) * pow(max(0.0, noise(vWorld * 7.0 + vec2(t * 0.6, t * 0.3)) - 0.68), 2.0) * 2.2;
+  float foam = smoothstep(0.4, 0.44, w) * (1.0 - smoothstep(0.44, 0.52, w));
+  wc = mix(wc, vec3(0.86, 0.92, 0.9), foam * 0.45);
+  // berges humides et sable fin au bord de l'eau
+  float isW = step(0.5, flatC.a);
+  float bank = smoothstep(0.2, 0.4, w) * (1.0 - water);
+  land = mix(land, land * vec3(0.7, 0.74, 0.6), bank * 0.6);
+  vec3 col = mix(land, wc, water);
+  // près de l'eau, les sommets abaissés au niveau de l'eau ne doivent pas noircir les berges
+  float sh = mix(vShade, clamp(vShade, 0.72, 1.0), max(isW, smoothstep(0.08, 0.3, w)));
+  vec3 lit = col * mix(sh, 0.95, water * 0.7);
+  vec3 snow = vec3(0.93, 0.95, 0.98) * min(vShade * 1.05, 1.1);
+  finalColor = vec4(mix(lit, snow, vSnow * 0.9 * (1.0 - water)), 1.0);
 }`;
 
 export class Scene {
@@ -115,14 +176,31 @@ export class Scene {
   fx = new Container();
   night = new Graphics();
   rain = new Graphics();
+  /** ombres de nuages (monde) et brume (écran) */
+  clouds = new Container();
+  fog = new Container();
+  private cloudSprites: Sprite[] = [];
+  private fogSprites: Sprite[] = [];
+  private flash = 0;
   groundAtlas = new Atlas();
   objectAtlas = new Atlas();
   staticAtlas = new Atlas();
   vehicleAtlas = new Atlas();
   livingAtlas = new Atlas();
+  buildingAtlas = new Atlas(); // bâtiments 3D pré-cuits dans le style de la région
+  natureAtlas = new Atlas(); // arbres et vergers 3D, quatre saisons
   season: Season = 1;
   private shader!: Shader;
-  private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' } });
+  private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' }, uTime: { value: 0, type: 'f32' }, uMapSize: { value: 256, type: 'f32' } });
+  /** carte des couleurs moyennes du sol (rgb) et masque de l'eau (a), une texel par case */
+  private mapData!: Uint8Array;
+  private mapSrc!: BufferImageSource;
+  private blurData!: Uint8Array;
+  private blurSrc!: BufferImageSource;
+  private blurAt = 0;
+  private waterData!: Uint8Array;
+  private waterSrc!: BufferImageSource;
+  private mapDirty = false;
   private chunks: Chunk[] = [];
   private per = 0;
   private pool: Sprite[] = [];
@@ -177,31 +255,52 @@ export class Scene {
       this.mark('rendu', t0);
       return r;
     }) as typeof render;
-    this.world.addChild(this.ground, this.roads, this.marks, this.objects);
+    this.world.addChild(this.ground, this.roads, this.marks, this.objects, this.clouds);
     this.objects.sortableChildren = true;
-    this.fx.addChild(this.rain, this.night);
+    this.fx.addChild(this.fog, this.rain, this.night);
     this.season = seasonOf(this.sim.s.minute);
-    buildStaticAtlas(this.staticAtlas);
-    buildObjectAtlas(this.objectAtlas, this.season);
+    await this.buildingAtlas.load('./sprites', `batiments-${this.sim.s.region}`).catch(() => undefined);
+    await this.natureAtlas.load('./sprites', 'nature').catch(() => undefined);
+    buildStaticAtlas(this.staticAtlas, (k) => this.buildingAtlas.map.has(k));
+    buildObjectAtlas(this.objectAtlas, this.season, this.natureAtlas.map.size > 0);
     this.objectAtlas.pack();
+    this.groundAtlas.measure = true;
     buildGroundAtlas(this.groundAtlas, this.season);
     this.groundAtlas.pack(1);
     await this.vehicleAtlas.load('./sprites').catch(() => undefined);
     await this.livingAtlas.load('./sprites', 'vivants').catch(() => undefined);
     this.smokeTex = softTexture();
-    this.shader = Shader.from({ gl: { vertex: VERT, fragment: FRAG, name: 'sol-domaine' }, resources: { uTexture: this.groundAtlas.pages[0], solUniforms: this.uniforms } });
+    const MW = this.sim.s.world.w;
+    this.mapData = new Uint8Array(MW * MW * 4);
+    this.mapSrc = new BufferImageSource({ resource: this.mapData, width: MW, height: MW, scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' });
+    this.uniforms.uniforms.uMapSize = MW;
+    this.blurData = new Uint8Array(MW * MW * 4);
+    this.blurSrc = new BufferImageSource({ resource: this.blurData, width: MW, height: MW, scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' });
+    this.waterData = new Uint8Array(MW * MW * 4).fill(255);
+    this.waterSrc = new BufferImageSource({ resource: this.waterData, width: MW, height: MW, scaleMode: 'linear', addressMode: 'clamp-to-edge' });
+    this.shader = Shader.from({ gl: { vertex: VERT, fragment: FRAG, name: 'sol-domaine' }, resources: { uTexture: this.groundAtlas.pages[0], uMap: this.mapSrc, uBlur: this.blurSrc, uWater: this.waterSrc, solUniforms: this.uniforms } });
     this.buildChunks();
     this.buildRoads();
     this.syncWorld();
+    this.updateCrops(); // parcelles déjà dessinées au chargement
+    // carte du sol floutée une fois au chargement (pas pendant le jeu)
+    this.dirtyBox = null;
+    this.blurMap();
+    this.mapSrc.update();
+    this.mapDirty = false;
     // envoi de toutes les planches au GPU dès le chargement (pas d'à-coup au premier affichage)
-    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas]) this.upload(a.pages);
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas, this.buildingAtlas, this.natureAtlas]) this.upload(a.pages);
     const [fx, fy] = this.sim.s.world.farm;
     this.centerOn(fx + 2, fy, window.innerWidth < 700 ? 0.8 : 1);
     this.bindInput();
   }
 
   tex(key: string): Tex {
-    return this.groundAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
+    if (key.startsWith('tree:') || key.startsWith('fruit:')) {
+      const t = this.natureAtlas.map.get(`${key}:s${this.season}`);
+      if (t) return t;
+    }
+    return this.groundAtlas.map.get(key) ?? this.buildingAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
   }
 
   private setTex(sp: Sprite, key: string) {
@@ -232,13 +331,14 @@ export class Scene {
         const uv = new Buffer({ data: new Float32Array(n * 8), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
         const shade = new Buffer({ data: new Float32Array(n * 4), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
         const height = new Buffer({ data: new Float32Array(n * 4), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+        const world = new Buffer({ data: new Float32Array(n * 8), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
         const geometry = new Geometry({
-          attributes: { aPosition: { buffer: pos, format: 'float32x2' }, aUV: { buffer: uv, format: 'float32x2' }, aShade: { buffer: shade, format: 'float32' }, aHeight: { buffer: height, format: 'float32' } },
+          attributes: { aPosition: { buffer: pos, format: 'float32x2' }, aUV: { buffer: uv, format: 'float32x2' }, aShade: { buffer: shade, format: 'float32' }, aHeight: { buffer: height, format: 'float32' }, aWorld: { buffer: world, format: 'float32x2' } },
           indexBuffer: idx,
         });
         const mesh = new Mesh({ geometry, shader: this.shader });
         this.ground.addChild(mesh);
-        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, objLevel: 0, uvDirty: false, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        const ch: Chunk = { mesh, pos, uv, shade, height, world, objs: null, objLevel: 0, uvDirty: false, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
         this.chunks.push(ch);
         this.fillChunk(ch, true);
       }
@@ -247,7 +347,7 @@ export class Scene {
   /** Recalcule les sommets d'un chunk (forme, UV de chaque case, ombrage). */
   private fillChunk(ch: Chunk, geometryToo: boolean) {
     const W = this.W;
-    const P = ch.pos.data as Float32Array, U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array, Hh = ch.height.data as Float32Array;
+    const P = ch.pos.data as Float32Array, U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array, Hh = ch.height.data as Float32Array, Wd = ch.world.data as Float32Array;
     const atlas = this.groundAtlas;
     const pageW = 66, pageH = 34; // cadre d'une tuile (unités monde, marge comprise)
     const corners: [number, number, number, number][] = [
@@ -264,6 +364,7 @@ export class Scene {
         const key = inMap ? this.tileKey(tx, ty) : 't:herbe:0';
         const [u0, v0, uw, vh0] = atlas.uv.get(key) ?? atlas.uv.get('t:herbe:0')!;
         const owned = inMap && isOwned(W, tx, ty);
+        const blend = inMap ? this.writeMap(tx, ty, key) : false;
         for (let k = 0; k < 4; k++) {
           const [dx, dy, px, py] = corners[k];
           const gx = tx + dx, gy = ty + dy;
@@ -277,6 +378,8 @@ export class Scene {
             minY = Math.min(minY, sy);
             maxY = Math.max(maxY, sy);
             Hh[i * 4 + k] = h;
+            Wd[(i * 4 + k) * 2] = gx;
+            Wd[(i * 4 + k) * 2 + 1] = gy;
           }
           U[(i * 4 + k) * 2] = u0 + (px / pageW) * uw;
           U[(i * 4 + k) * 2 + 1] = v0 + (py / pageH) * vh0;
@@ -284,7 +387,7 @@ export class Scene {
           const dhx = vh(W, gx + 1, gy) - vh(W, gx - 1, gy), dhy = vh(W, gx, gy + 1) - vh(W, gx, gy - 1);
           let sh = 1 + (dhx * 0.75 + dhy * 0.35) * 0.0095;
           sh = Math.max(0.55, Math.min(1.3, sh));
-          S[i * 4 + k] = owned || !inMap ? sh : sh * 0.86;
+          S[i * 4 + k] = (owned || !inMap ? sh : sh * 0.92) * (blend ? 1 : -1);
         }
       }
     if (geometryToo) {
@@ -294,9 +397,99 @@ export class Scene {
       ch.maxY = maxY + TH;
       ch.pos.update();
       ch.height.update();
+      ch.world.update();
     }
     ch.uv.update();
     ch.shade.update();
+  }
+
+  /** Couleur moyenne d'une tuile du sol (mesurée pendant la préparation de l'atlas). */
+  private avgOf(key: string): [number, number, number] {
+    return this.groundAtlas.avg.get(key) ?? [128, 160, 70];
+  }
+
+  /** Écrit la case dans la carte du sol ; retourne vrai si sa teinte se fond avec les voisines. */
+  private writeMap(x: number, y: number, key: string): boolean {
+    const W = this.W;
+    const t = W.terrain[y * W.w + x];
+    const water = t === T.eau || t === T.mer || t === T.pont;
+    const blend = key.startsWith('t:herbe') || key.startsWith('t:pre') || key.startsWith('t:bois') || key.startsWith('t:garrigue') || key.startsWith('t:sable') || key.startsWith('t:roche') || key.startsWith('c:pre') || water;
+    const o = (y * W.w + x) * 4;
+    // les cases non fondues (champs, cours, chemins) prêtent à leurs voisines une teinte d'herbe
+    const [r, g, b] = blend && !water ? this.avgOf(key) : this.avgOf(`t:${t === T.mer ? 'sable' : 'herbe'}:${(x + y) & 1}`);
+    this.mapData[o] = r;
+    this.mapData[o + 1] = g;
+    this.mapData[o + 2] = b;
+    this.mapData[o + 3] = 255; // opaque : la transparence serait pré-multipliée par le pilote
+    this.waterData[o] = water ? 255 : 0;
+    const d = this.dirtyBox;
+    this.dirtyBox = d ? [Math.min(d[0], x), Math.min(d[1], y), Math.max(d[2], x), Math.max(d[3], y)] : [x, y, x, y];
+    this.mapDirty = true;
+    return blend;
+  }
+
+  /** Flou séparable (rayon 2) de la carte du sol, limité à la zone modifiée : transitions douces sur plusieurs cases. */
+  private dirtyBox: [number, number, number, number] | null = null;
+  private blurMap() {
+    const n = this.W.w;
+    const box = this.dirtyBox ?? [0, 0, n - 1, n - 1];
+    this.dirtyBox = null;
+    const cl = (v: number) => Math.min(n - 1, Math.max(0, v));
+    const x0 = cl(box[0] - 2), y0 = cl(box[1] - 2), x1 = cl(box[2] + 2), y1 = cl(box[3] + 2);
+    const W = x1 - x0 + 1;
+    const src = this.mapData, out = this.blurData, wd = this.waterData;
+    const K = [1, 4, 6, 4, 1];
+    // passe horizontale sur la bande élargie (y ± 2), puis verticale sur la zone
+    const ya = cl(y0 - 2), yb = cl(y1 + 2), HH = yb - ya + 1;
+    const tmp = new Float32Array(W * HH * 4);
+    for (let y = ya; y <= yb; y++)
+      for (let x = x0; x <= x1; x++) {
+        const o = ((y - ya) * W + (x - x0)) * 4;
+        for (let k = -2; k <= 2; k++) {
+          const q = (y * n + cl(x + k)) * 4, wk = K[k + 2];
+          tmp[o] += src[q] * wk;
+          tmp[o + 1] += src[q + 1] * wk;
+          tmp[o + 2] += src[q + 2] * wk;
+          tmp[o + 3] += wd[q] * wk; // masque d'eau
+        }
+      }
+    for (let y = y0; y <= y1; y++)
+      for (let x = x0; x <= x1; x++) {
+        let r = 0, g = 0, b = 0, w = 0;
+        for (let k = -2; k <= 2; k++) {
+          const yy = cl(y + k);
+          const q = ((yy - ya) * W + (x - x0)) * 4, wk = K[k + 2];
+          r += tmp[q] * wk;
+          g += tmp[q + 1] * wk;
+          b += tmp[q + 2] * wk;
+          w += tmp[q + 3] * wk;
+        }
+        const o = (y * n + x) * 4;
+        out[o] = r / 256;
+        out[o + 1] = g / 256;
+        out[o + 2] = b / 256;
+        out[o + 3] = 255;
+        wd[o + 1] = w / 256;
+      }
+    this.blurSrc.update();
+    this.waterSrc.update();
+  }
+
+  /** Met à jour l'UV, le fondu et la carte du sol d'une seule case. */
+  private refillTile(tx: number, ty: number): Chunk {
+    const ch = this.chunkOf(tx, ty);
+    const U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array;
+    const i = (ty - ch.y0) * CHUNK + (tx - ch.x0);
+    const key = this.tileKey(tx, ty);
+    const [u0, v0, uw, vh0] = this.groundAtlas.uv.get(key) ?? this.groundAtlas.uv.get('t:herbe:0')!;
+    const blend = this.writeMap(tx, ty, key);
+    const px = [33, 65, 33, 1], py = [1, 17, 33, 17];
+    for (let k = 0; k < 4; k++) {
+      U[(i * 4 + k) * 2] = u0 + (px[k] / 66) * uw;
+      U[(i * 4 + k) * 2 + 1] = v0 + (py[k] / 34) * vh0;
+      S[i * 4 + k] = Math.abs(S[i * 4 + k]) * (blend ? 1 : -1);
+    }
+    return ch;
   }
 
   private chunkOf(tx: number, ty: number) {
@@ -314,7 +507,7 @@ export class Scene {
       const d = defOf(b);
       if (d.kind === 'verger') return d.orchard === 'vigne' ? `c:vigne:2:${v & 1}` : `t:verger:${v & 1}`;
       if (d.kind === 'enclos') return d.livestock === 'ruches' ? `t:verger:${v & 1}` : `t:enclos:${v & 1}`;
-      if (d.kind === 'champ') return `c:${CROPS[d.crop!].look}:${fieldStage(b, x, y)}:${v & 1}`;
+      if (d.kind === 'champ') return `c:${CROP_ALIAS[CROPS[d.crop!].look] ?? CROPS[d.crop!].look}:${fieldStage(b, x, y)}:${v & 1}`;
       return `t:cour:${v}`;
     }
     const at = (dx: number, dy: number) => {
@@ -380,22 +573,31 @@ export class Scene {
     this.smooth.clear();
     const winter = this.season === 3;
     for (const ch of W.roads) {
-      let tiles = rasterLine(ch.pts).filter(([x, y]) => x >= 0 && y >= 0 && x < W.w && y < W.h);
+      const all = rasterLine(ch.pts).filter(([x, y]) => x >= 0 && y >= 0 && x < W.w && y < W.h);
       const isCour = (t: [number, number]) => W.terrain[t[1] * W.w + t[0]] === T.cour;
-      const first = tiles.findIndex(isCour);
-      if (first > 0) tiles = tiles.slice(0, first + 1);
-      else if (first === 0) {
-        let k = 0;
-        while (k < tiles.length - 1 && isCour(tiles[k + 1])) k++;
-        tiles = tiles.slice(k);
+      // tronçons entre les cours traversées (chacun raccordé à la cour par une case)
+      const runs: [number, number][][] = [];
+      let cur: [number, number][] = [];
+      for (const t of all) {
+        if (isCour(t)) {
+          if (cur.length && !isCour(cur[cur.length - 1])) {
+            cur.push(t);
+            runs.push(cur);
+          }
+          cur = [t];
+        } else cur.push(t);
       }
+      if (cur.length > 1 || (cur.length && !isCour(cur[0]))) runs.push(cur);
+      for (const tiles of runs) {
       if (tiles.length < 2) continue;
       for (const [x, y] of tiles) {
         const t = W.terrain[y * W.w + x];
         if (t === T.route || t === T.chemin || t === T.pont) this.smooth.add(y * W.w + x);
       }
-      let pts = tiles.map(([x, y]) => [x + 0.5, y + 0.5] as [number, number]);
-      for (let it = 0; it < 3; it++) {
+      // tracé lissé : un point sur trois (supprime l'escalier des cases), puis Chaikin
+      const step = tiles.length > 8 ? 3 : 1;
+      let pts = tiles.filter((_, i) => i % step === 0 || i === tiles.length - 1).map(([x, y]) => [x + 0.5, y + 0.5] as [number, number]);
+      for (let it = 0; it < 4; it++) {
         const out: [number, number][] = [pts[0]];
         for (let i = 0; i < pts.length - 1; i++) {
           const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
@@ -411,13 +613,20 @@ export class Scene {
         g.stroke({ width, color, alpha, cap: 'round', join: 'round' });
       };
       if (ch.road) {
-        stroke(30, 0x6f7a4a, 0.5);
-        stroke(25, winter ? 0xb9b2a0 : 0xc8bca0);
-        stroke(9, 0xd8cfb6, 0.7);
+        // route départementale goudronnée : accotements, enrobé, rives et axe pointillé
+        stroke(32, 0x5f6a40, 0.45);
+        stroke(28, winter ? 0xb8b4a8 : 0xa89a7a);
+        stroke(23, 0x55575a);
+        stroke(21, 0x606266);
+        stroke(19.5, 0xe8e6de, 0.75);
+        stroke(18, 0x5e6064);
+        this.dashes(scr, 11, 9, 1.6, 0xf0eee6);
       } else {
-        stroke(19, 0x6c8c30, 0.5);
-        stroke(15, winter ? 0xa8977c : 0xb8956a);
-        stroke(4, 0xcaa97c, 0.6);
+        // chemin de terre : deux ornières et une bande d'herbe au milieu
+        stroke(19, 0x6c8c30, 0.45);
+        stroke(15, winter ? 0xa8977c : 0xb08a5e);
+        stroke(9, winter ? 0x98876c : 0x9c7850, 0.5);
+        stroke(3.2, winter ? 0xd8dcd8 : 0x7f9a46, 0.85);
       }
       // ponts
       let run: [number, number][] = [];
@@ -445,7 +654,87 @@ export class Scene {
         else flush();
       }
       flush();
+      }
     }
+    this.drawParking(); // par-dessus la route : l'allée du parking n'a pas de marquage routier
+  }
+
+  /** Ligne pointillée le long d'une polyligne écran. */
+  private dashes(pts: [number, number][], on: number, off: number, width: number, color: number) {
+    const g = this.roads;
+    let acc = 0, draw = true;
+    for (let i = 0; i < pts.length - 1; i++) {
+      let [ax, ay] = pts[i];
+      const [bx, by] = pts[i + 1];
+      let L = Math.hypot(bx - ax, by - ay);
+      while (L > 0) {
+        const left = (draw ? on : off) - acc;
+        const step = Math.min(left, L);
+        const nx = ax + ((bx - ax) / L) * step, ny = ay + ((by - ay) / L) * step;
+        if (draw) g.moveTo(ax, ay).lineTo(nx, ny);
+        acc += step;
+        L -= step;
+        ax = nx;
+        ay = ny;
+        if (acc >= (draw ? on : off)) {
+          acc = 0;
+          draw = !draw;
+        }
+      }
+    }
+    g.stroke({ width, color, alpha: 0.9 });
+  }
+
+  /** Parking des visiteurs : enrobé, bordures, marquage des places, panneau « P ». */
+  private parkingSign: Sprite | null = null;
+  private drawParking() {
+    const W = this.W;
+    let lot = W.parkingLot;
+    if (!lot && W.parking.length) {
+      const xs = W.parking.map((p) => p[0]), ys = W.parking.map((p) => p[1]);
+      lot = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    }
+    if (!lot) return;
+    const g = this.roads;
+    const [x0, y0, x1, y1] = lot;
+    const P = (x: number, y: number) => this.groundPos(x, y);
+    const quad = (a: number, b: number, c: number, d: number) => [P(a, b), P(c, b), P(c, d), P(a, d)].flat();
+    g.poly(quad(x0 - 0.1, y0 - 0.1, x1 + 1.1, y1 + 1.1)).fill({ color: 0xc8c4b8 }); // bordures
+    g.poly(quad(x0, y0, x1 + 1, y1 + 1)).fill({ color: 0x5c5e62 });
+    // places : traits blancs perpendiculaires aux deux rangées
+    for (const [ya, yb] of [[y0, y0 + 1], [y1, y1 + 1]]) {
+      for (let x = x0; x <= x1 + 1; x++) {
+        const [ax, ay] = P(x, ya), [bx, by] = P(x, yb);
+        g.moveTo(ax, ay).lineTo(bx, by);
+      }
+      const [ax, ay] = P(x0, ya === y0 ? yb : ya), [bx, by] = P(x1 + 1, ya === y0 ? yb : ya);
+      g.moveTo(ax, ay).lineTo(bx, by);
+    }
+    g.stroke({ width: 1.4, color: 0xf0eee6, alpha: 0.9 });
+    if (!this.parkingSign) {
+      const c = document.createElement('canvas');
+      c.width = 40;
+      c.height = 70;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = '#6a6e72';
+      ctx.fillRect(18, 24, 4, 44);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(4, 2, 32, 28);
+      ctx.fillStyle = '#2a5ea8';
+      ctx.fillRect(6, 4, 28, 24);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('P', 20, 24);
+      const sp = new Sprite(new Texture({ source: new CanvasSource({ resource: c }) }));
+      sp.anchor.set(0.5, 0.97);
+      sp.scale.set(0.55);
+      this.objects.addChild(sp);
+      this.parkingSign = sp;
+    }
+    const [sx, sy] = P(x0 - 0.3, y0 + (y1 - y0) / 2 + 0.5);
+    this.parkingSign.position.set(sx, sy);
+    this.parkingSign.zIndex = agentDepth(x0 - 0.5, y0 + (y1 - y0) / 2, 0.05);
   }
 
   // ————— objets du décor, instanciés par chunk visible —————
@@ -572,7 +861,7 @@ export class Scene {
     }
     for (const [id, objs] of this.bObjs)
       if (!seen.has(id)) {
-        for (const o of objs) o.sp.destroy();
+        for (const o of objs) o.sp.destroy({ children: true });
         this.bObjs.delete(id);
         this.fieldSig.delete(id);
         this.orchardSig.delete(id);
@@ -589,6 +878,22 @@ export class Scene {
     this.viewDirty = true;
   }
 
+  /** Calque de neige sur les toits (planches 3D), affiché en hiver selon l'altitude. */
+  private roofSnow: { sp: Sprite; h: number }[] = [];
+  private snowAlt = 99999;
+  private withSnow(o: Obj, key: string, b: Building): Obj {
+    const t = this.buildingAtlas.map.get(key + ':neige');
+    if (!t) return o;
+    const sn = new Sprite(t.tex);
+    sn.anchor.set(t.ax, t.ay);
+    const h = heightAt(this.W, b.x + 0.5, b.y + 0.5);
+    sn.visible = h >= this.snowAlt;
+    o.sp.addChild(sn);
+    this.roofSnow = this.roofSnow.filter((r) => !r.sp.destroyed);
+    this.roofSnow.push({ sp: sn, h });
+    return o;
+  }
+
   private buildingObjs(b: Building): Obj[] {
     const def = defOf(b);
     const s = def.size;
@@ -597,12 +902,14 @@ export class Scene {
       const look = ORCHARDS[def.orchard!].look;
       for (const [x, y] of footprint(b)) out.push(this.makeObj(`fruit:${look}:0:${(x + y) & 1}`, x + 0.5, y + 0.5, tileDepth(x, y), look !== 'vigne' && (x * 7 + y) % 3 === 0));
     } else if (def.kind === 'champ') {
-      // sol uniquement
+      // sol, et tunnel maraîcher pour les cultures sous serre
+      if (def.crop && SERRE_CROPS.has(def.crop) && this.buildingAtlas.map.has('b:serre')) out.push(this.withSnow(this.makeObj('b:serre', b.x, b.y, buildingDepth(b.x, b.y, s), false, true), 'b:serre', b));
     } else if (def.kind === 'enclos') {
       const abri = LIVESTOCK[def.livestock!].abri;
-      if (abri !== 'rucher') out.push(this.makeObj(`b:${abri}`, b.x, b.y, abri === 'etable' || abri === 'bergerie' ? buildingDepth(b.x, b.y, 2) : tileDepth(b.x, b.y), false, true));
-    } else if (b.rot === 1 && MIRROR_PAINTED.has(b.type)) out.push(this.makeObj(`b:${b.type}:m`, b.x, b.y, buildingDepth(b.x, b.y, s), false, true));
-    else out.push(this.makeObj(`b:${b.type}`, b.x, b.y, buildingDepth(b.x, b.y, s), b.rot === 1, true));
+      const big = abri === 'etable' || abri === 'bergerie' || abri === 'ecurie';
+      if (abri !== 'rucher') out.push(this.withSnow(this.makeObj(`b:${abri}`, b.x, b.y, abri === 'etang' ? tileDepth(b.x, b.y) - 0.5 : big ? buildingDepth(b.x, b.y, 2) : tileDepth(b.x, b.y), false, true), `b:${abri}`, b));
+    } else if (b.rot === 1 && (this.buildingAtlas.map.has(`b:${b.type}:m`) || MIRROR_PAINTED.has(b.type))) out.push(this.withSnow(this.makeObj(`b:${b.type}:m`, b.x, b.y, buildingDepth(b.x, b.y, s), false, true), `b:${b.type}:m`, b));
+    else out.push(this.withSnow(this.makeObj(`b:${b.type}`, b.x, b.y, buildingDepth(b.x, b.y, s), b.rot === 1, true), `b:${b.type}`, b));
     if (def.kind === 'enclos' || (def.kind === 'verger' && ORCHARDS[def.orchard!].look !== 'vigne')) {
       const gate = this.sim.gateOf(b);
       for (const [x, y] of footprint(b)) {
@@ -631,8 +938,9 @@ export class Scene {
     const next = ((this.season + 1) % 4) as Season;
     if (this.nextSeason?.season === next) return;
     const g = new Atlas(), o = new Atlas();
+    g.measure = true;
     buildGroundAtlas(g, next);
-    buildObjectAtlas(o, next);
+    buildObjectAtlas(o, next, this.natureAtlas.map.size > 0);
     this.nextSeason = { season: next, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
   }
 
@@ -658,8 +966,9 @@ export class Scene {
     let n = this.nextSeason;
     if (!n || n.season !== s) {
       const g = new Atlas(), o = new Atlas();
+      g.measure = true;
       buildGroundAtlas(g, s);
-      buildObjectAtlas(o, s);
+      buildObjectAtlas(o, s, this.natureAtlas.map.size > 0);
       n = { season: s, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
     }
     this.nextSeason = null;
@@ -707,6 +1016,13 @@ export class Scene {
     }
     t = this.mark('saison', t);
     this.updateSnow();
+    this.uniforms.uniforms.uTime = (this.time / 1000) % 1000;
+    if (this.mapDirty && this.time - this.blurAt > 250) {
+      this.mapDirty = false;
+      this.blurAt = this.time;
+      this.mapSrc.update();
+      this.blurMap();
+    }
     this.updateCrops();
     t = this.mark('cultures', t);
     this.updateAgents(alpha);
@@ -732,6 +1048,10 @@ export class Scene {
     if (this.season === 3) alt = s.weather === 'neige' ? -100 : region.relief.montagne > 0 ? 300 : 99999;
     else if (this.season === 0 && region.relief.montagne > 0.3) alt = 460;
     this.uniforms.uniforms.uSnowAlt = alt;
+    // les toits blanchissent un peu plus bas que le sol (neige tenue sur les pentes froides)
+    this.snowAlt = alt <= -100 ? -1e9 : alt - 40;
+    this.roofSnow = this.roofSnow.filter((r) => !r.sp.destroyed);
+    for (const r of this.roofSnow) r.sp.visible = r.h >= this.snowAlt;
   }
 
   private updateCrops() {
@@ -741,9 +1061,13 @@ export class Scene {
         const sig = `${b.phase}:${fieldStage(b, -1, -1)}:${b.done.length}`;
         if (this.fieldSig.get(b.id) !== sig) {
           this.fieldSig.set(b.id, sig);
+          // seules les cases de la parcelle changent : mise à jour ciblée (pas tout le chunk)
           const seen = new Set<Chunk>();
-          for (const [x, y] of footprint(b)) seen.add(this.chunkOf(x, y));
-          for (const ch of seen) this.fillChunk(ch, false);
+          for (const [x, y] of footprint(b)) seen.add(this.refillTile(x, y));
+          for (const ch of seen) {
+            ch.uv.update();
+            ch.shade.update();
+          }
         }
       } else if (d.kind === 'verger') {
         const o = ORCHARDS[d.orchard!];
@@ -770,6 +1094,7 @@ export class Scene {
         this.objects.addChild(sp);
       }
       sp.visible = true;
+      sp.alpha = 1;
       a = { sp, key: '', depth: 0, x0: 0, y0: 0, x1: 0, y1: 0 };
       this.agents.set(id, a);
     }
@@ -782,6 +1107,7 @@ export class Scene {
 
   private vehicleKey(v: Vehicle, d: number, f: number): string {
     if (v.kind === 'moissonneuse' || v.kind === 'vendangeuse' || v.kind === 'camionnette' || v.kind === 'betaillere') return `${v.kind}:${d}:${f}`;
+    if (v.kind === 'bus' || v.kind === 'utilitaire') return this.vehicleAtlas.map.has(`${v.kind}:${d}:${f}`) ? `${v.kind}:${d}:${f}` : `camionnette:${d}:${f}`;
     if (v.kind === 'voiture') return `voiture:${v.look % 3}:${d}:${f}`;
     const livery = LIVERIES[v.look % 3];
     let tool = v.tool;
@@ -790,12 +1116,45 @@ export class Scene {
       tool = !r ? 'remorque-vide' : ['pommes', 'prunes', 'mirabelles', 'raisin', 'olives', 'betterave', 'pommes_de_terre', 'legumes'].includes(r) ? 'remorque-pommes' : 'remorque-ble';
     }
     if (livery !== 'rouge' && (tool === 'remorque-pommes' || tool === 'remorque-foin')) tool = 'remorque-ble';
-    if (!['seul', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
+    if (!['seul', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'faneuse', 'arracheuse', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
     return `tracteur:${livery}:${tool}:${d}:${f}`;
+  }
+
+  /**
+   * Passage d'une porte : en entrant, la personne marche jusqu'au seuil et s'efface dans le bâtiment ;
+   * en sortant, elle apparaît sur le seuil et rejoint sa position. null = invisible (à l'intérieur).
+   */
+  private presence = new Map<string, { hidden: boolean; t: number; b?: number; x: number; y: number }>();
+  private doorway(id: string, hidden: boolean, inside: number | undefined, x: number, y: number) {
+    let st = this.presence.get(id);
+    if (!st) this.presence.set(id, (st = { hidden, t: -1e9, b: inside, x, y }));
+    if (hidden !== st.hidden) {
+      st.hidden = hidden;
+      st.t = this.time;
+      if (inside != null) st.b = inside;
+    }
+    if (!hidden) {
+      st.x = x;
+      st.y = y;
+    }
+    const DUR = 650;
+    const k = (this.time - st.t) / DUR;
+    const b = st.b != null ? this.sim.s.buildings.find((q) => q.id === st!.b) : undefined;
+    if (k >= 1 || !b || defOf(b).kind === 'enclos') return hidden ? null : { x, y, dx: 0, dy: 0, alpha: 1, moving: false };
+    // seuil : sur la façade, au droit de la porte (un peu à l'intérieur)
+    const [dx, dy] = doorOf(b);
+    const ex = b.rot === 1 ? dx - 0.75 : dx, ey = b.rot === 1 ? dy : dy - 0.75;
+    const [fx, fy, tx, ty] = hidden ? [st.x, st.y, ex, ey] : [ex, ey, x, y];
+    const e = Math.min(1, Math.max(0, k));
+    return { x: fx + (tx - fx) * e, y: fy + (ty - fy) * e, dx: tx - fx, dy: ty - fy, alpha: hidden ? 1 - e * e : Math.min(1, e * 1.6), moving: true };
   }
 
   private updateAgents(alpha: number) {
     const s = this.sim.s;
+    if (this.presence.size > 400) {
+      const live = new Set([...s.workers.map((w) => 'w' + w.id), ...s.visitors.map((v) => 'v' + v.id)]);
+      for (const k of this.presence.keys()) if (!live.has(k)) this.presence.delete(k);
+    }
     const seen = new Set<string>();
     const walkFrame = (id: number) => [1, 0, 2, 0][Math.floor((this.time / 150 + id) % 4)];
     const put = (o: Obj, x: number, y: number, depthBias = 0.02) => {
@@ -827,13 +1186,15 @@ export class Scene {
     };
     for (const w of s.workers) {
       const id = 'w' + w.id;
-      if (w.hidden) continue;
+      const door = this.doorway(id, w.hidden && w.vehicle == null, w.inside, lerp(w.px, w.x), lerp(w.py, w.y));
+      if (!door) continue;
       seen.add(id);
-      const moving = w.x !== w.px || w.y !== w.py;
+      const moving = door.moving || w.x !== w.px || w.y !== w.py;
       const working = !moving && w.timer > 0 && ['pick', 'process', 'field', 'take', 'put'].includes(w.steps[0]?.k ?? '');
       const fr = moving ? walkFrame(w.id) : working ? 3 + (Math.floor(this.time / 300) % 2) : 0;
-      const { o, front, heading } = personSprite(id, w.role, w.dir, w.x - w.px, w.y - w.py, fr);
-      put(o, lerp(w.px, w.x), lerp(w.py, w.y));
+      const { o, front, heading } = personSprite(id, w.role, w.dir, door.dx, door.dy, fr);
+      put(o, door.x, door.y);
+      o.sp.alpha = door.alpha;
       if (w.carry) {
         if (!o.carry) {
           o.carry = (o.sp.children[0] as Sprite | undefined) ?? new Sprite();
@@ -851,11 +1212,14 @@ export class Scene {
     }
     for (const v of s.visitors) {
       const id = 'v' + v.id;
-      seen.add(id);
-      const moving = v.x !== v.px || v.y !== v.py;
-      const { o } = personSprite(id, `v${v.look}`, v.dir, v.x - v.px, v.y - v.py, moving ? walkFrame(v.id) : 0);
       const j = (hash2(v.id, 3, 1) - 0.5) * 0.5;
-      put(o, lerp(v.px, v.x) + j, lerp(v.py, v.y) - j);
+      const door = this.doorway(id, v.hidden, v.inside, lerp(v.px, v.x) + j, lerp(v.py, v.y) - j);
+      if (!door) continue;
+      seen.add(id);
+      const moving = door.moving || v.x !== v.px || v.y !== v.py;
+      const { o } = personSprite(id, `v${v.look}`, v.dir, door.dx, door.dy, moving ? walkFrame(v.id) : 0);
+      put(o, door.x, door.y);
+      o.sp.alpha = door.alpha;
     }
     for (const v of s.vehicles) {
       const id = 'veh' + v.id;
@@ -875,7 +1239,7 @@ export class Scene {
       const id = 'a' + a.id;
       seen.add(id);
       const moving = a.x !== a.px || a.y !== a.py;
-      if (has3d && a.kind !== 'ruche') {
+      if (has3d && a.kind !== 'ruche' && this.livingAtlas.map.has(`aa:${a.kind}:0:0:0`)) {
         const h = headingOf(id, a.x - a.px, a.y - a.py, a.dir);
         // à l'arrêt, les herbivores broutent la moitié du temps
         const graze = !moving && hash2(a.id, Math.floor(this.time / 2600), 7) < 0.55;
@@ -888,7 +1252,8 @@ export class Scene {
       }
       const fr = a.kind === 'ruche' ? Math.floor(this.time / 400 + a.id) % 2 : moving ? Math.floor(this.time / 220 + a.id) % 2 : 0;
       const [f, sx] = face(a.dir);
-      const o = this.agentSprite(id, a.kind === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${a.kind}:${a.look}:${a.kind === 'ruche' ? 0 : f}:${fr}`);
+      const k2 = ({ limousine: 'vache', cheval: 'vache', ane: 'chevre', oie: 'canard', lapin: 'poule' } as Record<string, string>)[a.kind] ?? a.kind;
+      const o = this.agentSprite(id, k2 === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${k2}:${a.look}:${k2 === 'ruche' ? 0 : f}:${fr}`);
       o.sp.scale.x = a.kind === 'ruche' ? 1 : a.kind === 'poule' ? (a.dir === 1 || a.dir === 2 ? -1 : 1) : sx;
       put(o, lerp(a.px, a.x) - 0.5, lerp(a.py, a.y) - 0.5, 0.01);
     }
@@ -1010,7 +1375,27 @@ export class Scene {
       this.night.rect(0, 0, w, h);
       this.night.fill({ color: a > 0.02 ? col : 0x30384a, alpha: Math.min(0.62, a + weatherDim) });
     }
+    this.updateSky(hour);
     this.rain.clear();
+    if (s.weather === 'orage') {
+      // éclairs : flash blanc bref et irrégulier
+      if (this.flash <= 0 && hash2(Math.floor(this.time / 700), 9, 1) < 0.035) this.flash = 1;
+      if (this.flash > 0) {
+        this.night.rect(0, 0, w, h).fill({ color: 0xffffff, alpha: 0.35 * this.flash });
+        this.flash -= dtMs / 180;
+      }
+    }
+    if (this.season === 2 && (s.weather === 'soleil' || s.weather === 'nuageux')) {
+      // feuilles mortes emportées par le vent
+      const t = this.time / 1000;
+      for (let i = 0; i < 46; i++) {
+        const sp = 30 + hash2(i, 5, 2) * 40;
+        const sx = (hash2(i, 1, 2) * w * 1.2 + t * sp) % (w + 40) - 20;
+        const sy = (hash2(i, 2, 2) * h + t * (18 + hash2(i, 3, 2) * 22) + Math.sin(t * 2 + i) * 10) % h;
+        const c = [0xd8862a, 0xb8502a, 0xe8b03a, 0x9a6a2a][i % 4];
+        this.rain.ellipse(sx, sy, 3.2, 1.6 + Math.abs(Math.sin(t * 3 + i)) * 1.4).fill({ color: c, alpha: 0.85 });
+      }
+    }
     if (s.weather === 'pluie' || s.weather === 'orage' || s.weather === 'neige') {
       const n = s.weather === 'orage' ? 220 : 140;
       const t = this.time / 1000;
@@ -1054,6 +1439,48 @@ export class Scene {
       p.sp.destroy();
       return false;
     });
+  }
+
+  /** Ombres de nuages qui glissent sur le relief ; brume du petit matin dans les creux. */
+  private updateSky(hour: number) {
+    const s = this.sim.s;
+    if (!this.cloudSprites.length) {
+      for (let i = 0; i < 9; i++) {
+        const sp = new Sprite(this.smokeTex);
+        sp.anchor.set(0.5);
+        sp.tint = 0x1a2230;
+        this.clouds.addChild(sp);
+        this.cloudSprites.push(sp);
+      }
+      for (let i = 0; i < 7; i++) {
+        const sp = new Sprite(this.smokeTex);
+        sp.anchor.set(0.5);
+        this.fog.addChild(sp);
+        this.fogSprites.push(sp);
+      }
+    }
+    const cover = { soleil: 0.35, nuageux: 1, pluie: 0.6, orage: 0.5, neige: 0.3 }[s.weather];
+    const z = this.cam.z, { width, height } = this.app.screen;
+    // les nuages suivent la caméra (repère monde) en dérivant avec le vent
+    const span = Math.max(width, height) / z * 1.6;
+    const t = this.time / 1000;
+    this.cloudSprites.forEach((sp, i) => {
+      // position fixe dans le monde (dérive du vent), repliée autour de la caméra
+      const wrap = (base: number, c: number) => c - span / 2 + ((((base - (c - span / 2)) % span) + span) % span);
+      sp.position.set(wrap(hash2(i, 7, 1) * span + t * 14, this.cam.x), wrap(hash2(i, 8, 1) * span + t * 5, this.cam.y));
+      sp.scale.set(9 + hash2(i, 9, 1) * 8, 5 + hash2(i, 10, 1) * 4);
+      sp.alpha = 0.13 * cover * (i < Math.round(9 * cover) ? 1 : 0);
+    });
+    // brume : de l'aube à 9 h, plus dense en automne et en hiver
+    const fogK = hour >= 5 && hour < 9.5 ? Math.min(1, (hour - 5) / 1.2) * Math.min(1, (9.5 - hour) / 1.8) : 0;
+    const dense = fogK * ([0.45, 0.2, 0.8, 0.7][this.season] + (s.weather === 'pluie' || s.weather === 'nuageux' ? 0.25 : 0));
+    this.fog.visible = dense > 0.02;
+    if (this.fog.visible)
+      this.fogSprites.forEach((sp, i) => {
+        sp.position.set(((hash2(i, 11, 1) * width * 1.4 + t * 8) % (width * 1.4)) - width * 0.2, height * (0.25 + hash2(i, 12, 1) * 0.7));
+        sp.scale.set(width / 64 * 0.7, height / 64 * 0.22);
+        sp.alpha = 0.42 * dense;
+      });
   }
 
   // ————— caméra —————

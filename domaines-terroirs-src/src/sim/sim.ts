@@ -13,7 +13,10 @@ import {
   SAVE_VERSION, type Agent, type Animal, type Building, type FieldOp, type GameState, type LedgerDay, type Order, type Step, type Vehicle, type VehicleKind, type Visitor, type Worker,
 } from './state';
 
-export const SPEED = { worker: 0.35, visitor: 0.3, tracteur: 0.55, moissonneuse: 0.4, vendangeuse: 0.35, camionnette: 2, betaillere: 1.6, voiture: 2.2, animal: 0.05 };
+export const SPEED = { worker: 0.35, visitor: 0.3, tracteur: 0.55, moissonneuse: 0.4, vendangeuse: 0.35, camionnette: 2, betaillere: 1.6, voiture: 2.2, bus: 1.6, utilitaire: 2, animal: 0.05 };
+/** Produits servis à la ferme-auberge (3 par repas). */
+export const MEAL_FOODS = ['pain', 'galettes', 'tomme', 'fromage_chevre', 'beurre', 'legumes', 'tomates', 'pommes_de_terre', 'viande', 'charcuterie', 'confit', 'foie_gras', 'truite_fumee', 'oeufs', 'vin', 'cidre', 'biere', 'jus', 'fraises', 'melons', 'cerises', 'confiture', 'miel', 'asperges'];
+const HERBIVORES = new Set(['vache', 'limousine', 'chevre', 'brebis', 'cheval', 'ane', 'lapin']);
 export const LIVERIES = ['rouge', 'vert', 'bleu'];
 const REGION_LIVERY: Record<string, number> = { limousin: 0, nord: 2, beauce: 1, est: 0, sudouest: 1, montagne: 0, mer: 2, provence: 1 };
 const START_SEASON = 1; // la partie commence en été
@@ -217,6 +220,20 @@ export class Sim {
   storages() {
     return this.s.buildings.filter((b) => defOf(b).kind === 'stock');
   }
+  /** Le silo n'accepte que les grains ; la grange et la chambre froide acceptent tout. */
+  canStore(b: Building, res: Res) {
+    const a = defOf(b).accepte;
+    return !a || a.includes(res);
+  }
+  storagesFor(res: Res) {
+    return this.storages().filter((b) => this.canStore(b, res));
+  }
+  spaceFor(res: Res) {
+    return this.storagesFor(res).reduce((a, b) => a + this.space(b), 0);
+  }
+  has(type: string) {
+    return this.s.buildings.some((b) => b.type === type);
+  }
   used(b: Building) {
     let n = 0;
     for (const v of Object.values(b.inv)) n += v ?? 0;
@@ -276,7 +293,7 @@ export class Sim {
     v.dir = 1;
     // livrée des tracteurs : couleur dominante de la région, puis alternance
     if (kind === 'tracteur') v.look = (REGION_LIVERY[this.s.region] ?? 0) + this.s.vehicles.filter((x) => x.kind === 'tracteur').length;
-    v.label = kind === 'tracteur' ? 'Tracteur' : kind === 'moissonneuse' ? 'Moissonneuse-batteuse' : kind === 'vendangeuse' ? 'Machine à vendanger' : kind === 'betaillere' ? 'Bétaillère' : kind === 'voiture' ? 'Voiture de visiteurs' : 'Camionnette';
+    v.label = { tracteur: 'Tracteur', moissonneuse: 'Moissonneuse-batteuse', vendangeuse: 'Machine à vendanger', betaillere: 'Bétaillère', voiture: 'Voiture de visiteurs', camionnette: 'Camionnette', bus: 'Car de tourisme', utilitaire: 'Utilitaire du marché' }[kind];
     this.s.vehicles.push(v);
     return v;
   }
@@ -340,13 +357,16 @@ export class Sim {
     for (const a of s.animals) (a.px = a.x), (a.py = a.y);
     this.producers(mod);
     if (mod >= VISIT_START - 120 && mod < VISIT_END - 90) this.spawnVisitors(mod);
+    if (mod >= 17 * 60 && mod < 19 * 60 + 30) this.spawnGuests();
+    if (mod === 10 * 60 + 15) this.spawnBus();
+    if (mod === 7 * 60 + 30) this.marketTrip();
     if (mod === 8 * 60) this.autoSell();
     this.processOrders();
     for (const w of s.workers) this.updateWorker(w, mod);
     for (const v of s.visitors) this.updateVisitor(v);
     s.visitors = s.visitors.filter((v) => !v.done);
     for (const v of s.vehicles) this.updateVehicle(v);
-    s.vehicles = s.vehicles.filter((v) => !((v.kind === 'camionnette' || v.kind === 'betaillere' || v.kind === 'voiture') && v.order === -2));
+    s.vehicles = s.vehicles.filter((v) => !(v.home < 0 && v.order === -2));
     for (const a of s.animals) this.updateAnimal(a);
     this.checkTutorial();
     s.rng = this.rng.state;
@@ -362,8 +382,10 @@ export class Sim {
         b.ready = Math.min(o.cap, b.ready + (o.taux * o.saisons[season] * wf * aptitude(this.region, o.id)) / 60);
       } else if (d.livestock) {
         const l = LIVESTOCK[d.livestock];
-        const n = this.s.animals.filter((a) => a.pen === b.id).length;
-        b.ready = Math.min(l.cap, b.ready + (n * l.tauxParTete * l.saisons[season] * aptitude(this.region, l.id)) / 60);
+        if (!l.produit) continue;
+        // l'étang produit sans animaux visibles ; les autres élevages au prorata des bêtes présentes
+        const rate = l.abri === 'etang' ? 1.4 : this.s.animals.filter((a) => a.pen === b.id).length * l.tauxParTete;
+        b.ready = Math.min(l.cap, b.ready + (rate * l.saisons[season] * aptitude(this.region, l.id)) / 60);
       }
     }
   }
@@ -375,7 +397,25 @@ export class Sim {
     const save = s.minute;
     if (l && l.day === prevDay) s.minute -= 1; // comptabilise sur la veille
     for (const w of s.workers) this.paySalary(w);
-    for (const b of s.buildings) this.book(defOf(b).activite, -defOf(b).entretien, `Entretien — ${defOf(b).nom}`);
+    for (const b of s.buildings) {
+      const d = defOf(b);
+      let cost = d.entretien;
+      // foin du domaine : nourrit les herbivores et réduit de 40 % le coût de nourriture de l'élevage
+      if (d.livestock) {
+        const n = s.animals.filter((a) => a.pen === b.id && HERBIVORES.has(a.kind)).length;
+        const need = Math.ceil(n * (seasonOf(s.minute - 1) === 3 ? 0.8 : 0.4));
+        if (need > 0 && this.stockOf('foin') >= need) {
+          let left = need;
+          for (const st of this.storagesFor('foin')) left -= this.remove(st, 'foin', left);
+          cost = round2(cost * 0.6);
+        }
+      }
+      this.book(d.activite, -cost, `Entretien — ${d.nom}`);
+      if (d.effet === 'solaire') {
+        const sun = { soleil: 1, nuageux: 0.5, pluie: 0.25, orage: 0.1, neige: 0.15 }[s.weather];
+        this.book('general', round2(45 * sun * [0.9, 1.2, 0.8, 0.5][seasonOf(s.minute - 1)]), 'Électricité solaire revendue');
+      }
+    }
     s.minute = save;
     if (s.satSamples.length) {
       s.satisfaction = Math.round(s.satSamples.reduce((a, b) => a + b, 0) / s.satSamples.length);
@@ -392,17 +432,31 @@ export class Sim {
       const d = defOf(b);
       if (!d.crop || b.phase !== 'pousse') continue;
       const c = CROPS[d.crop];
-      b.growth = Math.min(1, b.growth + c.croissance[season] * WEATHER[s.weather].rendement);
+      const irrigue = this.irrigated(b);
+      b.growth = Math.min(1, b.growth + c.croissance[season] * WEATHER[s.weather].rendement * (irrigue ? 1.25 : 1));
       if (b.growth >= 1) {
         b.phase = 'mur';
         b.done = [];
-        b.ready = round2(c.rendement * aptitude(this.region, c.id) * (1 + (b.bonus ?? 0)));
+        b.ready = round2(c.rendement * aptitude(this.region, c.id) * (1 + (b.bonus ?? 0) + (irrigue ? 0.15 : 0)));
         this.event(`${d.nom} : récolte possible (${Math.round(b.ready)} ${RESOURCES[c.produit].unite}).`, 'succes');
       }
     }
     if (dayOf(s.minute) % DAYS_PER_SEASON === 0) this.event(`Nouvelle saison : ${SEASONS[season]}.`, 'info');
     this.today();
     if (s.money < 0) this.event('Trésorerie négative : réduisez les charges ou vendez vos stocks.', 'alerte');
+  }
+
+  /** L'agent entre dans un bâtiment fermé (grange, atelier, boutique…) : il disparaît derrière la porte. */
+  enter(a: Agent, b: Building) {
+    const k = defOf(b).kind;
+    if (!['maison', 'stock', 'atelier', 'boutique', 'accueil', 'gite', 'auberge', 'hangar', 'remise', 'garage'].includes(k)) return;
+    a.hidden = true;
+    a.inside = b.id;
+  }
+
+  /** Parcelle à moins de 14 cases d'une réserve d'irrigation. */
+  irrigated(b: Building) {
+    return this.s.buildings.some((i) => defOf(i).effet === 'irrigation' && Math.hypot(i.x - b.x, i.y - b.y) < 14);
   }
 
   paySalary(w: Worker) {
@@ -476,7 +530,7 @@ export class Sim {
 
   private updateWorker(w: Worker, mod: number) {
     const working = mod >= WORK_START && mod < WORK_END;
-    if (working && (!w.hidden || w.vehicle != null)) w.minutes[w.activity] = (w.minutes[w.activity] ?? 0) + 1;
+    if (working && (!w.hidden || w.vehicle != null || w.steps.length > 0)) w.minutes[w.activity] = (w.minutes[w.activity] ?? 0) + 1;
     const v = this.vehicleOf(w);
     if (v) {
       w.x = v.x;
@@ -495,12 +549,18 @@ export class Sim {
           w.moving = false;
           w.steps.shift();
         }
-      } else if (this.move(w, SPEED.worker * this.terrainSpeed(w))) w.steps.shift();
+      } else if (this.move(w, SPEED.worker * this.terrainSpeed(w) * (w.role === 'eleveur' && this.has('garage_quad') ? 1.7 : 1))) w.steps.shift();
       return;
     }
     if (w.timer > 0) {
       w.timer--;
-      if (w.timer <= 0) this.finishStep(w);
+      if (w.timer <= 0) {
+        this.finishStep(w);
+        // ressort du bâtiment, sauf s'il y enchaîne une autre tâche
+        const nx = w.steps[0];
+        const stay = !!nx && 'b' in nx && nx.b === w.inside;
+        if (w.hidden && w.vehicle == null && !stay) w.hidden = false;
+      }
       return;
     }
     if (!w.steps.length) {
@@ -523,7 +583,7 @@ export class Sim {
 
   private depositSteps(w: Worker): Step[] {
     if (!w.carry) return [];
-    const st = this.nearest(this.storages().filter((b) => this.space(b) >= 1), w.x, w.y);
+    const st = this.nearest(this.storagesFor(w.carry.res).filter((b) => this.space(b) >= 1), w.x, w.y);
     if (!st) return [];
     return [{ k: 'go', ...xy(doorOf(st)) }, { k: 'put', b: st.id }];
   }
@@ -546,6 +606,8 @@ export class Sim {
       eleveur: ['animals', 'orchard', 'harvest', 'tendUrgent'],
       artisan: ['tendUrgent', 'process', 'restock', 'tend'],
       vendeur: ['tendUrgent', 'restock', 'tend'],
+      saisonnier: ['orchard', 'handHarvest', 'restock'],
+      guide: ['tendUrgent', 'guide', 'restock', 'tend'],
     };
     for (const task of order[w.role]) {
       const st = this.tryTask(w, task);
@@ -585,7 +647,7 @@ export class Sim {
     const spaceTotal = this.totalSpace();
     if (task === 'orchard') {
       if (spaceTotal < 5) return null;
-      const list = B.filter((b) => defOf(b).kind === 'verger' && b.ready >= (b.priority ? 3 : 12));
+      const list = B.filter((b) => defOf(b).kind === 'verger' && b.ready >= (b.priority ? 3 : ORCHARDS[defOf(b).orchard!].cap < 20 ? 1 : 12) && this.spaceFor(ORCHARDS[defOf(b).orchard!].produit) >= 3);
       if (!list.length) return null;
       list.sort((a, b) => Number(b.priority) - Number(a.priority) || b.ready - a.ready);
       const b = list[0];
@@ -594,7 +656,7 @@ export class Sim {
       return { a: defOf(b).activite, label: `Récolte : ${defOf(b).nom.toLowerCase()}`, steps: [{ k: 'go', x: tx, y: ty }, { k: 'pick', b: b.id }, { k: 'put', b: -1 }] };
     }
     if (task === 'animals') {
-      const list = B.filter((b) => defOf(b).kind === 'enclos' && b.ready >= (b.priority ? 1 : Math.max(1, LIVESTOCK[defOf(b).livestock!].cap * 0.15)));
+      const list = B.filter((b) => defOf(b).kind === 'enclos' && LIVESTOCK[defOf(b).livestock!].produit && b.ready >= (b.priority ? 1 : Math.max(1, LIVESTOCK[defOf(b).livestock!].cap * 0.15)));
       if (!list.length || spaceTotal < 3) return null;
       list.sort((a, b) => Number(b.priority) - Number(a.priority) || b.ready / LIVESTOCK[defOf(b).livestock!].cap - a.ready / LIVESTOCK[defOf(a).livestock!].cap);
       const b = list[0];
@@ -614,6 +676,16 @@ export class Sim {
       steps.push(...this.vehicleReturn(vm, true));
       return { a: 'vigne', label: 'Vendanges à la machine', steps };
     }
+    if (task === 'guide') {
+      // le guide accueille à l'accueil, au gîte ou à la ferme pédagogique pendant les heures de visite
+      const mod = minuteOfDay(this.s.minute);
+      if (mod < VISIT_START - 30 || mod >= VISIT_END) return null;
+      const spot = B.find((b) => ['accueil', 'auberge', 'gite'].includes(defOf(b).kind) && b.busyBy == null);
+      if (!spot) return null;
+      spot.busyBy = w.id;
+      return { a: 'accueil', label: `Accueille les visiteurs (${defOf(spot).nom.toLowerCase()})`, steps: [{ k: 'go', ...xy(doorOf(spot)) }, { k: 'tend', b: spot.id, min: 60 }] };
+    }
+    if (task === 'handHarvest') task = 'harvest';
     if (task === 'harvest' || task === 'fieldwork') {
       const hasTractor = this.s.vehicles.some((v) => v.kind === 'tracteur' && this.byId.has(v.home));
       const needsTreatment = (b: Building) => b.phase === 'pousse' && hasTractor && !b.treated && b.growth >= 0.3 && b.growth < 0.9 && !CROPS[defOf(b).crop!].vivace;
@@ -626,12 +698,12 @@ export class Sim {
       const op: FieldOp = f.phase === 'mur' ? 'recolte' : f.phase === 'labour' ? 'labour' : f.phase === 'epandage' ? 'epandage' : f.phase === 'pousse' ? 'traitement' : 'semis';
       const todo = this.tileOrder(f);
       if (!todo.length) return null;
-      const machine = this.machineFor(op, crop.id);
+      const machine = w.role === 'saisonnier' ? null : this.machineFor(op, crop.id);
       const home = machine ? this.byId.get(machine.home) : null;
       const opName = { labour: 'Labour', epandage: 'Épandage', semis: 'Semis', traitement: 'Traitement', recolte: 'Récolte' }[op];
       if (op === 'traitement' && !(machine && home)) return null; // le traitement se fait au pulvérisateur
       if (machine && home) {
-        const tool = { labour: 'charrue', epandage: 'epandeur', semis: 'semoir', traitement: 'pulverisateur', recolte: machine.kind === 'tracteur' ? 'remorque' : 'seul' }[op];
+        const tool = { labour: 'charrue', epandage: 'epandeur', semis: 'semoir', traitement: 'pulverisateur', recolte: machine.kind === 'tracteur' ? (crop.look === 'pre' ? 'faneuse' : ['patate', 'betterave', 'lin'].includes(crop.look) ? 'arracheuse' : 'remorque') : 'seul' }[op];
         const steps: Step[] = [{ k: 'go', ...xy(doorOf(home)) }, { k: 'board', v: machine.id, tool }];
         for (const [x, y] of todo) steps.push({ k: 'go', x, y, vehicle: true }, { k: 'field', b: f.id, op });
         f.busyBy = w.id;
@@ -797,7 +869,8 @@ export class Sim {
         const q = this.remove(b, st.res, st.qty);
         if (q <= 0) return fail('Stock épuisé');
         w.carry = { res: st.res, qty: round2((w.carry?.qty ?? 0) + q) };
-        w.timer = 3;
+        w.timer = this.has('telescopique') ? 2 : 3;
+        this.enter(w, b);
         return;
       }
       case 'put': {
@@ -818,11 +891,12 @@ export class Sim {
           w.steps.shift();
           return;
         }
-        const q = Math.min(this.space(b), w.carry.qty);
+        const q = defOf(b).kind === 'stock' && !this.canStore(b, w.carry.res) ? 0 : Math.min(this.space(b), w.carry.qty);
         if (q > 0) this.add(b, w.carry.res, q);
         w.carry.qty = round2(w.carry.qty - q);
         if (w.carry.qty <= 0) w.carry = null;
-        w.timer = 3;
+        w.timer = this.has('telescopique') ? 2 : 3;
+        this.enter(w, b);
         return;
       }
       case 'process': {
@@ -831,6 +905,7 @@ export class Sim {
         if (!b || !r || !w.carry || w.carry.res !== r.input || w.carry.qty < r.inQty) return fail('Intrants manquants');
         w.timer = r.minutes;
         w.label = `${defOf(b).nom} : en production`;
+        this.enter(w, b);
         return;
       }
       case 'tend': {
@@ -838,11 +913,13 @@ export class Sim {
         if (!b) return fail('Boutique introuvable');
         b.busyBy = w.id;
         w.timer = st.min;
-        w.label = 'Tient la boutique';
+        w.label = { boutique: 'Tient la boutique', accueil: 'Accueille les visiteurs', gite: 'Prépare le gîte', auberge: 'En cuisine' }[defOf(b).kind as 'boutique'] ?? 'Tient la boutique';
+        this.enter(w, b);
         return;
       }
       case 'rest':
         w.hidden = true;
+        w.inside = st.b;
         w.label = 'Au repos';
         w.steps.shift();
         return;
@@ -853,6 +930,7 @@ export class Sim {
         v.tool = st.tool;
         w.vehicle = v.id;
         w.hidden = true;
+        w.inside = undefined;
         w.x = v.x;
         w.y = v.y;
         w.timer = 3; // attelage, mise en route
@@ -868,7 +946,7 @@ export class Sim {
         }
         const v = this.vehicleOf(w);
         const crop = CROPS[defOf(b).crop!];
-        w.timer = v ? { labour: 3, epandage: 2, semis: 2, traitement: 1, recolte: v.kind === 'moissonneuse' ? 3 : 4 }[st.op] : { labour: 14, epandage: 8, semis: 8, traitement: 6, recolte: crop.look === 'lavande' || crop.look === 'legumes' ? 7 : 10 }[st.op];
+        w.timer = v ? { labour: 3, epandage: 2, semis: 2, traitement: 1, recolte: v.kind === 'moissonneuse' ? 3 : v.tool === 'arracheuse' || v.tool === 'faneuse' ? 2 : 4 }[st.op] : { labour: 14, epandage: 8, semis: 8, traitement: 6, recolte: crop.look === 'lavande' || crop.look === 'legumes' ? 7 : 10 }[st.op];
         w.label = `${{ labour: 'Laboure', epandage: 'Épand le fumier', semis: 'Sème', traitement: 'Traite la culture', recolte: 'Récolte' }[st.op]}${v ? (v.kind === 'moissonneuse' ? ' (moissonneuse)' : ' (tracteur)') : ' à la main'}`;
         return;
       }
@@ -941,7 +1019,7 @@ export class Sim {
       const v = this.s.vehicles.find((x) => x.id === st.v);
       const b = this.byId.get(st.b);
       if (v && v.load && b) {
-        const q = Math.min(this.space(b), v.load.qty);
+        const q = this.canStore(b, v.load.res) ? Math.min(this.space(b), v.load.qty) : 0;
         this.add(b, v.load.res, q);
         v.load.qty = round2(v.load.qty - q);
         if (v.load.qty > 0) {
@@ -1056,10 +1134,22 @@ export class Sim {
     const catalog = RES_IDS.filter((r) => RESOURCES[r].boutique);
     const shopB = s.buildings.find((b) => defOf(b).kind === 'boutique');
     const offer = catalog.filter((r) => (shopB?.inv[r] ?? 0) > 0 || this.stockOf(r) > 0);
-    const acc = s.buildings.find((b) => defOf(b).kind === 'accueil');
+    const acc = s.buildings.find((b) => b.type === 'accueil');
+    const pedago = s.buildings.find((b) => b.type === 'pedagogique');
     const pois = s.buildings.filter((b) => ['verger', 'enclos', 'champ'].includes(defOf(b).kind));
+    const loisirs = s.buildings.filter((b) => defOf(b).livestock && LIVESTOCK[defOf(b).livestock!].visite);
+    const auberge = s.buildings.find((b) => defOf(b).kind === 'auberge');
+    const mod = minuteOfDay(s.minute);
+    const lunch = (mod >= 11 * 60 + 30 && mod < 14 * 60) || (mod >= 18 * 60 + 30 && mod < 20 * 60 + 30);
+    const sejour = car.sejour != null ? this.byId.get(car.sejour) : undefined;
+    // une famille : mêmes envies de repas et de loisirs pour tout le groupe
+    const eat = !!auberge && (sejour ? this.rng.chance(0.5) : lunch && this.rng.chance(0.6));
+    const fun = loisirs.length && this.rng.chance(0.65) ? this.rng.pick(loisirs) : null;
+    const kids = !!pedago && this.rng.chance(0.55);
+    const group = car.kind === 'bus' ? 'bus' : sejour ? 'sejour' : kids ? 'famille' : 'visite';
     for (let k = 0; k < car.passengers; k++) {
-      const v: Visitor = { ...newAgent(s.nextId++, px, py), look: this.rng.int(0, 5), budget: Math.round(this.rng.range(15, 60)), wishes: [], spent: 0, bought: 0, wanted: 0, waited: 0, visited: false, done: false, car: car.id };
+      const look = group === 'famille' && k > 0 ? this.rng.int(6, 7) : group === 'bus' ? this.rng.pick([0, 1, 2, 3, 4, 5, 8, 9]) : group === 'sejour' && this.rng.chance(0.4) ? this.rng.int(8, 9) : this.rng.int(0, 5);
+      const v: Visitor = { ...newAgent(s.nextId++, px, py), look, budget: Math.round(this.rng.range(15, 60)), wishes: [], spent: 0, bought: 0, wanted: 0, waited: 0, visited: false, done: false, car: car.id };
       const n = this.rng.int(1, 3);
       for (let i = 0; i < n; i++) {
         const r = offer.length && this.rng.chance(0.75) ? this.rng.pick(offer) : this.rng.pick(catalog);
@@ -1070,17 +1160,28 @@ export class Sim {
         v.wanted += qty;
       }
       const steps: Step[] = [];
-      if (acc) {
-        steps.push({ k: 'go', ...xy(doorOf(acc)) }, { k: 'visit', b: acc.id });
-        if (pois.length) {
-          const p = this.rng.pick(pois);
-          steps.push({ k: 'go', ...xy(this.gateOf(p)) }, { k: 'wait', min: this.rng.int(8, 16), label: 'Admire le domaine' });
+      if (sejour) {
+        // vacanciers : installation au gîte, nuit sur place, départ le lendemain matin
+        const until = s.minute - mod + DAY_MIN + 9 * 60 + this.rng.int(0, 60);
+        steps.push({ k: 'go', ...xy(doorOf(sejour)) }, { k: 'stay', b: sejour.id, until });
+        if (eat) steps.splice(1, 0, { k: 'go', ...xy(doorOf(auberge!)) }, { k: 'meal', b: auberge!.id }, { k: 'go', ...xy(doorOf(sejour)) });
+        if (fun) steps.push({ k: 'go', ...xy(this.gateOf(fun)) }, { k: 'visit', b: fun.id });
+      } else {
+        if (acc) {
+          steps.push({ k: 'go', ...xy(doorOf(acc)) }, { k: 'visit', b: acc.id });
+          if (pois.length) {
+            const p = this.rng.pick(pois);
+            steps.push({ k: 'go', ...xy(this.gateOf(p)) }, { k: 'wait', min: this.rng.int(8, 16), label: 'Admire le domaine' });
+          }
         }
+        if (kids) steps.push({ k: 'go', ...xy(doorOf(pedago!)) }, { k: 'visit', b: pedago!.id });
+        if (fun) steps.push({ k: 'go', ...xy(this.gateOf(fun)) }, { k: 'visit', b: fun.id });
+        if (eat) steps.push({ k: 'go', ...xy(doorOf(auberge!)) }, { k: 'meal', b: auberge!.id });
       }
       if (shopB) steps.push({ k: 'go', ...xy(doorOf(shopB)) }, { k: 'shop', b: shopB.id });
       steps.push({ k: 'go', x: px, y: py }, { k: 'leave' });
       v.steps = steps;
-      v.label = 'Visiteur';
+      v.label = group === 'sejour' ? 'Vacancier' : group === 'bus' ? 'Touriste (car)' : 'Visiteur';
       s.visitors.push(v);
       s.stats.visitors++;
     }
@@ -1088,6 +1189,9 @@ export class Sim {
   }
 
   private updateVisitor(v: Visitor) {
+    // dans un bâtiment (boutique, accueil, auberge, gîte) : invisible derrière la porte
+    const cur = v.steps[0];
+    if (v.timer <= 0 && v.hidden && !(cur && (cur.k === 'shop' || cur.k === 'meal' || cur.k === 'stay'))) v.hidden = false;
     if (v.moving) {
       if (this.move(v, SPEED.visitor * this.terrainSpeed(v))) v.steps.shift();
       return;
@@ -1101,15 +1205,20 @@ export class Sim {
           this.buy(v, b);
           v.timer = 4;
           v.steps[0] = { k: 'wait', min: 0, label: 'Ressort de la boutique' };
+          v.hidden = false;
           return;
         }
         if (v.timer <= 0) {
           v.waited = 1;
           v.steps.shift();
+          v.hidden = false;
         }
         return;
       }
-      if (v.timer <= 0) v.steps.shift();
+      if (v.timer <= 0) {
+        v.steps.shift();
+        v.hidden = false;
+      }
       return;
     }
     const st = v.steps[0];
@@ -1133,27 +1242,93 @@ export class Sim {
         return;
       case 'visit': {
         const b = this.byId.get(st.b);
+        const d = b && defOf(b);
+        const loisir = d?.livestock ? LIVESTOCK[d.livestock].visite : undefined;
+        // un guide présent rend la visite plus agréable
+        v.guided ||= !!b && b.busyBy != null && this.s.workers.some((w) => w.id === b.busyBy && w.role === 'guide');
+        if (loisir) {
+          if (this.rng.chance(0.75)) {
+            this.book('accueil', loisir.prix, loisir.nom);
+            v.visited = true;
+          }
+          v.timer = this.rng.int(15, 30);
+          v.label = loisir.nom;
+          return;
+        }
+        if (b?.type === 'pedagogique') {
+          if (this.rng.chance(0.85)) {
+            this.book('accueil', 6, 'Ateliers de la ferme pédagogique');
+            v.visited = true;
+          }
+          v.timer = 25;
+          v.label = 'Atelier pédagogique';
+          this.enter(v, b);
+          return;
+        }
         if (b && this.s.visitFee <= this.rng.range(2, 9)) {
           this.book('accueil', this.s.visitFee, 'Visites de la ferme');
           v.visited = true;
         }
         v.timer = 5;
         v.label = 'À l\'accueil';
+        if (b) this.enter(v, b);
+        return;
+      }
+      case 'meal': {
+        const b = this.byId.get(st.b);
+        v.timer = 45;
+        v.label = 'Déjeune à la ferme-auberge';
+        if (!b) return;
+        this.enter(v, b);
+        // trois produits du domaine par repas ; à défaut de deux, la cuisine ne peut pas servir
+        const foods = MEAL_FOODS.filter((r) => RESOURCES[r] && this.stockOf(r) >= 1);
+        if (foods.length < 2) {
+          v.timer = 4;
+          v.waited = 1;
+          v.label = 'Auberge : rien à servir';
+          return;
+        }
+        for (let i = 0; i < 3; i++) {
+          const r = foods[(i + v.id) % foods.length];
+          let left = 1;
+          for (const st2 of this.storages()) left -= this.remove(st2, r, left);
+        }
+        this.book('accueil', 24, 'Repas à la ferme-auberge');
+        v.visited = true;
+        return;
+      }
+      case 'stay': {
+        const b = this.byId.get(st.b);
+        if (!b) {
+          v.steps.shift();
+          return;
+        }
+        if (v.label !== 'En séjour') {
+          this.book('accueil', defOf(b).nuitee ?? 20, `Nuitées — ${defOf(b).nom}`);
+          v.visited = true;
+        }
+        v.timer = Math.max(1, st.until - this.s.minute);
+        v.label = 'En séjour';
+        this.enter(v, b);
         return;
       }
       case 'wait':
         v.timer = Math.max(1, st.min);
         v.label = st.label;
         return;
-      case 'shop':
+      case 'shop': {
         v.timer = 40;
         v.label = 'En boutique';
+        const b = this.byId.get(st.b);
+        if (b) this.enter(v, b);
         return;
+      }
       case 'leave': {
         let sat = 45;
         if (v.wanted > 0) sat += 45 * (v.bought / v.wanted);
         if (v.waited) sat -= 30;
         if (v.visited) sat += 12;
+        if (v.guided) sat += 8;
         this.s.satSamples.push(Math.max(0, Math.min(100, Math.round(sat))));
         const car = this.s.vehicles.find((c) => c.id === v.car);
         if (car) car.back++;
@@ -1163,6 +1338,107 @@ export class Sim {
       default:
         v.steps.shift();
     }
+  }
+
+  /** Vacanciers du gîte et du camping : arrivées en fin d'après-midi selon l'occupation attendue. */
+  private spawnGuests() {
+    const s = this.s;
+    const season = seasonOf(s.minute);
+    for (const g of s.buildings) {
+      const d = defOf(g);
+      if (d.kind !== 'gite' || !d.lits) continue;
+      const camping = g.type === 'camping';
+      const occ = Math.min(0.95, (0.2 + s.reputation / 130) * this.region.tourisme * WEATHER[s.weather].visiteurs * (camping ? [0.6, 1.6, 0.5, 0.05][season] : [0.9, 1.35, 0.8, 0.5][season]));
+      const present = s.visitors.filter((v) => v.steps.some((x) => x.k === 'stay' && x.b === g.id)).length + s.vehicles.filter((c) => c.sejour === g.id && c.label === 'Visiteurs en route').reduce((a, c) => a + c.passengers, 0);
+      const want = Math.round(d.lits * occ);
+      if (present + 2 > want || !this.rng.chance(1 / 40)) continue;
+      const used = new Set(s.vehicles.filter((v) => v.slot >= 0).map((v) => v.slot));
+      const slot = s.world.parking.findIndex((_, i) => !used.has(i));
+      if (slot < 0) return;
+      const [ex, ey] = s.world.entry;
+      const car = this.addVehicle('voiture', null, ex, ey);
+      car.look = this.rng.int(0, 2);
+      car.slot = slot;
+      car.sejour = g.id;
+      car.passengers = Math.min(d.lits - present, this.rng.int(2, 4));
+      if (car.passengers < 1 || !this.navTo(car, 'vehicle', ...s.world.parking[slot])) {
+        s.vehicles = s.vehicles.filter((v) => v !== car);
+        continue;
+      }
+      car.steps = [{ k: 'go', ...xy(s.world.parking[slot]) }];
+      car.label = 'Visiteurs en route';
+      car.order = null;
+    }
+  }
+
+  /** Navette de l'office de tourisme : un car le samedi et le dimanche. */
+  private spawnBus() {
+    const s = this.s;
+    if (dayOf(s.minute) % 7 < 5 || !this.has('garage_bus') || !s.buildings.some((b) => defOf(b).kind === 'accueil')) return;
+    const used = new Set(s.vehicles.filter((v) => v.slot >= 0).map((v) => v.slot));
+    const slot = s.world.parking.findIndex((_, i) => !used.has(i));
+    if (slot < 0) return;
+    const [ex, ey] = s.world.entry;
+    const bus = this.addVehicle('bus', null, ex, ey);
+    bus.slot = slot;
+    bus.passengers = this.rng.int(10, 14);
+    if (!this.navTo(bus, 'vehicle', ...s.world.parking[slot])) {
+      s.vehicles = s.vehicles.filter((v) => v !== bus);
+      return;
+    }
+    bus.steps = [{ k: 'go', ...xy(s.world.parking[slot]) }];
+    bus.label = 'Visiteurs en route';
+    this.event(`Un car de ${bus.passengers} touristes arrive au domaine.`, 'info');
+  }
+
+  /** Utilitaire : tous les 3 jours, tournée au marché avec les produits de la boutique. */
+  private marketTrip() {
+    const s = this.s;
+    const g = s.buildings.find((b) => b.type === 'garage_utilitaire');
+    if (!g || dayOf(s.minute) % 3 !== 0 || s.vehicles.some((v) => v.kind === 'utilitaire')) return;
+    const st = this.nearest(this.storages(), g.x, g.y);
+    if (!st) return;
+    const v = this.addVehicle('utilitaire', g);
+    v.home = -1; // part et revient comme un véhicule de passage
+    if (!this.navTo(v, 'vehicle', ...doorOf(st))) {
+      s.vehicles = s.vehicles.filter((x) => x !== v);
+      return;
+    }
+    v.steps = [{ k: 'go', ...xy(doorOf(st)) }, { k: 'wait', min: 12, label: 'Chargement' }, { k: 'go', ...xy(s.world.entry) }];
+    v.label = 'Utilitaire : départ au marché';
+  }
+
+  private loadMarket(v: Vehicle) {
+    if (v.cargo) return;
+    v.cargo = {};
+    let left = 80;
+    // d'abord les produits transformés (meilleure marge), puis les produits frais
+    const list = RES_IDS.filter((r) => RESOURCES[r].boutique).sort((a, b) => RESOURCES[b].prix - RESOURCES[a].prix);
+    for (const r of list) {
+      if (left <= 0) break;
+      const keep = Math.max(10, this.sellThreshold(r) >= 0 ? 0 : 10);
+      const q = Math.min(left, Math.floor(this.stockOf(r) - keep));
+      if (q <= 0) continue;
+      let l2 = q;
+      for (const b of this.storages()) l2 -= this.remove(b, r, l2);
+      v.cargo[r] = q - l2;
+      left -= q - l2;
+    }
+    v.load = left < 80 ? { res: Object.keys(v.cargo)[0], qty: 80 - left } : null;
+    v.label = 'Utilitaire : en route pour le marché';
+  }
+
+  private sellAtMarket(v: Vehicle) {
+    let total = 0;
+    for (const [r, q] of Object.entries(v.cargo ?? {})) {
+      if (!q) continue;
+      const amount = round2(q * this.s.prices[r] * 0.9);
+      total += amount;
+      this.s.stats.sold[r] = round2((this.s.stats.sold[r] ?? 0) + q);
+      this.book(RESOURCES[r].activite, amount, `Marché — ${RESOURCES[r].nom}`);
+    }
+    if (total > 0) this.event(`Marché du jour : ${Math.round(total)} € de ventes.`, 'succes');
+    v.cargo = null;
   }
 
   private buy(v: Visitor, shop: Building) {
@@ -1250,11 +1526,11 @@ export class Sim {
     if (v.moving) {
       if (this.move(v, SPEED[v.kind])) {
         v.steps.shift();
-        if (v.kind === 'voiture' && v.label === 'Visiteurs en route') this.unloadCar(v);
+        if ((v.kind === 'voiture' || v.kind === 'bus') && v.label === 'Visiteurs en route') this.unloadCar(v);
       }
       return;
     }
-    if (v.kind === 'voiture' && v.label === 'Garée') {
+    if ((v.kind === 'voiture' || v.kind === 'bus') && v.label === 'Garée') {
       if (v.back >= v.passengers) {
         v.label = 'Repart';
         if (!this.navTo(v, 'vehicle', ...this.s.world.entry)) v.order = -2;
@@ -1279,6 +1555,7 @@ export class Sim {
     }
     const st = v.steps[0];
     if (!st) {
+      if (v.kind === 'utilitaire') this.sellAtMarket(v);
       v.order = -2; // arrivé hors carte : retiré
       return;
     }
@@ -1291,6 +1568,7 @@ export class Sim {
       return;
     }
     if (st.k === 'wait') {
+      if (v.kind === 'utilitaire') this.loadMarket(v);
       const o = this.s.orders.find((x) => x.id === v.order);
       if (o) o.status = 'chargement';
       v.timer = st.min;
@@ -1306,7 +1584,7 @@ export class Sim {
     }
     const dx = a.tx - a.x, dy = a.ty - a.y;
     const d = Math.hypot(dx, dy);
-    const sp = SPEED.animal * (a.kind === 'poule' || a.kind === 'canard' ? 1.2 : a.kind === 'vache' ? 0.7 : 1);
+    const sp = SPEED.animal * (a.kind === 'poule' || a.kind === 'canard' || a.kind === 'lapin' ? 1.2 : a.kind === 'vache' || a.kind === 'limousine' ? 0.7 : a.kind === 'cheval' ? 1.3 : 1);
     if (d < sp) {
       a.x = a.tx;
       a.y = a.ty;
@@ -1331,7 +1609,7 @@ export class Sim {
   penSpot(b: Building): [number, number] {
     const s = defOf(b).size;
     const abri = LIVESTOCK[defOf(b).livestock!]?.abri;
-    const sh = abri === 'etable' || abri === 'bergerie' ? 2.3 : abri === 'rucher' ? 0 : 1.3;
+    const sh = abri === 'etable' || abri === 'bergerie' || abri === 'ecurie' ? 2.3 : abri === 'rucher' ? 0 : abri === 'etang' ? 0 : 1.3;
     for (let k = 0; k < 8; k++) {
       const x = b.x + 0.3 + this.rng.next() * (s - 0.8), y = b.y + 0.4 + this.rng.next() * (s - 0.9);
       if (!(x < b.x + sh && y < b.y + sh)) return [x, y];
