@@ -1,0 +1,187 @@
+[
+ {
+  "name": "menu : bouton « Nouvelle partie »",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : bouton « Continuer »",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : bouton « Charger »",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : bouton « Réglages »",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : bouton « Crédits »",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : bouton « Installer »",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : « Charger » ouvre sa fenêtre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : « Réglages » ouvre sa fenêtre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : « Crédits » ouvre sa fenêtre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "menu : « Installer » ouvre sa fenêtre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "partie : la scène est rendue",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "partie : argent affiché",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "vitesse ×4",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "le temps avance à ×4",
+  "ok": true,
+  "info": "18 min de jeu en 1,5 s"
+ },
+ {
+  "name": "pause : le temps est figé",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "glisser : la carte se déplace",
+  "ok": true,
+  "info": "Δx=150 Δy=80"
+ },
+ {
+  "name": "molette : zoom avant",
+  "ok": true,
+  "info": "z 1.00 → 1.82"
+ },
+ {
+  "name": "la caméra reste immobile pendant la simulation",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "toucher la maison ouvre sa fiche",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "construction refusée sur l'eau",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "champ de blé construit",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "coût débité",
+  "ok": true,
+  "info": "trésorerie 17100 €"
+ },
+ {
+  "name": "panneau « gestion » s'ouvre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "panneau « production » s'ouvre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "panneau « personnel » s'ouvre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "panneau « commerce » s'ouvre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "panneau « territoire » s'ouvre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "panneau « construire » s'ouvre",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "embauche d'un vendeur",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "commande au négociant : stock réservé",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "mesure FPS (rendu logiciel, indicatif)",
+  "ok": true,
+  "info": "10 i/s ; coût JS moyen 0.24 ms/image"
+ },
+ {
+  "name": "export JSON téléchargé",
+  "ok": true,
+  "info": "domaines-terroirs-jour1.json"
+ },
+ {
+  "name": "partie rechargée à l'identique",
+  "ok": true,
+  "info": "{\"m\":17251,\"t\":1412,\"b\":6,\"w\":3}"
+ },
+ {
+  "name": "mobile : pincement = zoom",
+  "ok": true,
+  "info": "z 0.80 → 1.82"
+ },
+ {
+  "name": "mobile : un toucher place le fantôme sans construire",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "mobile : « Valider » construit",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "aucune erreur JavaScript dans la page",
+  "ok": true,
+  "info": ""
+ }
+]
