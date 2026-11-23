@@ -17,6 +17,9 @@ export class Game {
   version = 0; // incrémenté à chaque notification de l'interface
   private lastDay: number;
   frameTimes: number[] = [];
+  /** qualité adaptative : si l'image tombe sous 24 i/s, le décor est allégé */
+  adaptive = true;
+  private slowFor = 0;
   cpuTimes: number[] = []; // coût JS (simulation + préparation du rendu) par image
 
   constructor(state: GameState) {
@@ -42,7 +45,13 @@ export class Game {
         n = 40;
         this.acc = 40;
       }
+      const ts = performance.now();
       for (let i = 0; i < n; i++) this.sim.tick();
+      if (this.scene) {
+        const a = (this.scene.prof.simulation ??= []);
+        a.push(performance.now() - ts);
+        if (a.length > 600) a.shift();
+      }
       this.acc -= n;
       const d = dayOf(this.sim.s.minute);
       if (d !== this.lastDay) {
@@ -51,8 +60,18 @@ export class Game {
       }
     }
     this.scene?.update(dt, this.speed > 0 ? this.acc : 1);
+    if (this.adaptive && this.scene && !document.hidden && this.frameTimes.length >= 60) {
+      const fps = this.measuredFps();
+      this.slowFor = fps < 24 ? this.slowFor + dt : 0;
+      if (this.slowFor > 4000 && this.scene.lodBias < 2) {
+        this.scene.lodBias++;
+        this.slowFor = 0;
+        this.frameTimes.length = 0;
+        this.sim.event(`Affichage allégé automatiquement (niveau ${this.scene.lodBias}) pour rester fluide.`, 'info');
+      }
+    }
     this.cpuTimes.push(performance.now() - t0);
-    if (this.cpuTimes.length > 120) this.cpuTimes.shift();
+    if (this.cpuTimes.length > 600) this.cpuTimes.shift();
     this.uiAcc += dt;
     if (this.uiAcc > 200) {
       this.uiAcc = 0;
@@ -84,7 +103,8 @@ export class Game {
 
   /** Coût JS moyen par image (ms), hors rendu GPU. */
   cpuMs() {
-    return this.cpuTimes.length ? this.cpuTimes.reduce((a, b) => a + b, 0) / this.cpuTimes.length : 0;
+    const t = this.cpuTimes.slice(-120);
+    return t.length ? t.reduce((a, b) => a + b, 0) / t.length : 0;
   }
 
   destroy() {

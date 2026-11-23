@@ -1,14 +1,16 @@
-// Scène isométrique PixiJS : sol en chunks, objets triés en profondeur, caméra tactile, culling,
-// interpolation des déplacements, ambiance (saisons, jour/nuit, météo). Ne modifie jamais la simulation.
-import { Application, Container, Graphics, Sprite, Texture, CanvasSource } from 'pixi.js';
-import { BUILDINGS, LOT_SIZE, ORCHARD_CAP } from '../data/content';
+// Scène isométrique PixiJS : sol en maillages par chunk (relief, ombrage, neige), objets instanciés
+// seulement autour de la caméra, tri en profondeur, interpolation des déplacements, ambiance.
+// Ne modifie jamais la simulation.
+import { Application, Container, Geometry, Graphics, Mesh, Shader, Sprite, Texture, CanvasSource, UniformGroup, Buffer, BufferUsage } from 'pixi.js';
+import { BUILDINGS, CROPS, DAYS_PER_SEASON, LIVESTOCK, LOT_SIZE, ORCHARDS } from '../data/content';
+import { REGION_BY_ID } from '../data/regions';
 import { hash2 } from '../core/rng';
-import { D, HAMLET_PATHS, PATHS, ROAD_EAST, ROAD_NORTH, ROAD_WEST, T, isOwned, isPathLike, lotOf, rasterLine, type World } from '../world/terrain';
+import { D, NEIGHBOR_CROPS, T, heightAt, isOwned, isPathLike, lotsPerRow, rasterLine, vh, type World } from '../world/terrain';
 import { defOf, doorOf, footprint } from '../sim/geom';
-import { minuteOfDay, seasonOf, type Sim } from '../sim/sim';
-import type { Building } from '../sim/state';
-import { Atlas, MIRROR_PAINTED, TREE_KEYS, buildAtlas, buildStaticAtlas, type Tex } from './atlas';
-import { RES, TH, TW, setPaintRes, type Season } from './paint';
+import { LIVERIES, minuteOfDay, seasonOf, type Sim } from '../sim/sim';
+import type { Building, Vehicle } from '../sim/state';
+import { Atlas, MIRROR_PAINTED, TREE_SPECIES, buildGroundAtlas, buildObjectAtlas, buildStaticAtlas, type AtlasJob, type Tex } from './atlas';
+import { RES, TH, TW, setPaintRes, setPaintStyle, type Season } from './paint';
 import { agentDepth, buildingDepth, tileDepth } from './depth';
 
 const CHUNK = 16;
@@ -19,11 +21,39 @@ interface Obj {
   sp: Sprite;
   key: string;
   depth: number;
-  // boîte englobante monde pour le culling
   x0: number;
   y0: number;
   x1: number;
   y1: number;
+}
+
+interface Desc {
+  key: string;
+  gx: number; // position au sol (coordonnées de sommet)
+  gy: number;
+  depth: number;
+  mirror: boolean;
+  tint: number;
+  /** 0 essentiel ; 1 petit décor (masqué au dézoom) ; 2 remplissage forestier (masqué au fort dézoom) */
+  detail: number;
+}
+
+interface Chunk {
+  mesh: Mesh<Geometry, Shader>;
+  pos: Buffer;
+  uv: Buffer;
+  shade: Buffer;
+  height: Buffer;
+  objs: Sprite[] | null; // sprites instanciés (null = non visible)
+  objLevel: number; // niveau de détail utilisé à l'instanciation
+  uvDirty: boolean; // UV à recalculer (changement de saison) quand le chunk redevient visible
+  descs: Desc[] | null;
+  x0: number;
+  y0: number;
+  minY: number; // bornes écran (px monde)
+  maxY: number;
+  minX: number;
+  maxX: number;
 }
 
 export interface Ghost {
@@ -43,26 +73,62 @@ export interface SceneOptions {
   quality: 'haute' | 'basse';
 }
 
+const VERT = `
+in vec2 aPosition;
+in vec2 aUV;
+in float aShade;
+in float aHeight;
+out vec2 vUV;
+out float vShade;
+out float vSnow;
+uniform mat3 uProjectionMatrix;
+uniform mat3 uWorldTransformMatrix;
+uniform mat3 uTransformMatrix;
+uniform float uSnowAlt;
+void main() {
+  mat3 mvp = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
+  gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
+  vUV = aUV;
+  vShade = aShade;
+  vSnow = clamp((aHeight - uSnowAlt) / 70.0, 0.0, 1.0);
+}`;
+const FRAG = `
+in vec2 vUV;
+in float vShade;
+in float vSnow;
+uniform sampler2D uTexture;
+out vec4 finalColor;
+void main() {
+  vec4 c = texture(uTexture, vUV);
+  vec3 lit = c.rgb * vShade;
+  vec3 snow = vec3(0.93, 0.95, 0.98) * c.a * min(vShade * 1.05, 1.1);
+  finalColor = vec4(mix(lit, snow, vSnow * 0.9), c.a);
+}`;
+
 export class Scene {
   app = new Application();
   world = new Container();
   ground = new Container();
-  marks = new Graphics(); // surlignages au sol
+  roads = new Graphics();
+  marks = new Graphics();
   objects = new Container();
   fx = new Container();
   night = new Graphics();
   rain = new Graphics();
-  seasonAtlas = new Atlas();
+  groundAtlas = new Atlas();
+  objectAtlas = new Atlas();
   staticAtlas = new Atlas();
+  vehicleAtlas = new Atlas();
+  livingAtlas = new Atlas();
   season: Season = 1;
-  private groundSprites: Sprite[] = [];
-  private roads = new Graphics();
-  /** cases dont la route/le chemin d'origine est dessiné en courbe lissée (et non en tuile) */
-  private smooth = new Set<number>();
-  private chunks: Container[] = [];
-  private decor = new Map<number, Obj>(); // par index de case
-  private bObjs = new Map<number, Obj[]>(); // par bâtiment
-  private agents = new Map<string, Obj & { carry?: Sprite }>();
+  private shader!: Shader;
+  private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' } });
+  private chunks: Chunk[] = [];
+  private per = 0;
+  private pool: Sprite[] = [];
+  private bObjs = new Map<number, Obj[]>();
+  private agents = new Map<string, Obj & { carry?: Sprite; heading?: number }>();
+  private agentPool: Sprite[] = [];
   private smoke: { sp: Sprite; vx: number; life: number }[] = [];
   private smokeTex!: Texture;
   private smokeAcc = 0;
@@ -70,24 +136,29 @@ export class Scene {
   private fieldSig = new Map<number, string>();
   private orchardSig = new Map<number, number>();
   private viewDirty = true;
+  private snowSig = '';
   cam = { x: 0, y: 0, z: 1 };
   ghost: Ghost | null = null;
   ghostSprite: Sprite | null = null;
   selected: number | null = null;
   showLots = false;
   fps = 0;
+  visibleObjects = 0;
   private time = 0;
   private pointers = new Map<number, { x: number; y: number; sx: number; sy: number; t: number; type: string }>();
   private pinch: { d: number; mx: number; my: number } | null = null;
   private moved = false;
+  lastTap = { sx: 0, sy: 0 };
 
   constructor(private host: HTMLElement, public sim: Sim, private cb: SceneCallbacks, private opts: SceneOptions) {}
 
   async init() {
     setPaintRes(this.opts.quality === 'basse' ? 1 : Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1))));
+    const region = REGION_BY_ID[this.sim.s.region];
+    setPaintStyle(region.architecture);
     await this.app.init({
       resizeTo: this.host,
-      background: '#3d5a2a',
+      background: '#4a6a34',
       antialias: false,
       autoDensity: true,
       resolution: Math.min(window.devicePixelRatio || 1, this.opts.quality === 'basse' ? 1 : 2),
@@ -98,23 +169,39 @@ export class Scene {
     this.app.canvas.style.touchAction = 'none';
     this.app.canvas.setAttribute('aria-label', 'Carte du domaine');
     this.app.stage.addChild(this.world, this.fx);
-    this.world.addChild(this.ground, this.marks, this.objects);
+    // mesure du temps de rendu Pixi (tri des objets + envoi au GPU)
+    const render = this.app.renderer.render.bind(this.app.renderer);
+    this.app.renderer.render = ((...args: Parameters<typeof render>) => {
+      const t0 = performance.now();
+      const r = render(...args);
+      this.mark('rendu', t0);
+      return r;
+    }) as typeof render;
+    this.world.addChild(this.ground, this.roads, this.marks, this.objects);
     this.objects.sortableChildren = true;
     this.fx.addChild(this.rain, this.night);
     this.season = seasonOf(this.sim.s.minute);
     buildStaticAtlas(this.staticAtlas);
-    this.staticAtlas.pack();
-    buildAtlas(this.seasonAtlas, this.season);
-    this.seasonAtlas.pack();
+    buildObjectAtlas(this.objectAtlas, this.season);
+    this.objectAtlas.pack();
+    buildGroundAtlas(this.groundAtlas, this.season);
+    this.groundAtlas.pack(1);
+    await this.vehicleAtlas.load('./sprites').catch(() => undefined);
+    await this.livingAtlas.load('./sprites', 'vivants').catch(() => undefined);
     this.smokeTex = softTexture();
-    this.buildGround();
+    this.shader = Shader.from({ gl: { vertex: VERT, fragment: FRAG, name: 'sol-domaine' }, resources: { uTexture: this.groundAtlas.pages[0], solUniforms: this.uniforms } });
+    this.buildChunks();
+    this.buildRoads();
     this.syncWorld();
-    this.centerOn(47, 46, window.innerWidth < 700 ? 0.8 : 1);
+    // envoi de toutes les planches au GPU dès le chargement (pas d'à-coup au premier affichage)
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas]) this.upload(a.pages);
+    const [fx, fy] = this.sim.s.world.farm;
+    this.centerOn(fx + 2, fy, window.innerWidth < 700 ? 0.8 : 1);
     this.bindInput();
   }
 
   tex(key: string): Tex {
-    return this.seasonAtlas.map.get(key) ?? this.staticAtlas.get(key);
+    return this.groundAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
   }
 
   private setTex(sp: Sprite, key: string) {
@@ -123,43 +210,177 @@ export class Scene {
     sp.anchor.set(t.ax, t.ay);
   }
 
-  // ————— sol —————
-  private buildGround() {
-    const W = this.sim.s.world;
-    const per = Math.ceil(W.w / CHUNK);
-    for (let cy = 0; cy < per; cy++)
-      for (let cx = 0; cx < per; cx++) {
-        const c = new Container();
-        c.cullable = false;
-        this.chunks.push(c);
-        this.ground.addChild(c);
-      }
-    for (let y = 0; y < W.h; y++)
-      for (let x = 0; x < W.w; x++) {
-        const sp = new Sprite();
-        sp.position.set(isoX(x, y), isoY(x, y));
-        this.groundSprites.push(sp);
-        this.chunks[Math.floor(y / CHUNK) * per + Math.floor(x / CHUNK)].addChild(sp);
-      }
-    this.ground.addChild(this.roads);
-    this.buildRoads();
-    this.refreshAllTiles();
+  private get W(): World {
+    return this.sim.s.world;
   }
 
-  /** Routes et chemins d'origine : courbe lissée (Chaikin) passant par les centres des cases. */
+  /** Position écran (px monde) d'un point au sol, relief compris. */
+  groundPos(gx: number, gy: number): [number, number] {
+    return [isoX(gx, gy), isoY(gx, gy) - heightAt(this.W, gx, gy)];
+  }
+
+  // ————— sol en maillages —————
+  private buildChunks() {
+    const W = this.W;
+    this.per = Math.ceil(W.w / CHUNK);
+    const n = CHUNK * CHUNK;
+    const idx = new Uint32Array(n * 6);
+    for (let i = 0; i < n; i++) idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+    for (let cy = 0; cy < this.per; cy++)
+      for (let cx = 0; cx < this.per; cx++) {
+        const pos = new Buffer({ data: new Float32Array(n * 8), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+        const uv = new Buffer({ data: new Float32Array(n * 8), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+        const shade = new Buffer({ data: new Float32Array(n * 4), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+        const height = new Buffer({ data: new Float32Array(n * 4), usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+        const geometry = new Geometry({
+          attributes: { aPosition: { buffer: pos, format: 'float32x2' }, aUV: { buffer: uv, format: 'float32x2' }, aShade: { buffer: shade, format: 'float32' }, aHeight: { buffer: height, format: 'float32' } },
+          indexBuffer: idx,
+        });
+        const mesh = new Mesh({ geometry, shader: this.shader });
+        this.ground.addChild(mesh);
+        const ch: Chunk = { mesh, pos, uv, shade, height, objs: null, objLevel: 0, uvDirty: false, descs: null, x0: cx * CHUNK, y0: cy * CHUNK, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        this.chunks.push(ch);
+        this.fillChunk(ch, true);
+      }
+  }
+
+  /** Recalcule les sommets d'un chunk (forme, UV de chaque case, ombrage). */
+  private fillChunk(ch: Chunk, geometryToo: boolean) {
+    const W = this.W;
+    const P = ch.pos.data as Float32Array, U = ch.uv.data as Float32Array, S = ch.shade.data as Float32Array, Hh = ch.height.data as Float32Array;
+    const atlas = this.groundAtlas;
+    const pageW = 66, pageH = 34; // cadre d'une tuile (unités monde, marge comprise)
+    const corners: [number, number, number, number][] = [
+      [0, 0, 1 + 32, 1],
+      [1, 0, 1 + 64, 1 + 16],
+      [1, 1, 1 + 32, 1 + 32],
+      [0, 1, 1, 1 + 16],
+    ];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let i = 0;
+    for (let ty = ch.y0; ty < ch.y0 + CHUNK; ty++)
+      for (let tx = ch.x0; tx < ch.x0 + CHUNK; tx++, i++) {
+        const inMap = tx < W.w && ty < W.h;
+        const key = inMap ? this.tileKey(tx, ty) : 't:herbe:0';
+        const [u0, v0, uw, vh0] = atlas.uv.get(key) ?? atlas.uv.get('t:herbe:0')!;
+        const owned = inMap && isOwned(W, tx, ty);
+        for (let k = 0; k < 4; k++) {
+          const [dx, dy, px, py] = corners[k];
+          const gx = tx + dx, gy = ty + dy;
+          const h = vh(W, gx, gy);
+          if (geometryToo) {
+            const sx = isoX(gx, gy), sy = isoY(gx, gy) - h;
+            P[(i * 4 + k) * 2] = sx;
+            P[(i * 4 + k) * 2 + 1] = sy;
+            minX = Math.min(minX, sx);
+            maxX = Math.max(maxX, sx);
+            minY = Math.min(minY, sy);
+            maxY = Math.max(maxY, sy);
+            Hh[i * 4 + k] = h;
+          }
+          U[(i * 4 + k) * 2] = u0 + (px / pageW) * uw;
+          U[(i * 4 + k) * 2 + 1] = v0 + (py / pageH) * vh0;
+          // ombrage : pentes tournées vers la lumière (haut-gauche de l'écran) éclairées
+          const dhx = vh(W, gx + 1, gy) - vh(W, gx - 1, gy), dhy = vh(W, gx, gy + 1) - vh(W, gx, gy - 1);
+          let sh = 1 + (dhx * 0.75 + dhy * 0.35) * 0.0095;
+          sh = Math.max(0.55, Math.min(1.3, sh));
+          S[i * 4 + k] = owned || !inMap ? sh : sh * 0.86;
+        }
+      }
+    if (geometryToo) {
+      ch.minX = minX;
+      ch.maxX = maxX;
+      ch.minY = minY - 260; // objets hauts (arbres, clochers)
+      ch.maxY = maxY + TH;
+      ch.pos.update();
+      ch.height.update();
+    }
+    ch.uv.update();
+    ch.shade.update();
+  }
+
+  private chunkOf(tx: number, ty: number) {
+    return this.chunks[Math.floor(ty / CHUNK) * this.per + Math.floor(tx / CHUNK)];
+  }
+
+  private tileKey(x: number, y: number): string {
+    const W = this.W;
+    const i = y * W.w + x;
+    const t = W.terrain[i];
+    const v = Math.floor(hash2(x, y, W.seed) * 4);
+    const o = this.sim.occ[i];
+    if (o >= 0) {
+      const b = this.sim.byId.get(o)!;
+      const d = defOf(b);
+      if (d.kind === 'verger') return d.orchard === 'vigne' ? `c:vigne:2:${v & 1}` : `t:verger:${v & 1}`;
+      if (d.kind === 'enclos') return d.livestock === 'ruches' ? `t:verger:${v & 1}` : `t:enclos:${v & 1}`;
+      if (d.kind === 'champ') return `c:${CROPS[d.crop!].look}:${fieldStage(b, x, y)}:${v & 1}`;
+      return `t:cour:${v}`;
+    }
+    const at = (dx: number, dy: number) => {
+      const xx = x + dx, yy = y + dy;
+      return xx < 0 || yy < 0 || xx >= W.w || yy >= W.h ? -1 : W.terrain[yy * W.w + xx];
+    };
+    const mask = (f: (t: number) => boolean) => (f(at(1, 0)) ? 1 : 0) | (f(at(0, 1)) ? 2 : 0) | (f(at(-1, 0)) ? 4 : 0) | (f(at(0, -1)) ? 8 : 0);
+    if (this.smooth.has(i)) {
+      if (t === T.pont) return 't:eau:15';
+      const m = mask((n) => n === T.chemin || n === T.cour) & ~this.smoothMask(x, y);
+      return m ? `t:chemin:${m}` : `t:herbe:${v}`;
+    }
+    switch (t) {
+      case T.herbe:
+        return `t:herbe:${v}`;
+      case T.pre:
+        return `t:pre:${v}`;
+      case T.bois:
+        return `t:bois:${v}`;
+      case T.garrigue:
+        return `t:garrigue:${v & 1}`;
+      case T.sable:
+        return `t:sable:${v & 1}`;
+      case T.roche:
+        return `t:roche:${v & 1}`;
+      case T.cour: {
+        const m = mask((n) => n !== T.cour && n !== -1 && !isPathLike(n) && n !== T.eau);
+        return m ? `t:cour:${v & 1}:${m}` : `t:cour:${v}`;
+      }
+      case T.eau:
+        return `t:eau:${mask((n) => n === T.eau || n === T.pont || n === T.mer || n === -1)}`;
+      case T.mer:
+        return `t:mer:${mask((n) => n === T.mer || n === -1)}`;
+      case T.pont:
+        return isPathLike(at(1, 0)) || isPathLike(at(-1, 0)) ? 't:pont:x' : 't:pont:y';
+      case T.chemin:
+        return `t:chemin:${mask((n) => isPathLike(n))}`;
+      case T.route:
+        return `t:route:${mask((n) => n === T.route || n === T.pont || n === T.cour || n === T.chemin)}`;
+      case T.champVoisin: {
+        const look = NEIGHBOR_CROPS[W.field[i]] ?? 'ble';
+        const l = look === 'ble' || look === 'orge' ? 'cereale' : look;
+        // les champs voisins suivent le calendrier : levée au printemps, mûrs l'été, labourés à l'automne
+        const st = [2, 4, 5, 1][this.season] - (look === 'mais' || look === 'tournesol' ? (this.season === 1 ? 1 : this.season === 2 ? -4 : 0) : 0);
+        return `c:${l}:${Math.max(0, Math.min(5, look === 'vigne' ? 2 : st))}:${v & 1}`;
+      }
+    }
+    return `t:herbe:${v}`;
+  }
+
+  // ————— routes lissées —————
+  private smooth = new Set<number>();
+  private smoothMask(x: number, y: number) {
+    const W = this.W;
+    const h = (dx: number, dy: number) => this.smooth.has((y + dy) * W.w + x + dx);
+    return (h(1, 0) ? 1 : 0) | (h(0, 1) ? 2 : 0) | (h(-1, 0) ? 4 : 0) | (h(0, -1) ? 8 : 0);
+  }
+
   private buildRoads() {
-    const W = this.sim.s.world;
+    const W = this.W;
     const g = this.roads;
     g.clear();
     this.smooth.clear();
-    const chains: { pts: [number, number][]; road: boolean }[] = [
-      ...[ROAD_EAST, ROAD_WEST, ROAD_NORTH].map((p) => ({ pts: p, road: true })),
-      ...[...PATHS, ...HAMLET_PATHS].map((p) => ({ pts: p, road: false })),
-    ];
     const winter = this.season === 3;
-    for (const ch of chains) {
+    for (const ch of W.roads) {
       let tiles = rasterLine(ch.pts).filter(([x, y]) => x >= 0 && y >= 0 && x < W.w && y < W.h);
-      // on s'arrête dans la cour (la courbe s'y fond)
       const isCour = (t: [number, number]) => W.terrain[t[1] * W.w + t[0]] === T.cour;
       const first = tiles.findIndex(isCour);
       if (first > 0) tiles = tiles.slice(0, first + 1);
@@ -168,11 +389,12 @@ export class Scene {
         while (k < tiles.length - 1 && isCour(tiles[k + 1])) k++;
         tiles = tiles.slice(k);
       }
+      if (tiles.length < 2) continue;
       for (const [x, y] of tiles) {
         const t = W.terrain[y * W.w + x];
         if (t === T.route || t === T.chemin || t === T.pont) this.smooth.add(y * W.w + x);
       }
-      let pts = tiles.map(([x, y]) => [isoX(x + 0.5, y + 0.5), isoY(x + 0.5, y + 0.5)] as [number, number]);
+      let pts = tiles.map(([x, y]) => [x + 0.5, y + 0.5] as [number, number]);
       for (let it = 0; it < 3; it++) {
         const out: [number, number][] = [pts[0]];
         for (let i = 0; i < pts.length - 1; i++) {
@@ -182,13 +404,14 @@ export class Scene {
         out.push(pts[pts.length - 1]);
         pts = out;
       }
+      const scr = pts.map(([x, y]) => this.groundPos(x, y));
       const stroke = (width: number, color: number, alpha = 1) => {
-        g.moveTo(pts[0][0], pts[0][1]);
-        for (const p of pts.slice(1)) g.lineTo(p[0], p[1]);
+        g.moveTo(scr[0][0], scr[0][1]);
+        for (const p of scr.slice(1)) g.lineTo(p[0], p[1]);
         g.stroke({ width, color, alpha, cap: 'round', join: 'round' });
       };
       if (ch.road) {
-        stroke(30, 0x7f8a5a, 0.55);
+        stroke(30, 0x6f7a4a, 0.5);
         stroke(25, winter ? 0xb9b2a0 : 0xc8bca0);
         stroke(9, 0xd8cfb6, 0.7);
       } else {
@@ -196,13 +419,13 @@ export class Scene {
         stroke(15, winter ? 0xa8977c : 0xb8956a);
         stroke(4, 0xcaa97c, 0.6);
       }
-      // ponts : tablier de bois au-dessus de l'eau
+      // ponts
       let run: [number, number][] = [];
       const flush = () => {
         if (run.length) {
           const a = run[0], b = run[run.length - 1];
-          const [ax, ay] = [isoX(a[0] + 0.5, a[1] + 0.5), isoY(a[0] + 0.5, a[1] + 0.5)];
-          const [bx, by] = [isoX(b[0] + 0.5, b[1] + 0.5), isoY(b[0] + 0.5, b[1] + 0.5)];
+          const [ax, ay] = this.groundPos(a[0] + 0.5, a[1] + 0.5);
+          const [bx, by] = this.groundPos(b[0] + 0.5, b[1] + 0.5);
           const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1;
           const ex = (dx / L) * 22, ey = (dy / L) * 22;
           g.moveTo(ax - ex, ay - ey).lineTo(bx + ex, by + ey).stroke({ width: 30, color: 0x5c4026 });
@@ -225,114 +448,123 @@ export class Scene {
     }
   }
 
-  private refreshAllTiles() {
-    const W = this.sim.s.world;
-    for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) this.refreshTile(x, y);
+  // ————— objets du décor, instanciés par chunk visible —————
+  private decorKey(d: number, x: number, y: number): string | null {
+    const h = hash2(x, y, 5);
+    const sp = TREE_SPECIES_BY_DECOR[d];
+    if (sp) return `tree:${sp}:${Math.floor(h * TREE_SPECIES[sp].n)}`;
+    switch (d) {
+      case D.rocher:
+        return `rock:${Math.floor(h * 2)}`;
+      case D.rocherGros:
+        return `boulder:${Math.floor(h * 2)}`;
+      case D.fleurs:
+        return `flowers:${Math.floor(h * 3)}`;
+      case D.maison:
+        return `b:hameau${Math.floor(h * 4)}`;
+      case D.eglise:
+        return 'b:eglise';
+      case D.phare:
+        return 'b:phare';
+      case D.bateau:
+        return `boat:${Math.floor(h * 3)}`;
+      case D.meule:
+        return 'bale:0';
+      case D.lavande:
+        return `lavande:${Math.floor(h * 2)}`;
+      case D.puits:
+        return 'prop:puits';
+      case D.foin:
+        return 'prop:foin';
+      case D.charrette:
+        return 'prop:charrette';
+    }
+    return null;
   }
 
-  private tileKey(x: number, y: number): string {
-    const W = this.sim.s.world;
-    const i = y * W.w + x;
-    const t = W.terrain[i];
-    const v = Math.floor(hash2(x, y, W.seed) * 4);
-    const o = this.sim.occ[i];
-    if (o >= 0) {
-      const b = this.sim.byId.get(o)!;
-      const k = defOf(b).kind;
-      if (k === 'verger') return `t:verger:${v & 1}`;
-      if (k === 'enclos') return `t:enclos:${v & 1}`;
-      if (k === 'champ') return `t:champ:${fieldStage(b, x, y)}:${v & 1}`;
-      return `t:cour:${v}`;
-    }
-    const at = (dx: number, dy: number) => {
-      const xx = x + dx, yy = y + dy;
-      return xx < 0 || yy < 0 || xx >= W.w || yy >= W.h ? -1 : W.terrain[yy * W.w + xx];
-    };
-    const mask = (f: (t: number) => boolean) => (f(at(1, 0)) ? 1 : 0) | (f(at(0, 1)) ? 2 : 0) | (f(at(-1, 0)) ? 4 : 0) | (f(at(0, -1)) ? 8 : 0);
-    if (this.smooth.has(i)) {
-      if (t === T.pont) return `t:eau:15`;
-      // amorce vers un chemin tracé par le joueur ou la cour (la courbe recouvre le centre)
-      const m = mask((n) => n === T.chemin || n === T.cour) & ~this.smoothMask(x, y);
-      return m ? `t:chemin:${m}` : `t:herbe:${v}`;
-    }
-    switch (t) {
-      case T.herbe:
-        return `t:herbe:${v}`;
-      case T.pre:
-        return `t:pre:${v}`;
-      case T.bois:
-        return `t:bois:${v}`;
-      case T.cour: {
-        const m = mask((n) => n !== T.cour && n !== -1 && !isPathLike(n) && n !== T.eau);
-        return m ? `t:cour:${v & 1}:${m}` : `t:cour:${v}`;
+  private chunkDescs(ch: Chunk): Desc[] {
+    if (ch.descs) return ch.descs;
+    const W = this.W;
+    const out: Desc[] = [];
+    for (let y = ch.y0; y < Math.min(W.h, ch.y0 + CHUNK); y++)
+      for (let x = ch.x0; x < Math.min(W.w, ch.x0 + CHUNK); x++) {
+        const d = W.decor[y * W.w + x];
+        if (!d || this.sim.occ[y * W.w + x] >= 0) continue;
+        const key = this.decorKey(d, x, y);
+        if (!key) continue;
+        const big = d === D.maison || d === D.eglise;
+        const small = d === D.fleurs || d === D.lavande || d === D.rocher || d === D.buisson || d === D.meule || d === D.haie;
+        const filler = W.terrain[y * W.w + x] === T.bois && hash2(x, y, 41) > 0.45;
+        out.push({
+          detail: small ? 1 : filler ? 2 : 0,
+          key,
+          gx: big ? x : x + 0.5,
+          gy: big ? y : y + 0.5,
+          depth: big ? buildingDepth(x, y, 1) : tileDepth(x, y) + (d === D.fleurs || d === D.lavande ? -0.5 : 0),
+          mirror: hash2(x, y, 77) < 0.5 && !big && d !== D.phare,
+          tint: isOwned(W, x, y) ? 0xffffff : 0xe2ddd0,
+        });
       }
-      case T.eau:
-        return `t:eau:${mask((n) => n === T.eau || n === T.pont || n === -1)}`;
-      case T.pont:
-        return at(1, 0) === T.route || at(-1, 0) === T.route ? 't:pont:x' : 't:pont:y';
-      case T.chemin:
-        return `t:chemin:${mask((n) => isPathLike(n))}`;
-      case T.route:
-        return `t:route:${mask((n) => n === T.route || n === T.pont || n === T.cour || n === T.chemin)}`;
+    ch.descs = out;
+    return out;
+  }
+
+  /** niveau de détail : 0 complet, 1 sans petit décor, 2 forêts éclaircies */
+  lodBias = 0;
+  get lodLevel() {
+    return Math.min(2, (this.cam.z < 0.62 ? 1 : 0) + (this.cam.z < 0.42 ? 1 : 0) + this.lodBias);
+  }
+
+  private showChunkObjects(ch: Chunk) {
+    if (ch.objs) return;
+    ch.objs = [];
+    const level = this.lodLevel;
+    ch.objLevel = level;
+    for (const d of this.chunkDescs(ch)) {
+      if (d.detail !== 0 && d.detail <= level) continue;
+      let sp = this.pool.pop();
+      if (!sp) {
+        sp = new Sprite();
+        this.objects.addChild(sp);
+      }
+      sp.label = d.key;
+      this.setTex(sp, d.key);
+      const [px, py] = d.key.startsWith('b:hameau') || d.key === 'b:eglise' ? [isoX(d.gx, d.gy), isoY(d.gx, d.gy) - heightAt(this.W, d.gx + 0.5, d.gy + 0.5)] : this.groundPos(d.gx, d.gy);
+      sp.position.set(px, py);
+      sp.scale.set(d.mirror ? -1 : 1, 1);
+      sp.zIndex = d.depth;
+      sp.tint = d.tint;
+      sp.visible = true;
+      ch.objs.push(sp);
     }
-    return 't:herbe:0';
   }
 
-  private smoothMask(x: number, y: number) {
-    const W = this.sim.s.world;
-    const h = (dx: number, dy: number) => this.smooth.has((y + dy) * W.w + x + dx);
-    return (h(1, 0) ? 1 : 0) | (h(0, 1) ? 2 : 0) | (h(-1, 0) ? 4 : 0) | (h(0, -1) ? 8 : 0);
+  /** Sprites recyclés : ils restent dans le conteneur, masqués et triés en tête (aucun retrait coûteux). */
+  private hideChunkObjects(ch: Chunk) {
+    if (!ch.objs) return;
+    for (const sp of ch.objs) {
+      sp.visible = false;
+      sp.zIndex = -1e9;
+      this.pool.push(sp);
+    }
+    ch.objs = null;
   }
 
-  private refreshTile(x: number, y: number) {
-    const W = this.sim.s.world;
-    if (x < 0 || y < 0 || x >= W.w || y >= W.h) return;
-    const sp = this.groundSprites[y * W.w + x];
-    const t = this.tex(this.tileKey(x, y));
-    sp.texture = t.tex;
-    sp.anchor.set(0.5, 0);
-    sp.tint = isOwned(W, x, y) ? 0xffffff : 0xc9c4b4;
-  }
-
-  // ————— objets statiques —————
-  private place(sp: Sprite, gx: number, gy: number) {
-    sp.position.set(isoX(gx, gy), isoY(gx, gy));
-  }
-
-  private makeObj(key: string, gx: number, gy: number, depth: number, mirror = false): Obj {
+  // ————— bâtiments —————
+  private makeObj(key: string, gx: number, gy: number, depth: number, mirror = false, corner = false): Obj {
     const sp = new Sprite();
     this.setTex(sp, key);
-    this.place(sp, gx, gy);
+    const [px, py] = corner ? [isoX(gx, gy), isoY(gx, gy) - heightAt(this.W, gx + 0.5, gy + 0.5)] : this.groundPos(gx, gy);
+    sp.position.set(px, py);
     if (mirror) sp.scale.x = -1;
     sp.zIndex = depth;
     this.objects.addChild(sp);
     const b = sp.getLocalBounds();
-    const sx = sp.x, sy = sp.y;
-    return { sp, key, depth, x0: sx + Math.min(b.minX * sp.scale.x, b.maxX * sp.scale.x), y0: sy + b.minY, x1: sx + Math.max(b.minX * sp.scale.x, b.maxX * sp.scale.x), y1: sy + b.maxY };
+    return { sp, key, depth, x0: px + Math.min(b.minX * sp.scale.x, b.maxX * sp.scale.x), y0: py + b.minY, x1: px + Math.max(b.minX * sp.scale.x, b.maxX * sp.scale.x), y1: py + b.maxY };
   }
 
-  /** Synchronise décor et bâtiments avec la simulation (après construction, démolition, chemin…). */
+  /** Synchronise décor, sol et bâtiments avec la simulation (après construction, démolition, chemin…). */
   syncWorld() {
-    const W = this.sim.s.world;
-    // décor
-    for (let y = 0; y < W.h; y++)
-      for (let x = 0; x < W.w; x++) {
-        const i = y * W.w + x;
-        const d = W.decor[i];
-        const key = this.decorKey(d, x, y);
-        const cur = this.decor.get(i);
-        if (cur && cur.key === key) continue;
-        if (cur) {
-          cur.sp.destroy();
-          this.decor.delete(i);
-        }
-        if (key) {
-          const o = this.makeObj(key, x + 0.5, y + 0.5, tileDepth(x, y) + (d === D.fleurs || d === D.lavande ? -0.5 : 0), hash2(x, y, 77) < 0.5 && d !== D.maisonHameau);
-          if (!isOwned(W, x, y)) o.sp.tint = 0xd8d4c8;
-          this.decor.set(i, o);
-        }
-      }
-    // bâtiments
     const seen = new Set<number>();
     for (const b of this.sim.s.buildings) {
       seen.add(b.id);
@@ -345,26 +577,16 @@ export class Scene {
         this.fieldSig.delete(id);
         this.orchardSig.delete(id);
       }
-    this.refreshAllTiles();
+    // sol et décor : seulement les chunks touchés (construction, chemin, terrain…) ; tout au chargement
+    const r = this.sim.takeDirty();
+    for (const ch of this.chunks) {
+      if (r && (ch.x0 + CHUNK <= r[0] - 1 || ch.x0 > r[2] + 1 || ch.y0 + CHUNK <= r[1] - 1 || ch.y0 > r[3] + 1)) continue;
+      this.fillChunk(ch, true);
+      this.hideChunkObjects(ch);
+      ch.descs = null;
+    }
     this.lastRev = this.sim.worldRev;
     this.viewDirty = true;
-  }
-
-  private decorKey(d: number, x: number, y: number): string | null {
-    const h = hash2(x, y, 5);
-    if (TREE_KEYS[d]) {
-      const [sp, n] = TREE_KEYS[d];
-      return `tree:${sp}:${Math.floor(h * n)}`;
-    }
-    if (d === D.rocher) return `rock:${Math.floor(h * 2)}`;
-    if (d === D.fleurs) return `flowers:${Math.floor(h * 3)}`;
-    if (d === D.maisonHameau) return `b:hameau${Math.floor(h * 2)}`;
-    if (d === D.voiture) return `car:${Math.floor(h * 3)}`;
-    if (d === D.lavande) return `lavande:${Math.floor(h * 2)}`;
-    if (d === D.puits) return 'prop:puits';
-    if (d === D.foin) return 'prop:foin';
-    if (d === D.charrette) return 'prop:charrette';
-    return null;
   }
 
   private buildingObjs(b: Building): Obj[] {
@@ -372,16 +594,16 @@ export class Scene {
     const s = def.size;
     const out: Obj[] = [];
     if (def.kind === 'verger') {
-      for (const [x, y] of footprint(b)) out.push(this.makeObj(`pommier:0:${(x + y) & 1}`, x + 0.5, y + 0.5, tileDepth(x, y), (x * 7 + y) % 3 === 0));
+      const look = ORCHARDS[def.orchard!].look;
+      for (const [x, y] of footprint(b)) out.push(this.makeObj(`fruit:${look}:0:${(x + y) & 1}`, x + 0.5, y + 0.5, tileDepth(x, y), look !== 'vigne' && (x * 7 + y) % 3 === 0));
     } else if (def.kind === 'champ') {
-      // pas de volume : sol uniquement
-    } else {
-      // ancrage des sprites de bâtiment = sommet haut de l'emprise
-      if (def.kind === 'enclos') out.push(this.makeObj('b:abri', b.x, b.y, tileDepth(b.x, b.y)));
-      else if (b.rot === 1 && MIRROR_PAINTED.has(b.type)) out.push(this.makeObj(`b:${b.type}:m`, b.x, b.y, buildingDepth(b.x, b.y, s)));
-      else out.push(this.makeObj(`b:${b.type}`, b.x, b.y, buildingDepth(b.x, b.y, s), b.rot === 1));
-    }
-    if (def.kind === 'enclos' || def.kind === 'verger') {
+      // sol uniquement
+    } else if (def.kind === 'enclos') {
+      const abri = LIVESTOCK[def.livestock!].abri;
+      if (abri !== 'rucher') out.push(this.makeObj(`b:${abri}`, b.x, b.y, abri === 'etable' || abri === 'bergerie' ? buildingDepth(b.x, b.y, 2) : tileDepth(b.x, b.y), false, true));
+    } else if (b.rot === 1 && MIRROR_PAINTED.has(b.type)) out.push(this.makeObj(`b:${b.type}:m`, b.x, b.y, buildingDepth(b.x, b.y, s), false, true));
+    else out.push(this.makeObj(`b:${b.type}`, b.x, b.y, buildingDepth(b.x, b.y, s), b.rot === 1, true));
+    if (def.kind === 'enclos' || (def.kind === 'verger' && ORCHARDS[def.orchard!].look !== 'vigne')) {
       const gate = this.sim.gateOf(b);
       for (const [x, y] of footprint(b)) {
         let back = 0, front = 0;
@@ -397,62 +619,157 @@ export class Scene {
   }
 
   // ————— saisons —————
-  private setSeason(s: Season) {
+  private upload(pages: { uid: number }[]) {
+    const tex = (this.app.renderer as unknown as { texture?: { initSource?: (s: unknown) => void } }).texture;
+    for (const p of pages) tex?.initSource?.(p);
+  }
+
+  /** Saison suivante préparée en tâche de fond (quelques ms par image), activée d'un coup ensuite. */
+  private nextSeason: { season: Season; ground: AtlasJob; object: AtlasJob; uploaded: boolean; up: number } | null = null;
+
+  private prepareNextSeason() {
+    const next = ((this.season + 1) % 4) as Season;
+    if (this.nextSeason?.season === next) return;
+    const g = new Atlas(), o = new Atlas();
+    buildGroundAtlas(g, next);
+    buildObjectAtlas(o, next);
+    this.nextSeason = { season: next, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
+  }
+
+  private stepNextSeason(budgetMs: number) {
+    const n = this.nextSeason;
+    if (!n) return;
+    const t0 = performance.now();
+    if (!n.ground.done) this.groundAtlas.step(n.ground, budgetMs);
+    const left = budgetMs - (performance.now() - t0);
+    if (n.ground.done && !n.object.done && left > 0.5) this.objectAtlas.step(n.object, left);
+    else if (n.ground.done && n.object.done && !n.uploaded && left > 0.5) {
+      // envoi au GPU avant l'échange, une page par image
+      const all = [...n.ground.sources!, ...n.object.sources!];
+      this.upload([all[n.up++]]);
+      n.uploaded = n.up >= all.length;
+    }
+  }
+
+  setSeason(s: Season) {
+    const wasWinter = this.season === 3;
     this.season = s;
-    this.buildRoads();
-    buildAtlas(this.seasonAtlas, s);
-    this.seasonAtlas.pack();
-    this.refreshAllTiles();
-    for (const o of this.decor.values()) this.setTex(o.sp, o.key);
+    // préparation terminée en tâche de fond ; sinon (saut dans le temps) on la termine maintenant
+    let n = this.nextSeason;
+    if (!n || n.season !== s) {
+      const g = new Atlas(), o = new Atlas();
+      buildGroundAtlas(g, s);
+      buildObjectAtlas(o, s);
+      n = { season: s, ground: g.start(1), object: o.start(), uploaded: false, up: 0 };
+    }
+    this.nextSeason = null;
+    const old = [...this.groundAtlas.commit(n.ground), ...this.objectAtlas.commit(n.object)];
+    if (!n.uploaded) this.upload([...this.groundAtlas.pages, ...this.objectAtlas.pages].slice(n.up));
+    this.shader.resources.uTexture = this.groundAtlas.pages[0];
+    if (wasWinter || s === 3) this.buildRoads();
+    // sol : UV des chunks visibles tout de suite, des autres quand ils réapparaîtront
+    // la disposition des tuiles est identique d'une saison à l'autre : les UV restent valables ;
+    // seuls les champs voisins changent de stade, recalculés progressivement
+    for (const ch of this.chunks) {
+      ch.uvDirty = true;
+      // décor déjà affiché : simple changement de texture (pas de recréation)
+      if (ch.objs) for (const sp of ch.objs) this.setTex(sp, sp.label);
+    }
     for (const objs of this.bObjs.values()) for (const o of objs) this.setTex(o.sp, o.key);
+    for (const p of old) p.destroy();
     this.orchardSig.clear();
+    this.viewDirty = true;
   }
 
   // ————— boucle de rendu —————
-  /** alpha : fraction du pas de simulation écoulée (interpolation). */
+  /** Profilage léger : durée de chaque étape sur les dernières images (diagnostic des saccades). */
+  prof: Record<string, number[]> = {};
+  private mark(name: string, t0: number) {
+    const a = (this.prof[name] ??= []);
+    a.push(performance.now() - t0);
+    if (a.length > 600) a.shift();
+    return performance.now();
+  }
+
   update(dtMs: number, alpha: number) {
     const s = this.sim.s;
     this.time += dtMs;
     this.fps = this.app.ticker.FPS;
+    let t = performance.now();
     if (this.sim.worldRev !== this.lastRev) this.syncWorld();
+    t = this.mark('syncWorld', t);
     const season = seasonOf(s.minute);
     if (season !== this.season) this.setSeason(season);
+    else if (Math.floor(s.minute / 1440) % DAYS_PER_SEASON === DAYS_PER_SEASON - 1) {
+      // dernier jour de la saison : la suivante se prépare en tâche de fond (mémoire limitée au strict nécessaire)
+      this.prepareNextSeason();
+      this.stepNextSeason(2.5);
+    }
+    t = this.mark('saison', t);
+    this.updateSnow();
     this.updateCrops();
+    t = this.mark('cultures', t);
     this.updateAgents(alpha);
+    t = this.mark('agents', t);
     this.updateGhost();
     this.updateMarks();
+    t = this.mark('marques', t);
     this.applyCamera();
     this.cull();
+    t = this.mark('culling', t);
     this.updateFx(dtMs);
+    this.mark('effets', t);
+  }
+
+  /** Neige : en hiver sur les sommets ; les jours de neige, jusque dans les vallées. */
+  private updateSnow() {
+    const s = this.sim.s;
+    const region = REGION_BY_ID[s.region];
+    const sig = `${this.season}:${s.weather}`;
+    if (sig === this.snowSig) return;
+    this.snowSig = sig;
+    let alt = 99999;
+    if (this.season === 3) alt = s.weather === 'neige' ? -100 : region.relief.montagne > 0 ? 300 : 99999;
+    else if (this.season === 0 && region.relief.montagne > 0.3) alt = 460;
+    this.uniforms.uniforms.uSnowAlt = alt;
   }
 
   private updateCrops() {
     for (const b of this.sim.s.buildings) {
-      const k = defOf(b).kind;
-      if (k === 'champ') {
-        const sig = `${fieldStage(b, -1, -1)}:${b.reaped.length}`;
+      const d = defOf(b);
+      if (d.kind === 'champ') {
+        const sig = `${b.phase}:${fieldStage(b, -1, -1)}:${b.done.length}`;
         if (this.fieldSig.get(b.id) !== sig) {
           this.fieldSig.set(b.id, sig);
-          for (const [x, y] of footprint(b)) this.refreshTile(x, y);
+          const seen = new Set<Chunk>();
+          for (const [x, y] of footprint(b)) seen.add(this.chunkOf(x, y));
+          for (const ch of seen) this.fillChunk(ch, false);
         }
-      } else if (k === 'verger') {
-        const lvl = b.ready < 8 ? 0 : b.ready < ORCHARD_CAP * 0.35 ? 1 : b.ready < ORCHARD_CAP * 0.7 ? 2 : 3;
+      } else if (d.kind === 'verger') {
+        const o = ORCHARDS[d.orchard!];
+        const lvl = b.ready < 8 ? 0 : b.ready < o.cap * 0.35 ? 1 : b.ready < o.cap * 0.7 ? 2 : 3;
         if (this.orchardSig.get(b.id) !== lvl) {
           this.orchardSig.set(b.id, lvl);
-          for (const o of this.bObjs.get(b.id) ?? []) if (o.key.startsWith('pommier')) {
-            o.key = `pommier:${lvl}:${o.key.slice(-1)}`;
-            this.setTex(o.sp, o.key);
-          }
+          for (const ob of this.bObjs.get(b.id) ?? [])
+            if (ob.key.startsWith('fruit:')) {
+              ob.key = `fruit:${o.look}:${lvl}:${ob.key.slice(-1)}`;
+              this.setTex(ob.sp, ob.key);
+            }
         }
       }
     }
   }
 
-  private agentSprite(id: string, key: string): Obj & { carry?: Sprite } {
+  private agentSprite(id: string, key: string): Obj & { carry?: Sprite; heading?: number } {
     let a = this.agents.get(id);
     if (!a) {
-      const sp = new Sprite();
-      this.objects.addChild(sp);
+      // sprites d'agents recyclés (pas de création/destruction à chaque arrivée de visiteurs)
+      let sp = this.agentPool.pop();
+      if (!sp) {
+        sp = new Sprite();
+        this.objects.addChild(sp);
+      }
+      sp.visible = true;
       a = { sp, key: '', depth: 0, x0: 0, y0: 0, x1: 0, y1: 0 };
       this.agents.set(id, a);
     }
@@ -463,73 +780,125 @@ export class Scene {
     return a;
   }
 
+  private vehicleKey(v: Vehicle, d: number, f: number): string {
+    if (v.kind === 'moissonneuse' || v.kind === 'vendangeuse' || v.kind === 'camionnette' || v.kind === 'betaillere') return `${v.kind}:${d}:${f}`;
+    if (v.kind === 'voiture') return `voiture:${v.look % 3}:${d}:${f}`;
+    const livery = LIVERIES[v.look % 3];
+    let tool = v.tool;
+    if (tool === 'remorque') {
+      const r = v.load?.res;
+      tool = !r ? 'remorque-vide' : ['pommes', 'prunes', 'mirabelles', 'raisin', 'olives', 'betterave', 'pommes_de_terre', 'legumes'].includes(r) ? 'remorque-pommes' : 'remorque-ble';
+    }
+    if (livery !== 'rouge' && (tool === 'remorque-pommes' || tool === 'remorque-foin')) tool = 'remorque-ble';
+    if (!['seul', 'charrue', 'semoir', 'epandeur', 'pulverisateur', 'remorque-vide', 'remorque-ble', 'remorque-pommes', 'remorque-foin'].includes(tool)) tool = 'seul';
+    return `tracteur:${livery}:${tool}:${d}:${f}`;
+  }
+
   private updateAgents(alpha: number) {
     const s = this.sim.s;
     const seen = new Set<string>();
     const walkFrame = (id: number) => [1, 0, 2, 0][Math.floor((this.time / 150 + id) % 4)];
     const put = (o: Obj, x: number, y: number, depthBias = 0.02) => {
-      o.sp.position.set(isoX(x + 0.5, y + 0.5), isoY(x + 0.5, y + 0.5));
+      const [px, py] = this.groundPos(x + 0.5, y + 0.5);
+      o.sp.position.set(px, py);
       o.sp.zIndex = agentDepth(x, y, depthBias);
     };
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
     const face = (dir: number): [0 | 1, number] => (dir === 0 ? [0, 1] : dir === 1 ? [0, -1] : dir === 2 ? [1, -1] : [1, 1]);
+    // personnages 3D pré-cuits en 8 directions (repli : dessins 2D en 2 directions)
+    const has3d = this.livingAtlas.map.size > 0;
+    const headingOf = (id: string, dx: number, dy: number, dir: number) => {
+      const prev = this.agents.get(id)?.heading;
+      if (Math.abs(dx) + Math.abs(dy) > 1e-4) return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+      return prev ?? (dir === 0 ? 0 : dir === 1 ? 2 : dir === 2 ? 4 : 6);
+    };
+    const personSprite = (id: string, look: string, dir: number, dx: number, dy: number, fr: number) => {
+      if (!has3d) {
+        const [f, sx] = face(dir);
+        const o = this.agentSprite(id, `p:${look}:${f}:${fr}`);
+        o.sp.scale.x = sx;
+        return { o, front: f === 0, heading: dir * 2 };
+      }
+      const h = headingOf(id, dx, dy, dir);
+      const o = this.agentSprite(id, `pp:${look}:${h}:${fr}`);
+      o.heading = h;
+      o.sp.scale.x = 1;
+      return { o, front: h <= 3 || h === 7, heading: h };
+    };
     for (const w of s.workers) {
       const id = 'w' + w.id;
       if (w.hidden) continue;
       seen.add(id);
       const moving = w.x !== w.px || w.y !== w.py;
-      const working = !moving && w.timer > 0 && ['pick', 'process', 'reapTile', 'take', 'put'].includes(w.steps[0]?.k ?? '');
-      const [f, sx] = face(w.dir);
+      const working = !moving && w.timer > 0 && ['pick', 'process', 'field', 'take', 'put'].includes(w.steps[0]?.k ?? '');
       const fr = moving ? walkFrame(w.id) : working ? 3 + (Math.floor(this.time / 300) % 2) : 0;
-      const o = this.agentSprite(id, `p:${w.role}:${f}:${fr}`);
-      o.sp.scale.x = sx;
+      const { o, front, heading } = personSprite(id, w.role, w.dir, w.x - w.px, w.y - w.py, fr);
       put(o, lerp(w.px, w.x), lerp(w.py, w.y));
-      // charge portée
       if (w.carry) {
         if (!o.carry) {
-          o.carry = new Sprite();
-          o.sp.addChild(o.carry);
+          o.carry = (o.sp.children[0] as Sprite | undefined) ?? new Sprite();
+          if (!o.carry.parent) o.sp.addChild(o.carry);
         }
+        o.carry.visible = true;
         const t = this.tex(`carry:${w.carry.res}`);
         o.carry.texture = t.tex;
         o.carry.anchor.set(t.ax, t.ay);
-        o.carry.position.set(f === 0 ? 0 : 0, -12);
-        o.carry.visible = f === 0;
+        // la charge est portée devant le corps, dans le sens de la marche
+        const a = (heading * Math.PI) / 4;
+        o.carry.position.set(has3d ? (Math.cos(a) - Math.sin(a)) * 5 : 0, has3d ? -14 + (Math.cos(a) + Math.sin(a)) * 2.5 : -12);
+        o.carry.visible = front;
       } else if (o.carry) o.carry.visible = false;
     }
     for (const v of s.visitors) {
       const id = 'v' + v.id;
       seen.add(id);
       const moving = v.x !== v.px || v.y !== v.py;
-      const [f, sx] = face(v.dir);
-      const o = this.agentSprite(id, `p:v${v.look}:${f}:${moving ? walkFrame(v.id) : 0}`);
-      o.sp.scale.x = sx;
-      // léger décalage pour éviter que les visiteurs d'un même point se superposent
+      const { o } = personSprite(id, `v${v.look}`, v.dir, v.x - v.px, v.y - v.py, moving ? walkFrame(v.id) : 0);
       const j = (hash2(v.id, 3, 1) - 0.5) * 0.5;
       put(o, lerp(v.px, v.x) + j, lerp(v.py, v.y) - j);
     }
     for (const v of s.vehicles) {
       const id = 'veh' + v.id;
       seen.add(id);
-      const [f, sx] = face(v.dir);
-      const key = v.kind === 'tracteur' ? `tracteur:${f}:${v.load ? 1 : 0}` : `camionnette:${f}`;
-      const o = this.agentSprite(id, key);
-      o.sp.scale.x = sx;
+      const prev = this.agents.get(id);
+      const dx = v.x - v.px, dy = v.y - v.py;
+      const moving = Math.abs(dx) + Math.abs(dy) > 1e-4;
+      // cap en 8 directions, à partir du déplacement réel (garde le dernier cap à l'arrêt)
+      let heading = prev?.heading ?? (v.dir === 0 ? 0 : v.dir === 1 ? 2 : v.dir === 2 ? 4 : 6);
+      if (moving) heading = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+      const frame = moving ? Math.floor(this.time / 110) % 2 : 0;
+      const o = this.agentSprite(id, this.vehicleKey(v, heading, frame));
+      o.heading = heading;
       put(o, lerp(v.px, v.x), lerp(v.py, v.y), 0.1);
     }
     for (const a of s.animals) {
       const id = 'a' + a.id;
       seen.add(id);
       const moving = a.x !== a.px || a.y !== a.py;
-      const fr = moving ? Math.floor(this.time / 220 + a.id) % 2 : 0;
+      if (has3d && a.kind !== 'ruche') {
+        const h = headingOf(id, a.x - a.px, a.y - a.py, a.dir);
+        // à l'arrêt, les herbivores broutent la moitié du temps
+        const graze = !moving && hash2(a.id, Math.floor(this.time / 2600), 7) < 0.55;
+        const fr = moving ? 1 + (Math.floor(this.time / 200 + a.id) % 2) : graze ? 3 : 0;
+        const o = this.agentSprite(id, `aa:${a.kind}:${a.look}:${h}:${fr}`);
+        o.heading = h;
+        o.sp.scale.x = 1;
+        put(o, lerp(a.px, a.x) - 0.5, lerp(a.py, a.y) - 0.5, 0.01);
+        continue;
+      }
+      const fr = a.kind === 'ruche' ? Math.floor(this.time / 400 + a.id) % 2 : moving ? Math.floor(this.time / 220 + a.id) % 2 : 0;
       const [f, sx] = face(a.dir);
-      const o = this.agentSprite(id, a.kind === 'chevre' ? `goat:${a.look}:${f}:${fr}` : `hen:${a.look}:${fr}`);
-      o.sp.scale.x = a.kind === 'poule' ? (a.dir === 1 || a.dir === 2 ? -1 : 1) : sx;
+      const o = this.agentSprite(id, a.kind === 'poule' ? `animal:poule:${a.look}:${fr}` : `animal:${a.kind}:${a.look}:${a.kind === 'ruche' ? 0 : f}:${fr}`);
+      o.sp.scale.x = a.kind === 'ruche' ? 1 : a.kind === 'poule' ? (a.dir === 1 || a.dir === 2 ? -1 : 1) : sx;
       put(o, lerp(a.px, a.x) - 0.5, lerp(a.py, a.y) - 0.5, 0.01);
     }
     for (const [id, o] of this.agents)
       if (!seen.has(id)) {
-        o.sp.destroy({ children: true });
+        o.sp.visible = false;
+        o.sp.zIndex = -1e9;
+        if (o.carry) o.carry.visible = false;
+        o.sp.label = 'carry:' + (o.carry ? '1' : '0');
+        this.agentPool.push(o.sp);
         this.agents.delete(id);
       }
   }
@@ -547,7 +916,7 @@ export class Scene {
     const def = BUILDINGS[g.type];
     const kind = def.kind;
     const mir = g.rot === 1 && MIRROR_PAINTED.has(g.type);
-    const key = kind === 'verger' ? 'pommier:2:0' : kind === 'enclos' ? 'b:abri' : kind === 'champ' ? null : mir ? `b:${g.type}:m` : `b:${g.type}`;
+    const key = kind === 'verger' ? `fruit:${ORCHARDS[def.orchard!].look}:2:0` : kind === 'enclos' ? `b:${LIVESTOCK[def.livestock!].abri === 'rucher' ? 'poulailler' : LIVESTOCK[def.livestock!].abri}` : kind === 'champ' ? null : mir ? `b:${g.type}:m` : `b:${g.type}`;
     if (!key) {
       if (this.ghostSprite) this.ghostSprite.visible = false;
       return;
@@ -560,29 +929,41 @@ export class Scene {
     sp.visible = true;
     this.setTex(sp, key);
     const s = def.size;
-    if (kind === 'verger') this.place(sp, g.x + s / 2, g.y + s / 2);
-    else sp.position.set(isoX(g.x, g.y), isoY(g.x, g.y));
+    if (kind === 'verger') sp.position.set(...this.groundPos(g.x + s / 2, g.y + s / 2));
+    else sp.position.set(isoX(g.x, g.y), isoY(g.x, g.y) - heightAt(this.W, g.x + s / 2, g.y + s / 2));
     sp.scale.x = g.rot === 1 && kind !== 'verger' && !mir ? -1 : 1;
     sp.alpha = 0.72;
     sp.tint = g.ok ? 0xffffff : 0xff9a8a;
-    sp.zIndex = 100000;
+    sp.zIndex = 1e7;
+  }
+
+  /** Polygone au sol suivant le relief (contour d'un rectangle de cases). */
+  private groundRect(x: number, y: number, w: number, h: number): number[] {
+    const pts: number[] = [];
+    const push = (gx: number, gy: number) => {
+      const [px, py] = this.groundPos(gx, gy);
+      pts.push(px, py);
+    };
+    for (let i = 0; i < w; i++) push(x + i, y);
+    for (let i = 0; i < h; i++) push(x + w, y + i);
+    for (let i = w; i > 0; i--) push(x + i, y + h);
+    for (let i = h; i > 0; i--) push(x, y + i);
+    return pts;
   }
 
   private updateMarks() {
     const m = this.marks;
     m.clear();
-    const dia = (x: number, y: number, w: number, h: number) => {
-      m.poly([isoX(x, y), isoY(x, y), isoX(x + w, y), isoY(x + w, y), isoX(x + w, y + h), isoY(x + w, y + h), isoX(x, y + h), isoY(x, y + h)]);
-    };
-    const W = this.sim.s.world;
+    const W = this.W;
     if (this.showLots || this.ghost) {
-      // limites des lots de terrain
-      const per = Math.ceil(W.w / LOT_SIZE);
+      const per = lotsPerRow(W);
       for (let ly = 0; ly < per; ly++)
         for (let lx = 0; lx < per; lx++) {
           const owned = W.owned[ly * per + lx];
           if (owned && !this.showLots) continue;
-          dia(lx * LOT_SIZE + 0.15, ly * LOT_SIZE + 0.15, LOT_SIZE - 0.3, LOT_SIZE - 0.3);
+          const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => W.owned[(ly + b) * per + lx + a]);
+          if (!owned && !near) continue;
+          m.poly(this.groundRect(lx * LOT_SIZE + 0.15, ly * LOT_SIZE + 0.15, LOT_SIZE - 0.3, LOT_SIZE - 0.3));
           m.stroke({ width: 3, color: owned ? 0xf3e6c4 : 0x5a3c22, alpha: owned ? 0.8 : 0.45 });
         }
     }
@@ -590,7 +971,7 @@ export class Scene {
       const b = this.sim.byId.get(this.selected);
       if (b) {
         const s = defOf(b).size;
-        dia(b.x, b.y, s, s);
+        m.poly(this.groundRect(b.x, b.y, s, s));
         m.stroke({ width: 3, color: 0xffe08a, alpha: 0.95 });
         m.fill({ color: 0xffe08a, alpha: 0.12 });
       }
@@ -598,12 +979,12 @@ export class Scene {
     const g = this.ghost;
     if (g) {
       const s = g.type === 'chemin' ? 1 : BUILDINGS[g.type].size;
-      dia(g.x, g.y, s, s);
+      m.poly(this.groundRect(g.x, g.y, s, s));
       m.fill({ color: g.ok ? 0x5fbf4a : 0xd8443a, alpha: 0.38 });
       m.stroke({ width: 2, color: g.ok ? 0xc8f0a0 : 0xffb0a0, alpha: 0.9 });
       if (g.type !== 'chemin' && !['verger', 'champ', 'enclos'].includes(BUILDINGS[g.type].kind)) {
         const [dx, dy] = doorOf({ x: g.x, y: g.y, type: g.type, rot: g.rot });
-        dia(dx + 0.25, dy + 0.25, 0.5, 0.5);
+        m.poly(this.groundRect(dx + 0.25, dy + 0.25, 0.5, 0.5));
         m.fill({ color: 0xffe08a, alpha: 0.9 });
       }
     }
@@ -613,9 +994,7 @@ export class Scene {
   private updateFx(dtMs: number) {
     const s = this.sim.s;
     const w = this.app.screen.width, h = this.app.screen.height;
-    const mod = minuteOfDay(s.minute);
-    const hour = mod / 60;
-    // lumière : nuit bleutée, aube/crépuscule dorés
+    const hour = minuteOfDay(s.minute) / 60;
     let a = 0, col = 0x0b1840;
     if (hour < 5 || hour >= 21.5) a = 0.5;
     else if (hour < 7) {
@@ -631,10 +1010,9 @@ export class Scene {
       this.night.rect(0, 0, w, h);
       this.night.fill({ color: a > 0.02 ? col : 0x30384a, alpha: Math.min(0.62, a + weatherDim) });
     }
-    // pluie / neige
     this.rain.clear();
     if (s.weather === 'pluie' || s.weather === 'orage' || s.weather === 'neige') {
-      const n = s.weather === 'orage' ? 220 : s.weather === 'neige' ? 140 : 140;
+      const n = s.weather === 'orage' ? 220 : 140;
       const t = this.time / 1000;
       for (let i = 0; i < n; i++) {
         const sx = (hash2(i, 1, 3) * w + t * (s.weather === 'neige' ? 20 : 120)) % w;
@@ -645,21 +1023,21 @@ export class Scene {
       if (s.weather === 'neige') this.rain.fill({ color: 0xffffff, alpha: 0.85 });
       else this.rain.stroke({ width: 1, color: 0xcfe4f4, alpha: 0.45 });
     }
-    // fumées de cheminée (maison, boulangerie)
     this.smokeAcc += dtMs;
     if (this.smokeAcc > 450) {
       this.smokeAcc = 0;
       for (const b of s.buildings) {
-        if (b.type !== 'maison' && b.type !== 'boulangerie') continue;
-        if (b.type === 'boulangerie' && b.busyBy == null) continue;
+        const chimney = b.type === 'maison' || ((b.type === 'boulangerie' || b.type === 'distillerie' || b.type === 'brasserie') && b.busyBy != null);
+        if (!chimney) continue;
         const sz = defOf(b).size;
         const cx = b.x + sz * (b.rot ? 0.5 : 0.35), cy = b.y + sz * (b.rot ? 0.35 : 0.5);
+        const [px, py] = this.groundPos(cx, cy);
         const sp = new Sprite(this.smokeTex);
         sp.anchor.set(0.5);
-        sp.position.set(isoX(cx, cy), isoY(cx, cy) - (b.type === 'maison' ? 96 : 66));
+        sp.position.set(px, py - (b.type === 'maison' ? 96 : 66));
         sp.alpha = 0.5;
         sp.scale.set(0.4);
-        sp.zIndex = 200000;
+        sp.zIndex = 1e7;
         this.objects.addChild(sp);
         this.smoke.push({ sp, vx: 4 + Math.random() * 4, life: 1 });
       }
@@ -687,17 +1065,18 @@ export class Scene {
   }
 
   private clampCam() {
-    const W = this.sim.s.world;
+    const W = this.W;
     const minX = isoX(0, W.h), maxX = isoX(W.w, 0), maxY = isoY(W.w, W.h);
-    this.cam.x = Math.max(minX * 0.85, Math.min(maxX * 0.85, this.cam.x));
-    this.cam.y = Math.max(maxY * 0.08, Math.min(maxY * 0.92, this.cam.y));
+    this.cam.x = Math.max(minX * 0.9, Math.min(maxX * 0.9, this.cam.x));
+    this.cam.y = Math.max(maxY * 0.04, Math.min(maxY * 0.96, this.cam.y));
     this.cam.z = Math.max(0.3, Math.min(2.2, this.cam.z));
     this.viewDirty = true;
   }
 
   centerOn(tx: number, ty: number, zoom?: number) {
-    this.cam.x = isoX(tx + 0.5, ty + 0.5);
-    this.cam.y = isoY(tx + 0.5, ty + 0.5);
+    const [px, py] = this.groundPos(tx + 0.5, ty + 0.5);
+    this.cam.x = px;
+    this.cam.y = py;
     if (zoom) this.cam.z = zoom;
     this.clampCam();
   }
@@ -707,7 +1086,6 @@ export class Scene {
     const px = sx ?? width / 2, py = sy ?? height / 2;
     const before = this.screenToWorld(px, py);
     this.cam.z = Math.max(0.3, Math.min(2.2, this.cam.z * f));
-    // garde le point sous le curseur immobile
     this.cam.x = before.x - (px - width / 2) / this.cam.z;
     this.cam.y = before.y - (py - height / 2) / this.cam.z;
     this.clampCam();
@@ -724,22 +1102,29 @@ export class Scene {
     return { x: (sx - width / 2) / this.cam.z + this.cam.x, y: (sy - height / 2) / this.cam.z + this.cam.y };
   }
 
-  /** Centre d'une case en coordonnées écran (tests et aides). */
   tileToScreen(tx: number, ty: number): [number, number] {
     const { width, height } = this.app.screen;
-    return [(isoX(tx + 0.5, ty + 0.5) - this.cam.x) * this.cam.z + width / 2, (isoY(tx + 0.5, ty + 0.5) - this.cam.y) * this.cam.z + height / 2];
+    const [px, py] = this.groundPos(tx + 0.5, ty + 0.5);
+    return [(px - this.cam.x) * this.cam.z + width / 2, (py - this.cam.y) * this.cam.z + height / 2];
   }
 
+  /** Case sous le pointeur, relief compris (quelques itérations). */
   screenToTile(sx: number, sy: number): [number, number] {
     const p = this.screenToWorld(sx, sy);
-    const a = p.x / (TW / 2), b = p.y / (TH / 2);
-    return [Math.floor((a + b) / 2), Math.floor((b - a) / 2)];
+    let h = 0, tx = 0, ty = 0;
+    for (let it = 0; it < 4; it++) {
+      const a = p.x / (TW / 2), b = (p.y + h) / (TH / 2);
+      const fx = (a + b) / 2, fy = (b - a) / 2;
+      tx = Math.floor(fx);
+      ty = Math.floor(fy);
+      h = heightAt(this.W, Math.max(0, Math.min(this.W.w, fx)), Math.max(0, Math.min(this.W.h, fy)));
+    }
+    return [tx, ty];
   }
 
-  /** Bâtiment sous le pointeur : emprise d'abord, puis silhouette (toits). */
   pickBuilding(sx: number, sy: number): number | null {
     const [tx, ty] = this.screenToTile(sx, sy);
-    const W = this.sim.s.world;
+    const W = this.W;
     if (tx >= 0 && ty >= 0 && tx < W.w && ty < W.h) {
       const o = this.sim.occ[ty * W.w + tx];
       if (o >= 0) return o;
@@ -757,28 +1142,58 @@ export class Scene {
     return best;
   }
 
+  private lastCam = '';
   private cull() {
     const { width, height } = this.app.screen;
-    const m = 140;
+    const camSig = `${this.cam.x}|${this.cam.y}|${this.cam.z}|${width}|${height}`;
+    if (camSig !== this.lastCam) {
+      this.lastCam = camSig;
+      this.viewDirty = true;
+    }
+    const m = 120;
     const tl = this.screenToWorld(-m, -m), br = this.screenToWorld(width + m, height + m + 120);
     if (this.viewDirty) {
-      const per = Math.ceil(this.sim.s.world.w / CHUNK);
-      this.chunks.forEach((c, i) => {
-        const cx = (i % per) * CHUNK, cy = Math.floor(i / per) * CHUNK;
-        const xs = [isoX(cx, cy), isoX(cx + CHUNK, cy), isoX(cx, cy + CHUNK)];
-        const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = isoY(cx, cy), y1 = isoY(cx + CHUNK, cy + CHUNK) + TH;
-        c.visible = x1 >= tl.x && x0 <= br.x && y1 >= tl.y && y0 <= br.y;
-      });
+      // niveau de détail selon le zoom ; création des objets étalée sur plusieurs images (pas de saccade)
+      const level = this.lodLevel;
+      let budget = 1, pending = false, uvBudget = 4;
+      let count = 0;
+      for (const ch of this.chunks) {
+        const vis = ch.maxX >= tl.x && ch.minX <= br.x && ch.maxY >= tl.y && ch.minY <= br.y;
+        ch.mesh.visible = vis;
+        // marge supplémentaire pour les objets : on ne recrée pas au moindre déplacement
+        const near = ch.maxX >= tl.x - 400 && ch.minX <= br.x + 400 && ch.maxY >= tl.y - 300 && ch.minY <= br.y + 300;
+        if (vis && ch.objs && ch.objLevel !== level) {
+          if (budget > 0) {
+            this.hideChunkObjects(ch);
+          } else pending = true;
+        }
+        if (vis && ch.uvDirty && uvBudget-- > 0) {
+          this.fillChunk(ch, false);
+          ch.uvDirty = false;
+        } else if (vis && ch.uvDirty) pending = true;
+        if (vis && !ch.objs) {
+          if (budget > 0) {
+            this.showChunkObjects(ch);
+            budget--;
+          } else pending = true;
+        } else if (!vis && !near) this.hideChunkObjects(ch);
+        if (ch.objs) {
+          for (const sp of ch.objs) {
+            sp.visible = vis && sp.x >= tl.x - 60 && sp.x <= br.x + 60 && sp.y >= tl.y && sp.y <= br.y + 200;
+            if (sp.visible) count++;
+          }
+        }
+      }
       const vis = (o: Obj) => {
         o.sp.visible = o.x1 >= tl.x && o.x0 <= br.x && o.y1 >= tl.y && o.y0 <= br.y;
       };
-      for (const o of this.decor.values()) vis(o);
       for (const objs of this.bObjs.values()) for (const o of objs) vis(o);
-      this.viewDirty = false;
+      this.visibleObjects = count;
+      this.viewDirty = pending;
     }
     for (const o of this.agents.values()) {
       const x = o.sp.x, y = o.sp.y;
-      o.sp.visible = x >= tl.x - 60 && x <= br.x + 60 && y >= tl.y && y <= br.y + 80;
+      o.sp.visible = x >= tl.x - 80 && x <= br.x + 80 && y >= tl.y && y <= br.y + 80;
     }
   }
 
@@ -790,7 +1205,7 @@ export class Scene {
       try {
         el.setPointerCapture(e.pointerId);
       } catch {
-        /* capture indisponible (pointeur synthétique, vieux navigateur) : sans conséquence */
+        /* capture indisponible : sans conséquence */
       }
       const r = rect();
       const x = e.clientX - r.left, y = e.clientY - r.top;
@@ -807,10 +1222,7 @@ export class Scene {
       const x = e.clientX - r.left, y = e.clientY - r.top;
       const p = this.pointers.get(e.pointerId);
       if (!p) {
-        if (e.pointerType === 'mouse') {
-          const [tx, ty] = this.screenToTile(x, y);
-          this.cb.onHover(tx, ty);
-        }
+        if (e.pointerType === 'mouse') this.cb.onHover(...this.screenToTile(x, y));
         return;
       }
       const dx = x - p.x, dy = y - p.y;
@@ -827,10 +1239,7 @@ export class Scene {
       }
       if (!this.moved && Math.hypot(x - p.sx, y - p.sy) > 7) this.moved = true;
       if (this.moved) this.panBy(dx, dy);
-      if (e.pointerType === 'mouse') {
-        const [tx, ty] = this.screenToTile(x, y);
-        this.cb.onHover(tx, ty);
-      }
+      if (e.pointerType === 'mouse') this.cb.onHover(...this.screenToTile(x, y));
     });
     const end = (e: PointerEvent) => {
       const p = this.pointers.get(e.pointerId);
@@ -855,19 +1264,25 @@ export class Scene {
       { passive: false },
     );
   }
-  lastTap = { sx: 0, sy: 0 };
 
   destroy() {
     this.app.destroy(true, { children: true, texture: true });
-    for (const p of this.seasonAtlas.pages) p.destroy();
-    for (const p of this.staticAtlas.pages) p.destroy();
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas]) for (const p of a.pages) p.destroy();
   }
 }
 
+const TREE_SPECIES_BY_DECOR: Record<number, string> = {
+  [D.chene]: 'chene', [D.chataignier]: 'chataignier', [D.noyer]: 'noyer', [D.pin]: 'pin', [D.bouleau]: 'bouleau', [D.buisson]: 'buisson', [D.cypres]: 'cypres',
+  [D.sapin]: 'sapin', [D.epicea]: 'epicea', [D.hetre]: 'hetre', [D.peuplier]: 'peuplier', [D.olivier]: 'olivier', [D.haie]: 'haie',
+};
+
 export function fieldStage(b: Building, x: number, y: number): number {
-  if (x >= 0 && b.reaped.includes(y * 1000 + x)) return 5;
-  if (b.ready > 0) return 4;
-  return b.growth < 0.12 ? 0 : b.growth < 0.4 ? 1 : b.growth < 0.72 ? 2 : 3;
+  const done = x >= 0 && b.done.includes(y * 10000 + x);
+  if (b.phase === 'mur') return done ? 5 : 4;
+  if (b.phase === 'labour') return done ? 0 : 5;
+  if (b.phase === 'epandage') return 0;
+  if (b.phase === 'semis') return done ? 1 : 0;
+  return b.growth < 0.15 ? 1 : b.growth < 0.5 ? 2 : 3;
 }
 
 function softTexture(): Texture {
@@ -882,5 +1297,4 @@ function softTexture(): Texture {
   return new Texture({ source: new CanvasSource({ resource: c }) });
 }
 
-export { lotOf, RES };
-export type { World };
+export { RES };

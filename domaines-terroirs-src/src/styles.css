@@ -53,7 +53,7 @@ small { font-size: 0.82em; }
 
 /* ——— fenêtres ——— */
 .modal-back { position: fixed; inset: 0; background: rgba(30, 20, 10, 0.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
-.modal { position: relative; width: min(480px, 100%); max-height: calc(100% - 32px); overflow: auto; background: var(--parchemin); border-radius: var(--rayon); border: 2px solid #c9ab78; box-shadow: var(--ombre); padding: 20px; }
+.modal { position: relative; width: min(560px, 100%); max-height: calc(100% - 32px); overflow: auto; background: var(--parchemin); border-radius: var(--rayon); border: 2px solid #c9ab78; box-shadow: var(--ombre); padding: 20px; }
 .modal .close { position: absolute; top: 8px; right: 8px; }
 .slots { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 8px; }
 .slots .btn { width: 100%; flex-direction: column; align-items: flex-start; }
@@ -169,3 +169,18 @@ small { font-size: 0.82em; }
   .game.has-panel .toasts { top: calc(100px + var(--safe-t)); }
   .buildbar { bottom: calc(70px + var(--safe-b)); }
 }
+
+/* ——— choix de la région ——— */
+.regions { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin: 10px 0; }
+.region { display: grid; gap: 2px; text-align: left; padding: 8px; border-radius: 12px; border: 2px solid #d9c49a; background: #fffaf0; min-height: 84px; }
+.region.on { border-color: var(--vert); background: #f1f6e4; box-shadow: 0 0 0 2px rgba(79,122,52,.25); }
+.region b { font-size: 0.85rem; line-height: 1.15; }
+.region small { color: var(--encre-2); font-size: 0.72rem; }
+.region-swatch { height: 18px; border-radius: 6px; margin-bottom: 4px; }
+.region-detail { background: #fffaf0; border: 1px solid #e0cda4; border-radius: 10px; padding: 4px 12px; margin-bottom: 10px; font-size: 0.9rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.tabs button { border: 1px solid #d9c49a; background: #fffaf0; border-radius: 20px; padding: 6px 10px; font-size: 0.8rem; min-height: 34px; }
+.tabs button.on { background: var(--bois-2); color: #fff; border-color: var(--bois-2); }
+
+.hud-group.perf { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hud-group.perf small { font-size: 0.7rem; color: var(--encre-2); }

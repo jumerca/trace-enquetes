@@ -10,6 +10,20 @@ export let RES = 2; // sur-échantillonnage des peintures (netteté au zoom)
 export function setPaintRes(r: number) {
   RES = r;
 }
+/** Style architectural de la région (murs, toits, volets…). */
+export interface PaintStyle {
+  mur: string;
+  toit: string;
+  toitType: 'tuiles' | 'tuilesPlates' | 'ardoise' | 'lauzes';
+  pente: number;
+  volets: string;
+  colombages?: boolean;
+  brique?: boolean;
+}
+export let STYLE: PaintStyle = { mur: '#d9c39a', toit: '#a8553a', toitType: 'tuiles', pente: 1, volets: '#6f93b4' };
+export function setPaintStyle(s: PaintStyle) {
+  STYLE = s;
+}
 /** Peinture en miroir (orientation 1) : tout est inversé sauf les textes des enseignes. */
 let MIRROR = false;
 
@@ -59,12 +73,12 @@ export function mix(a: string, b: string, t: number): string {
 }
 
 /** Petit générateur local, stable pour un identifiant d'asset donné. */
-function rnd(seed: number) {
+export function rnd(seed: number) {
   let i = 0;
   return () => hash2(seed, i++, 9173);
 }
 
-const SEASON_GRASS = [
+export const SEASON_GRASS = [
   { base: '#7fae4a', dark: '#5f8f34', light: '#a3c862', flower: ['#f7f1e3', '#f4d24a', '#e98fb8'] },
   { base: '#8fae45', dark: '#6c8c30', light: '#b6c95e', flower: ['#f4d24a', '#f7f1e3', '#c9a0e8'] },
   { base: '#9a9f4c', dark: '#77783a', light: '#c0b467', flower: ['#d88b3c', '#c9662f'] },
@@ -72,7 +86,7 @@ const SEASON_GRASS = [
 ];
 
 // ————— géométrie isométrique —————
-const DIAMOND = (ctx: Ctx, ox: number, oy: number, grow = 0.6) => {
+export const DIAMOND = (ctx: Ctx, ox: number, oy: number, grow = 0.6) => {
   ctx.beginPath();
   ctx.moveTo(ox + TW / 2, oy - grow);
   ctx.lineTo(ox + TW + grow * 2, oy + TH / 2);
@@ -84,7 +98,7 @@ const DIAMOND = (ctx: Ctx, ox: number, oy: number, grow = 0.6) => {
 /** Points d'une face : iso(gx, gy, z) relatif à une origine écran. */
 export const iso = (ox: number, oy: number, gx: number, gy: number, z = 0): [number, number] => [ox + (gx - gy) * (TW / 2), oy + (gx + gy) * (TH / 2) - z];
 
-function poly(ctx: Ctx, pts: [number, number][]) {
+export function poly(ctx: Ctx, pts: [number, number][]) {
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
@@ -92,7 +106,7 @@ function poly(ctx: Ctx, pts: [number, number][]) {
 }
 
 // ————— tuiles de sol —————
-function grassTexture(ctx: Ctx, seed: number, season: Season, kind: 'herbe' | 'pre' | 'bois' | 'verger' | 'enclos') {
+export function grassTexture(ctx: Ctx, seed: number, season: Season, kind: 'herbe' | 'pre' | 'bois' | 'verger' | 'enclos') {
   const P = SEASON_GRASS[season];
   const r = rnd(seed);
   const base = kind === 'pre' ? mix(P.base, '#c7b55a', 0.22) : kind === 'bois' ? mix(P.dark, '#5b4a2e', 0.35) : kind === 'verger' ? mix(P.base, P.light, 0.18) : kind === 'enclos' ? mix(P.base, '#a08a5a', 0.35) : P.base;
@@ -179,20 +193,20 @@ function grassTexture(ctx: Ctx, seed: number, season: Season, kind: 'herbe' | 'p
 export type TileKind = 'herbe' | 'pre' | 'bois' | 'cour' | 'chemin' | 'route' | 'eau' | 'pont' | 'champ' | 'verger' | 'enclos';
 
 // voisins : bit 1 = +x (bas-droite), 2 = +y (bas-gauche), 4 = −x (haut-gauche), 8 = −y (haut-droite)
-const EDGE_MID: [number, number][] = [
+export const EDGE_MID: [number, number][] = [
   [TW * 0.75, TH * 0.75],
   [TW * 0.25, TH * 0.75],
   [TW * 0.25, TH * 0.25],
   [TW * 0.75, TH * 0.25],
 ];
-const EDGE_SEG: [[number, number], [number, number]][] = [
+export const EDGE_SEG: [[number, number], [number, number]][] = [
   [[TW, TH / 2], [TW / 2, TH]],
   [[TW / 2, TH], [0, TH / 2]],
   [[0, TH / 2], [TW / 2, 0]],
   [[TW / 2, 0], [TW, TH / 2]],
 ];
 
-function track(ctx: Ctx, mask: number, width: number, color: string, edge: string, seed: number) {
+export function track(ctx: Ctx, mask: number, width: number, color: string, edge: string, seed: number) {
   const cx = TW / 2, cy = TH / 2;
   const legs = [0, 1, 2, 3].filter((i) => mask & (1 << i));
   const draw = (w: number, col: string) => {
@@ -227,7 +241,7 @@ function track(ctx: Ctx, mask: number, width: number, color: string, edge: strin
   ctx.restore();
 }
 
-function waterTile(ctx: Ctx, mask: number, seed: number, season: Season) {
+export function waterTile(ctx: Ctx, mask: number, seed: number, season: Season) {
   const r = rnd(seed);
   const g = ctx.createLinearGradient(0, 0, 0, TH);
   const deep = season === 3 ? '#5d8fa8' : '#3f8fb5';
@@ -281,7 +295,7 @@ function waterTile(ctx: Ctx, mask: number, seed: number, season: Season) {
   }
 }
 
-function fieldTile(ctx: Ctx, stage: number, seed: number) {
+export function fieldTile(ctx: Ctx, stage: number, seed: number) {
   // stage : 0 labour, 1 levée, 2 vert, 3 épiaison, 4 mûr, 5 chaume
   const r = rnd(seed);
   ctx.fillStyle = stage === 5 ? '#b89a58' : '#8a6a44';
@@ -405,7 +419,7 @@ export interface TreeStyle {
   species: 'chene' | 'chataignier' | 'noyer' | 'pin' | 'bouleau' | 'cypres' | 'buisson' | 'pommier';
 }
 
-const LEAF = {
+export const LEAF = {
   chene: [['#8cc25a', '#5f9a3a', '#3f6e2a'], ['#6a9a3a', '#4c7a2c', '#2f5222'], ['#d49a3a', '#b86a28', '#7f4a22'], null],
   chataignier: [['#9ccb60', '#6ea03e', '#46702c'], ['#79a845', '#56842f', '#355a24'], ['#e0b04a', '#c27c2c', '#8a5224'], null],
   noyer: [['#a5cf6c', '#79a84a', '#4d7432'], ['#86b056', '#5f8a3c', '#3c5e2a'], ['#e6c45a', '#c8962e', '#8a6426'], null],
@@ -416,7 +430,7 @@ const LEAF = {
   cypres: [['#4c7a3e', '#33592d', '#1d3a20']],
 };
 
-function blob(ctx: Ctx, x: number, y: number, rx: number, ry: number, cols: string[], r: () => number, n = 14) {
+export function blob(ctx: Ctx, x: number, y: number, rx: number, ry: number, cols: string[], r: () => number, n = 14) {
   // feuillage en grappes : ombre, masse, lumière (haut-gauche)
   const layers = [
     { c: cols[2], dx: 1.5, dy: 2, k: 1 },
@@ -435,7 +449,7 @@ function blob(ctx: Ctx, x: number, y: number, rx: number, ry: number, cols: stri
   }
 }
 
-function groundShadow(ctx: Ctx, x: number, y: number, rx: number, ry: number, alpha = 0.28) {
+export function groundShadow(ctx: Ctx, x: number, y: number, rx: number, ry: number, alpha = 0.28) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
   g.addColorStop(0, `rgba(30,40,20,${alpha})`);
   g.addColorStop(1, 'rgba(30,40,20,0)');
@@ -450,7 +464,7 @@ function groundShadow(ctx: Ctx, x: number, y: number, rx: number, ry: number, al
   ctx.restore();
 }
 
-function branches(ctx: Ctx, x: number, y: number, h: number, spread: number, r: () => number, col = '#6b5238') {
+export function branches(ctx: Ctx, x: number, y: number, h: number, spread: number, r: () => number, col = '#6b5238') {
   ctx.strokeStyle = col;
   const rec = (sx: number, sy: number, ang: number, len: number, w: number, depth: number) => {
     const ex = sx + Math.cos(ang) * len, ey = sy + Math.sin(ang) * len;
@@ -755,29 +769,71 @@ export interface HouseOpts {
   chimneys?: number;
   vine?: boolean;
   open?: boolean; // hangar ouvert
-  roofKind?: 'tuiles' | 'tole' | 'ardoise';
+  roofKind?: 'tuiles' | 'tole' | 'ardoise' | 'tuilesPlates' | 'lauzes';
+  colombages?: boolean;
+  brique?: boolean;
+  /** false : ne pas appliquer le style régional (hangars, abris) */
+  styled?: boolean;
 }
 
-function stoneWall(ctx: Ctx, w: number, h: number, base: string, r: () => number, light: number) {
+function stoneWall(ctx: Ctx, w: number, h: number, base: string, r: () => number, light: number, brique = false) {
   ctx.fillStyle = shade(base, light);
   ctx.fillRect(0, 0, w, h);
-  // moellons calcaires
-  for (let y = 0; y < h; y += 4.2) {
-    let x = -r() * 6;
-    while (x < w) {
-      const sw = 4 + r() * 6;
-      ctx.fillStyle = shade(base, light + (r() - 0.5) * 0.22);
-      ctx.beginPath();
-      ctx.roundRect(x + 0.4, y + 0.4, sw - 0.8, 3.4, 1.2);
-      ctx.fill();
-      x += sw;
+  if (brique) {
+    // briques rouges à joints clairs
+    for (let y = 0, row = 0; y < h; y += 2.6, row++) {
+      for (let x = row % 2 ? -2.2 : 0; x < w; x += 4.4) {
+        ctx.fillStyle = shade(base, light + (r() - 0.5) * 0.16);
+        ctx.fillRect(x + 0.3, y + 0.3, 3.8, 2);
+      }
+    }
+  } else {
+    // moellons
+    for (let y = 0; y < h; y += 4.2) {
+      let x = -r() * 6;
+      while (x < w) {
+        const sw = 4 + r() * 6;
+        ctx.fillStyle = shade(base, light + (r() - 0.5) * 0.22);
+        ctx.beginPath();
+        ctx.roundRect(x + 0.4, y + 0.4, sw - 0.8, 3.4, 1.2);
+        ctx.fill();
+        x += sw;
+      }
     }
   }
   ctx.fillStyle = 'rgba(80,60,40,0.10)';
   ctx.fillRect(0, h - 5, w, 5);
 }
 
-function windowAt(ctx: Ctx, x: number, y: number, w: number, h: number, shutters: string, lit = false) {
+/** Pans de bois (colombages) sur un mur enduit. */
+function timberFrame(ctx: Ctx, w: number, h: number, light: number) {
+  ctx.strokeStyle = shade('#5a3a22', light);
+  ctx.lineWidth = 1.6;
+  const n = Math.max(2, Math.round(w / 9));
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const x = (i * w) / n;
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+  }
+  for (const y of [1, h * 0.52, h - 1]) {
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+  }
+  for (let i = 0; i < n; i++) {
+    const x0 = (i * w) / n, x1 = ((i + 1) * w) / n;
+    if (i % 2) {
+      ctx.moveTo(x0, h * 0.52);
+      ctx.lineTo(x1, 0);
+    } else {
+      ctx.moveTo(x0, h - 1);
+      ctx.lineTo(x1, h * 0.52);
+    }
+  }
+  ctx.stroke();
+}
+
+export function windowAt(ctx: Ctx, x: number, y: number, w: number, h: number, shutters: string, lit = false) {
   ctx.fillStyle = '#e8dcc0';
   ctx.fillRect(x - 1.2, y - 1.2, w + 2.4, h + 2.4);
   ctx.fillStyle = lit ? '#ffd889' : '#3b4a55';
@@ -812,7 +868,7 @@ function windowAt(ctx: Ctx, x: number, y: number, w: number, h: number, shutters
   ctx.fillRect(x - 0.5, y - 2.5, w + 1, 1.6);
 }
 
-function doorAt(ctx: Ctx, kind: HouseOpts['door'], x: number, w: number, h: number) {
+export function doorAt(ctx: Ctx, kind: HouseOpts['door'], x: number, w: number, h: number) {
   if (kind === 'grange') {
     ctx.fillStyle = '#6e4a2c';
     ctx.beginPath();
@@ -859,6 +915,19 @@ function doorAt(ctx: Ctx, kind: HouseOpts['door'], x: number, w: number, h: numb
  * La porte est sur la face avant-gauche (+y) ; l'orientation 1 est obtenue par symétrie du sprite.
  */
 export function paintHouse(o: HouseOpts, extras?: (ctx: Ctx, ox: number, oy: number, P: (gx: number, gy: number, z?: number) => [number, number]) => void): Painted {
+  if (o.styled !== false && !o.open && o.roofKind !== 'tole') {
+    o = {
+      ...o,
+      wall: mix(STYLE.mur, o.wall, 0.22),
+      roof: mix(STYLE.toit, o.roof, 0.18),
+      roofKind: o.roofKind ?? STYLE.toitType,
+      roofH: o.roofH * STYLE.pente,
+      shutters: o.shutters === '#6f93b4' ? STYLE.volets : o.shutters,
+      colombages: o.colombages ?? STYLE.colombages,
+      brique: o.brique ?? STYLE.brique,
+    };
+    if (o.colombages) o.wall = '#efe6d0';
+  }
   const r = rnd(o.seed);
   const s = o.size, m = o.inset;
   const W = s * TW + 44;
@@ -912,7 +981,8 @@ export function paintHouse(o: HouseOpts, extras?: (ctx: Ctx, ox: number, oy: num
       ctx.restore();
     };
     face('L', (w, h) => {
-      stoneWall(ctx, w, h, o.wall, r, 0.02);
+      stoneWall(ctx, w, h, o.wall, r, 0.02, o.brique);
+      if (o.colombages) timberFrame(ctx, w, h, 0);
       const n = Math.max(1, Math.round(w / 26));
       for (let st = 0; st < o.stories; st++) {
         const wy = st === 0 ? h - 24 : h - 24 - st * 26;
@@ -925,7 +995,8 @@ export function paintHouse(o: HouseOpts, extras?: (ctx: Ctx, ox: number, oy: num
       }
     });
     face('R', (w, h) => {
-      stoneWall(ctx, w, h, o.wall, r, -0.14);
+      stoneWall(ctx, w, h, o.wall, r, -0.14, o.brique);
+      if (o.colombages) timberFrame(ctx, w, h, -0.15);
       const n = Math.max(1, Math.round(w / 30));
       for (let st = 0; st < o.stories; st++) {
         const wy = st === 0 ? h - 24 : h - 24 - st * 26;
@@ -949,7 +1020,7 @@ export function paintHouse(o: HouseOpts, extras?: (ctx: Ctx, ox: number, oy: num
   const ov = 0.18; // débord
   const A = a - ov, B = b + ov;
   const zr = hw, zt = hw + o.roofH;
-  const roofCol = o.roofKind === 'tole' ? '#7d7a74' : o.roofKind === 'ardoise' ? '#5a6068' : o.roof;
+  const roofCol = o.roofKind === 'tole' ? '#7d7a74' : o.roof;
   const tiles = (pts: [number, number][], shadeAmt: number, rows: number) => {
     // pts : bas-gauche, bas-droite, haut-droite, haut-gauche
     poly(ctx, pts);
@@ -969,16 +1040,50 @@ export function paintHouse(o: HouseOpts, extras?: (ctx: Ctx, ox: number, oy: num
       ctx.lineTo(q[0], q[1]);
       ctx.stroke();
     }
-    const cols = Math.round(Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) / 3.6);
-    for (let k = 0; k <= cols; k++) {
-      const t = k / cols;
-      const p = lerp(pts[0], pts[1], t), q = lerp(pts[3], pts[2], t);
-      ctx.strokeStyle = o.roofKind === 'tole' ? shade(roofCol, shadeAmt + 0.12) : shade(roofCol, shadeAmt + (k % 2 ? 0.1 : -0.12));
-      ctx.lineWidth = o.roofKind === 'tole' ? 0.6 : 1.4;
-      ctx.beginPath();
-      ctx.moveTo(p[0], p[1]);
-      ctx.lineTo(q[0], q[1]);
-      ctx.stroke();
+    const kind = o.roofKind ?? 'tuiles';
+    if (kind === 'lauzes') {
+      // grandes dalles de pierre irrégulières
+      for (let k = 0; k < 70; k++) {
+        const u = r(), v = r();
+        const p = lerp(lerp(pts[0], pts[1], u), lerp(pts[3], pts[2], u), v);
+        ctx.fillStyle = shade(roofCol, shadeAmt + (r() - 0.5) * 0.3);
+        ctx.beginPath();
+        ctx.ellipse(p[0], p[1], 3 + r() * 2.5, 1.6 + r(), (r() - 0.5) * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = shade(roofCol, shadeAmt - 0.35);
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+      }
+    } else {
+      const step = kind === 'tuiles' ? 3.6 : kind === 'tuilesPlates' ? 2.4 : 2.8;
+      const cols = Math.round(Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) / step);
+      if (kind === 'tuiles' || kind === 'tole') {
+        for (let k = 0; k <= cols; k++) {
+          const t = k / cols;
+          const p = lerp(pts[0], pts[1], t), q = lerp(pts[3], pts[2], t);
+          ctx.strokeStyle = kind === 'tole' ? shade(roofCol, shadeAmt + 0.12) : shade(roofCol, shadeAmt + (k % 2 ? 0.1 : -0.12));
+          ctx.lineWidth = kind === 'tole' ? 0.6 : 1.4;
+          ctx.beginPath();
+          ctx.moveTo(p[0], p[1]);
+          ctx.lineTo(q[0], q[1]);
+          ctx.stroke();
+        }
+      } else {
+        // ardoises / tuiles plates : petits éléments en quinconce
+        const rr = rows * 2;
+        for (let j = 0; j < rr; j++)
+          for (let k = 0; k < cols; k++) {
+            const u = (k + (j % 2) * 0.5) / cols, v0 = j / rr, v1 = (j + 0.85) / rr;
+            const a = lerp(lerp(pts[0], pts[1], u), lerp(pts[3], pts[2], u), v0);
+            const b = lerp(lerp(pts[0], pts[1], u), lerp(pts[3], pts[2], u), v1);
+            ctx.strokeStyle = shade(roofCol, shadeAmt + (r() - 0.5) * 0.22);
+            ctx.lineWidth = step * 0.75;
+            ctx.beginPath();
+            ctx.moveTo(a[0], a[1]);
+            ctx.lineTo(b[0], b[1]);
+            ctx.stroke();
+          }
+      }
     }
     // tuiles dépareillées
     if (o.roofKind !== 'tole')
@@ -1085,7 +1190,7 @@ export function hayBale(ctx: Ctx, x: number, y: number) {
   ctx.stroke();
 }
 
-function barrel(ctx: Ctx, x: number, y: number) {
+export function barrel(ctx: Ctx, x: number, y: number) {
   ctx.fillStyle = '#8a5a32';
   ctx.beginPath();
   ctx.ellipse(x, y - 6, 5, 7, 0, 0, Math.PI * 2);
@@ -1117,7 +1222,7 @@ export function crate(ctx: Ctx, x: number, y: number, fruit: string | null) {
   }
 }
 
-function pot(ctx: Ctx, x: number, y: number, col: string) {
+export function pot(ctx: Ctx, x: number, y: number, col: string) {
   ctx.fillStyle = '#b8643c';
   ctx.beginPath();
   ctx.moveTo(x - 3.5, y - 6);
@@ -1137,7 +1242,7 @@ function pot(ctx: Ctx, x: number, y: number, col: string) {
   }
 }
 
-function sign(ctx: Ctx, x: number, y: number, text: string) {
+export function sign(ctx: Ctx, x: number, y: number, text: string) {
   ctx.fillStyle = '#5a3c22';
   ctx.fillRect(x - 0.8, y - 16, 1.6, 16);
   ctx.fillStyle = '#7a5230';
@@ -1157,7 +1262,7 @@ function sign(ctx: Ctx, x: number, y: number, text: string) {
   ctx.restore();
 }
 
-function parasol(ctx: Ctx, x: number, y: number, col: string) {
+export function parasol(ctx: Ctx, x: number, y: number, col: string) {
   ctx.fillStyle = '#6b5238';
   ctx.fillRect(x - 0.6, y - 20, 1.2, 20);
   ctx.fillStyle = col;
@@ -1186,6 +1291,12 @@ const WALL_WARM = '#d6b98a';
 const ROOF = '#b8553a';
 const BLUE = '#6f93b4';
 
+/** Peintres de bâtiments supplémentaires (paint2.ts), enregistrés sans dépendance circulaire. */
+let BUILDING_HOOK: ((type: string) => Painted | null) | null = null;
+export function setBuildingHook(h: (type: string) => Painted | null) {
+  BUILDING_HOOK = h;
+}
+
 export function paintBuilding(type: string, mirrored = false): Painted {
   MIRROR = mirrored;
   try {
@@ -1210,7 +1321,9 @@ function paintBuildingInner(type: string): Painted {
         crate(ctx, ...P(0.5, 2.98), '#d2322a');
       });
     case 'hangar':
-      return paintHouse({ size: 3, inset: 0.15, wallH: 36, roofH: 16, wall: WALL, roof: ROOF, shutters: BLUE, stories: 0, hip: false, door: 'simple', seed: 31, open: true, roofKind: 'tole' });
+      return paintHouse({ size: 3, inset: 0.15, wallH: 36, roofH: 16, wall: WALL, roof: ROOF, shutters: BLUE, stories: 0, hip: false, door: 'simple', seed: 31, open: true, roofKind: 'tole', styled: false });
+    case 'remise':
+      return paintHouse({ size: 3, inset: 0.1, wallH: 46, roofH: 18, wall: WALL, roof: ROOF, shutters: BLUE, stories: 0, hip: false, door: 'simple', seed: 33, open: true, roofKind: 'tole', styled: false });
     case 'pressoir':
       return paintHouse({ size: 2, inset: 0.18, wallH: 30, roofH: 20, wall: WALL, roof: ROOF, shutters: '#7d9a5a', stories: 1, hip: false, door: 'grange', seed: 41 }, (ctx, _ox, _oy, P) => {
         barrel(ctx, ...P(1.95, 0.7));
@@ -1315,6 +1428,8 @@ function paintBuildingInner(type: string): Painted {
     case 'abri':
       return paintHouse({ size: 1, inset: 0.08, wallH: 16, roofH: 10, wall: '#b08a5a', roof: '#a94e34', shutters: BLUE, stories: 0, hip: false, door: 'simple', seed: 107, open: true });
   }
+  const extra = BUILDING_HOOK?.(type);
+  if (extra) return extra;
   throw new Error('bâtiment inconnu ' + type);
 }
 

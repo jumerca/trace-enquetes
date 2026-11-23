@@ -1,4 +1,4 @@
-# Rapport — tranche verticale V0.1 (état au 23/11/2026)
+# Rapport — V0.3 (état au 23/11/2026)
 
 Ce rapport distingue ce qui est **fait et testé** de ce qui est **partiel**, **non commencé** ou **non testé**. Aucune mesure sur téléphone réel n'a pu être faite dans cet environnement.
 
@@ -6,57 +6,69 @@ Ce rapport distingue ce qui est **fait et testé** de ce qui est **partiel**, **
 
 | Suite | Commande | Résultat |
 |---|---|---|
-| TypeScript strict | `npm run build` (tsc --noEmit) | 0 erreur |
-| Unitaires (Vitest) | `npm test` | **22/22** réussis |
-| Bout en bout (Playwright, build de prod) | `npm run test:e2e` | **37/37** vérifications réussies (détail : `docs/captures/resultats-e2e.json`) |
+| TypeScript strict | `npm run build` | 0 erreur |
+| Unitaires (Vitest) | `npm test` | **45/45** réussis |
+| Bout en bout (Playwright, build de prod) | `npm run test:e2e` | **46/46** vérifications (détail : `docs/captures/resultats-e2e.json`) |
+| Performance, processeur bridé ×4 | `node scripts/perf.cjs <url> 4` | voir ci-dessous |
 
-Couverture des tests unitaires : reproductibilité à graine égale sur 30 jours (argent, statistiques, comptes identiques) ; boucle pommes→jus→boutique ; conservation de la matière (pommes récoltées = stock + pressées + vendues) ; salaires/entretien imputés et ventilés par activité ; aucune vente au négociant sans stock ; capacité de grange respectée ; ateliers à l'arrêt sans intrants ; constructions invalides refusées (eau, chemin, hors domaine, occupé, non constructible, fonds insuffisants) ; enclos→traite→fromage ; blé→moisson au tracteur→moulin avec retour du tracteur au hangar ; véhicules contournant le décor ; démolition ; chemins ; sauvegarde→restauration à l'identique puis suite identique ; refus d'un fichier étranger ou plus récent ; A* sans traversée d'obstacle ni coupe de coin ; aucun travailleur/visiteur sur une case de bâtiment ou d'eau pendant 2 jours simulés ; accessibilité des portes ; tri en profondeur (devant/derrière un bâtiment).
+Unitaires : chacune des **8 régions** démarre jouable (bâtiments autorisés et accessibles, route du bord de carte au parking, récolte, transformation et visiteurs dès 3 jours) ; la mer existe au bord de mer, la montagne a > 3× le relief de la Beauce ; productions refusées hors région ; reproductibilité sur 30 jours ; conservation de la matière ; salaires ventilés ; négociant (aucune vente sans stock, camionnette qui vient charger) ; capacité de grange ; ateliers à l'arrêt sans intrants ; constructions invalides ; élevage caprin → fromage ; **blé mécanisé : moissonneuse → grange, puis labour et semis au tracteur, engins rentrés au garage** ; champ sans engin travaillé à la main ; **visiteurs en voiture : arrivée, stationnement, départ** ; véhicules contournant le décor et restant sur les voies ; démolition, chemins, achat de terrain contigu ; sauvegarde/restauration à l'identique (relief compris) ; refus des fichiers étrangers, plus récents ou de la V0.1 ; A* ; personne ne traverse bâtiment, eau ou pente infranchissable (2 jours en montagne) ; cohérence des données ; tri en profondeur.
 
-E2E (Chromium, rendu logiciel) : 6 boutons du menu et leurs fenêtres ; démarrage ; vitesses ×1/×2/×4 et pause ; glisser = déplacement ; molette = zoom ; **la caméra reste immobile pendant la simulation** ; fiche bâtiment au toucher ; construction refusée sur l'eau ; construction d'un champ et débit du coût ; ouverture des 6 panneaux ; embauche ; commande négociant (stock réservé) ; export JSON ; enregistrement, rechargement de page et chargement à l'identique ; **mobile Pixel 5 émulé** : pincement à deux doigts = zoom, toucher = fantôme sans construire, « Valider » = construction ; aucune erreur JavaScript.
+E2E (Chromium, rendu logiciel) : menu et fenêtres, **choix de la région**, carte 256×256, vitesses et pause, déplacement et zoom, caméra immobile pendant la simulation, fiche bâtiment, refus sur l'eau, construction d'un champ, panneaux, embauche, négociant, export JSON, enregistrement et rechargement à l'identique, **lancement des 7 autres régions avec la planche de véhicules chargée**, mobile Pixel 5 émulé (pincement, placement tactile + « Valider »), aucune erreur JavaScript.
 
 ## Performance (mesures réelles, à interpréter avec prudence)
 
-- Coût JavaScript par image (simulation + préparation de la scène) : **≈ 0,24 ms** en moyenne (mesuré dans le test E2E).
-- Images/seconde dans le conteneur de test : **≈ 10 i/s** — rendu WebGL **logiciel** (SwiftShader, sans GPU), donc **non représentatif**. Le goulot est la rastérisation logicielle, pas le code du jeu.
-- **Objectif 30 i/s sur Android 4 Go : NON VALIDÉ** (aucun appareil disponible). À mesurer sur un téléphone réel : le jeu expose `window.__dt.measuredFps()` et `window.__dt.cpuMs()` (console à distance Chrome).
-- Mesures de maîtrise prévues dans le code : sol en 36 chunks 16×16 masqués hors champ, décor/bâtiments masqués hors champ, assets regroupés en 2–3 pages d'atlas (≈ 16 Mo GPU chacune en qualité haute, 4× moins en qualité « Économie »), pas de rattrapage de simulation au-delà de 40 pas par image, réglage « Économie » (résolution 1×).
+Toutes les mesures ci-dessous sont faites avec le **processeur bridé ×4** (approximation d'un téléphone d'entrée de gamme), écran 412×915, rendu WebGL logiciel. Outils : `scripts/saccades.cjs` (glissements continus de la caméra), `scripts/pics.cjs` (saison, construction), `scripts/perf.cjs`.
+
+**Glissements de caméra** (≈ 1 900 images, montagne et Est, zooms 1 / 0,6 / 0,4) :
+
+| | médiane | 95 % | 99 % | pire |
+|---|---|---|---|---|
+| Mise à jour (simulation + scène) | 1,1 – 1,7 ms | 3,6 – 5,4 ms | 4,9 – 10,4 ms | 37 ms (une image, au repositionnement) |
+| Préparation du rendu (tri, lots) | 3 – 5 ms | 6 – 10 ms | 8,5 – 13 ms | 19 ms |
+
+**1 image sur ≈ 1 900 dépasse 33 ms** (budget à 30 i/s), contre des pics répétés jusqu'à 75 ms auparavant.
+
+**À-coups ponctuels supprimés** (mesures non bridées ; ×4 environ sur téléphone modeste) :
+
+| Événement | Avant | Après |
+|---|---|---|
+| Changement de saison | 276 ms d'un bloc | 6 ms à la bascule ; préparation en tâche de fond pendant le dernier jour, pire image 7,6 ms |
+| Construction d'un bâtiment, chemin, achat de terrain | 40 ms | 1 à 3 ms (seule la zone modifiée est recalculée) |
+| Premier affichage d'une planche (véhicules, personnages) | envoi au GPU au premier usage | planches envoyées dès le chargement |
+| Arrivée/départ de visiteurs, défilement | créations et retraits de sprites | sprites recyclés, retraits supprimés ; trajets fréquents en cache |
+
+Autres mesures : niveau de détail au dézoom, qualité adaptative, compteur de performances dans Réglages.
+
+- **30 i/s sur Android 4 Go : toujours NON VALIDÉ sur un vrai téléphone** — le coût GPU réel (remplissage, envoi des textures) ne se mesure pas ici. Activez « Afficher les performances » dans Réglages pour lire la valeur sur votre appareil.
+- Mémoire GPU : véhicules 3 pages, personnages/animaux 2 pages, plus 3 à 4 pages d'atlas peints ; pendant le dernier jour d'une saison, la saison suivante est préparée en plus (≈ +50 Mo de mémoire vive le temps de la bascule).
 
 ## Tableau d'avancement
 
 | Élément | État | Test |
 |---|---|---|
-| Projet TS strict + Vite + PixiJS + React, PWA installable, service worker hors ligne | Fait | Build testé ; installation PWA non testée sur appareil |
-| Sauvegarde IndexedDB, schéma versionné (migrations), export/import JSON, autosauvegarde quotidienne et à la mise en arrière-plan | Fait | Testé (unitaire + E2E) |
-| Carte 96×96 Corrèze/Périgord : rivière, étang, bois, prés, routes courbes, pont, cour, parking, hameau d'arrière-plan | Fait | Testé visuellement (captures) |
-| Relief illustratif (collines, dénivelés) | Non commencé | — |
-| Caméra : pan, zoom molette/pincement, bornes, recentrage manuel, jamais de saut automatique | Fait | Testé (E2E) |
-| Verger → pressoir → jus → boutique, stocks, coûts, profits vérifiables | Fait | Testé |
-| Chèvres → lait → fromagerie → tomme → boutique | Fait | Testé |
-| Blé → moisson (tracteur + remorque ou à la main) → moulin → farine → boulangerie → pain | Fait | Testé jusqu'à la farine (unitaire) ; pain : logique identique, non testé spécifiquement |
-| Accueil des visiteurs (arrivée au parking, visite payante, achats en boutique, satisfaction, réputation) | Fait | Testé indirectement (ventes, visiteurs) |
-| 11 bâtiments constructibles + maison (12 types) | Fait | Construction/refus testés |
-| Placement : fantôme vert/rouge, porte sur chemin, orientation (2 sens), défrichage | Fait | Testé |
-| Chemins tracés par le joueur, achat de terrains (lots 16×16) | Fait | Chemins testés ; achat de lots non testé en E2E |
-| Personnel : 4 rôles, embauche/licenciement, horaires, salaires ventilés par activité | Fait | Testé |
-| Fatigue, compétences, saisonniers | Non commencé | — |
-| PNJ sur A* (travailleurs, visiteurs, tracteur, camionnette du négociant), pas de traversée d'obstacles | Fait | Testé |
-| Négociant (vente en gros, camionnette qui vient charger) | Fait | Testé |
-| 4 saisons (végétation, vergers en fleurs/fruits, champs, givre), météo quotidienne pilotant rendements et visites, jour/nuit | Fait | Vérifié visuellement (captures été/automne/hiver) |
-| Vitesses ×1/×2/×4, pause | Fait | Testé |
-| Tutoriel 5 objectifs (récolter → produire → transformer → vendre → investir) | Fait | Progression observée en jeu ; pas de test dédié |
-| Interface : menu (Nouvelle partie, Continuer, Charger, Réglages, Crédits, Installer), barre d'état, 6 panneaux repliables, fiches, journal | Fait | Testé (E2E) |
-| Identité : logo original, icônes PWA 32/180/192/512/masquable | Fait | — |
-| Animaux animés : chèvres, poules | Fait (animation 2 images) | Visuel |
-| Animations de personnages | Partiel : marche 3 poses, travail 2 poses, charge portée ; pas de poses par métier | Visuel |
-| Sons et musique | Non commencé | — |
-| Emprunts, événements, marché, gîtes, autres régions | Non commencé (hors V0.1) | — |
-| 30 i/s sur Android 4 Go | Non validé | Non testé (pas d'appareil) |
+| Choix de la région à la nouvelle partie (8 régions : relief, climat, architecture, essences, productions, tourisme, départ) | Fait | Testé |
+| Carte 256×256 avec relief par sommet, ombrage des pentes, neige d'altitude/hivernale | Fait | Testé (unitaire) + visuel |
+| Mer, plage, falaises, phare, bateaux (bord de mer) ; massif, estives, rochers (montagne) ; rivières, étangs, villages avec église, champs des fermes voisines, bocage | Fait | Visuel (captures) |
+| Terrassement automatique des pentes à la construction (coût) | Fait | Indirect |
+| 9 cultures, 6 vergers/vignes, 7 élevages, 10 ateliers (recettes multiples), 38 ressources | Fait | Testé (données + chaînes principales) |
+| Labour → semis → pousse → récolte ; tracteur (charrue, semoir, remorque), moissonneuse-batteuse ; travail à la main sans engin | Fait | Testé |
+| Véhicules 3D toon pré-cuits en 8 directions, roues animées : tracteurs rouge/vert/bleu × 9 outils (remorques, charrue, épandeur, semoir, pulvérisateur), moissonneuse, vendangeuse, bétaillère, camionnette, 3 voitures | Fait | Visuel + E2E (chargement) |
+| Épandage (+15 %) et traitement au pulvérisateur (+10 %) ; vendange mécanique ; bétaillère pour les animaux vendus ; livrée des tracteurs selon la région | Fait | Testé |
+| Routes empierrées et ponts construits par le joueur | Fait | Testé (unitaire + E2E) |
+| Personnages et animaux 3D toon pré-cuits en 8 directions (marche, travail, broutage) | Fait | Visuel + E2E (chargement) |
+| Reprise des sauvegardes V0.1 (domaine réinstallé en Limousin : argent, stocks, personnel, date, statistiques ; bâtiments replacés ou remboursés) | Fait | Testé |
+| Visiteurs arrivant en voiture, parking, départ | Fait | Testé |
+| Contrats négociant (surplus vendus chaque matin, seuils réglables) | Fait | Testé indirectement (économie) |
+| Économie : ferme de départ à l'équilibre ou bénéficiaire dans les 8 régions sur 4 semaines hiver compris (de +65 € à +3 300 €) ; coopérative quand la grange déborde ; contrats négociant « automatiques » qui gardent les matières des ateliers | Fait | Testé (régression par région) |
+| Autres engins (arracheuse dédiée, ensileuse, faneuse, presse à balles) | Non commencé (l'arrachage utilise tracteur + remorque) | — |
+| Carte encore plus vaste (512²) | Non commencé | — |
+| Fatigue/compétences du personnel, emprunts, événements, sons | Non commencé | — |
+| 30 i/s sur Android 4 Go | Non validé | Non testé |
 
 ## Limites honnêtes
 
-1. **Niveau graphique.** Tous les assets sont **originaux et peints par code** (Canvas 2D : pierre en moellons, tuiles canal, volets, glycine, arbres en grappes, ombres douces) dans une perspective et une lumière communes. Le rendu est cohérent et lisible, mais **n'atteint pas** la richesse des concept arts fournis (densité de détails, matières peintes, personnages expressifs). C'est un remplacement provisoire assumé ; la liste des illustrations à produire est dans `ASSETS_A_PRODUIRE.md`. Le moteur charge des sprites isolés via un atlas : remplacer une peinture procédurale par un PNG ne demande que d'ajouter la texture sous la même clé.
-2. **Personnages petits et peu détaillés** à zoom normal ; animations simples.
-3. Les routes d'origine sont dessinées en courbes lissées par-dessus la grille ; les chemins tracés par le joueur restent en tuiles raccordables.
-4. Les bâtiments n'ont que deux orientations (porte côté avant-gauche ou avant-droite).
-5. Les visiteurs « apparaissent » à leurs voitures garées au parking (pas d'animation d'arrivée en voiture).
-6. Équilibrage économique : la seule filière pomme est proche de l'équilibre en saison et déficitaire en hiver/printemps (pas de pommes) ; la diversification est nécessaire. Valeurs à affiner après essais.
+1. **Graphismes** : véhicules, personnages et animaux sont désormais des modèles 3D cohérents avec la caméra. Les **bâtiments et les arbres restent peints par code** — cohérents mais en deçà des concept arts. Voir `ASSETS_A_PRODUIRE.md`.
+2. Le relief est continu (collines douces) : pas de falaises verticales franches ni de tunnels ; l'eau est plane par case (petits paliers sur les rivières de montagne).
+3. Les cultures des fermes voisines sont décoratives (elles suivent seulement la saison).
+4. Une sauvegarde V0.1 reprise est réinstallée sur la nouvelle carte : la disposition exacte des bâtiments n'est pas conservée.
+5. Les ruches restent dessinées en 2D.

@@ -1,8 +1,8 @@
 // Service worker — Domaines & Terroirs. Généré au build : ne pas modifier dist/sw.js à la main.
 // Il ne touche jamais au IndexedDB : les sauvegardes survivent à toutes les mises à jour.
-const BUILD = '0.1.0-202611230730';
+const BUILD = '0.3.0-202611231058';
 const CACHE = 'domaines-terroirs-' + BUILD;
-const ASSETS = ["./","assets/CanvasPool-CrRy2cLs.js","assets/SharedSystems-pTuPq9ce.js","assets/WebGLRenderer-Ct0G9uZD.js","assets/WebGPURenderer-rzxgpqzE.js","assets/browserAll-DmkpzGU2.js","assets/colorToUniform-C2GHuDhf.js","assets/index-BPrFFMMM.js","assets/index-C5zCI7Jx.css","assets/react-DcELUuLK.js","assets/webworkerAll-aCSvClJU.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","index.html"];
+const ASSETS = ["./","assets/CanvasPool-xRISPB-2.js","assets/SharedSystems-ChV1yJnH.js","assets/WebGLRenderer-7jAj1Zsv.js","assets/WebGPURenderer-DWQrvTht.js","assets/browserAll-D0T05O7w.js","assets/colorToUniform-KTpA7KSL.js","assets/index-BNqFkZ0b.css","assets/index-Cx1tE9oM.js","assets/react-DcELUuLK.js","assets/webworkerAll-ZlkUoujZ.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","sprites/vehicules-0.png","sprites/vehicules-1.png","sprites/vehicules-2.png","sprites/vehicules.json","sprites/vivants-0.png","sprites/vivants-1.png","sprites/vivants.json","index.html"];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));

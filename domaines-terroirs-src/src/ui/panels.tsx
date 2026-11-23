@@ -1,8 +1,10 @@
 import { useState, type ComponentType } from 'react';
-import { ACTIVITIES, BUILDINGS, GOATS_PER_PEN, LOT_SIZE, ORCHARD_CAP, PATH_COST, PEN_MILK_CAP, RESOURCES, RES_IDS, ROLES, WHEAT_YIELD, type Activity, type Res, type Role } from '../data/content';
-import { canBuyLot, buyLot, createOrder, setPrice, wholesalePrice } from '../sim/actions';
+import { ACTIVITIES, BUILDINGS, CATEGORIES, CROPS, LIVESTOCK, LOT_SIZE, ORCHARDS, RESOURCES, RES_IDS, ROLES, type Activity, type BuildCategory, type Res, type Role } from '../data/content';
+import { aptitude, regionBuildings } from '../data/regions';
+import { lotsPerRow } from '../world/terrain';
+import { VOIES, canBuyLot, buyLot, createOrder, setPrice, wholesalePrice, type Voie } from '../sim/actions';
 import { defOf } from '../sim/geom';
-import { round2, type Sim } from '../sim/sim';
+import { productOf, round2, type Sim } from '../sim/sim';
 import type { Building } from '../sim/state';
 import type { Game } from '../game';
 import { Icon } from './icons';
@@ -117,22 +119,33 @@ function Gestion({ sim }: PanelProps) {
 }
 
 function Construire({ sim, onTool }: PanelProps) {
-  const list = Object.values(BUILDINGS).filter((b) => b.constructible);
+  const allowed = regionBuildings(sim.region);
+  const [cat, setCat] = useState<BuildCategory>('cultures');
+  const list = Object.values(BUILDINGS).filter((b) => b.constructible && allowed.has(b.id) && b.categorie === cat);
   return (
     <div>
       <div className="tool-row">
-        <button className="btn" onClick={() => onTool({ kind: 'chemin' })} data-testid="outil-chemin">
-          <Icon name="path" size={18} /> Chemin ({eur(PATH_COST)}/case)
-        </button>
-        <button className="btn" onClick={() => onTool({ kind: 'demolir' })}>
+        {(Object.keys(VOIES) as Voie[]).map((v) => (
+          <button key={v} className="btn small" onClick={() => onTool({ kind: 'chemin', voie: v })} data-testid={'outil-' + v} title={VOIES[v].desc}>
+            <Icon name="path" size={18} /> {VOIES[v].nom} ({eur(VOIES[v].cout)})
+          </button>
+        ))}
+        <button className="btn small" onClick={() => onTool({ kind: 'demolir' })}>
           <Icon name="trash" size={18} /> Démolir
         </button>
       </div>
-      <p className="muted">Chaque bâtiment doit avoir sa porte (ou sa barrière, pour une parcelle) sur un chemin, une route ou la cour. Les arbres sur l'emprise sont défrichés (35 € l'arbre).</p>
+      <div className="tabs" role="tablist">
+        {(Object.keys(CATEGORIES) as BuildCategory[]).map((c) => (
+          <button key={c} role="tab" className={c === cat ? 'on' : ''} aria-selected={c === cat} onClick={() => setCat(c)} data-testid={'categorie-' + c}>
+            {CATEGORIES[c]}
+          </button>
+        ))}
+      </div>
       <ul className="cards">
         {list.map((b) => {
-          const r = b.recette;
           const afford = sim.s.money >= b.cout;
+          const key = b.crop ?? b.orchard ?? b.livestock;
+          const apt = key ? aptitude(sim.region, key) : 1;
           return (
             <li key={b.id}>
               <button className="card-btn" disabled={!afford} onClick={() => onTool({ kind: 'build', type: b.id, rot: 0, x: -99, y: -99, placed: false })} data-testid={'construire-' + b.id}>
@@ -141,16 +154,22 @@ function Construire({ sim, onTool }: PanelProps) {
                   <span className="price">{eur(b.cout)}</span>
                 </div>
                 <small>{b.desc}</small>
+                {b.recettes && (
+                  <small className="muted">
+                    {b.recettes.map((r) => `${r.inQty} ${RESOURCES[r.input].unite} ${RESOURCES[r.input].nom.toLowerCase()} → ${r.outQty} ${RESOURCES[r.output].nom.toLowerCase()}`).join(' · ')}
+                  </small>
+                )}
                 <small className="muted">
-                  {b.size}×{b.size} cases · entretien {eur(b.entretien)}/jour
-                  {r ? ` · ${r.inQty} ${RESOURCES[r.input].unite} ${RESOURCES[r.input].nom.toLowerCase()} → ${r.outQty} ${RESOURCES[r.output].nom.toLowerCase()} en ${r.minutes} min` : ''}
-                  {b.capacite ? ` · capacité ${b.capacite}` : ''}
+                  {b.size}×{b.size} cases · entretien {eur(b.entretien)}/jour{b.capacite ? ` · capacité ${b.capacite}` : ''}
+                  {apt !== 1 ? ` · aptitude régionale ${apt > 1 ? '+' : ''}${Math.round((apt - 1) * 100)} %` : ''}
                 </small>
               </button>
             </li>
           );
         })}
+        {!list.length && <li className="muted">Rien dans cette catégorie pour cette région.</li>}
       </ul>
+      <p className="muted">Porte (ou barrière de parcelle) sur un chemin, une route ou la cour. Défrichage 35 €/arbre ; les terrains en pente sont terrassés (coût affiché au placement).</p>
     </div>
   );
 }
@@ -202,22 +221,33 @@ function Production({ sim, onSelect }: PanelProps) {
 export function statusLine(sim: Sim, b: Building): string {
   const d = defOf(b);
   const busy = b.busyBy != null ? sim.s.workers.find((w) => w.id === b.busyBy) : null;
+  const prod = productOf(b);
   switch (d.kind) {
-    case 'verger':
-      return `${Math.floor(b.ready)} kg de pommes mûres sur ${ORCHARD_CAP}${b.priority ? ' · prioritaire' : ''}`;
-    case 'enclos':
-      return `${sim.s.animals.filter((a) => a.pen === b.id).length} chèvres · ${b.ready.toFixed(1)} L à traire (max ${PEN_MILK_CAP})${b.priority ? ' · prioritaire' : ''}`;
-    case 'champ':
-      return b.ready > 0 ? `Blé mûr : ${Math.round(b.ready)} kg à moissonner` : `Croissance ${Math.round(b.growth * 100)} % (récolte ≈ ${WHEAT_YIELD} kg)`;
-    case 'atelier': {
-      const r = d.recette!;
-      return `${busy ? `${busy.nom} : ${busy.label.toLowerCase()}` : 'Libre'} · ${b.batches} lot(s) produits · intrant en stock : ${qty(r.input, sim.stockOf(r.input))}`;
+    case 'verger': {
+      const o = ORCHARDS[d.orchard!];
+      return `${Math.floor(b.ready)} ${RESOURCES[o.produit].unite} de ${RESOURCES[o.produit].nom.toLowerCase()} prêts (max ${o.cap})${b.priority ? ' · prioritaire' : ''}`;
     }
+    case 'enclos': {
+      const l = LIVESTOCK[d.livestock!];
+      return `${sim.s.animals.filter((a) => a.pen === b.id).length} ${l.animal === 'ruche' ? 'ruches' : 'animaux'} · ${b.ready.toFixed(1)} ${RESOURCES[l.produit].unite} de ${RESOURCES[l.produit].nom.toLowerCase()} à collecter${b.priority ? ' · prioritaire' : ''}`;
+    }
+    case 'champ': {
+      const c = CROPS[d.crop!];
+      const left = 16 - b.done.length;
+      if (b.phase === 'mur') return `Récolte : ${Math.round(b.ready)} ${RESOURCES[c.produit].unite} (${left} cases restantes)`;
+      if (b.phase === 'labour') return `À labourer (${left} cases)`;
+      if (b.phase === 'epandage') return `Épandage du fumier (${left} cases, +15 % de récolte)`;
+      if (b.phase === 'semis') return `À semer (${left} cases)`;
+      return `Pousse : ${Math.round(b.growth * 100)} % (récolte ≈ ${Math.round(c.rendement * aptitude(sim.region, c.id) * (1 + (b.bonus ?? 0)))} ${RESOURCES[prod!].unite})${b.bonus ? ` · bonus +${Math.round(b.bonus * 100)} %` : ''}${b.treated ? ' · traitée' : ''}`;
+    }
+    case 'atelier':
+      return `${busy ? `${busy.nom} : ${busy.label.toLowerCase()}` : 'Libre'} · ${b.batches} lot(s) · ` + d.recettes!.map((r) => `${RESOURCES[r.input].nom.toLowerCase()} en stock : ${Math.floor(sim.stockOf(r.input))}`).join(', ');
     case 'boutique':
       return `${busy ? `Tenue par ${busy.nom}` : 'Caisse inoccupée'} · rayons ${Math.round(sim.used(b))}/${d.capacite}`;
-    case 'hangar': {
+    case 'hangar':
+    case 'remise': {
       const t = sim.s.vehicles.find((v) => v.home === b.id);
-      return t ? (t.driver != null ? 'Tracteur en service' : 'Tracteur au hangar') : 'Sans tracteur';
+      return t ? (t.driver != null ? `${t.label} en service` : `${t.label} au garage`) : 'Sans engin';
     }
     case 'accueil':
       return `Visite de la ferme : ${eur(sim.s.visitFee)} par visiteur`;
@@ -288,7 +318,7 @@ function Personnel({ sim, game }: PanelProps) {
 function Commerce({ sim, game }: PanelProps) {
   const s = sim.s;
   const shop = s.buildings.find((b) => defOf(b).kind === 'boutique');
-  const [res, setRes] = useState<Res>('jus');
+  const [res, setRes] = useState<Res>(() => RES_IDS.find((r) => sim.stockOf(r) > 0) ?? 'jus');
   const [n, setN] = useState(10);
   const stock = sim.stockOf(res);
   return (
@@ -304,7 +334,7 @@ function Commerce({ sim, game }: PanelProps) {
           </tr>
         </thead>
         <tbody>
-          {RES_IDS.filter((r) => RESOURCES[r].boutique).map((r) => (
+          {RES_IDS.filter((r) => RESOURCES[r].boutique && (sim.stockOf(r) > 0 || (shop?.inv[r] ?? 0) > 0 || (s.stats.sold[r] ?? 0) > 0 || (s.stats.produced[r] ?? 0) > 0 || (s.stats.harvested[r] ?? 0) > 0)).map((r) => (
             <tr key={r}>
               <td>
                 {RESOURCES[r].nom}
@@ -325,7 +355,7 @@ function Commerce({ sim, game }: PanelProps) {
           ))}
         </tbody>
       </table>
-      <p className="muted">Prix conseillés : jus {eur(RESOURCES.jus.prix, 2)}, tomme {eur(RESOURCES.fromage.prix, 2)}, pain {eur(RESOURCES.pain.prix, 2)}… Chaque visiteur a un prix maximum : trop cher, il n'achète pas.</p>
+      <p className="muted">Seuls les produits déjà présents au domaine sont listés. Chaque visiteur a un prix maximum : trop cher, il n'achète pas.</p>
       {s.buildings.some((b) => defOf(b).kind === 'accueil') && (
         <div className="row">
           <span>Tarif de la visite</span>
@@ -340,10 +370,29 @@ function Commerce({ sim, game }: PanelProps) {
           </span>
         </div>
       )}
-      <h3>Négociant (vente en gros)</h3>
+      <h3>Contrats négociant (surplus vendus chaque matin)</h3>
+      <table className="table">
+        <tbody>
+          {RES_IDS.filter((r) => sim.stockOf(r) > 0 || (s.stats.harvested[r] ?? 0) > 0 || (s.stats.produced[r] ?? 0) > 0).map((r) => (
+            <tr key={r}>
+              <td>{RESOURCES[r].nom}</td>
+              <td className="price-cell">
+                <button className="mini" aria-label="Seuil plus bas" onClick={() => ((s.autoSell[r] = s.autoSell[r] === -2 ? Math.max(0, sim.sellThreshold(r) - 50) : s.autoSell[r] === -1 ? -2 : Math.max(0, s.autoSell[r] - 50)), game.notify())}>
+                  −
+                </button>
+                <span>{s.autoSell[r] === -1 ? 'désactivé' : s.autoSell[r] === -2 ? `auto (au-delà de ${sim.sellThreshold(r)})` : `au-delà de ${s.autoSell[r]}`}</span>
+                <button className="mini" aria-label="Seuil plus haut" onClick={() => ((s.autoSell[r] = s.autoSell[r] === -2 ? sim.sellThreshold(r) + 50 : s.autoSell[r] === -1 ? -2 : s.autoSell[r] >= 950 ? -1 : s.autoSell[r] + 50), game.notify())}>
+                  +
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h3>Négociant (vente en gros ponctuelle)</h3>
       <div className="wholesale">
         <select value={res} onChange={(e) => setRes(e.target.value as Res)} aria-label="Produit">
-          {RES_IDS.map((r) => (
+          {RES_IDS.filter((r) => sim.stockOf(r) > 0 || r === res).map((r) => (
             <option key={r} value={r}>
               {RESOURCES[r].nom} — {eur(wholesalePrice(r), 2)}/{RESOURCES[r].unite}
             </option>
@@ -382,13 +431,20 @@ function Commerce({ sim, game }: PanelProps) {
 
 function Territoire({ sim, game }: PanelProps) {
   const W = sim.s.world;
-  const per = Math.ceil(W.w / LOT_SIZE);
+  const per = lotsPerRow(W);
   const [msg, setMsg] = useState('');
+  // fenêtre de 9×9 lots centrée sur le domaine
+  const ownedIdx = W.owned.map((o, i) => (o ? i : -1)).filter((i) => i >= 0);
+  const cx = Math.round(ownedIdx.reduce((a, i) => a + (i % per), 0) / ownedIdx.length), cy = Math.round(ownedIdx.reduce((a, i) => a + Math.floor(i / per), 0) / ownedIdx.length);
+  const x0 = Math.max(0, Math.min(per - 9, cx - 4)), y0 = Math.max(0, Math.min(per - 9, cy - 4));
+  const shown: number[] = [];
+  for (let y = y0; y < y0 + 9; y++) for (let x = x0; x < x0 + 9; x++) shown.push(y * per + x);
   return (
     <div>
       <p>Le domaine compte {W.owned.filter(Boolean).length} lots de {LOT_SIZE}×{LOT_SIZE} cases. Achetez des lots contigus pour vous agrandir.</p>
-      <div className="lots" style={{ gridTemplateColumns: `repeat(${per}, 1fr)` }}>
-        {W.owned.map((o, i) => {
+      <div className="lots" style={{ gridTemplateColumns: 'repeat(9, 1fr)' }}>
+        {shown.map((i) => {
+          const o = W.owned[i];
           const c = canBuyLot(sim, i);
           return (
             <button
@@ -408,7 +464,7 @@ function Territoire({ sim, game }: PanelProps) {
           );
         })}
       </div>
-      <p className="muted">La grille est vue de dessus (nord en haut à gauche de la carte isométrique). Les limites des lots s'affichent sur la carte tant que ce panneau est ouvert.</p>
+      <p className="muted">Grille vue de dessus autour du domaine (la carte compte {per}×{per} lots). Les limites s'affichent sur la carte tant que ce panneau est ouvert.</p>
       {msg && <p>{msg}</p>}
     </div>
   );
@@ -426,7 +482,7 @@ export const PANELS: Record<PanelId, { nom: string; icon: string; Body: Componen
 export function BuildingCard({ b, sim, onClose, onPriority, onDemolish, demolishMode }: { b: Building; sim: Sim; onClose: () => void; onPriority: () => void; onDemolish: () => void; demolishMode: boolean }) {
   const d = defOf(b);
   const [confirmDel, setConfirmDel] = useState(demolishMode);
-  const r = d.recette;
+  const rs = d.recettes ?? [];
   const canPriority = ['verger', 'enclos', 'champ', 'atelier'].includes(d.kind);
   return (
     <aside className="bcard" data-testid="fiche-batiment">
@@ -437,12 +493,13 @@ export function BuildingCard({ b, sim, onClose, onPriority, onDemolish, demolish
         </button>
       </header>
       <p className="status">{statusLine(sim, b)}</p>
-      {r && (
-        <p className="muted">
-          Recette : {r.inQty} {RESOURCES[r.input].unite} de {RESOURCES[r.input].nom.toLowerCase()} → {r.outQty} {RESOURCES[r.output].nom.toLowerCase()} en {r.minutes} min · {eur(r.consommables, 2)} de {r.consoLabel} par lot.
+      {rs.map((r, i) => (
+        <p className="muted" key={i}>
+          {r.inQty} {RESOURCES[r.input].unite} de {RESOURCES[r.input].nom.toLowerCase()} → {r.outQty} {RESOURCES[r.output].nom.toLowerCase()} en {r.minutes} min · {eur(r.consommables, 2)} de {r.consoLabel}.
         </p>
-      )}
-      {d.kind === 'enclos' && <p className="muted">{GOATS_PER_PEN} chèvres ; il faut un éleveur pour la traite et une fromagerie pour transformer le lait.</p>}
+      ))}
+      {d.kind === 'enclos' && <p className="muted">Soins et collecte par un éleveur ; entretien (nourriture, soins) inclus.</p>}
+      {d.kind === 'champ' && <p className="muted">Labour et semis au tracteur s'il y a un hangar ; {CROPS[d.crop!].recolte === 'moissonneuse' ? 'moisson à la moissonneuse-batteuse (remise)' : CROPS[d.crop!].recolte === 'tracteur' ? 'arrachage au tracteur' : 'récolte à la main'}, sinon à la main.</p>}
       {(d.kind === 'stock' || d.kind === 'boutique') && (
         <div className="chips">
           {RES_IDS.filter((x) => (b.inv[x] ?? 0) > 0).map((x) => (

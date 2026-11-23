@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { newGame } from '../sim/sim';
+import { REGIONS } from '../data/regions';
 import type { GameState } from '../sim/state';
 import { deserialize, listSlots, loadSlot, SLOT_NAMES, type Slot } from '../save/save';
 import { Logo } from './Logo';
@@ -7,7 +8,7 @@ import { Icon } from './icons';
 import { GameScreen } from './GameScreen';
 import { loadSettings, saveSettings, type Settings } from './settings';
 
-type Modal = null | 'charger' | 'reglages' | 'credits' | 'installer';
+type Modal = null | 'nouvelle' | 'charger' | 'reglages' | 'credits' | 'installer';
 
 interface InstallEvent extends Event {
   prompt(): Promise<void>;
@@ -21,6 +22,7 @@ export function App() {
   const [error, setError] = useState('');
   const [install, setInstall] = useState<InstallEvent | null>(null);
   const [gameKey, setGameKey] = useState(0);
+  const [region, setRegion] = useState('limousin');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refreshSlots = () => listSlots().then(setSlots).catch(() => setSlots([]));
@@ -84,7 +86,7 @@ export function App() {
         <Logo width={Math.min(420, window.innerWidth - 40)} />
         <p className="tagline">Bâtissez et faites vivre un domaine rural, du verger à la table.</p>
         <nav className="menu-buttons">
-          <button className="btn primary" onClick={() => start(newGame(Math.floor(Math.random() * 1e6)))} data-testid="nouvelle-partie">
+          <button className="btn primary" onClick={() => setModal('nouvelle')} data-testid="nouvelle-partie">
             Nouvelle partie
           </button>
           <button className="btn" disabled={!auto} onClick={() => auto && load(auto.slot)} data-testid="continuer">
@@ -98,7 +100,7 @@ export function App() {
           </button>
         </nav>
         {error && <p className="error">{error}</p>}
-        <p className="version">V{__APP_VERSION__} · tranche verticale</p>
+        <p className="version">V{__APP_VERSION__} · huit régions de France</p>
       </div>
       {modal && (
         <div className="modal-back" onClick={() => setModal(null)}>
@@ -106,6 +108,38 @@ export function App() {
             <button className="icon-btn close" onClick={() => setModal(null)} aria-label="Fermer">
               <Icon name="close" />
             </button>
+            {modal === 'nouvelle' && (
+              <>
+                <h2>Où installer votre domaine ?</h2>
+                <p className="muted">Chaque région a son relief, son climat, son architecture, ses cultures et ses élevages.</p>
+                <div className="regions" role="radiogroup">
+                  {REGIONS.map((r) => (
+                    <button key={r.id} role="radio" aria-checked={region === r.id} className={'region' + (region === r.id ? ' on' : '')} onClick={() => setRegion(r.id)} data-testid={'region-' + r.id}>
+                      <span className="region-swatch" style={{ background: `linear-gradient(135deg, ${r.architecture.toit} 0 30%, ${r.architecture.mur} 30% 60%, ${r.mer ? '#3f8fb5' : r.relief.montagne > 0.3 ? '#8e8a7e' : '#7aa64a'} 60%)` }} />
+                      <b>{r.nom}</b>
+                      <small>{r.sous}</small>
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const r = REGIONS.find((x) => x.id === region)!;
+                  return (
+                    <div className="region-detail">
+                      <p>{r.desc}</p>
+                      <p>
+                        <b>Spécialités :</b> {r.specialites}
+                      </p>
+                      <p className="muted">
+                        Relief : {r.relief.montagne > 0.3 ? 'montagneux' : r.relief.amplitude > 100 ? 'collines marquées' : r.relief.amplitude > 30 ? 'vallonné' : 'plat'} · {r.mer ? 'côte et plage · ' : ''}tourisme {r.tourisme >= 1.5 ? 'très fort' : r.tourisme >= 1.1 ? 'fort' : r.tourisme >= 0.9 ? 'moyen' : 'faible'} · départ avec {r.depart.argent.toLocaleString('fr-FR')} €
+                      </p>
+                    </div>
+                  );
+                })()}
+                <button className="btn primary" onClick={() => start(newGame(Math.floor(Math.random() * 1e6), region))} data-testid="commencer">
+                  Commencer en {REGIONS.find((x) => x.id === region)!.nom}
+                </button>
+              </>
+            )}
             {modal === 'charger' && (
               <>
                 <h2>Charger une partie</h2>
@@ -163,6 +197,14 @@ export function SettingsForm({ settings, onChange }: { settings: Settings; onCha
       <label className="field check">
         <input type="checkbox" checked={settings.tutorial} onChange={(e) => onChange({ ...settings, tutorial: e.target.checked })} />
         <span>Afficher le tutoriel</span>
+      </label>
+      <label className="field check">
+        <input type="checkbox" checked={settings.adaptive} onChange={(e) => onChange({ ...settings, adaptive: e.target.checked })} />
+        <span>Alléger l'affichage automatiquement si le jeu ralentit</span>
+      </label>
+      <label className="field check">
+        <input type="checkbox" checked={settings.perf} onChange={(e) => onChange({ ...settings, perf: e.target.checked })} data-testid="reglage-perf" />
+        <span>Afficher les performances (images/s, coût par image, objets affichés)</span>
       </label>
       <p className="muted">La qualité graphique s'applique au prochain lancement d'une partie.</p>
     </>
