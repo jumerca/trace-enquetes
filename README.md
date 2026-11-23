@@ -17,3 +17,7 @@ Jeu de gestion de rugby à XV de JLG Creative avec moteur de match 2D multi-agen
 ## Racing Dynasty — V0.1
 
 Jeu de management d'écurie de monoplaces de JLG Creative, rendu BD 2,5D (React + PixiJS + TypeScript + Vite) : `racing-dynasty/` (build publié, PWA), sources dans `racing-dynasty-src/` (voir son README, `RAPPORT_TESTS_ET_LIMITES.md` et `PUBLICATION.md` pour Vercel).
+
+## Domaines & Terroirs — V0.1 (tranche verticale)
+
+Jeu de gestion d'un domaine rural français de JLG Creative, en 2,5D isométrique (React + PixiJS + TypeScript + Vite) : verger, pressoir, chèvres et fromagerie, blé, moulin et boulangerie, boutique et visiteurs. PWA installable : `domaines-terroirs/` (build publié), sources dans `domaines-terroirs-src/` (voir son README, `RAPPORT_TESTS_ET_LIMITES.md` et `ASSETS_A_PRODUIRE.md`).
