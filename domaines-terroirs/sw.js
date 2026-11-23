@@ -1,8 +1,8 @@
 // Service worker — Domaines & Terroirs. Généré au build : ne pas modifier dist/sw.js à la main.
 // Il ne touche jamais au IndexedDB : les sauvegardes survivent à toutes les mises à jour.
-const BUILD = '0.3.0-202611231058';
+const BUILD = '0.3.1-202611231140';
 const CACHE = 'domaines-terroirs-' + BUILD;
-const ASSETS = ["./","assets/CanvasPool-xRISPB-2.js","assets/SharedSystems-ChV1yJnH.js","assets/WebGLRenderer-7jAj1Zsv.js","assets/WebGPURenderer-DWQrvTht.js","assets/browserAll-D0T05O7w.js","assets/colorToUniform-KTpA7KSL.js","assets/index-BNqFkZ0b.css","assets/index-Cx1tE9oM.js","assets/react-DcELUuLK.js","assets/webworkerAll-ZlkUoujZ.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","sprites/vehicules-0.png","sprites/vehicules-1.png","sprites/vehicules-2.png","sprites/vehicules.json","sprites/vivants-0.png","sprites/vivants-1.png","sprites/vivants.json","index.html"];
+const ASSETS = ["./","assets/CanvasPool-BQMhdXMB.js","assets/SharedSystems-CRwkee9r.js","assets/WebGLRenderer-BYiOu11_.js","assets/WebGPURenderer-CAHjTc2l.js","assets/browserAll-BzhgeYNL.js","assets/colorToUniform-KTpA7KSL.js","assets/index-C3ojr0EH.js","assets/index-CDVMcLUz.css","assets/react-DcELUuLK.js","assets/webworkerAll-Cn7ayVqq.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","sprites/vehicules-0.png","sprites/vehicules-1.png","sprites/vehicules-2.png","sprites/vehicules.json","sprites/vivants-0.png","sprites/vivants-1.png","sprites/vivants.json","index.html"];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
@@ -31,7 +31,8 @@ self.addEventListener('fetch', (e) => {
   }
   // Navigation : réseau d'abord (nouvelle version dès qu'en ligne), cache hors ligne.
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(() => caches.match('index.html')));
+    // no-store : jamais de page d'accueil périmée venant du cache HTTP (GitHub Pages la garde 10 min)
+    e.respondWith(fetch(req, { cache: 'no-store' }).catch(() => caches.match('index.html')));
     return;
   }
   e.respondWith(
