@@ -4,10 +4,12 @@ export interface Settings {
   tutorial: boolean;
   perf: boolean; // afficher les performances
   adaptive: boolean; // alléger l'affichage automatiquement
+  musique: number; // volume 0..1
+  ambiance: number; // bruits de la ferme 0..1
 }
 const KEY = 'dt-reglages';
 export function loadSettings(): Settings {
-  const def: Settings = { quality: 'haute', tutorial: true, perf: false, adaptive: true };
+  const def: Settings = { quality: 'haute', tutorial: true, perf: false, adaptive: true, musique: 0.5, ambiance: 0.7 };
   try {
     return { ...def, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
   } catch {

@@ -1,4 +1,15 @@
-# Rapport — V0.6 (état au 23/11/2026)
+# Rapport — V0.7 (état au 24/11/2026)
+
+## Nouveautés V0.7 (faites et testées)
+
+- **Progression** : 6 paliers (Exploitant débutant → Grand domaine d'excellence) avec objectifs chiffrés, barres de progression et primes ; 3 défis propres à chaque région (prime 3 000 €, réputation +5) ; **conseils** contextuels (grange pleine, boutique sans vendeur, atelier sans matière, récoltes non assurées…). Le panneau d'objectifs reste replié en haut à gauche.
+- **Aléas** : grêle, sécheresse (sauf parcelles irriguées), gel tardif des vergers, maladies d'un élevage, pannes d'engins (inutilisables 2 jours), tempêtes. **Assurances** récoltes, cheptel, matériel : 80 % des pertes remboursés contre une prime quotidienne (Gestion › Banque & assurances).
+- **Son** synthétisé (aucun fichier) : musique générative douce (gamme selon la saison, plus calme la nuit), vent, pluie, oiseaux, grillons, cris des animaux visibles près du centre de l'écran, moteur des engins ; volumes réglables ; démarre au premier geste (règle des navigateurs).
+- **Cultures 3D** : 15 aspects × 3 stades posés case par case sur les parcelles du joueur (les champs voisins restent dessinés).
+- **Équilibrage** sur 3 années de jeu (84 jours) avec un joueur automatique raisonnable, 8 régions × 2 graines : aucun jour dans le rouge, recettes cumulées de 57 000 à 111 000 €, palier 3 atteint partout, 3 à 8 aléas par partie. Ajustements : réputation qui monte moins vite, palier 2 assoupli, défis de la Beauce relevés.
+- Tests unitaires : **71/71** (+ le test d'équilibre, lancé à la demande). E2E : **52/52** (assurance, objectifs, son). Performance (CPU bridé ×4) : 4,5 à 7,5 ms par image.
+- Limites : le son n'a été vérifié qu'en démarrage sans erreur (navigateur sans haut-parleur) ; sa qualité à l'oreille reste à juger — les cris d'animaux synthétisés sont stylisés. Les champs voisins restent en 2D. Le joueur automatique n'achète pas de terrain : les paliers 4 à 6 n'ont pas été atteints en simulation.
+
 
 ## Nouveautés V0.6 (faites et testées)
 

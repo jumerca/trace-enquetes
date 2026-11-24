@@ -3,6 +3,7 @@ import { LIVERIES, car, coach, pickup, tedder, lifter, combine, grapeHarvester, 
 import * as THREE from 'three';
 import { PEOPLE, animal, person } from './living3d';
 import { fruitTree, tree } from './nature3d';
+import { CROP3D, cropTile } from './crops3d';
 import { buildingModel, buildingSize, regionStyle, shootBuilding } from './buildings3d';
 import { BUILDINGS } from '../../data/content';
 import { REGIONS } from '../../data/regions';
@@ -117,6 +118,10 @@ if (SET === 'nature') {
       shots.push(shoot(`fruit:${look}:${f}:${v}:s${season}`, t, 0, RES));
     }
   }
+}
+
+if (SET === 'cultures') {
+  for (const look of CROP3D) for (const st of [2, 3, 4]) for (let v = 0; v < 2; v++) shots.push(shoot(`crop:${look}:${st}:${v}`, cropTile(look, st, v), 0, RES));
 }
 
 // empaquetage par étagères, sur plusieurs pages de 2048×2048 (limite sûre des GPU mobiles)

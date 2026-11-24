@@ -189,6 +189,7 @@ export class Scene {
   livingAtlas = new Atlas();
   buildingAtlas = new Atlas(); // bâtiments 3D pré-cuits dans le style de la région
   natureAtlas = new Atlas(); // arbres et vergers 3D, quatre saisons
+  cropAtlas = new Atlas(); // plantes 3D des parcelles (levée, croissance, maturité)
   season: Season = 1;
   private shader!: Shader;
   private uniforms = new UniformGroup({ uSnowAlt: { value: 99999, type: 'f32' }, uTime: { value: 0, type: 'f32' }, uMapSize: { value: 256, type: 'f32' } });
@@ -261,6 +262,7 @@ export class Scene {
     this.season = seasonOf(this.sim.s.minute);
     await this.buildingAtlas.load('./sprites', `batiments-${this.sim.s.region}`).catch(() => undefined);
     await this.natureAtlas.load('./sprites', 'nature').catch(() => undefined);
+    await this.cropAtlas.load('./sprites', 'cultures').catch(() => undefined);
     buildStaticAtlas(this.staticAtlas, (k) => this.buildingAtlas.map.has(k));
     buildObjectAtlas(this.objectAtlas, this.season, this.natureAtlas.map.size > 0);
     this.objectAtlas.pack();
@@ -289,7 +291,7 @@ export class Scene {
     this.mapSrc.update();
     this.mapDirty = false;
     // envoi de toutes les planches au GPU dès le chargement (pas d'à-coup au premier affichage)
-    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas, this.buildingAtlas, this.natureAtlas]) this.upload(a.pages);
+    for (const a of [this.groundAtlas, this.objectAtlas, this.staticAtlas, this.vehicleAtlas, this.livingAtlas, this.buildingAtlas, this.natureAtlas, this.cropAtlas]) this.upload(a.pages);
     const [fx, fy] = this.sim.s.world.farm;
     this.centerOn(fx + 2, fy, window.innerWidth < 700 ? 0.8 : 1);
     this.bindInput();
@@ -300,6 +302,7 @@ export class Scene {
       const t = this.natureAtlas.map.get(`${key}:s${this.season}`);
       if (t) return t;
     }
+    if (key.startsWith('crop:')) return this.cropAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
     return this.groundAtlas.map.get(key) ?? this.buildingAtlas.map.get(key) ?? this.objectAtlas.map.get(key) ?? this.staticAtlas.map.get(key) ?? this.vehicleAtlas.map.get(key) ?? this.livingAtlas.map.get(key) ?? this.objectAtlas.map.get('rock:0')!;
   }
 
@@ -507,7 +510,12 @@ export class Scene {
       const d = defOf(b);
       if (d.kind === 'verger') return d.orchard === 'vigne' ? `c:vigne:2:${v & 1}` : `t:verger:${v & 1}`;
       if (d.kind === 'enclos') return d.livestock === 'ruches' ? `t:verger:${v & 1}` : `t:enclos:${v & 1}`;
-      if (d.kind === 'champ') return `c:${CROP_ALIAS[CROPS[d.crop!].look] ?? CROPS[d.crop!].look}:${fieldStage(b, x, y)}:${v & 1}`;
+      if (d.kind === 'champ') {
+        const look = CROPS[d.crop!].look, st = fieldStage(b, x, y);
+        // plantes en 3D posées sur la terre semée ; sinon tuile dessinée
+        const ground = CROP_ALIAS[look] ?? look;
+        return `c:${ground}:${this.cropKey(b, x, y) ? 1 : st}:${v & 1}`;
+      }
       return `t:cour:${v}`;
     }
     const at = (dx: number, dy: number) => {
@@ -894,6 +902,15 @@ export class Scene {
     return o;
   }
 
+  /** Clé du sprite 3D des plantes d'une case de parcelle (null : rien à poser). */
+  private cropKey(b: Building, x: number, y: number): string | null {
+    const look = CROPS[defOf(b).crop!].look;
+    const st = fieldStage(b, x, y);
+    if (st < 2 || st > 4) return null;
+    const k = `crop:${look}:${st}:${(x * 3 + y) & 1}`;
+    return this.cropAtlas.map.has(k) ? k : null;
+  }
+
   private buildingObjs(b: Building): Obj[] {
     const def = defOf(b);
     const s = def.size;
@@ -902,6 +919,15 @@ export class Scene {
       const look = ORCHARDS[def.orchard!].look;
       for (const [x, y] of footprint(b)) out.push(this.makeObj(`fruit:${look}:0:${(x + y) & 1}`, x + 0.5, y + 0.5, tileDepth(x, y), look !== 'vigne' && (x * 7 + y) % 3 === 0));
     } else if (def.kind === 'champ') {
+      // plantes 3D case par case (masquées tant que la parcelle n'a pas levé)
+      if (this.cropAtlas.map.size)
+        for (const [x, y] of footprint(b)) {
+          const k = this.cropKey(b, x, y);
+          const o = this.makeObj(k ?? 'crop:cereale:2:0', x + 0.5, y + 0.5, agentDepth(x, y, 0.004));
+          o.key = k ?? '';
+          o.sp.visible = !!k;
+          out.push(o);
+        }
       // sol, et tunnel maraîcher pour les cultures sous serre
       if (def.crop && SERRE_CROPS.has(def.crop) && this.buildingAtlas.map.has('b:serre')) out.push(this.withSnow(this.makeObj('b:serre', b.x, b.y, buildingDepth(b.x, b.y, s), false, true), 'b:serre', b));
     } else if (def.kind === 'enclos') {
@@ -984,7 +1010,7 @@ export class Scene {
       // décor déjà affiché : simple changement de texture (pas de recréation)
       if (ch.objs) for (const sp of ch.objs) this.setTex(sp, sp.label);
     }
-    for (const objs of this.bObjs.values()) for (const o of objs) this.setTex(o.sp, o.key);
+    for (const objs of this.bObjs.values()) for (const o of objs) if (o.key) this.setTex(o.sp, o.key);
     for (const p of old) p.destroy();
     this.orchardSig.clear();
     this.viewDirty = true;
@@ -1061,6 +1087,16 @@ export class Scene {
         const sig = `${b.phase}:${fieldStage(b, -1, -1)}:${b.done.length}`;
         if (this.fieldSig.get(b.id) !== sig) {
           this.fieldSig.set(b.id, sig);
+          // plantes 3D : stade de chaque case
+          const objs = (this.bObjs.get(b.id) ?? []).filter((o) => o.key === '' || o.key.startsWith('crop:'));
+          footprint(b).forEach(([x, y], i) => {
+            const o = objs[i];
+            if (!o) return;
+            const k = this.cropKey(b, x, y);
+            o.sp.visible = !!k;
+            if (k && o.key !== k) this.setTex(o.sp, k);
+            o.key = k ?? '';
+          });
           // seules les cases de la parcelle changent : mise à jour ciblée (pas tout le chunk)
           const seen = new Set<Chunk>();
           for (const [x, y] of footprint(b)) seen.add(this.refillTile(x, y));
@@ -1500,6 +1536,18 @@ export class Scene {
     this.viewDirty = true;
   }
 
+  /** Pour le son : espèces animales et engins en mouvement proches du centre de l'écran. */
+  audible() {
+    const s = this.sim.s;
+    const a = this.cam.x / (TW / 2), b = (this.cam.y + 30) / (TH / 2);
+    const cx = (a + b) / 2, cy = (b - a) / 2;
+    const R = 9 / Math.max(0.35, this.cam.z);
+    const near = (x: number, y: number) => Math.abs(x - cx) < R && Math.abs(y - cy) < R;
+    const animals = [...new Set(s.animals.filter((x) => x.kind !== 'ruche' && near(x.x, x.y)).map((x) => x.kind))];
+    const engines = s.vehicles.filter((v) => (v.x !== v.px || v.y !== v.py) && near(v.x, v.y)).length;
+    return { animals, engines, zoom: this.cam.z };
+  }
+
   centerOn(tx: number, ty: number, zoom?: number) {
     const [px, py] = this.groundPos(tx + 0.5, ty + 0.5);
     this.cam.x = px;
@@ -1612,7 +1660,8 @@ export class Scene {
         }
       }
       const vis = (o: Obj) => {
-        o.sp.visible = o.x1 >= tl.x && o.x0 <= br.x && o.y1 >= tl.y && o.y0 <= br.y;
+        // clé vide : plantes pas encore levées (toujours masquées)
+        o.sp.visible = o.key !== '' && o.x1 >= tl.x && o.x0 <= br.x && o.y1 >= tl.y && o.y0 <= br.y;
       };
       for (const objs of this.bObjs.values()) for (const o of objs) vis(o);
       this.visibleObjects = count;

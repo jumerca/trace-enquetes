@@ -185,6 +185,13 @@ const findWater = (page) =>
     await page.click('[data-testid=onglet-gestion]');
     await page.click('[data-testid=sous-onglet-calculs]');
     ok('calculs de rentabilité des ateliers', (await page.locator('.panel table tbody tr').count()) > 0);
+    await page.click('[data-testid=sous-onglet-finances]');
+    await page.click('[data-testid=assurance-recoltes]');
+    ok('assurance récoltes souscrite', await page.evaluate('window.__dt.sim.s.insurance.recoltes === true'));
+    await page.click('[data-testid=tutoriel] .tuto-head');
+    ok('objectifs : défis de la région affichés', (await page.locator('[data-testid=tutoriel] .goal').count()) >= 3);
+    await page.click('[data-testid=tutoriel] .tuto-head');
+    ok('son démarré au premier geste', await page.evaluate('!!window.__dtSound.ctx'));
     await page.click('[data-testid=onglet-gestion]');
 
     // route empierrée tracée par le joueur

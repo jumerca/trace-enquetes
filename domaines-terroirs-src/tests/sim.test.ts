@@ -569,3 +569,64 @@ describe('gestion avancée (V0.6)', () => {
     for (const id of ['champ_riz', 'champ_safran', 'champ_lentilles', 'champ_piments', 'verger_citronnier', 'verger_myrtillier', 'verger_noisetier', 'verger_figuier', 'elevage_brebis_lait', 'elevage_cerfs', 'nougaterie', 'distillerie_fruits', 'labyrinthe', 'methaniseur']) expect(all.has(id), id).toBe(true);
   });
 });
+
+describe('progression et aléas (V0.7)', () => {
+  it('palier franchi : prime versée et palier suivant', async () => {
+    const { PALIERS, checkProgress } = await import('../src/sim/progress');
+    const sim = new Sim(newGame(5, 'limousin'));
+    sim.s.tutorial = 5;
+    sim.s.money = 1e6;
+    for (const r of ['cultivateur', 'eleveur', 'artisan', 'vendeur'] as const) sim.hire(r);
+    while (sim.s.buildings.length < 9) place(sim, 'champ_ble');
+    sim.s.stats.revenue = 5000;
+    const m0 = sim.s.money;
+    checkProgress(sim);
+    expect(sim.s.career.palier).toBe(1);
+    expect(sim.s.money).toBe(m0 + PALIERS[0].prime);
+  });
+
+  it('défi régional réussi une seule fois', async () => {
+    const { DEFIS, DEFI_PRIME, checkProgress } = await import('../src/sim/progress');
+    const sim = new Sim(newGame(5, 'provence'));
+    const d = DEFIS.provence[0];
+    sim.s.stats[d.type][d.res] = d.cible;
+    const m0 = sim.s.money;
+    checkProgress(sim);
+    checkProgress(sim);
+    expect(sim.s.career.defis).toEqual([d.id]);
+    expect(sim.s.money).toBe(m0 + DEFI_PRIME);
+  });
+
+  it('chaque région a trois défis sur des produits existants', async () => {
+    const { DEFIS } = await import('../src/sim/progress');
+    for (const r of REGIONS) {
+      expect(DEFIS[r.id], r.id).toHaveLength(3);
+      for (const d of DEFIS[r.id]) expect(RESOURCES[d.res], d.res).toBeDefined();
+    }
+  });
+
+  it('aléas : surviennent sur une longue partie, l\'assurance indemnise', () => {
+    const sim = new Sim(newGame(8, 'provence'));
+    sim.s.money = 1e6;
+    sim.s.insurance = { recoltes: true, cheptel: true, materiel: true };
+    for (const t of ['hangar', 'elevage_chevres', 'verger_olivier', 'verger_abricotier']) place(sim, t);
+    run(sim, 56 * 1440);
+    const lines = sim.s.ledger.flatMap((d) => d.lines.map((l) => l.label));
+    expect(lines.some((l) => l.startsWith('Prime — Assurance'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('Indemnité'))).toBe(true);
+  });
+
+  it('engin en panne : il n\'est plus utilisé', () => {
+    const sim = new Sim(newGame(5, 'beauce'));
+    for (const v of sim.s.vehicles) v.brokenUntil = sim.s.minute + 1440;
+    run(sim, 600);
+    expect(sim.s.vehicles.every((v) => v.driver == null)).toBe(true);
+  });
+
+  it('les conseils signalent une boutique sans vendeur', async () => {
+    const { conseils } = await import('../src/sim/progress');
+    const sim = new Sim(newGame(5, 'limousin'));
+    sim.s.workers = sim.s.workers.filter((w) => w.role !== 'vendeur' && w.role !== 'artisan');
+    expect(conseils(sim).some((c) => c.includes('boutique'))).toBe(true);
+  });
+});

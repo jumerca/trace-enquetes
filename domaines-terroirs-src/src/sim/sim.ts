@@ -1,4 +1,6 @@
 // Moteur de simulation : pas fixe d'une minute de jeu, RNG déterministe, aucune dépendance au rendu.
+import { checkProgress, ensureCareer } from './progress';
+import { droughtActive, ensureHazards, frostActive, hazardsDaily } from './hazards';
 import { economyDaily, ensureEconomy, labelActive, priceBonus, visitorMult, wholesaleOf } from './economy';
 import {
   BUILDINGS, CARRY, CROPS, DAY_MIN, DAYS_PER_SEASON, FIRST_NAMES, LIVESTOCK, ORCHARDS, RESOURCES, RES_IDS, ROLES, SEASONS, VISIT_END, VISIT_FEE_DEFAULT,
@@ -69,7 +71,7 @@ export function newGame(seed = 1789, regionId = 'limousin'): GameState {
     version: SAVE_VERSION, seed, region: region.id, rng: 0, minute: 7 * 60, money: region.depart.argent, weather: 'soleil', reputation: 35, satisfaction: 60, satSamples: [],
     world, buildings: [], workers: [], visitors: [], vehicles: [], animals: [], orders: [],
     prices: Object.fromEntries(RES_IDS.map((r) => [r, RESOURCES[r].prix])) as Record<Res, number>,
-    visitFee: VISIT_FEE_DEFAULT, market: {}, waitMarket: false, campaigns: [], labels: {}, loans: [], press: [], ledger: [], stats: { harvested: {}, produced: {}, sold: {}, batches: 0, built: 0, visitors: 0 },
+    visitFee: VISIT_FEE_DEFAULT, career: { palier: 0, defis: [] }, insurance: {}, hazards: {}, market: {}, waitMarket: false, campaigns: [], labels: {}, loans: [], press: [], ledger: [], stats: { harvested: {}, produced: {}, sold: {}, batches: 0, built: 0, visitors: 0, revenue: 0 },
     tutorial: 0, nextId: 1, events: [], autoSell: Object.fromEntries(RES_IDS.map((r) => [r, -2])),
   };
   const [cx, cy] = world.farm;
@@ -150,6 +152,8 @@ export class Sim {
     this.rng = new Rng(s.rng || s.seed);
     this.region = REGION_BY_ID[s.region] ?? REGION_BY_ID.limousin;
     ensureEconomy(s);
+    ensureCareer(s);
+    ensureHazards(s);
     this.refresh();
   }
 
@@ -211,7 +215,10 @@ export class Sim {
     this.s.money = round2(this.s.money + amount);
     const l = this.today();
     if (invest) l.invest = round2(l.invest - amount);
-    else if (amount > 0) l.rev[a] = round2((l.rev[a] ?? 0) + amount);
+    else if (amount > 0) {
+      l.rev[a] = round2((l.rev[a] ?? 0) + amount);
+      if (!label.startsWith('Prime') && !label.startsWith('Indemnité')) this.s.stats.revenue = round2((this.s.stats.revenue ?? 0) + amount);
+    }
     else l.cost[a] = round2((l.cost[a] ?? 0) - amount);
     const line = l.lines.find((x) => x.a === a && x.label === label);
     if (line) line.amount = round2(line.amount + amount);
@@ -371,6 +378,7 @@ export class Sim {
     s.vehicles = s.vehicles.filter((v) => !(v.home < 0 && v.order === -2));
     for (const a of s.animals) this.updateAnimal(a);
     this.checkTutorial();
+    if (mod % 60 === 0) checkProgress(this);
     s.rng = this.rng.state;
   }
 
@@ -381,10 +389,11 @@ export class Sim {
       const d = defOf(b);
       if (d.orchard && mod >= 6 * 60 && mod < 20 * 60) {
         const o = ORCHARDS[d.orchard];
-        b.ready = Math.min(o.cap, b.ready + (o.taux * o.saisons[season] * wf * aptitude(this.region, o.id)) / 60);
+        const alea = (frostActive(this.s) ? 0.3 : 1) * (droughtActive(this.s) && !this.irrigated(b) ? 0.6 : 1);
+        b.ready = Math.min(o.cap, b.ready + (o.taux * o.saisons[season] * wf * alea * aptitude(this.region, o.id)) / 60);
       } else if (d.livestock) {
         const l = LIVESTOCK[d.livestock];
-        if (!l.produit) continue;
+        if (!l.produit || (b.sickUntil ?? 0) > this.s.minute) continue;
         // l'étang produit sans animaux visibles ; les autres élevages au prorata des bêtes présentes
         const rate = l.nombre === 0 ? 1.4 : this.s.animals.filter((a) => a.pen === b.id).length * l.tauxParTete;
         const traite = ['vaches', 'chevres', 'brebis_lait'].includes(l.id) && this.has('robot_traite') ? 1.25 : 1;
@@ -420,10 +429,11 @@ export class Sim {
       }
     }
     economyDaily(this);
+    hazardsDaily(this);
     s.minute = save;
     if (s.satSamples.length) {
       s.satisfaction = Math.round(s.satSamples.reduce((a, b) => a + b, 0) / s.satSamples.length);
-      s.reputation = round2(Math.max(0, Math.min(100, s.reputation + (s.satisfaction - s.reputation) * 0.18 + Math.min(3, s.satSamples.length * 0.1))));
+      s.reputation = round2(Math.max(0, Math.min(100, s.reputation + (s.satisfaction - s.reputation) * 0.12 + Math.min(1.2, s.satSamples.length * 0.04))));
       s.satSamples = [];
     } else s.reputation = round2(Math.max(0, s.reputation - 0.5));
     const season = seasonOf(s.minute);
@@ -437,7 +447,7 @@ export class Sim {
       if (!d.crop || b.phase !== 'pousse') continue;
       const c = CROPS[d.crop];
       const irrigue = this.irrigated(b);
-      b.growth = Math.min(1, b.growth + c.croissance[season] * this.weatherYield() * (irrigue ? 1.25 : 1));
+      b.growth = Math.min(1, b.growth + c.croissance[season] * this.weatherYield() * (irrigue ? 1.25 : droughtActive(s) ? 0.35 : 1));
       if (b.growth >= 1) {
         b.phase = 'mur';
         b.done = [];
@@ -642,7 +652,7 @@ export class Sim {
     const kind: VehicleKind = op === 'recolte' && c.recolte === 'moissonneuse' ? 'moissonneuse' : 'tracteur';
     void c;
     if (op === 'recolte' && c.recolte === 'main') return null;
-    return this.s.vehicles.find((v) => v.kind === kind && v.driver == null && this.byId.has(v.home)) ?? null;
+    return this.s.vehicles.find((v) => v.kind === kind && v.driver == null && this.byId.has(v.home) && !((v.brokenUntil ?? 0) > this.s.minute)) ?? null;
   }
 
   private tileOrder(f: Building) {

@@ -72,7 +72,7 @@
  {
   "name": "le temps avance à ×4",
   "ok": true,
-  "info": "14 min de jeu en 1,5 s"
+  "info": "15 min de jeu en 1,5 s"
  },
  {
   "name": "pause : le temps est figé",
@@ -170,6 +170,21 @@
   "info": ""
  },
  {
+  "name": "assurance récoltes souscrite",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "objectifs : défis de la région affichés",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "son démarré au premier geste",
+  "ok": true,
+  "info": ""
+ },
+ {
   "name": "route empierrée tracée",
   "ok": true,
   "info": ""
@@ -177,7 +192,7 @@
  {
   "name": "mesure FPS (rendu logiciel, indicatif)",
   "ok": true,
-  "info": "10 i/s ; coût JS moyen 0.44 ms/image"
+  "info": "10 i/s ; coût JS moyen 0.59 ms/image"
  },
  {
   "name": "export JSON téléchargé",
@@ -187,7 +202,7 @@
  {
   "name": "partie rechargée à l'identique",
   "ok": true,
-  "info": "{\"m\":17154.2,\"t\":1404,\"b\":7,\"w\":4}"
+  "info": "{\"m\":17154.2,\"t\":1402,\"b\":7,\"w\":4}"
  },
  {
   "name": "région « nord » : partie lancée (engins, personnages, bâtiments et arbres 3D chargés)",

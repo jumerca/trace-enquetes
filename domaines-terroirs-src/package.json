@@ -1,7 +1,7 @@
 {
   "name": "domaines-terroirs",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "Domaines & Terroirs — gestion d'un territoire rural — JLG Creative",
   "scripts": {
