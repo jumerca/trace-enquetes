@@ -1,0 +1,12 @@
+import { Engine } from '../render/engine';
+import { CityView } from '../render/city-view';
+import { newGame, step } from '../sim/sim';
+const q = new URLSearchParams(location.search);
+const st = newGame({ seed: 3, startYear: 1995, size: 'moyenne', assist: 'delegation', commander: { prenom: 'Claire', nom: 'Vasseur', age: 45, portrait: 0, experience: 'confirme', formation: 'ecole', specialite: 'Généraliste', style: 'participatif', sexe: 'F' } });
+step(st, Number(q.get('m') ?? 120));
+const e = new Engine(); e.getState = () => st;
+await e.init(document.getElementById('h')!);
+const v = new CityView(() => st, { onCase: (id) => console.log('case', id), onPlace: (id) => console.log('place', id) });
+e.setView(v);
+if (q.get('z')) e.zoomBy(Number(q.get('z')));
+setInterval(() => step(st, 10), 1000);

@@ -21,3 +21,7 @@ Jeu de management d'écurie de monoplaces de JLG Creative, rendu BD 2,5D (React 
 ## Domaines & Terroirs — V0.4
 
 Jeu de gestion d'un domaine rural français de JLG Creative, en 2,5D isométrique (React + PixiJS + TypeScript + Vite) : huit régions de France au choix (relief, climat, architecture, productions), carte de 256×256 cases, cultures, vergers, vignes, élevages et ateliers, engins, bâtiments, personnages et animaux modélisés en 3D, visiteurs en voiture et en car qu'on voit entrer dans les bâtiments, gîtes, auberge et tourisme. PWA installable : `domaines-et-terroirs/` (adresse d'installation recommandée, identique à `domaines-terroirs/`), sources dans `domaines-terroirs-src/` (voir son README, `RAPPORT_TESTS_ET_LIMITES.md` et `ASSETS_A_PRODUIRE.md`).
+
+## Brigade criminelle Tycoon — V0.1
+
+Jeu de gestion d'une brigade de police judiciaire de JLG Creative, en 2,5D isométrique (React + PixiJS + TypeScript + Vite) : commissariat animé et constructible sur plusieurs étages, carte vivante d'une ville française fictive, enquêteurs à 18 compétences avec carrières, plannings et fatigue, affaires procédurales à vérité fixée d'avance (14 modèles + la grande affaire « Les ombres de Saint-Clair »), tableau d'enquête, entretiens supervisés, laboratoire, justice simulée, budget public, médias et statistiques. PWA installable : `brigade-criminelle/` (build publié), sources dans `brigade-criminelle-src/` (voir son README, `RAPPORT_TESTS_ET_LIMITES.md` et `CHANGELOG.md`).
