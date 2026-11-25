@@ -3,6 +3,7 @@ import { ACTIVITIES, BUILDINGS, CATEGORIES, CROPS, LIVESTOCK, LOT_SIZE, ORCHARDS
 import { aptitude, regionBuildings } from '../data/regions';
 import { lotsPerRow } from '../world/terrain';
 import { VOIES, canBuyLot, buyLot, createOrder, setPrice, type Voie } from '../sim/actions';
+import { ASSURANCES, premium, type Assurance } from '../sim/hazards';
 import { CAMPAIGNS, LABELS, LOANS, borrow, buyLabel, labelActive, launchCampaign, marketOf, priceBonus, recipeCost, visitorMult, wholesaleOf } from '../sim/economy';
 import { defOf } from '../sim/geom';
 import { productOf, round2, type Sim } from '../sim/sim';
@@ -503,7 +504,7 @@ function Gestion(p: PanelProps) {
   const [t, setT] = useState<'bilan' | 'calculs' | 'finances'>('bilan');
   return (
     <div>
-      <Tabs tabs={[['bilan', 'Bilan'], ['calculs', 'Calculs de rentabilité'], ['finances', 'Banque & aides']]} cur={t} set={setT} />
+      <Tabs tabs={[['bilan', 'Bilan'], ['calculs', 'Calculs de rentabilité'], ['finances', 'Banque & assurances']]} cur={t} set={setT} />
       {t === 'bilan' ? <Bilan {...p} /> : t === 'calculs' ? <Calculs {...p} /> : <Finances {...p} />}
     </div>
   );
@@ -623,6 +624,20 @@ function Finances({ sim, game }: PanelProps) {
           ))}
         </ul>
       )}
+      <h3>Assurances</h3>
+      <p className="muted">Grêle, gel, sécheresse, maladies, pannes et tempêtes arrivent sans prévenir. Une assurance rembourse 80 % des pertes contre une prime quotidienne.</p>
+      <ul className="cards">
+        {(Object.keys(ASSURANCES) as Assurance[]).map((a) => (
+          <li key={a} className="row">
+            <span>
+              <b>{ASSURANCES[a].nom}</b> — {eur(premium(s, a), 2)}/jour
+              <br />
+              <small className="muted">{ASSURANCES[a].desc}</small>
+            </span>
+            <input type="checkbox" checked={!!s.insurance[a]} onChange={(e) => ((s.insurance[a] = e.target.checked), game.notify())} aria-label={ASSURANCES[a].nom} data-testid={'assurance-' + a} />
+          </li>
+        ))}
+      </ul>
       <h3>Aides de la PAC</h3>
       <p>
         Versées au début de chaque saison : {eur(140)} par lot de terrain ({lots}), {eur(35)} par élevage ({elevages}){labelActive(s, 'bio') ? ', + 400 € (bio)' : ''}. Prochain versement estimé :{' '}

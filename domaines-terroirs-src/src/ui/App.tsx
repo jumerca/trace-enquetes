@@ -238,6 +238,14 @@ export function SettingsForm({ settings, onChange }: { settings: Settings; onCha
         <input type="checkbox" checked={settings.perf} onChange={(e) => onChange({ ...settings, perf: e.target.checked })} data-testid="reglage-perf" />
         <span>Afficher les performances (images/s, coût par image, objets affichés)</span>
       </label>
+      <label className="field">
+        <span>Musique : {Math.round(settings.musique * 100)} %</span>
+        <input type="range" min={0} max={1} step={0.05} value={settings.musique} onChange={(e) => onChange({ ...settings, musique: +e.target.value })} data-testid="reglage-musique" />
+      </label>
+      <label className="field">
+        <span>Bruits de la ferme (animaux, engins, nature) : {Math.round(settings.ambiance * 100)} %</span>
+        <input type="range" min={0} max={1} step={0.05} value={settings.ambiance} onChange={(e) => onChange({ ...settings, ambiance: +e.target.value })} data-testid="reglage-ambiance" />
+      </label>
       <p className="muted">La qualité graphique s'applique au prochain lancement d'une partie.</p>
     </>
   );

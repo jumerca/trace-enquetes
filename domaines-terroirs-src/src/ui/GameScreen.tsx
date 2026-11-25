@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { Game, type Speed } from '../game';
 import { BUILDINGS, RESOURCES, WEATHER } from '../data/content';
 import { TUTORIAL, dateLabel, fmtTime } from '../sim/sim';
+import { DEFIS, PALIERS, conseils, defiVal } from '../sim/progress';
+import { sound } from '../audio';
 import { VOIES, build, buildPath, checkBuild, checkPath, demolish, togglePriority, type Voie } from '../sim/actions';
 import { defOf, isParcel } from '../sim/geom';
 import type { GameState } from '../sim/state';
@@ -108,8 +110,12 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
       if (!alive) return;
       setReady(true);
       // accès de test et de diagnostic (Playwright)
-      Object.assign(window, { __dt: game, __dtActions: { build, buildPath, demolish, checkBuild } });
+      Object.assign(window, { __dt: game, __dtSound: sound, __dtActions: { build, buildPath, demolish, checkBuild } });
     });
+    // le son démarre au premier geste (exigence des navigateurs)
+    const wake = () => sound.start();
+    window.addEventListener('pointerdown', wake);
+    window.addEventListener('keydown', wake);
     const vis = () => {
       if (document.hidden) saveSlot('auto', game.sim.s).catch(() => undefined);
     };
@@ -144,6 +150,8 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
     return () => {
       alive = false;
       document.removeEventListener('visibilitychange', vis);
+      window.removeEventListener('pointerdown', wake);
+      window.removeEventListener('keydown', wake);
       window.removeEventListener('keydown', key);
       saveSlot('auto', game.sim.s).catch(() => undefined);
       game.destroy();
@@ -186,7 +194,9 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
   const today = s.ledger[s.ledger.length - 1];
   const todayNet = today ? Object.values(today.rev).reduce((a, b) => a + (b ?? 0), 0) - Object.values(today.cost).reduce((a, b) => a + (b ?? 0), 0) : 0;
   game.adaptive = settings.adaptive;
+  sound.setVolumes(settings.musique, settings.ambiance);
   const recentEvents = s.events.slice(-2).filter((e) => s.minute - e.min < 120);
+  const advice = conseils(game.sim);
 
   const buildTool = tool?.kind === 'build' ? tool : null;
   const check = buildTool ? checkBuild(sim, buildTool.type, buildTool.x, buildTool.y, buildTool.rot) : null;
@@ -251,25 +261,84 @@ export function GameScreen({ initial, settings, onSettings, onQuit, onLoad }: { 
         </div>
       </header>
 
-      {settings.tutorial && s.tutorial < TUTORIAL.length && (
+      {settings.tutorial && (
         <aside className={'tuto' + (tutoOpen ? '' : ' closed')} data-testid="tutoriel">
           <button className="tuto-head" onClick={() => setTutoOpen(!tutoOpen)}>
-            <Icon name="leaf" size={16} /> Objectif {s.tutorial + 1}/5 : <b>{TUTORIAL[s.tutorial].titre}</b>
+            <Icon name="leaf" size={16} />
+            {s.tutorial < TUTORIAL.length ? (
+              <>
+                Objectif {s.tutorial + 1}/5 : <b>{TUTORIAL[s.tutorial].titre}</b>
+              </>
+            ) : s.career.palier < PALIERS.length ? (
+              <>
+                Palier {s.career.palier + 1}/{PALIERS.length} : <b>{PALIERS[s.career.palier].nom}</b>
+              </>
+            ) : (
+              <b>Grand domaine d'excellence</b>
+            )}
+            {advice.length > 0 && <span className="tuto-badge">{advice.length}</span>}
             <span className={'chev' + (tutoOpen ? ' up' : '')}>
               <Icon name="chevron" size={16} />
             </span>
           </button>
           {tutoOpen && (
-            <>
-              <p>{TUTORIAL[s.tutorial].texte}</p>
-              <ol className="tuto-steps">
-                {TUTORIAL.map((t, i) => (
-                  <li key={i} className={i < s.tutorial ? 'done' : i === s.tutorial ? 'cur' : ''}>
-                    {t.titre}
-                  </li>
-                ))}
-              </ol>
-            </>
+            <div className="tuto-body">
+              {s.tutorial < TUTORIAL.length ? (
+                <>
+                  <p>{TUTORIAL[s.tutorial].texte}</p>
+                  <ol className="tuto-steps">
+                    {TUTORIAL.map((t, i) => (
+                      <li key={i} className={i < s.tutorial ? 'done' : i === s.tutorial ? 'cur' : ''}>
+                        {t.titre}
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              ) : (
+                s.career.palier < PALIERS.length && (
+                  <>
+                    <p>
+                      {PALIERS[s.career.palier].texte} <small className="muted">Prime : {eur(PALIERS[s.career.palier].prime)}</small>
+                    </p>
+                    {PALIERS[s.career.palier].objectifs.map((g) => {
+                      const v = g.val(game.sim);
+                      return (
+                        <div key={g.nom} className="goal">
+                          <span>
+                            {g.nom} : {g.unite === '€' ? eur(v) : Math.floor(v)} / {g.unite === '€' ? eur(g.cible) : g.cible}
+                          </span>
+                          <i style={{ width: Math.min(100, (v / g.cible) * 100) + '%' }} className={v >= g.cible ? 'ok' : ''} />
+                        </div>
+                      );
+                    })}
+                  </>
+                )
+              )}
+              <h4>Défis de la région</h4>
+              {(DEFIS[s.region] ?? []).map((d) => {
+                const v = defiVal(s, d);
+                const done = s.career.defis.includes(d.id);
+                return (
+                  <div key={d.id} className="goal">
+                    <span>
+                      {done ? '✓ ' : ''}
+                      {d.nom} : {Math.min(v, d.cible)} / {d.cible} {RESOURCES[d.res].unite}
+                    </span>
+                    <i style={{ width: Math.min(100, (v / d.cible) * 100) + '%' }} className={done ? 'ok' : ''} />
+                  </div>
+                );
+              })}
+              {advice.length > 0 && (
+                <>
+                  <h4>Conseils</h4>
+                  <ul className="advice">
+                    {advice.map((a, i) => (
+                      <li key={i}>{a}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
           )}
         </aside>
       )}

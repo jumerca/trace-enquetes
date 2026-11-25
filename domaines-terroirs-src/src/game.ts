@@ -3,6 +3,8 @@ import { Sim, dayOf } from './sim/sim';
 import type { GameState } from './sim/state';
 import { Scene, type SceneCallbacks } from './render/scene';
 import { saveSlot } from './save/save';
+import { sound } from './audio';
+import { seasonOf, minuteOfDay } from './sim/sim';
 
 export const MIN_PER_SEC = 4; // minutes de jeu par seconde réelle à ×1
 export type Speed = 0 | 1 | 2 | 4;
@@ -14,6 +16,7 @@ export class Game {
   private acc = 0;
   private listeners = new Set<() => void>();
   private uiAcc = 0;
+  private soundAcc = 0;
   version = 0; // incrémenté à chaque notification de l'interface
   private lastDay: number;
   frameTimes: number[] = [];
@@ -72,6 +75,13 @@ export class Game {
     }
     this.cpuTimes.push(performance.now() - t0);
     if (this.cpuTimes.length > 600) this.cpuTimes.shift();
+    this.soundAcc += dt;
+    if (this.soundAcc > 250 && this.scene) {
+      this.soundAcc = 0;
+      const a = this.scene.audible();
+      const s = this.sim.s;
+      sound.update({ hour: minuteOfDay(s.minute) / 60, season: seasonOf(s.minute), weather: s.weather, zoom: a.zoom, animals: a.animals, engines: this.speed > 0 ? a.engines : 0, paused: this.speed === 0 || document.hidden });
+    }
     this.uiAcc += dt;
     if (this.uiAcc > 200) {
       this.uiAcc = 0;

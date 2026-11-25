@@ -91,6 +91,7 @@ export interface Vehicle extends Agent {
   slot: number; // place de parking
   cargo?: Partial<Record<Res, number>> | null; // utilitaire du marché
   sejour?: number; // voiture de vacanciers (id du gîte)
+  brokenUntil?: number; // engin en panne jusqu'à cette minute
 }
 
 export interface Animal {
@@ -125,6 +126,7 @@ export interface Building {
   priority: boolean;
   batches: number;
   builtDay: number;
+  sickUntil?: number; // élevage malade jusqu'à cette minute
 }
 
 export interface Order {
@@ -152,6 +154,7 @@ export interface Stats {
   batches: number;
   built: number;
   visitors: number;
+  revenue?: number; // recettes cumulées (hors investissements)
 }
 
 export interface GameState {
@@ -190,6 +193,10 @@ export interface GameState {
   labels: Record<string, number>;
   loans: { id: number; nom: string; daily: number; left: number }[];
   press: { min: number; journal: string; titre: string; bon: boolean }[];
+  /** progression : palier courant et défis régionaux réussis */
+  career: { palier: number; defis: string[] };
+  insurance: Partial<Record<'recoltes' | 'cheptel' | 'materiel', boolean>>;
+  hazards: { secheresse?: number; gel?: number };
 }
 
 export const SAVE_VERSION = 2;
