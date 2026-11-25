@@ -336,91 +336,157 @@ export function portraitURL(s: CharSpec, size = 96, bg?: string): string {
 // ————— Véhicules —————
 export interface VehSpec { body: string; kind: 'banalisee' | 'secours' | 'fourgon' | 'technique' | 'civil' | 'bus' | 'camion'; police: boolean; era: number; lights?: boolean }
 
-/** Véhicule isométrique, orienté le long de l'axe x (vers le sud-est) ou de l'axe y (sud-ouest).
- * Canvas 96 × 64, roues au sol vers y = 50. */
-export function drawVehicle(ctx: CanvasRenderingContext2D, v: VehSpec, alongX: boolean, frame = 0) {
+export type Dir = 'px' | 'nx' | 'py' | 'ny';
+export const DIR_VEC: Record<Dir, [number, number]> = { px: [1, 0], nx: [-1, 0], py: [0, 1], ny: [0, -1] };
+
+/** Véhicule en volume isométrique (modèle à prismes, faces cachées éliminées), orienté dans
+ * l'une des quatre directions de la grille. Canvas 128 × 96 ; le centre au sol est en (64, 60).
+ * Unité : la case (64 px de large). */
+export function drawVehicle(ctx: CanvasRenderingContext2D, v: VehSpec, dir: Dir, frame = 0) {
+  const [dx, dy] = DIR_VEC[dir];
+  const rx = -dy, ry = dx; // droite du véhicule (y vers le bas)
+  const K = 32;
+  const S = (gx: number, gy: number, z: number): [number, number] => [64 + (gx - gy) * K, 60 + (gx + gy) * K / 2 - z];
+  // local (f avant, s droite) -> grille
+  const G = (f: number, s: number): [number, number] => [f * dx + s * rx, f * dy + s * ry];
+  const big = v.kind === 'bus' || v.kind === 'camion';
+  const van = v.kind === 'fourgon' || v.kind === 'technique';
+  const L = v.kind === 'bus' ? 1.5 : v.kind === 'camion' ? 1.15 : van ? 0.92 : 0.8;
+  const W = big ? 0.42 : van ? 0.38 : 0.34;
+  const body = v.body;
   ctx.save();
-  if (!alongX) { ctx.translate(96, 0); ctx.scale(-1, 1); }
   ctx.lineJoin = 'round';
-  ctx.lineWidth = 1.4;
-  ctx.strokeStyle = INK;
-  const L = v.kind === 'bus' ? 70 : v.kind === 'fourgon' || v.kind === 'camion' || v.kind === 'technique' ? 52 : 44; // longueur projetée
-  const H = v.kind === 'bus' ? 26 : v.kind === 'fourgon' || v.kind === 'camion' || v.kind === 'technique' ? 22 : 13; // hauteur caisse
-  const ox = 48 - L / 2, oy = 34;
-  // projection : avant vers le bas à droite (dx, dy) = (L, L/2)
-  const P = (u: number, w: number, h: number): [number, number] => [ox + u - w * 0.9, oy + u / 2 + w * 0.45 - h];
-  const quad = (pts: [number, number][], fill: string) => {
+  ctx.strokeStyle = 'rgba(29,26,23,0.9)';
+  ctx.lineWidth = 0.9;
+  const poly = (pts: [number, number][], fill: string, stroke = true) => {
     ctx.fillStyle = fill;
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
+    if (stroke) ctx.stroke();
   };
-  const W = 18; // largeur
-  ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath();
-  ctx.ellipse(48 - 6, 50, L * 0.62, 11, 0.45, 0, Math.PI * 2);
-  ctx.fill();
-  // roues arrière (côté visible)
-  const wheel = (u: number, w: number) => { const [x, y] = P(u, w, -1); ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.ellipse(x, y, 4.2, 5, 0.45, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#8a8a8a'; ctx.beginPath(); ctx.ellipse(x, y, 1.8, 2.2, 0.45, 0, Math.PI * 2); ctx.fill(); };
-  const body = v.body;
-  const side = shade(body, 0.8), top = shade(body, 1.12), front = shade(body, 0.65);
-  // caisse : côté gauche (w = W), dessus, avant
-  quad([P(0, W, 0), P(L, W, 0), P(L, W, H), P(0, W, H)], side);
-  quad([P(L, 0, 0), P(L, W, 0), P(L, W, H), P(L, 0, H)], front);
-  const roofStart = v.kind === 'fourgon' || v.kind === 'camion' || v.kind === 'bus' || v.kind === 'technique' ? 2 : L * 0.25;
-  const roofEnd = v.kind === 'bus' ? L - 2 : v.kind === 'fourgon' || v.kind === 'camion' || v.kind === 'technique' ? L * 0.82 : L * 0.72;
-  const cabH = v.kind === 'bus' || v.kind === 'fourgon' || v.kind === 'camion' || v.kind === 'technique' ? 0 : 9;
-  quad([P(0, 0, H), P(L, 0, H), P(L, W, H), P(0, W, H)], top);
-  if (cabH) {
-    // habitacle
-    quad([P(roofStart, W - 1, H), P(roofEnd, W - 1, H), P(roofEnd - 3, W - 2, H + cabH), P(roofStart + 4, W - 2, H + cabH)], '#9fb8c8');
-    quad([P(roofEnd, 1, H), P(roofEnd, W - 1, H), P(roofEnd - 3, W - 2, H + cabH), P(roofEnd - 3, 2, H + cabH)], '#bcd2df');
-    quad([P(roofStart + 4, 2, H + cabH), P(roofEnd - 3, 2, H + cabH), P(roofEnd - 3, W - 2, H + cabH), P(roofStart + 4, W - 2, H + cabH)], top);
-    // montant central
-    const [mx1, my1] = P((roofStart + roofEnd) / 2, W - 1, H);
-    const [mx2, my2] = P((roofStart + roofEnd) / 2 - 1, W - 2, H + cabH);
-    ctx.beginPath(); ctx.moveTo(mx1, my1); ctx.lineTo(mx2, my2); ctx.stroke();
-  } else {
-    // vitres latérales du fourgon / bus
-    const n = v.kind === 'bus' ? 6 : 2;
-    for (let i = 0; i < n; i++) {
-      const u0 = L * 0.12 + i * (L * 0.62 / n), u1 = u0 + L * 0.62 / n - 3;
-      if (v.kind !== 'bus' && i === 0 && v.kind !== 'technique') continue;
-      quad([P(u0, W, H * 0.55), P(u1, W, H * 0.55), P(u1, W, H * 0.9), P(u0, W, H * 0.9)], '#9fb8c8');
+  // ombre portée douce
+  const sh: [number, number][] = [G(-L / 2 - 0.04, -W / 2 - 0.04), G(L / 2 + 0.04, -W / 2 - 0.04), G(L / 2 + 0.04, W / 2 + 0.06), G(-L / 2 - 0.04, W / 2 + 0.06)].map(([gx, gy]) => S(gx + 0.05, gy + 0.05, 0));
+  poly(sh, 'rgba(0,0,0,0.28)', false);
+  type Face = { pts: [number, number][]; fill: string; depth: number; kind: string; n?: [number, number] };
+  /** Prisme local [f0,f1]×[s0,s1]×[z0,z1] : renvoie ses faces visibles. */
+  const prism = (f0: number, f1: number, s0: number, s1: number, z0: number, z1: number, col: string, opts: { front?: string; back?: string; side?: string; top?: string; taper?: number } = {}): Face[] => {
+    const out: Face[] = [];
+    const t = opts.taper ?? 0; // rétrécissement du haut (pare-brise incliné)
+    const corner = (f: number, s: number, z: number, up: boolean) => S(...G(up ? f + (f > (f0 + f1) / 2 ? -t : t) : f, s), z);
+    const faces: { n: [number, number]; a: [number, number]; b: [number, number]; kind: string }[] = [
+      { n: [dx, dy], a: [f1, s0], b: [f1, s1], kind: 'front' },
+      { n: [-dx, -dy], a: [f0, s1], b: [f0, s0], kind: 'back' },
+      { n: [rx, ry], a: [f1, s1], b: [f0, s1], kind: 'right' },
+      { n: [-rx, -ry], a: [f0, s0], b: [f1, s0], kind: 'left' },
+    ];
+    for (const fc of faces) {
+      if (fc.n[0] + fc.n[1] <= 0) continue; // face tournée vers l'arrière-plan
+      const pts: [number, number][] = [corner(fc.a[0], fc.a[1], z0, false), corner(fc.b[0], fc.b[1], z0, false), corner(fc.b[0], fc.b[1], z1, true), corner(fc.a[0], fc.a[1], z1, true)];
+      const lit = fc.n[0] > 0 ? 0.78 : 0.92; // face +x plus sombre que la face +y
+      const base = fc.kind === 'front' ? opts.front ?? col : fc.kind === 'back' ? opts.back ?? col : opts.side ?? col;
+      out.push({ pts, fill: shade(base, lit), depth: 0, kind: fc.kind, n: fc.n });
     }
-    quad([P(L, 2, H * 0.5), P(L, W - 2, H * 0.5), P(L, W - 2, H * 0.92), P(L, 2, H * 0.92)], '#bcd2df');
-  }
-  // phares
-  const [hx, hy] = P(L, W - 4, H * 0.3);
-  ctx.fillStyle = v.lights ? '#fff6c8' : '#e8e2cf';
-  ctx.beginPath(); ctx.ellipse(hx, hy, 2, 1.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  const [hx2, hy2] = P(L, 4, H * 0.3);
-  ctx.beginPath(); ctx.ellipse(hx2, hy2, 2, 1.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // livrée police originale : bandeau bleu nuit et filet orangé
+    out.push({ pts: [corner(f0, s0, z1, true), corner(f1, s0, z1, true), corner(f1, s1, z1, true), corner(f0, s1, z1, true)], fill: shade(opts.top ?? col, 1.1), depth: 1, kind: 'top' });
+    return out;
+  };
+  const glass = '#8fb2c8';
+  const wheelsAt = big ? [-L / 2 + 0.22, L / 2 - 0.25] : [-L / 2 + 0.17, L / 2 - 0.17];
+  const drawWheels = (visibleSide: boolean) => {
+    for (const side of [-1, 1]) {
+      const n: [number, number] = [rx * side, ry * side];
+      if ((n[0] + n[1] > 0) !== visibleSide) continue;
+      for (const f of wheelsAt) {
+        const [cx, cy] = S(...G(f, side * (W / 2 - 0.01)), 4.5);
+        ctx.fillStyle = '#141414';
+        ctx.beginPath();
+        // ellipse orientée selon l'axe du véhicule
+        const ang = Math.atan2((dx + dy) * K / 2, (dx - dy) * K);
+        ctx.ellipse(cx, cy, 5.2, 4.2, ang, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#9a9a9a';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 2.2, 1.8, ang, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  };
+  drawWheels(false);
+  const zb = 4, zt = big ? 26 : van ? 20 : 11;
+  const faces: Face[] = [];
+  // caisse
+  faces.push(...prism(-L / 2, L / 2, -W / 2, W / 2, zb, zt, body, { front: shade(body, 0.95) }));
+  for (const f of faces) ctx.save(), poly(f.pts, f.fill), ctx.restore();
+  // détails sur les faces de caisse : feux, calandre, bandeau police
+  const faceQuad = (f0: number, f1: number, s0: number, s1: number, z0: number, z1: number, col: string, kind: 'front' | 'back' | 'right' | 'left') => {
+    const n: [number, number] = kind === 'front' ? [dx, dy] : kind === 'back' ? [-dx, -dy] : kind === 'right' ? [rx, ry] : [-rx, -ry];
+    if (n[0] + n[1] <= 0) return;
+    if (kind === 'front' || kind === 'back') {
+      const f = kind === 'front' ? f1 : f0;
+      poly([S(...G(f, s0), z0), S(...G(f, s1), z0), S(...G(f, s1), z1), S(...G(f, s0), z1)], col);
+    } else {
+      const s = kind === 'right' ? s1 : s0;
+      poly([S(...G(f0, s), z0), S(...G(f1, s), z0), S(...G(f1, s), z1), S(...G(f0, s), z1)], col);
+    }
+  };
+  const ws = W / 2;
+  // phares et feux arrière
+  faceQuad(0, L / 2, -ws + 0.03, -ws + 0.1, zb + 3, zb + 6, v.lights ? '#fff7c4' : '#efe8cf', 'front');
+  faceQuad(0, L / 2, ws - 0.1, ws - 0.03, zb + 3, zb + 6, v.lights ? '#fff7c4' : '#efe8cf', 'front');
+  faceQuad(-L / 2, 0, -ws + 0.03, -ws + 0.1, zb + 3, zb + 6, '#c8322a', 'back');
+  faceQuad(-L / 2, 0, ws - 0.1, ws - 0.03, zb + 3, zb + 6, '#c8322a', 'back');
+  faceQuad(0, L / 2, -ws + 0.13, ws - 0.13, zb + 1.5, zb + 4.5, '#2a2a2a', 'front');
   if (v.police && v.kind !== 'banalisee') {
-    quad([P(2, W, H * 0.22), P(L - 1, W, H * 0.22), P(L - 1, W, H * 0.42), P(2, W, H * 0.42)], '#1f3a6e');
-    quad([P(2, W, H * 0.42), P(L - 1, W, H * 0.42), P(L - 1, W, H * 0.48), P(2, W, H * 0.48)], '#e58a2c');
-    const [tx, ty] = P(L * 0.42, W, H * 0.25);
-    ctx.save();
-    ctx.translate(tx, ty);
-    ctx.transform(1, 0.5, 0, 1, 0, 0);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 6px sans-serif';
-    ctx.fillText('POLICE', -12, 0);
-    ctx.restore();
+    for (const k of ['right', 'left'] as const) {
+      faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 4, zb + 8, '#1f3a6e', k);
+      faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 8, zb + 9.3, '#e58a2c', k);
+    }
+  }
+  if (van || big) {
+    // vitrages de la cabine (fourgons, camions, bus)
+    const cabF0 = big && v.kind === 'bus' ? -L / 2 + 0.06 : L / 2 - 0.3;
+    for (const k of ['right', 'left'] as const) faceQuad(cabF0, L / 2 - 0.05, 0, 0, zt - 10, zt - 3, glass, k);
+    faceQuad(0, L / 2, -ws + 0.04, ws - 0.04, zt - 10, zt - 2, glass, 'front');
+    if (v.kind === 'bus') for (const k of ['right', 'left'] as const) for (let i = 0; i < 5; i++) faceQuad(-L / 2 + 0.1 + i * 0.25, -L / 2 + 0.3 + i * 0.25, 0, 0, zt - 11, zt - 4, glass, k);
+    if (v.kind === 'camion') {
+      // séparation cabine / caisse
+      const [a1, b1] = S(...G(L / 2 - 0.34, -ws), zt), [a2, b2] = S(...G(L / 2 - 0.34, ws), zt);
+      ctx.beginPath(); ctx.moveTo(a1, b1); ctx.lineTo(a2, b2); ctx.stroke();
+    }
+  } else {
+    // habitacle de voiture : vitrages en biseau
+    const c0 = -L / 2 + 0.2, c1 = L / 2 - 0.26;
+    const cab = prism(c0, c1, -ws + 0.03, ws - 0.03, zt, zt + 8, glass, { top: body, taper: 0.06 });
+    for (const f of cab) poly(f.pts, f.kind === 'top' ? shade(body, 1.12) : f.fill);
+    // montants
+    const [m1x, m1y] = S(...G((c0 + c1) / 2, ws - 0.03), zt), [m2x, m2y] = S(...G((c0 + c1) / 2, ws - 0.03), zt + 8);
+    const [n1x, n1y] = S(...G((c0 + c1) / 2, -ws + 0.03), zt), [n2x, n2y] = S(...G((c0 + c1) / 2, -ws + 0.03), zt + 8);
+    ctx.beginPath(); ctx.moveTo(m1x, m1y); ctx.lineTo(m2x, m2y); ctx.moveTo(n1x, n1y); ctx.lineTo(n2x, n2y); ctx.stroke();
   }
   if (v.police) {
-    // gyrophare (amovible sur les banalisées)
-    const [gx, gy] = P(L * 0.5, W / 2, H + (cabH || 0) + 1);
-    const on = v.lights && frame % 2 === 0;
-    ctx.fillStyle = on ? '#4aa8ff' : '#2a4f8a';
-    ctx.beginPath(); ctx.rect(gx - 4, gy - 3, 8, 3); ctx.fill(); ctx.stroke();
-    if (on) { ctx.fillStyle = 'rgba(80,170,255,0.35)'; ctx.beginPath(); ctx.arc(gx, gy - 2, 9, 0, Math.PI * 2); ctx.fill(); }
+    const top = van || big ? zt : zt + 8;
+    const on = !!v.lights && frame % 2 === 0;
+    const bar = prism(-0.05, 0.06, -0.12, 0.12, top, top + 3, on ? '#4aa8ff' : '#26457a');
+    for (const f of bar) poly(f.pts, f.fill);
+    if (on) {
+      const [gx, gy] = S(0, 0, top + 3);
+      const g = ctx.createRadialGradient(gx, gy, 1, gx, gy, 16);
+      g.addColorStop(0, 'rgba(120,190,255,0.75)');
+      g.addColorStop(1, 'rgba(120,190,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(gx, gy, 16, 0, Math.PI * 2); ctx.fill();
+    }
   }
-  wheel(L * 0.2, W);
-  wheel(L * 0.82, W);
+  drawWheels(true);
+  if (v.lights && !v.police) {
+    // faisceau des phares la nuit
+    const [hx, hy] = S(...G(L / 2 + 0.25, 0), 2);
+    const g = ctx.createRadialGradient(hx, hy, 1, hx, hy, 18);
+    g.addColorStop(0, 'rgba(255,240,180,0.45)');
+    g.addColorStop(1, 'rgba(255,240,180,0)');
+    if (dx + dy > 0) { ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 18, 0, Math.PI * 2); ctx.fill(); }
+  }
   ctx.restore();
 }
 

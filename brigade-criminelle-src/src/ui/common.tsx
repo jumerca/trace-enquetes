@@ -29,13 +29,18 @@ export function Bar({ v, max = 100, color, invert }: { v: number; max?: number; 
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: [T, string][]; value: T; onChange: (t: T) => void }) {
   return (
-    <div className="tabs" role="tablist">
-      {tabs.map(([k, l]) => <button key={k} className={value === k ? 'on' : ''} onClick={() => onChange(k)} role="tab" aria-selected={value === k}>{l}</button>)}
-    </div>
+    <>
+      <div className="tabs" role="tablist">
+        {tabs.map(([k, l]) => <button key={k} className={value === k ? 'on' : ''} onClick={() => onChange(k)} role="tab" aria-selected={value === k}>{l}</button>)}
+      </div>
+      <select className="tabs-select" value={value} onChange={(e) => onChange(e.target.value as T)} aria-label="Rubrique">
+        {tabs.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      </select>
+    </>
   );
 }
 
-export interface Col<R> { key: string; label: string; get: (r: R) => string | number; render?: (r: R) => ReactNode; width?: number }
+export interface Col<R> { key: string; label: string; get: (r: R) => string | number; render?: (r: R) => ReactNode; width?: number; wide?: boolean }
 
 export function SortTable<R>({ rows, cols, onRow, initial, rowKey }: { rows: R[]; cols: Col<R>[]; onRow?: (r: R) => void; initial?: string; rowKey: (r: R) => string }) {
   const [sort, setSort] = useState<{ k: string; d: 1 | -1 }>({ k: initial ?? cols[0].key, d: 1 });
@@ -53,10 +58,10 @@ export function SortTable<R>({ rows, cols, onRow, initial, rowKey }: { rows: R[]
         <tbody>
           {sorted.map((r) => (
             <tr key={rowKey(r)} className={onRow ? 'click' : ''} onClick={() => onRow?.(r)}>
-              {cols.map((c) => <td key={c.key}>{c.render ? c.render(r) : c.get(r)}</td>)}
+              {cols.map((c) => <td key={c.key} data-label={c.label} className={c.wide || ['title', 'nom', 'case', 'item'].includes(c.key) ? 'wide' : undefined}>{c.render ? c.render(r) : c.get(r)}</td>)}
             </tr>
           ))}
-          {!sorted.length && <tr><td colSpan={cols.length} className="muted">Aucun élément.</td></tr>}
+          {!sorted.length && <tr><td colSpan={cols.length} className="muted wide">Aucun élément.</td></tr>}
         </tbody>
       </table>
     </div>

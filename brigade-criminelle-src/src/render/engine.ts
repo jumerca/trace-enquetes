@@ -12,6 +12,7 @@ export interface View {
   hover?(wx: number, wy: number): void;
   drag?(phase: 'start' | 'move' | 'end', wx: number, wy: number): boolean;
   night(): number; // 0 jour … 1 nuit noire
+  viewport?(x: number, y: number, w: number, h: number): void; // zone visible (coordonnées monde)
   outdoor(): number; // part de la scène en extérieur (météo)
   destroy(): void;
 }
@@ -31,14 +32,17 @@ export class Engine {
   private dragging = false;
   private time = 0;
   ready = false;
+  private host: HTMLElement | null = null;
   getState: () => GameState | null = () => null;
   fps = 60;
 
   async init(host: HTMLElement) {
+    const eco = economyMode();
     await this.app.init({
-      resizeTo: host, background: '#2b2a28', antialias: true, autoDensity: true,
-      resolution: Math.min(window.devicePixelRatio || 1, 2), powerPreference: 'high-performance', preference: 'webgl',
+      resizeTo: host, background: '#2b2a28', antialias: !eco, autoDensity: true,
+      resolution: eco ? 1 : Math.min(window.devicePixelRatio || 1, 2), powerPreference: 'high-performance', preference: 'webgl',
     });
+    this.host = host;
     host.appendChild(this.app.canvas);
     this.app.canvas.style.touchAction = 'none';
     this.app.canvas.setAttribute('aria-label', 'Vue de jeu');
@@ -62,9 +66,10 @@ export class Engine {
     if (cam) this.cam = { ...cam };
     else {
       const b = v.bounds();
-      const fit = Math.min(this.app.screen.width / b.w, this.app.screen.height / b.h) * 1.05;
+      const sw = this.host?.clientWidth || this.app.screen.width, sh = this.host?.clientHeight || this.app.screen.height;
+      const fit = Math.min(sw / b.w, sh / b.h) * 1.05;
       // sur petit écran, on cadre plus serré (zoom lisible) plutôt que tout le plan
-      this.cam = { x: b.x + b.w / 2, y: b.y + b.h / 2, z: Math.min(1.4, Math.max(this.app.screen.width < 700 ? 0.62 : 0.35, fit)) };
+      this.cam = { x: b.x + b.w / 2, y: b.y + b.h / 2, z: Math.min(1.4, Math.max(sw < 700 ? 0.62 : 0.35, fit)) };
     }
     this.clamp();
   }
@@ -78,12 +83,14 @@ export class Engine {
       c.position.set(width / 2 - this.cam.x * this.cam.z, height / 2 - this.cam.y * this.cam.z);
     }
     if (!this.view) return;
+    this.view.viewport?.(this.cam.x - width / 2 / this.cam.z, this.cam.y - height / 2 / this.cam.z, width / this.cam.z, height / this.cam.z);
     this.view.update(Math.min(dt, 100), this.time);
     // nuit : assombrissement multiplicatif, les lumières passent par-dessus (addition)
     const n = this.view.night();
     this.nightG.clear();
     if (n > 0.01) this.nightG.rect(0, 0, width, height).fill({ color: mixNight(n), alpha: 1 });
     this.lightLayer.alpha = Math.min(1, n * 1.4);
+    this.lightLayer.visible = n > 0.02;
     this.drawWeather(dt, width, height);
   }
 
@@ -220,4 +227,12 @@ function mixNight(n: number): number {
   const t = Math.min(1, n);
   const r = Math.round(255 - (255 - 58) * t), g = Math.round(255 - (255 - 70) * t), b = Math.round(255 - (255 - 120) * t);
   return (r << 16) | (g << 8) | b;
+}
+
+/** Mode économie (appareils modestes) : résolution 1, sans anticrénelage, moins de figurants. */
+export function economyMode(): boolean {
+  try { return localStorage.getItem('bct-qualite') === 'economie'; } catch { return false; }
+}
+export function setEconomyMode(on: boolean) {
+  try { localStorage.setItem('bct-qualite', on ? 'economie' : 'haute'); } catch { /* stockage indisponible */ }
 }

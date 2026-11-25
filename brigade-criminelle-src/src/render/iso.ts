@@ -1,6 +1,6 @@
 // Outils de projection isométrique et de dessin de volumes (PixiJS v8).
-import { Graphics, Texture } from 'pixi.js';
-import { canvasOf, drawCharacter, drawVehicle, type CharSpec, type Pose, type VehSpec } from './art';
+import { CanvasSource, Graphics, Texture } from 'pixi.js';
+import { canvasOf, drawCharacter, drawVehicle, type CharSpec, type Pose, type VehSpec, type Dir } from './art';
 
 export const TW = 64, TH = 32;
 
@@ -53,24 +53,28 @@ export function wallY(g: Graphics, y0: number, y1: number, x: number, h: number,
 // ————— Textures des personnages et véhicules (générées une fois, mises en cache) —————
 const texCache = new Map<string, Texture>();
 export const CHAR_W = 48, CHAR_H = 72;
-const RES = typeof window !== 'undefined' ? Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1))) : 1;
+// textures générées en haute définition (nettes même zoomées)
+const RES = typeof window !== 'undefined' ? Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1) + 1)) : 1;
+/** Texture lissée avec mipmaps : pas de crénelage quand le sprite est réduit (dézoom). */
+function smoothTexture(cv: HTMLCanvasElement): Texture {
+  return new Texture({ source: new CanvasSource({ resource: cv, resolution: RES, autoGenerateMipmaps: true, scaleMode: 'linear', antialias: true }) });
+}
 
 export function charTexture(s: CharSpec, pose: Pose, frame: number, back: boolean): Texture {
   const key = `c|${JSON.stringify(s)}|${pose}|${frame}|${back}`;
   let t = texCache.get(key);
   if (!t) {
-    t = Texture.from(canvasOf(CHAR_W, CHAR_H, RES, (ctx) => drawCharacter(ctx, s, pose, frame, back)));
-    t.source.scaleMode = 'linear';
+    t = smoothTexture(canvasOf(CHAR_W, CHAR_H, RES, (ctx) => drawCharacter(ctx, s, pose, frame, back)));
     texCache.set(key, t);
   }
   return t;
 }
 
-export function vehTexture(v: VehSpec, alongX: boolean, frame = 0): Texture {
-  const key = `v|${JSON.stringify(v)}|${alongX}|${frame}`;
+export function vehTexture(v: VehSpec, dir: Dir, frame = 0): Texture {
+  const key = `v|${JSON.stringify(v)}|${dir}|${frame}`;
   let t = texCache.get(key);
   if (!t) {
-    t = Texture.from(canvasOf(96, 64, RES, (ctx) => drawVehicle(ctx, v, alongX, frame)));
+    t = smoothTexture(canvasOf(128, 96, RES, (ctx) => drawVehicle(ctx, v, dir, frame)));
     texCache.set(key, t);
   }
   return t;
@@ -84,3 +88,4 @@ export function clearTextureCache() {
 export function textureCount() {
   return texCache.size;
 }
+

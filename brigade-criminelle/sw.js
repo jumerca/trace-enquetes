@@ -1,10 +1,10 @@
 // Service worker — Brigade criminelle Tycoon. Généré au build : ne pas modifier dist/sw.js à la main.
 // Il ne touche jamais au IndexedDB : les sauvegardes survivent à toutes les mises à jour.
-const BUILD = '0.1.0-202611250307';
+const BUILD = '0.1.1-202611251406';
 // un cache par adresse d'installation (plusieurs copies du jeu peuvent coexister sur le même site)
 const PREFIX = 'brigade-criminelle-' + self.registration.scope + '-';
 const CACHE = PREFIX + BUILD;
-const ASSETS = ["./","assets/CanvasPool-Dk0CtICO.js","assets/SharedSystems-XDz72FAI.js","assets/WebGLRenderer-BHzrGG-m.js","assets/WebGPURenderer-DYGh8aEe.js","assets/browserAll-ewofMR_P.js","assets/colorToUniform-C2GHuDhf.js","assets/index-CHZKdkSN.js","assets/index-eAqWbh6e.css","assets/react-DcELUuLK.js","assets/webworkerAll-CRS73Dk6.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","index.html"];
+const ASSETS = ["./","assets/CanvasPool-wNYWaiyc.js","assets/SharedSystems-BdMTiMWN.js","assets/WebGLRenderer-BPi0inm4.js","assets/WebGPURenderer-biphzkWM.js","assets/browserAll-CIQUKVp9.js","assets/colorToUniform-C2GHuDhf.js","assets/index-Db4M5-du.css","assets/index-d2uRKUCt.js","assets/react-CPIJ7iYC.js","assets/webworkerAll-sHkvEpVM.js","icons/apple-touch-icon.png","icons/favicon-32.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/icon.svg","manifest.webmanifest","index.html"];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));

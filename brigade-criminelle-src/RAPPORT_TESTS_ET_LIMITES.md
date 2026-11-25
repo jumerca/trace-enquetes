@@ -1,4 +1,4 @@
-# Rapport de tests, fonctionnalités et limites — V0.1.0
+# Rapport de tests, fonctionnalités et limites — V0.1.1
 
 Ce rapport distingue ce qui est **vérifié** (test automatisé ou contrôle manuel documenté) de ce qui
 est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée terminée sans preuve.
@@ -36,6 +36,13 @@ classe après 25 jours un dossier où l'auteur était presque démontré : compo
 pas infaillible), à équilibrer.
 
 ## 2. Contrôle dans un vrai navigateur (`scripts/e2e.cjs`)
+
+**V0.1.1** : le parcours tourne sur quatre formats (1366 × 800, tablette 1024 × 700, mobile 412 × 860,
+petit mobile 360 × 740) et vérifie en plus, sur chaque écran, l'absence de tout défilement horizontal
+(HUD, panneaux, tableaux, page) et que le menu tient sans défilement : **aucune erreur, aucun
+débordement**. Contrôle de la circulation (script sur la carte) : 100 % des véhicules sur la chaussée,
+quasi tous sur la voie de droite (les autres en virage), 100 % des piétons sur trottoirs ou passages.
+
 
 Parcours automatisé sur le build de production (Chromium, 1366 × 800 et 412 × 860) : écran titre,
 création de carrière, commissariat, simulation d'une journée, liste des affaires, dossier,

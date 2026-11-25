@@ -10,6 +10,7 @@ import { BUILDABLE, buildCost, canPlaceFurniture, capacities, FURN_COST, FURN_LA
 import { fullName, load } from '../sim/staff';
 import { BUDGET_CATS, type BudgetCat, type GameState } from '../sim/types';
 import { placeStatus } from '../render/city-view';
+import { economyMode, setEconomyMode } from '../render/engine';
 import { downloadSave, saveSlot, SLOT_NAMES, SLOTS, type Slot } from '../save/save';
 import { DECISION_LABEL, STATUS_LABEL, TYPE_LABEL } from './Cases';
 import { Bar, eur, PanelShell, SortTable, Spark, Stat, useGame, when, day } from './common';
@@ -44,7 +45,7 @@ export function Lab() {
       ]} />
       <h3>Techniques disponibles ({era.label})</h3>
       <div className="tbl-wrap"><table className="t"><thead><tr><th>Examen</th><th>Disponible</th><th>Durée</th><th>Coût</th><th>Qualité</th></tr></thead><tbody>
-        {Object.entries(era.lab).map(([k, v]) => <tr key={k}><td>{LAB_LABELS[k as keyof typeof LAB_LABELS]}</td><td>{v.available ? 'Oui' : 'Non'}</td><td>{v.available ? durationLabel(v.hours) : '—'}</td><td>{v.available ? eur(v.cost) : '—'}</td><td>{v.available ? <Bar v={v.quality * 100} /> : '—'}</td></tr>)}
+        {Object.entries(era.lab).map(([k, v]) => <tr key={k}><td className="wide"><b>{LAB_LABELS[k as keyof typeof LAB_LABELS]}</b></td><td data-label="Disponible">{v.available ? 'Oui' : 'Non'}</td><td data-label="Durée">{v.available ? durationLabel(v.hours) : '—'}</td><td data-label="Coût">{v.available ? eur(v.cost) : '—'}</td><td data-label="Qualité">{v.available ? <Bar v={v.quality * 100} /> : '—'}</td></tr>)}
       </tbody></table></div>
       <p className="muted">Chaque paillasse traite une analyse à la fois, à condition qu'un technicien soit en service (au plus deux analyses suivies par technicien). Les résultats découlent des faits réels de l'affaire : une trace absente ne peut pas apparaître.</p>
     </PanelShell>
@@ -90,7 +91,7 @@ export function Budget() {
         <Stat v={eur(b.payrollPaid)} l="Salaires versés cette année" />
       </div>
       <div className="tbl-wrap" style={{ marginTop: 10 }}><table className="t"><thead><tr><th>Poste</th><th>Enveloppe</th><th>Dépensé</th><th>Disponible</th><th style={{ width: '30%' }}>Consommation</th></tr></thead><tbody>
-        {BUDGET_CATS.map((k) => <tr key={k}><td>{CAT_LABELS[k]}</td><td>{eur(b.envelope[k])}</td><td>{eur(b.spent[k])}</td><td style={{ color: remaining(b, k) < 0 ? 'var(--red)' : undefined }}>{eur(remaining(b, k))}</td><td><Bar v={b.spent[k]} max={Math.max(1, b.envelope[k])} invert /></td></tr>)}
+        {BUDGET_CATS.map((k) => <tr key={k}><td className="wide"><b>{CAT_LABELS[k]}</b></td><td data-label="Enveloppe">{eur(b.envelope[k])}</td><td data-label="Dépensé">{eur(b.spent[k])}</td><td data-label="Disponible" style={{ color: remaining(b, k) < 0 ? 'var(--red)' : undefined }}>{eur(remaining(b, k))}</td><td data-label="Consommation"><Bar v={b.spent[k]} max={Math.max(1, b.envelope[k])} invert /></td></tr>)}
       </tbody></table></div>
       <div className="card" style={{ marginTop: 10 }}>
         <h3>Demander des moyens supplémentaires</h3>
@@ -355,6 +356,7 @@ export function Settings({ onQuit }: { onQuit: () => void }) {
         {([['manuel', 'Gestion entièrement manuelle', 'Vous attribuez les dossiers et ordonnez chaque action. L\'équipe vous signale quand elle attend des instructions.'], ['assiste', 'Supervision assistée', 'Les enquêteurs proposent des pistes que vous approuvez ou refusez.'], ['delegation', 'Délégation avancée', 'Votre adjoint attribue les dossiers ; les équipes décident, demandent les autorisations et transmettent elles-mêmes.']] as const).map(([k, l, d]) => (
           <label key={k} className="row" style={{ alignItems: 'flex-start', marginBottom: 6 }}><input type="radio" checked={st.settings.assist === k} onChange={() => g.mutate((s) => { s.settings.assist = k; })} /><span><b>{l}</b><br /><span className="muted">{d}</span></span></label>
         ))}
+        <label className="row"><input type="checkbox" defaultChecked={economyMode()} onChange={(e) => { setEconomyMode(e.target.checked); setMsg('Réglage graphique enregistré : il s\'applique au prochain lancement du jeu.'); }} /> Mode économie graphique (téléphones modestes : moins de figurants, rendu allégé)</label>
         <label className="row"><input type="checkbox" checked={st.settings.autoPause} onChange={(e) => g.mutate((s) => { s.settings.autoPause = e.target.checked; })} /> Pause automatique lors d'un événement urgent</label>
       </div>
       <div className="card">

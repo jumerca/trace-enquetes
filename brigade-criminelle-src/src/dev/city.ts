@@ -7,6 +7,6 @@ step(st, Number(q.get('m') ?? 120));
 const e = new Engine(); e.getState = () => st;
 await e.init(document.getElementById('h')!);
 const v = new CityView(() => st, { onCase: (id) => console.log('case', id), onPlace: (id) => console.log('place', id) });
-e.setView(v);
+e.setView(v); (window as any).cv = v; (window as any).st = st; (window as any).eng = e;
 if (q.get('z')) e.zoomBy(Number(q.get('z')));
 setInterval(() => step(st, 10), 1000);

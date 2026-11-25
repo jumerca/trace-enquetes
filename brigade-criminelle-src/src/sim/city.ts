@@ -1,7 +1,7 @@
 // Moteur urbain : génération de Saint-Clair (ou d'une autre ville) à partir d'une graine.
 // La carte est une grille de cases isométriques. La population est agrégée par quartier ;
 // seuls les lieux et les personnes utiles aux affaires sont individualisés.
-import type { Rng } from '../core/rng';
+import { valueNoise, type Rng } from '../core/rng';
 import type { City, CitySize, District, DistrictId, Place, PlaceKind } from './types';
 
 export const T = { herbe: 0, route: 1, trottoir: 2, place: 3, eau: 4, foret: 5, champ: 6, rail: 7, parking: 8, pave: 9 } as const;
@@ -100,11 +100,14 @@ export function generateCity(rng: Rng, size: CitySize, name = 'Saint-Clair'): Ci
     if (x >= 0 && y >= 0 && x < w && y < h) tiles[y * w + x] = t;
   };
   // forêt au nord-ouest, rivière à l'ouest, champs à l'est
+  // forêt et champs en masses continues (bruit lissé), pas en semis de cases isolées
+  const seed = rng.int(1, 1e6);
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      if (x < 20 && y < 12 && rng.chance(0.75)) set(x, y, T.foret);
-      if (x >= 41 && rng.chance(0.85)) set(x, y, T.champ);
-      if (y >= 39 && rng.chance(0.5)) set(x, y, rng.chance(0.5) ? T.champ : T.herbe);
+      const n = valueNoise(x, y, 5, seed);
+      if (x < 20 && y < 12 && n + (12 - y) / 30 + (20 - x) / 60 > 0.62) set(x, y, T.foret);
+      if (x >= 41 && n > 0.25) set(x, y, T.champ);
+      if (y >= 39 && x > 6 && valueNoise(x, y, 4, seed + 1) > 0.5) set(x, y, T.champ);
     }
   for (let y = 0; y < h; y++) {
     const rx = 3 + Math.round(Math.sin(y / 6) * 1.5);

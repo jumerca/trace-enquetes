@@ -1,7 +1,7 @@
 // Tableau d'enquête : portraits, informations classées par nature, relations, chronologie,
 // notes et hypothèses. Aucune jauge de culpabilité : seulement des faits, déclarations,
 // résultats d'analyse et hypothèses, que le joueur organise et relie.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { contradictions, found, isContradicted } from '../sim/knowledge';
 import { roleLabel } from '../sim/investigation';
 import type { Case, Clue } from '../sim/types';
@@ -17,6 +17,15 @@ export function Board({ c }: { c: Case }) {
   const [note, setNote] = useState('');
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  // vue du tableau : zoom ajusté à la largeur, déplacement au doigt (aucune barre de défilement)
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 });
+  const pan = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  useEffect(() => {
+    const w = wrap.current?.clientWidth ?? 800;
+    setView({ k: Math.max(0.28, Math.min(1, w / 1400)), x: 0, y: 0 });
+  }, []);
+  const toBoard = (cx: number, cy: number) => { const r = wrap.current!.getBoundingClientRect(); return { x: (cx - r.left - view.x) / view.k, y: (cy - r.top - view.y) / view.k }; };
+  const zoom = (f: number) => setView((v) => { const k = Math.max(0.25, Math.min(1.6, v.k * f)); const w = wrap.current!.clientWidth / 2, h = wrap.current!.clientHeight / 2; return { k, x: w - (w - v.x) * (k / v.k), y: h - (h - v.y) * (k / v.k) }; });
   const persons = c.persons.filter((p) => p.known);
   const clues = found(c).filter((k) => filter === 'tout' || k.nature === filter);
   const ctr = contradictions(c);
@@ -48,19 +57,20 @@ export function Board({ c }: { c: Case }) {
     }
     setSel(id);
     const p = at(id)!;
-    const r = wrap.current!.getBoundingClientRect();
-    drag.current = { id, dx: e.clientX - r.left + wrap.current!.scrollLeft - p.x, dy: e.clientY - r.top + wrap.current!.scrollTop - p.y };
+    const b = toBoard(e.clientX, e.clientY);
+    drag.current = { id, dx: b.x - p.x, dy: b.y - p.y };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
+    if (pan.current) { const p = pan.current; setView((v) => ({ ...v, x: p.vx + e.clientX - p.x, y: p.vy + e.clientY - p.y })); return; }
     if (!drag.current) return;
-    const r = wrap.current!.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1330, e.clientX - r.left + wrap.current!.scrollLeft - drag.current.dx));
-    const y = Math.max(0, Math.min(920, e.clientY - r.top + wrap.current!.scrollTop - drag.current.dy));
+    const b = toBoard(e.clientX, e.clientY);
+    const x = Math.max(0, Math.min(1330, b.x - drag.current.dx));
+    const y = Math.max(0, Math.min(920, b.y - drag.current.dy));
     c.board.pos[drag.current.id] = { x, y };
     g.bump(true);
   };
-  const onUp = () => { drag.current = null; };
+  const onUp = () => { drag.current = null; pan.current = null; };
   const timeline = found(c).filter((k) => k.time !== undefined).sort((a, b) => a.time! - b.time!);
   const lines: { a: { x: number; y: number }; b: { x: number; y: number }; color: string; dash?: string; label?: string }[] = [];
   for (const k of clues) {
@@ -87,12 +97,13 @@ export function Board({ c }: { c: Case }) {
         {sel && (c.board.notes.some((n) => n.id === sel) || c.board.links.some((l) => l.a === sel || l.b === sel)) && <button className="btn small" onClick={() => { g.mutate(() => { c.board.notes = c.board.notes.filter((n) => n.id !== sel); c.board.links = c.board.links.filter((l) => l.a !== sel && l.b !== sel); }); setSel(null); }}>Retirer note / liens</button>}
         <button className="btn small" onClick={() => g.mutate(() => { c.board.pos = {}; })}>Réorganiser</button>
       </div>
-      <div className="row muted" style={{ fontSize: 12, marginBottom: 4 }}>
+      <div className="row muted board-legend" style={{ fontSize: 12, marginBottom: 4 }}>
         <span className="tag fait">Fait établi</span><span className="tag declaration">Déclaration</span><span className="tag analyse">Analyse</span><span className="tag document">Document</span><span className="tag hypothese">Hypothèse</span>
         <span>— trait rouge : contradiction · vert : élément disculpant · bleu : vos liens</span>
       </div>
-      <div className="board-wrap" ref={wrap} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onClick={() => !linking && setSel(null)}>
-        <div className="board">
+      <div className="board-wrap" ref={wrap} onPointerDown={(e) => { pan.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; }} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onWheel={(e) => zoom(e.deltaY < 0 ? 1.1 : 0.9)} onClick={() => !linking && setSel(null)}>
+        <div className="board-zoom"><button className="btn small" onClick={(e) => { e.stopPropagation(); zoom(1.25); }} onPointerDown={(e) => e.stopPropagation()}>＋</button><button className="btn small" onClick={(e) => { e.stopPropagation(); zoom(0.8); }} onPointerDown={(e) => e.stopPropagation()}>－</button><button className="btn small" onClick={(e) => { e.stopPropagation(); setView({ k: Math.max(0.28, Math.min(1, (wrap.current?.clientWidth ?? 800) / 1400)), x: 0, y: 0 }); }} onPointerDown={(e) => e.stopPropagation()}>⤢</button></div>
+        <div className="board" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: '0 0' }}>
           <svg width="1500" height="1000" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
             {lines.map((l, i) => (
               <g key={i}>
