@@ -10,7 +10,24 @@ const INK = '#1d1a17';
 export type Look = 'civil' | 'uniforme' | 'blouse' | 'costume' | 'robe' | 'medecin' | 'presse' | 'tenue';
 export type Pose = 'idle' | 'walk' | 'run' | 'sit' | 'type' | 'phone' | 'read' | 'talk' | 'carry';
 
-export interface CharSpec { a: Appearance; sexe: 'F' | 'M'; look: Look }
+export interface CharSpec { a: Appearance; sexe: 'F' | 'M'; look: Look; era?: number }
+
+// ————— Époque des personnages : coiffures, coupes, couleurs et accessoires suivent la décennie —————
+let ART_YEAR = 1995;
+export function setArtYear(y: number) { ART_YEAR = y; }
+/** 0 : années 1970 … 5 : années 2020. */
+export function eraBucket(y: number = ART_YEAR): number {
+  return y < 1980 ? 0 : y < 1990 ? 1 : y < 2000 ? 2 : y < 2010 ? 3 : y < 2020 ? 4 : 5;
+}
+export function artEra(): number { return eraBucket(ART_YEAR); }
+const ERA_PAL: string[][] = [
+  ['#8a5a2b', '#c27c2c', '#6b7b3a', '#a0522d', '#b8860b', '#7a4a3a', '#5d6b4a', '#9c6b3c', '#c9a05a', '#6e4b6e'], // brun, moutarde, orange
+  ['#c0392b', '#2e86c1', '#8e44ad', '#16a085', '#d4a017', '#e67e22', '#34495e', '#d35d8a', '#3cb3a0', '#5a6fd8'], // couleurs vives
+  ['#3b5b8a', '#556b2f', '#7d5a50', '#2f4f4f', '#8b3a3a', '#4a6a8a', '#6b6b3a', '#5a4a6a', '#996644', '#2c5d7a'], // denim, vert sapin, bordeaux
+  ['#3a3a3f', '#5a5f66', '#2b3a55', '#6a3a3a', '#4b5a4a', '#7a7f86', '#2e2e33', '#405a7a', '#6a5a4a', '#55606a'], // gris, noir
+  ['#22355a', '#6b2737', '#c49a3a', '#3e5a48', '#8a8f96', '#2d2d33', '#5a7a8a', '#a0553a', '#46506a', '#7a6a5a'], // marine, bordeaux, moutarde
+  ['#b9a88a', '#5a6340', '#2a2a2e', '#8a9aa6', '#c7b9a0', '#3c4a5a', '#7a5a4a', '#6a7a5a', '#d9d2c4', '#4a3a4a'], // beige, kaki, noir
+];
 
 function shade(hex: string, f: number) {
   const n = parseInt(hex.slice(1), 16);
@@ -21,21 +38,47 @@ function shade(hex: string, f: number) {
 }
 
 function outfitColors(s: CharSpec) {
-  const base = OUTFITS[s.a.outfit % OUTFITS.length];
+  const e = eraBucket(s.era ?? ART_YEAR);
+  const pal = ERA_PAL[e];
+  const base = pal[s.a.outfit % pal.length] ?? OUTFITS[s.a.outfit % OUTFITS.length];
+  const jeans = ['#4b4f57', '#5a4a3a', '#3d5a8a', '#2f4a72', '#2a2f3a', '#3a3f4a'][e];
   switch (s.look) {
-    case 'uniforme': return { top: '#23324f', bottom: '#1e2a40', accent: '#c9d3e6' };
+    case 'uniforme': return e <= 1 ? { top: '#1f2b4a', bottom: '#1a2338', accent: '#d8dde8' } : e <= 3 ? { top: '#4a6a9a', bottom: '#1e2a40', accent: '#c9d3e6' } : { top: '#2a3550', bottom: '#1c2436', accent: '#c9d3e6' };
     case 'blouse': return { top: '#f1f3f4', bottom: '#4a4f57', accent: '#9fb3c8' };
     case 'medecin': return { top: '#eef3f2', bottom: '#5a7d8a', accent: '#3a8f7a' };
     case 'robe': return { top: '#1c1c22', bottom: '#1c1c22', accent: '#e8e2d0' };
-    case 'costume': return { top: shade(base, 0.6), bottom: shade(base, 0.5), accent: '#ece6da' };
-    case 'presse': return { top: '#7a6a4a', bottom: '#3d3a36', accent: '#d9c9a0' };
-    default: return { top: base, bottom: s.a.build === 2 ? '#3a3a40' : '#4b5563', accent: '#e9e1d2' };
+    case 'costume': {
+      const suit = [['#6b4a2e', '#5a3e28'], ['#5a5f6a', '#4a4f5a'], ['#3a3f4a', '#30343c'], ['#2a2e36', '#24272e'], ['#26334d', '#1f2a40'], ['#3a3f46', '#2f3339']][e];
+      return { top: suit[0], bottom: suit[1], accent: e === 0 ? '#e8d8b0' : '#ece6da' };
+    }
+    case 'presse': return { top: e <= 1 ? '#7a6a4a' : e <= 3 ? '#4a5a4a' : '#2f3a46', bottom: '#3d3a36', accent: '#d9c9a0' };
+    default: return { top: base, bottom: s.a.outfit % 2 ? jeans : s.a.build === 2 ? '#3a3a40' : shade(base, 0.55), accent: e === 0 ? '#e8d0a0' : '#e9e1d2' };
   }
+}
+
+/** Coupe de cheveux adaptée à la décennie (les civils suivent la mode, l'uniforme reste court). */
+function eraHair(s: CharSpec, e: number): number {
+  const hs = s.a.hairStyle;
+  if (s.look === 'uniforme' || s.look === 'robe') return s.sexe === 'M' ? (hs % 2 ? 2 : 0) : hs;
+  if (s.sexe === 'M') {
+    if (e === 0) return [6, 3, 6, 0, 1, 6, 3, 6][hs % 8]; // cheveux longs, mi-longs
+    if (e === 1) return [0, 1, 6, 0, 1, 7, 0, 1][hs % 8];
+    if (e === 2) return [1, 7, 0, 1, 2, 0, 1, 7][hs % 8]; // raie au milieu
+    if (e >= 4) return [2, 1, 0, 2, 4, 1, 2, 0][hs % 8]; // dégradés courts, chignon
+    return [2, 0, 1, 2, 7, 0, 2, 1][hs % 8];
+  }
+  if (e === 0) return [5, 3, 5, 6, 3, 5, 6, 5][hs % 8]; // longs et raides
+  if (e === 1) return [6, 6, 3, 1, 6, 6, 3, 6][hs % 8];
+  if (e === 2) return [3, 1, 5, 7, 3, 4, 1, 5][hs % 8];
+  if (e === 5) return [4, 5, 3, 4, 1, 5, 4, 3][hs % 8]; // chignons, longs
+  return hs;
 }
 
 /** Dessine un personnage en vue isométrique (face = vers le spectateur, ou dos).
  * Le canvas fait 48 × 72 unités ; les pieds sont en (24, 66). */
 export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: Pose, frame: number, back: boolean) {
+  const e = eraBucket(s.era ?? ART_YEAR);
+  const civil = s.look === 'civil';
   const c = outfitColors(s);
   const skin = SKINS[s.a.skin % SKINS.length];
   const hair = HAIRS[s.a.hair % HAIRS.length];
@@ -65,10 +108,17 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
     if (sitting) {
       ctx.rect(x - 3, legY, 6, 6);
       ctx.rect(x - 3 + (back ? -2 : 2), legY + 4, 6, legLen);
-    } else ctx.rect(x - 3 + swing * 0.5, legY, 6, legLen);
+    } else if (e === 0 && (civil || s.look === 'costume')) {
+      // pantalon à pattes d'éléphant
+      const sx = x + swing * 0.5;
+      ctx.moveTo(sx - 3, legY); ctx.lineTo(sx + 3, legY); ctx.lineTo(sx + 4.6, legY + legLen); ctx.lineTo(sx - 4.6, legY + legLen); ctx.closePath();
+    } else if (e >= 4 && civil) ctx.rect(x - 2.5 + swing * 0.5, legY, 5, legLen);
+    else if (e === 2 && civil) ctx.rect(x - 3.5 + swing * 0.5, legY, 7, legLen);
+    else ctx.rect(x - 3 + swing * 0.5, legY, 6, legLen);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = s.look === 'uniforme' ? '#111' : '#2b2420';
+    // baskets blanches à partir des années 2000 pour les civils
+    ctx.fillStyle = s.look === 'uniforme' ? '#111' : civil && e >= 3 && s.a.outfit % 3 !== 2 ? '#ecebe6' : civil && e === 1 && s.a.outfit % 4 === 0 ? '#e9e4d8' : '#2b2420';
     ctx.beginPath();
     ctx.ellipse(x + swing * 0.9 + (back ? -1 : 1), legY + legLen + (sitting ? 4 : 0) + 1, 4, 2.4, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -92,11 +142,13 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
     drawLeg(28, -ph * 4 * amp);
   }
   // torse
-  const tw = 16 * w;
+  const tw = 16 * w * (e === 1 && (civil || s.look === 'costume') ? 1.12 : e === 2 && civil ? 1.08 : 1);
+  const pads = e === 1 && (civil || s.look === 'costume');
   ctx.fillStyle = c.top;
   ctx.beginPath();
   ctx.moveTo(24 - tw / 2, 30);
-  ctx.quadraticCurveTo(24, 27, 24 + tw / 2, 30);
+  if (pads) { ctx.lineTo(24 - tw / 2, 28.6); ctx.lineTo(24 + tw / 2, 28.6); ctx.lineTo(24 + tw / 2, 30); }
+  else ctx.quadraticCurveTo(24, 27, 24 + tw / 2, 30);
   ctx.lineTo(24 + tw / 2 + 1, 48);
   ctx.lineTo(24 - tw / 2 - 1, 48);
   ctx.closePath();
@@ -106,16 +158,47 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
     // col, chemise, cravate ou insignes
     ctx.fillStyle = c.accent;
     ctx.beginPath();
-    ctx.moveTo(21, 29);
-    ctx.lineTo(24, 35);
-    ctx.lineTo(27, 29);
+    if (e === 0 && (civil || s.look === 'costume')) {
+      // grand col pelle à tarte
+      ctx.moveTo(18, 29); ctx.lineTo(24, 37); ctx.lineTo(30, 29); ctx.lineTo(28.5, 33); ctx.lineTo(24, 38.5); ctx.lineTo(19.5, 33);
+    } else if (civil && e === 5 && s.a.outfit % 3 === 0) {
+      // sweat à capuche
+      ctx.fillStyle = shade(c.top.startsWith('#') ? c.top : '#555555', 0.8);
+      ctx.ellipse(24, 29.5, 6, 2.4, 0, 0, Math.PI * 2);
+    } else if (civil && e === 3 && s.a.outfit % 4 === 2) {
+      // col roulé
+      ctx.fillStyle = c.top;
+      ctx.rect(20.5, 27, 7, 3.5);
+    } else { ctx.moveTo(21, 29); ctx.lineTo(24, 35); ctx.lineTo(27, 29); }
     ctx.closePath();
     ctx.fill();
-    if (s.look === 'costume' || (s.look === 'civil' && s.sexe === 'M' && s.a.outfit % 4 === 1)) {
-      ctx.fillStyle = '#7a2e2e';
-      ctx.fillRect(23.2, 31, 1.6, 9);
+    if (civil && e === 5 && s.a.outfit % 3 === 0) { ctx.strokeStyle = '#ddd'; ctx.beginPath(); ctx.moveTo(22.6, 30); ctx.lineTo(22.2, 35); ctx.moveTo(25.4, 30); ctx.lineTo(25.8, 35); ctx.stroke(); ctx.strokeStyle = INK; }
+    if (civil && e === 5 && s.a.outfit % 3 === 1) {
+      // doudoune matelassée
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(24 - tw / 2 + 1, 33 + k * 3.6); ctx.lineTo(24 + tw / 2 - 1, 33 + k * 3.6); ctx.stroke(); }
+      ctx.strokeStyle = INK;
     }
-    if (s.look === 'uniforme') {
+    const tie = s.look === 'costume' ? e <= 3 || s.a.outfit % 2 === 0 : civil && s.sexe === 'M' && s.a.outfit % 4 === 1 && e <= 3;
+    if (tie) {
+      ctx.fillStyle = e === 0 ? '#a0522d' : e === 1 ? '#5a2e5a' : '#7a2e2e';
+      if (e === 0) { ctx.beginPath(); ctx.moveTo(22.6, 31); ctx.lineTo(25.4, 31); ctx.lineTo(26.4, 41); ctx.lineTo(24, 42.5); ctx.lineTo(21.6, 41); ctx.closePath(); ctx.fill(); }
+      else ctx.fillRect(23.2, 31, e === 1 ? 1.2 : 1.6, 9);
+    }
+    if (s.look === 'uniforme' && e >= 4) {
+      // gilet tactique avec bandeau « POLICE »
+      ctx.fillStyle = '#1b1e24';
+      ctx.fillRect(24 - tw / 2 + 1, 32, tw - 2, 14);
+      ctx.strokeRect(24 - tw / 2 + 1, 32, tw - 2, 14);
+      ctx.fillStyle = '#e9edf3';
+      ctx.fillRect(24 - tw / 2 + 2, 37, tw - 4, 2.6);
+      ctx.fillStyle = '#1b1e24';
+      ctx.font = 'bold 2.4px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('POLICE', 24, 39.2);
+      if (e >= 5) { ctx.fillStyle = '#0d0d0f'; ctx.fillRect(26.5, 33, 3, 3); ctx.fillStyle = '#c0392b'; ctx.fillRect(27.6, 33.6, 0.8, 0.8); }
+    }
+    if (s.look === 'uniforme' && e < 4) {
       ctx.fillStyle = '#d8b24a';
       ctx.fillRect(18, 34, 3, 2);
       ctx.fillStyle = '#c9d3e6';
@@ -189,8 +272,9 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
   } else if (pose === 'phone') {
     arm(-1, 0.1);
     arm(1, -2.6, -1.9);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(30, 18, 3, 7);
+    if (e >= 4) { ctx.fillStyle = '#16181c'; ctx.fillRect(29.6, 17, 3.6, 7); ctx.fillStyle = '#7ab8e8'; ctx.fillRect(30.1, 17.6, 2.6, 5.6); }
+    else if (e === 3) { ctx.fillStyle = '#b9bec6'; ctx.fillRect(30, 18, 3, 6); }
+    else { ctx.fillStyle = e <= 1 ? '#3a3a3a' : '#222'; ctx.fillRect(30, 18, 3, 7); }
   } else if (pose === 'read') {
     arm(-1, -0.7, -0.9);
     arm(1, 0.7, 0.9);
@@ -218,7 +302,7 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
   ctx.stroke();
   // cheveux selon la coupe
   ctx.fillStyle = hair;
-  const hs = s.a.hairStyle;
+  const hs = eraHair(s, e);
   ctx.beginPath();
   if (back) {
     ctx.ellipse(24, 16.5, 7.4, 7.6, 0, 0, Math.PI * 2);
@@ -250,6 +334,15 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
   }
   ctx.fill();
   ctx.stroke();
+  if (civil && e === 1 && s.sexe === 'M' && s.a.hairStyle % 3 === 0) {
+    // nuque longue
+    ctx.fillStyle = hair; ctx.beginPath(); ctx.rect(18, 18, 12, 9); ctx.fill(); ctx.stroke();
+  }
+  if (civil && e === 1 && s.sexe === 'F') {
+    // permanente volumineuse
+    ctx.fillStyle = hair;
+    for (const [hx, hy] of [[16.5, 15], [31.5, 15], [17, 21], [31, 21], [24, 9.5]]) { ctx.beginPath(); ctx.arc(hx, hy, 3.4, 0, Math.PI * 2); ctx.fill(); }
+  }
   if (!back) {
     // visage
     ctx.fillStyle = INK;
@@ -269,21 +362,48 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, s: CharSpec, pose: 
     ctx.strokeStyle = INK;
     if (s.a.glasses) {
       ctx.lineWidth = 0.9;
-      ctx.strokeRect(19.3, 17.2, 4.2, 3);
-      ctx.strokeRect(24.6, 17.2, 4.2, 3);
+      if (e <= 1) {
+        // grandes montures
+        ctx.strokeStyle = e === 0 ? '#6a4a2a' : INK;
+        ctx.beginPath(); ctx.ellipse(21.3, 18.8, 2.9, 2.6, 0, 0, Math.PI * 2); ctx.ellipse(26.7, 18.8, 2.9, 2.6, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = INK;
+      } else if (e === 2 || e === 5) { ctx.beginPath(); ctx.arc(21.4, 18.6, 2.1, 0, Math.PI * 2); ctx.arc(26.6, 18.6, 2.1, 0, Math.PI * 2); ctx.stroke(); }
+      else if (e === 3) { ctx.strokeRect(19.6, 17.8, 3.8, 1.8); ctx.strokeRect(24.6, 17.8, 3.8, 1.8); }
+      else { ctx.lineWidth = 1.4; ctx.strokeRect(19.3, 17.2, 4.2, 3); ctx.strokeRect(24.6, 17.2, 4.2, 3); ctx.lineWidth = 0.9; }
       ctx.beginPath(); ctx.moveTo(23.5, 18.4); ctx.lineTo(24.6, 18.4); ctx.stroke();
       ctx.lineWidth = 1.3;
     }
-    if (s.a.beard) {
+    const beard = s.sexe === 'M' && (s.a.beard || (e >= 4 && civil && s.a.outfit % 3 === 0));
+    if (beard && e <= 1 && s.a.outfit % 2 === 0) {
+      // moustache épaisse
+      ctx.fillStyle = hair;
+      ctx.beginPath(); ctx.ellipse(24, 21.3, 3.6, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (beard) {
       ctx.fillStyle = hair;
       ctx.beginPath();
       ctx.moveTo(17.5, 19);
-      ctx.quadraticCurveTo(24, 31, 30.5, 19);
+      ctx.quadraticCurveTo(24, e >= 4 ? 32 : 31, 30.5, 19);
       ctx.quadraticCurveTo(24, 25, 17.5, 19);
       ctx.fill();
+    } else if (s.sexe === 'M' && e === 0 && civil && s.a.hairStyle % 2 === 1) {
+      // favoris
+      ctx.fillStyle = hair; ctx.fillRect(16.8, 15, 1.8, 6); ctx.fillRect(29.4, 15, 1.8, 6);
     }
+    if (civil && e === 5 && s.a.outfit % 4 === 1) { ctx.fillStyle = '#f4f4f4'; ctx.beginPath(); ctx.arc(16.8, 19.5, 1, 0, Math.PI * 2); ctx.arc(31.2, 19.5, 1, 0, Math.PI * 2); ctx.fill(); }
   }
-  if (s.look === 'uniforme') {
+  if (civil && e === 1 && s.a.outfit % 5 === 0) {
+    ctx.strokeStyle = '#9a9a9a'; ctx.beginPath(); ctx.arc(24, 17, 8.2, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke(); ctx.strokeStyle = INK;
+    ctx.fillStyle = '#e8892a'; ctx.beginPath(); ctx.arc(16.4, 18.5, 2, 0, Math.PI * 2); ctx.arc(31.6, 18.5, 2, 0, Math.PI * 2); ctx.fill();
+  }
+  if (s.look === 'uniforme' && e <= 1) {
+    // képi
+    ctx.fillStyle = '#1a2540';
+    ctx.beginPath();
+    ctx.moveTo(17.6, 13); ctx.lineTo(18.4, 5.5); ctx.lineTo(29.6, 5.5); ctx.lineTo(30.4, 13); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(24, 13.2, 8, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+    if (!back) { ctx.fillStyle = '#c9a43a'; ctx.fillRect(18.2, 10.2, 11.6, 1.1); ctx.fillRect(23, 6.8, 2, 2.4); }
+  } else if (s.look === 'uniforme') {
     // casquette
     ctx.fillStyle = '#1a2540';
     ctx.beginPath();
@@ -319,7 +439,8 @@ export function drawPortrait(ctx: CanvasRenderingContext2D, s: CharSpec, size: n
 
 const portraitCache = new Map<string, string>();
 export function portraitURL(s: CharSpec, size = 96, bg?: string): string {
-  const key = JSON.stringify([s, size, bg]);
+  if (s.era === undefined) s = { ...s, era: ART_YEAR };
+  const key = JSON.stringify([s.a, s.sexe, s.look, eraBucket(s.era), size, bg]);
   const hit = portraitCache.get(key);
   if (hit) return hit;
   if (typeof document === 'undefined') return '';

@@ -1,3 +1,4 @@
+import { getPrefs, initAudio, setPrefs, sfx } from '../audio/audio';
 import { useRef, useState } from 'react';
 import { Rng } from '../core/rng';
 import { calendar, durationLabel, eraOf, LAB_LABELS, MIN_D } from '../sim/calendar';
@@ -403,6 +404,7 @@ export function Settings({ onQuit }: { onQuit: () => void }) {
         <p className="muted" style={{ margin: '2px 0 6px' }}>Fluidité actuelle : <b>{Math.round(g.engine?.fps ?? 0)} images/s</b> — {g.engine?.quality === 'haute' ? 'qualité haute' : g.engine?.quality === 'reduite' ? 'résolution réduite automatiquement (l\'appareil saccadait)' : 'mode minimal automatique (moins de figurants)'}. Le jeu s'adapte seul si l'appareil peine.</p>
         <label className="row"><input type="checkbox" checked={st.settings.autoPause} onChange={(e) => g.mutate((s) => { s.settings.autoPause = e.target.checked; })} /> Pause automatique lors d'un événement urgent</label>
       </div>
+      <AudioSettings />
       <div className="card">
         <h3>Sauvegardes</h3>
         <div className="row">{SLOTS.filter((s) => s !== 'auto').map((s) => <button key={s} className="btn small" onClick={async () => { try { await saveSlot(s as Slot, st); setMsg(`Partie enregistrée (${SLOT_NAMES[s as Slot]}).`); } catch (e) { setMsg(String(e)); } }}>Enregistrer : {SLOT_NAMES[s as Slot]}</button>)}</div>
@@ -434,4 +436,19 @@ export function BoardIndex() {
 export function suspicionText(st: GameState, caseId: string, pid: string) {
   const c = st.cases.find((x) => x.id === caseId)!;
   return charges(c, pid).items.length;
+}
+
+function AudioSettings() {
+  const [p, setP] = useState(getPrefs());
+  const upd = (q: Partial<ReturnType<typeof getPrefs>>) => { initAudio(); setPrefs(q); setP(getPrefs()); };
+  return (
+    <div className="card">
+      <h3>Son</h3>
+      <label className="row"><input type="checkbox" checked={!p.muted} onChange={(e) => upd({ muted: !e.target.checked })} /> Son activé</label>
+      {([['music', 'Musique d\'ambiance (instrumentation selon la décennie)'], ['ambience', 'Ambiance des lieux (bureaux, circulation)'], ['sfx', 'Effets (téléphone, sirène, tampon, notifications)']] as const).map(([k, l]) => (
+        <label key={k} className="row between" style={{ padding: '2px 0' }}><span style={{ flex: 1, minWidth: 0 }}>{l}</span><input type="range" min={0} max={1} step={0.05} value={p[k]} onChange={(e) => upd({ [k]: Number(e.target.value) })} style={{ width: 130 }} /></label>
+      ))}
+      <div className="row"><button className="btn small" onClick={() => { initAudio(); sfx('phone'); }}>Tester : téléphone</button><button className="btn small" onClick={() => { initAudio(); sfx('siren'); }}>Sirène</button><button className="btn small" onClick={() => { initAudio(); sfx('type'); }}>Frappe</button></div>
+    </div>
+  );
 }

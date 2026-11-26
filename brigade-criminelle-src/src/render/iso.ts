@@ -1,6 +1,6 @@
 // Outils de projection isométrique et de dessin de volumes (PixiJS v8).
 import { CanvasSource, Graphics, Texture } from 'pixi.js';
-import { canvasOf, drawCharacter, drawVehicle, type CharSpec, type Pose, type VehSpec, type Dir } from './art';
+import { artEra, canvasOf, drawCharacter, drawVehicle, type CharSpec, type Pose, type VehSpec, type Dir } from './art';
 
 export const TW = 64, TH = 32;
 
@@ -61,7 +61,7 @@ function smoothTexture(cv: HTMLCanvasElement): Texture {
 }
 
 export function charTexture(s: CharSpec, pose: Pose, frame: number, back: boolean): Texture {
-  const key = `c|${JSON.stringify(s)}|${pose}|${frame}|${back}`;
+  const key = `c|${JSON.stringify(s)}|${artEra()}|${pose}|${frame}|${back}`;
   let t = texCache.get(key);
   if (!t) {
     t = smoothTexture(canvasOf(CHAR_W, CHAR_H, RES, (ctx) => drawCharacter(ctx, s, pose, frame, back)));

@@ -84,6 +84,7 @@ function Create({ onBack, onStart }: { onBack: () => void; onStart: (st: GameSta
   const [scenario, setScenario] = useState<'saint-clair' | 'libre'>('saint-clair');
   const [assist, setAssist] = useState<'manuel' | 'assiste' | 'delegation'>('assiste');
   const [city, setCity] = useState('Saint-Clair');
+  const [tuto, setTuto] = useState<'oui' | 'non'>('oui');
   const looks: Appearance[] = useMemo(() => Array.from({ length: 8 }, (_, i) => ({ skin: [0, 1, 2, 3, 4, 5, 1, 2][i], hair: [0, 1, 2, 3, 6, 0, 4, 5][i], hairStyle: c.sexe === 'F' ? [3, 4, 5, 6, 3, 4, 5, 6][i] : [0, 1, 2, 7, 0, 1, 2, 7][i], outfit: i, build: i % 3, glasses: i % 3 === 1, beard: c.sexe === 'M' && i % 4 === 2 })), [c.sexe]);
   const reference = scenario === 'saint-clair';
   const rep = c.experience === 'chevronne' ? 62 : c.experience === 'confirme' ? 50 : 40;
@@ -93,6 +94,7 @@ function Create({ onBack, onStart }: { onBack: () => void; onStart: (st: GameSta
       startYear: reference ? 1995 : year, size: reference ? 'moyenne' : size, cityName: reference ? 'Saint-Clair' : city || 'Saint-Clair', scenario, assist,
       commander: { prenom: c.prenom || 'Claire', nom: c.nom || 'Vasseur', age: c.age, portrait: c.portrait, experience: c.experience, formation: c.formation, specialite: c.specialite, style: c.style, sexe: c.sexe, appearance: looks[c.portrait] },
     });
+    st.tutorial = { on: tuto === 'oui', step: 0 };
     onStart(st);
   };
   const Chips = <T extends string | number>({ v, set, opts }: { v: T; set: (x: T) => void; opts: [T, string][] }) => (
@@ -107,7 +109,7 @@ function Create({ onBack, onStart }: { onBack: () => void; onStart: (st: GameSta
         <label className="field">Âge<input type="number" min={28} max={60} value={c.age} onChange={(e) => setC({ ...c, age: Math.max(28, Math.min(60, Number(e.target.value) || 40)) })} /></label>
         <div className="field">Sexe du personnage<Chips v={c.sexe} set={(s) => setC({ ...c, sexe: s })} opts={[['F', 'Femme'], ['M', 'Homme']]} /></div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>Portrait
-          <div className="portraits">{looks.map((a, i) => <img key={i} className={c.portrait === i ? 'on' : ''} src={portraitURL({ a, sexe: c.sexe, look: 'costume' }, 64)} onClick={() => setC({ ...c, portrait: i })} alt={`Portrait ${i + 1}`} />)}</div>
+          <div className="portraits">{looks.map((a, i) => <img key={i} className={c.portrait === i ? 'on' : ''} src={portraitURL({ a, sexe: c.sexe, look: 'costume', era: reference ? 1995 : year }, 64)} onClick={() => setC({ ...c, portrait: i })} alt={`Portrait ${i + 1}`} />)}</div>
         </div>
         <div className="field">Expérience<Chips v={c.experience} set={(x) => setC({ ...c, experience: x })} opts={[['debutant', 'Débutant'], ['confirme', 'Confirmé'], ['chevronne', 'Chevronné']]} /></div>
         <div className="field">Formation<Chips v={c.formation} set={(x) => setC({ ...c, formation: x })} opts={[['ecole', 'École d\'officiers'], ['rang', 'Issu du rang'], ['universite', 'Concours externe']]} /></div>
@@ -120,6 +122,7 @@ function Create({ onBack, onStart }: { onBack: () => void; onStart: (st: GameSta
           <div className="field">Taille de la ville<select value={size} onChange={(e) => setSize(e.target.value as CitySize)}>{SIZES.map((s) => <option key={s} value={s}>{SIZE_LABEL[s]}</option>)}</select></div>
           <label className="field">Nom de la ville<input value={city} onChange={(e) => setCity(e.target.value)} maxLength={30} /></label>
         </>}
+        <div className="field" style={{ gridColumn: '1 / -1' }}>Tutoriel de prise en main<Chips v={tuto} set={setTuto} opts={[['oui', 'Oui, guidez-moi pas à pas (recommandé pour une première partie)'], ['non', 'Non merci']]} /></div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>Niveau d'assistance<Chips v={assist} set={setAssist} opts={[['manuel', 'Gestion entièrement manuelle'], ['assiste', 'Supervision assistée (recommandé)'], ['delegation', 'Délégation avancée']]} /></div>
       </div>
       <p className="muted" style={{ marginTop: 10 }}>Époque : <b>{era.label}</b> — informatique : {era.computers === 'aucun' ? 'aucune (machines à écrire, fiches papier)' : era.computers === 'terminal' ? 'terminaux et Minitel' : era.computers === 'pc' ? 'premiers PC' : era.computers === 'reseau' ? 'réseau et fichiers informatisés' : 'outils numériques et données en ligne'} ; communications : {era.phone} ; laboratoire : {Object.entries(era.lab).filter(([, v]) => v.available).length} types d'examens disponibles.</p>

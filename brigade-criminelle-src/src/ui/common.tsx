@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { Game } from '../game';
-import { portraitURL, type Look } from '../render/art';
+import { artEra, portraitURL, type Look } from '../render/art';
 import { shortDate, dayLabel } from '../sim/calendar';
 import type { Appearance, GameState } from '../sim/types';
 
@@ -17,7 +17,8 @@ export const when = (st: GameState, m: number) => shortDate(st.startYear, m);
 export const day = (st: GameState, m: number) => dayLabel(st.startYear, m);
 
 export function Portrait({ a, sexe, look = 'civil', size = 'md', bg }: { a: Appearance; sexe: 'F' | 'M'; look?: Look; size?: 'sm' | 'md' | 'lg'; bg?: string }) {
-  const url = useMemo(() => portraitURL({ a, sexe, look }, 96, bg), [a, sexe, look, bg]);
+  const era = artEra();
+  const url = useMemo(() => portraitURL({ a, sexe, look }, 96, bg), [a, sexe, look, bg, era]);
   return <img className={`portrait ${size === 'md' ? '' : size}`} src={url} alt="" />;
 }
 

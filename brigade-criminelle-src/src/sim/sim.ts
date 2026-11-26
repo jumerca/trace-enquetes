@@ -18,7 +18,9 @@ import { ageOf, capacity, condition, fullName, gainXp, gradeIndex, gradesFor, is
 import { PROOF } from './cases/builder';
 import { eventActive, incidentFactor, mediaTick, receptionTick, rollEvents, staffDeparture, updateWeather } from './world';
 import { randomAppearance } from './names';
-import type { Case, CitySize, Commander, GameState, Role, Staff, Unit, Vehicle } from './types';
+import { axisSpawnFactor, axisWorkFactor, ensureSummit, summitMonthly, summitNote } from './summit';
+import { ensurePartners, partnerBoost, partnerLabBoost, partnersDaily } from './partners';
+import type { Case, CaseType, CitySize, Commander, GameState, Role, Staff, Unit, Vehicle } from './types';
 
 export const SAVE_VERSION = 3;
 export const STEP = 10;
@@ -97,6 +99,7 @@ export function newGame(o: NewGameOptions): GameState {
   staffUp(st, rng, startMinute);
   if (capacities(st).desks < investigators(st).length) notify(st, { level: 'alerte', text: `Postes de travail insuffisants : ${capacities(st).desks} bureaux pour ${investigators(st).length} enquêteurs. Construisez des bureaux d'enquête (menu Construction).` });
   refreshCandidates(rng, st);
+  ensurePartners(st, rng);
   notify(st, { level: 'info', text: `Prise de fonctions à ${city.name}. Bienvenue, ${st.commander.grade.toLowerCase()} ${o.commander.nom}.` });
   // quelques affaires déjà en cours au début de partie
   for (let i = 0; i < (o.scenario === 'libre' ? 3 : 2); i++) spawnCase(st, rng, true);
@@ -144,12 +147,14 @@ export function yearNow(st: GameState) {
 }
 
 // ————— Incidents —————
-export function spawnCase(st: GameState, rng: Rng, initial = false): Case | null {
+export function spawnCase(st: GameState, rng: Rng, initial = false, types?: CaseType[]): Case | null {
   const c = calendar(st.startYear, st.minute);
-  const tpls = templates(c.year).filter((t) => !t.minYear || c.year >= t.minYear);
+  const all = templates(c.year).filter((t) => !t.minYear || c.year >= t.minYear);
+  const typed = types ? all.filter((t) => types.includes(t.type)) : all;
+  const tpls = typed.length ? typed : all;
   // poids selon l'activité des quartiers concernés à cette heure et les événements en cours
   const heavy = ['homicide', 'trafic_art', 'financiere', 'extorsion', 'numerique', 'ancien', 'escroquerie'];
-  const weights = tpls.map((t) => t.weight * (heavy.includes(t.type) ? 1 + st.hierarchy.rank * 0.3 : 1) * Math.max(...t.districts.map((d) => {
+  const weights = tpls.map((t) => t.weight * axisSpawnFactor(st, t.type) * (heavy.includes(t.type) ? 1 + st.hierarchy.rank * 0.3 : 1) * Math.max(...t.districts.map((d) => {
     const dist = st.city.districts.find((x) => x.id === d)!;
     return districtActivity(dist, c.weekday, c.hour, c.season) * incidentFactor(st, d);
   })));
@@ -335,7 +340,8 @@ function work(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
       if (a.kind === 'recoupement' && cap.briefing) rate *= 1.15;
       if (a.kind === 'audition') rate *= (cap.cells > 0 ? 1 : 1 / 1.6) * (cap.infirmerie ? 1.15 : 1);
       if (a.kind === 'requisition' && cap.ecoutes) rate *= 1.3;
-      rate *= actionBonus(st, a.kind);
+      rate *= actionBonus(st, a.kind) * partnerBoost(st, c, a.kind) * axisWorkFactor(st, c.type, a.kind);
+      if (a.kind === 'audition' && st.summit?.reforms.includes('garde-a-vue')) rate *= 0.85;
       if (a.kind === 'rapport' && st.staff.some((s) => s.role === 'secretaire' && isOnDuty(s, st))) rate *= 1.2;
       if (def.outside && (eventActive(st, 'tempete') || eventActive(st, 'neige'))) rate *= 0.6;
       if (def.outside && c.district === 'villages' && eventActive(st, 'route')) rate *= 0.7;
@@ -359,7 +365,7 @@ function work(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   // les appareils tournent en continu ; la présence d'un technicien accélère le traitement
   const benchSlots = Math.max(0, Math.min(cap.labBenches, Math.max(1, st.staff.filter((s) => s.role === 'technicien').length) * 2));
   for (const j of internal.slice(0, Math.max(slots, benchSlots))) {
-    j.hoursLeft -= (dt / 60) * (techs.length ? 1 : 0.4) * (cap.signaletique && (j.type === 'empreintes' || j.type === 'photo') ? 1.3 : 1) * techBonus(st, j.type);
+    j.hoursLeft -= (dt / 60) * (techs.length ? 1 : 0.4) * (cap.signaletique && (j.type === 'empreintes' || j.type === 'photo') ? 1.3 : 1) * techBonus(st, j.type) * partnerLabBoost(st, j.caseId, j.type);
     if (j.hoursLeft <= 0) { finishLab(st, rng, j.id, techSkill); for (const t of techs) gainXp(t, 'scientifique', 0.06); }
   }
   for (const t of techs) if (!busy.has(t.id) && internal.length) { busy.add(t.id); t.task = { caseId: internal[0].caseId, action: 'labo', label: 'Analyses en laboratoire', room: 'labo' }; }
@@ -427,6 +433,8 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
     }
   }
   if (rng.chance(0.3)) staffDeparture(st, rng);
+  // partenaires institutionnels : demandes, relations
+  partnersDaily(st, rng, (types) => spawnCase(st, rng, false, types));
   // installations d'entraînement : progression lente de l'endurance, du stress et de la discipline
   const capD = capacities(st);
   for (const s of st.staff) {
@@ -453,6 +461,7 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   // paie mensuelle (masse salariale suivie séparément)
   if (cal.day === 1) {
     payDotations(st);
+    summitMonthly(st, rng);
     st.budget.payroll = st.staff.reduce((s, x) => s + salary(x, year), 0);
     st.budget.payrollPaid += Math.round(st.budget.payroll / 12);
   }
@@ -571,8 +580,15 @@ function newYear(st: GameState, rng: Rng, year: number) {
     ev.note = Math.round((ev.note * 0.7 + nn * 0.3) * 10) / 10;
     ev.text += ` Réseau d'antennes : ${nn}/20.`;
   }
+  const sn = summitNote(st);
+  if (sn !== null) {
+    const ev = st.hierarchy.evaluations[st.hierarchy.evaluations.length - 1];
+    ev.note = Math.round((ev.note * 0.75 + sn * 0.25) * 10) / 10;
+    ev.text += ` Pilotage national : ${sn}/20.`;
+  }
   networkNewYear(st, year);
   careerNewYear(st, rng, year);
+  ensureSummit(st);
   ensureNetwork(st, rng);
   techNewYear(st, year);
   fleetNewYear(st, rng, year);

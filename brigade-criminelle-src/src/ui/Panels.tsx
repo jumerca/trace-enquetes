@@ -3,6 +3,8 @@ import { useGame } from './common';
 import { Archives, BoardIndex, Budget, Build, Equipment, Justice, Lab, Media, PlaceInfo, RoomInfo, Search, Settings, Stats } from './Management';
 import { Career } from './Career';
 import { NetworkPanel } from './Network';
+import { PartnersPanel } from './Partners';
+import { Guide } from './Tutorial';
 import { Planning, Recruit, StaffList, StaffProfile, Training, Units } from './Staff';
 
 export function Panels({ onQuit }: { onQuit: () => void }) {
@@ -27,6 +29,8 @@ export function Panels({ onQuit }: { onQuit: () => void }) {
     case 'stats': return <Stats />;
     case 'career': return <Career />;
     case 'network': return <NetworkPanel />;
+    case 'partners': return <PartnersPanel />;
+    case 'guide': return <Guide />;
     case 'archives': return <Archives />;
     case 'media': return <Media />;
     case 'settings': return <Settings onQuit={onQuit} />;

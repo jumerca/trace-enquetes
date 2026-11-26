@@ -91,6 +91,11 @@ export function rollEvents(st: GameState, rng: Rng) {
 export function incidentFactor(st: GameState, district?: string): number {
   let f = 1;
   for (const e of st.events) if (e.start <= st.minute && e.end > st.minute && (!e.district || e.district === district)) f *= e.incidentFactor;
+  // zones rurales : la coopération avec la gendarmerie pèse sur la délinquance
+  if ((district === 'rural' || district === 'villages' || district === 'foret') && st.partners) {
+    const p = st.partners.list.find((x) => x.kind === 'gendarmerie');
+    if (p) f *= 1.1 - p.relation / 100 * 0.25;
+  }
   return f;
 }
 

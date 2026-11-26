@@ -282,6 +282,9 @@ export interface Case {
   saga?: string;
   procedureFlaws: number;
   deadline?: number; // délai indicatif
+  boosts?: { by: string; actions?: ActionKind[]; labTypes?: LabType[]; factor: number; until: number }[]; // appuis des partenaires
+  series?: string; // série d'affaires liées (même auteur)
+  twist?: string; // variante de déroulement
   workload: number; // heures estimées
   stalledH: number;
 }
@@ -516,6 +519,9 @@ export interface GameState {
   reception: { visitors: number; satisfied: number };
   techs: string[];
   network?: import('./network').Network;
+  partners?: import('./partners').PartnersState;
+  summit?: import('./summit').SummitState;
+  tutorial?: { on: boolean; step: number };
   hierarchy: {
     evaluations: { year: number; note: number; text: string }[];
     rank: number;

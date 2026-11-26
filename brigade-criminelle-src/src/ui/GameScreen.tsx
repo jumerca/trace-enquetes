@@ -4,6 +4,9 @@ import { calendar, dateLabel } from '../sim/calendar';
 import { remaining, totalEnvelope, totalSpent } from '../sim/finance';
 import { isOnDuty } from '../sim/staff';
 import { eur, useGame } from './common';
+import { setArtYear } from '../render/art';
+import { setContext, sfx } from '../audio/audio';
+import { Tutorial } from './Tutorial';
 import { Logo } from './Logo';
 import { Panels } from './Panels';
 
@@ -17,16 +20,18 @@ const NAV: [string, string, string][] = [
   ['lab', '🔬', 'Laboratoire'],
   ['board', '📌', 'Tableau'],
   ['justice', '⚖️', 'Justice'],
-  ['recruit', '🤝', 'Recrutement'],
+  ['recruit', '🧑‍💼', 'Recrutement'],
   ['training', '🎓', 'Formation'],
   ['equipment', '🚓', 'Équipements'],
   ['build', '🏗️', 'Construction'],
   ['budget', '💶', 'Budget'],
   ['stats', '📊', 'Statistiques'],
+  ['partners', '🤝', 'Partenaires'],
   ['career', '🎖️', 'Carrière'],
   ['network', '🛰️', 'Réseau'],
   ['archives', '🗄️', 'Archives'],
   ['media', '📰', 'Médias'],
+  ['guide', '❓', 'Guide'],
   ['settings', '⚙️', 'Options'],
 ];
 
@@ -57,6 +62,21 @@ export function GameScreen({ onQuit }: { onQuit: () => void }) {
     return () => window.removeEventListener('keydown', k);
   }, [g]);
   const cal = calendar(st.startYear, st.minute);
+  setArtYear(cal.year);
+  // son : contexte (époque, tension, lieu) et effets sur les nouvelles notifications
+  const lastNotice = useRef(st.counters.notice);
+  useEffect(() => {
+    const urgentN = st.cases.filter((c) => c.status === 'ouverte' && c.priority === 1).length;
+    setContext({ year: cal.year, tension: urgentN / 4, place: g.panel ? 'menu' : g.screen === 'city' ? 'city' : 'station', paused: g.speed === 0 });
+    if (st.counters.notice !== lastNotice.current) {
+      const fresh = st.notices.filter((n) => Number(n.id.slice(1)) > lastNotice.current);
+      lastNotice.current = st.counters.notice;
+      if (fresh.some((n) => n.level === 'urgent')) sfx('siren');
+      if (fresh.some((n) => n.text.startsWith('Nouveau dossier'))) sfx('phone');
+      else if (fresh.some((n) => n.level === 'succes')) sfx('success');
+      else if (fresh.some((n) => n.level === 'alerte')) sfx('notify');
+    }
+  });
   const onDuty = st.staff.filter((s) => isOnDuty(s, st)).length;
   const urgent = st.cases.filter((c) => c.status === 'ouverte' && c.priority === 1).length;
   const unassigned = st.cases.filter((c) => c.status === 'ouverte' && !c.lead).length;
@@ -82,7 +102,7 @@ export function GameScreen({ onQuit }: { onQuit: () => void }) {
             <span>{WEATHER[st.weather.kind]} {st.weather.temp} °C · {st.city.name}</span>
           </div>
         </div>
-        <div className="grp speeds" role="group" aria-label="Vitesse">
+        <div className="grp speeds" data-tuto="speeds" role="group" aria-label="Vitesse">
           {SPEEDS.map((s) => <button key={s} className={`sp ${g.speed === s ? 'on' : ''}`} onClick={() => g.setSpeed(s)} title={s ? `Vitesse ×${s}` : 'Pause'}>{s ? `×${s}` : '❚❚'}</button>)}
         </div>
         <div className="grp skips">
@@ -106,14 +126,14 @@ export function GameScreen({ onQuit }: { onQuit: () => void }) {
       </header>
       <nav className="nav" aria-label="Menus">
         {NAV.map(([id, ic, l]) => (
-          <button key={id} className={`${MAIN.includes(id) ? 'main' : 'more'} ${(g.panel?.id === id || (!g.panel && g.screen === id)) ? 'on' : ''}`} onClick={() => nav(id)}><span className="ic">{ic}</span><span className="tx">{l}</span></button>
+          <button key={id} data-nav={id} className={`${MAIN.includes(id) ? 'main' : 'more'} ${(g.panel?.id === id || (!g.panel && g.screen === id)) ? 'on' : ''}`} onClick={() => nav(id)}><span className="ic">{ic}</span><span className="tx">{l}</span></button>
         ))}
         <button className={`main menu-btn ${menu ? 'on' : ''}`} onClick={() => setMenu(!menu)}><span className="ic">☰</span><span className="tx">Menu</span></button>
       </nav>
       {menu && (
         <div className="menu-sheet" role="dialog" aria-label="Tous les menus" onClick={() => setMenu(false)}>
           <div className="menu-grid" onClick={(e) => e.stopPropagation()}>
-            {NAV.map(([id, ic, l]) => <button key={id} className={(g.panel?.id === id || (!g.panel && g.screen === id)) ? 'on' : ''} onClick={() => { setMenu(false); nav(id); }}><span className="ic">{ic}</span>{l}</button>)}
+            {NAV.map(([id, ic, l]) => <button key={id} data-nav={id} className={(g.panel?.id === id || (!g.panel && g.screen === id)) ? 'on' : ''} onClick={() => { setMenu(false); nav(id); }}><span className="ic">{ic}</span>{l}</button>)}
           </div>
         </div>
       )}
@@ -123,6 +143,7 @@ export function GameScreen({ onQuit }: { onQuit: () => void }) {
       </div>}
       {g.screen === 'city' && !g.panel && <div className="floors"><span className="hint">📍 Marqueur = affaire · bâtiment = horaires</span></div>}
       <Panels onQuit={onQuit} />
+      <Tutorial />
       {showNotes && <Notices close={() => setShowNotes(false)} />}
       {g.toast && <div className="toast" role="status">{g.toast.text}</div>}
       {showFps() && <div className="fps">{Math.round(g.engine?.fps ?? 0)} i/s · {g.engine?.quality === 'haute' ? 'qualité haute' : g.engine?.quality === 'reduite' ? 'résolution réduite' : 'mode minimal'}</div>}

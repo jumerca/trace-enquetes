@@ -6,7 +6,9 @@ import { acceptInPlace, commanderAge, criteria, declineOffer, gradeFor, level, L
 import { SIZE_LABEL } from '../sim/city';
 import { acceptMutation, returnToCity } from '../sim/sim';
 import { loadCity, saveCity } from '../save/save';
-import { Bar, PanelShell, Portrait, day, useGame } from './common';
+import { Bar, PanelShell, Portrait, day, useGame, when } from './common';
+import { AXIS_LABEL, decide, SUMMIT_RANK, setAxis, summitNote, type Axis } from '../sim/summit';
+import { sfx } from '../audio/audio';
 
 const ERAS = [1975, 1985, 1995, 2005, 2015, 2025];
 
@@ -67,6 +69,8 @@ export function Career() {
         </div>
       )}
 
+      <Summit />
+
       <div className="card">
         <h3>Échelons</h3>
         {LEVELS.map((l, i) => (
@@ -101,5 +105,52 @@ export function Career() {
         })}
       </div>
     </PanelShell>
+  );
+}
+
+/** Arbitrages nationaux : mécanique propre au sommet de la carrière. */
+function Summit() {
+  const [g, st] = useGame();
+  const [msg, setMsg] = useState('');
+  const s = st.summit;
+  if (st.hierarchy.rank < SUMMIT_RANK || !s) {
+    return (
+      <div className="card">
+        <h3>Pilotage national</h3>
+        <p className="muted" style={{ margin: 0 }}>À partir de l'échelon « {LEVELS[SUMMIT_RANK].title} », vous arbitrerez les priorités nationales, les crises, les demandes du cabinet ministériel (fictif), les réformes et les nominations. Ces décisions compteront pour un quart de l'évaluation annuelle.</p>
+      </div>
+    );
+  }
+  const pending = s.dossiers.filter((d) => !d.answered);
+  const note = summitNote(st);
+  return (
+    <div className="card">
+      <h3>Pilotage national</h3>
+      <div className="row" style={{ gap: 16 }}>
+        <div style={{ minWidth: 200, flex: 1 }}>Confiance du ministère <Bar v={s.confidence} /></div>
+        <div>Note de pilotage : <b>{note ?? '—'}/20</b> <span className="muted">(25 % de l'évaluation)</span></div>
+      </div>
+      <h4 style={{ marginBottom: 4 }}>Priorités nationales (répartition de l'effort)</h4>
+      {(Object.keys(AXIS_LABEL) as Axis[]).map((a) => (
+        <label key={a} className="row between" style={{ padding: '2px 0' }}>
+          <span style={{ minWidth: 0, flex: 1 }}>{AXIS_LABEL[a]}</span>
+          <input type="range" min={5} max={60} value={s.priorities[a]} onChange={(e) => g.mutate((x) => setAxis(x, a, Number(e.target.value)))} style={{ width: 140 }} />
+          <b style={{ width: 42, textAlign: 'right' }}>{s.priorities[a]} %</b>
+        </label>
+      ))}
+      <p className="muted" style={{ margin: '4px 0' }}>Un axe prioritaire fait remonter plus de dossiers de ce type et ses enquêtes avancent plus vite ; un équilibre trop rompu pèse sur la note.</p>
+      {s.reforms.length > 0 && <p className="muted">Réformes adoptées : {s.reforms.join(', ').replace(/-/g, ' ')}.</p>}
+      {msg && <p style={{ background: '#fff3d6', padding: 6, borderRadius: 6 }}>{msg}</p>}
+      {pending.map((d) => (
+        <div key={d.id} className="card" style={{ background: '#f6efe0' }}>
+          <b>{d.kind === 'crise' ? '🚨' : d.kind === 'cabinet' ? '🏛️' : d.kind === 'reforme' ? '📜' : d.kind === 'nomination' ? '🎖️' : '💶'} {d.title}</b>
+          <p style={{ margin: '4px 0' }}>{d.text}</p>
+          <div className="muted">Décision attendue avant le {day(st, d.expires)}.</div>
+          <div className="row" style={{ marginTop: 4 }}>{d.options.map((o, i) => <button key={i} className="btn small" onClick={() => { let t = ''; g.mutate((x) => { t = decide(x, d.id, i); }); sfx('stamp'); setMsg(t); }}>{o.label}</button>)}</div>
+        </div>
+      ))}
+      {!pending.length && <p className="muted">Aucun arbitrage en attente. De nouveaux dossiers arrivent en début de mois.</p>}
+      {s.log.length > 0 && <div className="log">{[...s.log].reverse().slice(0, 12).map((l, i) => <div key={i}><time>{when(st, l.minute)}</time>{l.text}</div>)}</div>}
+    </div>
   );
 }
