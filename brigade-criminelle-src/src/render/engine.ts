@@ -35,6 +35,10 @@ export class Engine {
   private host: HTMLElement | null = null;
   getState: () => GameState | null = () => null;
   fps = 60;
+  /** Adaptation automatique : résolution abaissée puis figurants réduits si l'appareil saccade. */
+  quality: 'haute' | 'reduite' | 'minimale' = 'haute';
+  private slowSince = 0;
+  private started = 0;
 
   async init(host: HTMLElement) {
     const eco = economyMode();
@@ -77,6 +81,8 @@ export class Engine {
   private frame(dt: number) {
     this.time += dt;
     this.fps = this.fps * 0.95 + (1000 / Math.max(1, dt)) * 0.05;
+    if (!this.started) this.started = this.time;
+    this.adapt();
     const { width, height } = this.app.screen;
     for (const c of [this.world, this.lightLayer]) {
       c.scale.set(this.cam.z);
@@ -119,6 +125,23 @@ export class Engine {
     else g.stroke({ width: 1, color: 0xbcd0e6, alpha: 0.55 });
     if (k === 'orage' && Math.random() < 0.003 * (dt / 16)) g.rect(0, 0, w, h).fill({ color: 0xffffff, alpha: 0.35 });
     if (!snow) g.rect(0, 0, w, h).fill({ color: 0x5a6a7a, alpha: 0.12 * out });
+  }
+
+  private adapt() {
+    if (this.time - this.started < 6000 || this.quality === 'minimale' || document.hidden) return;
+    if (this.fps < 24) {
+      if (!this.slowSince) this.slowSince = this.time;
+      if (this.time - this.slowSince > 6000) {
+        this.slowSince = 0;
+        if (this.quality === 'haute' && this.app.renderer.resolution > 1) {
+          this.quality = 'reduite';
+          this.app.renderer.resize(this.app.screen.width, this.app.screen.height, 1);
+        } else {
+          this.quality = 'minimale';
+          runtimeLowPower = true;
+        }
+      }
+    } else this.slowSince = 0;
   }
 
   // ————— Caméra —————
@@ -230,7 +253,9 @@ function mixNight(n: number): number {
 }
 
 /** Mode économie (appareils modestes) : résolution 1, sans anticrénelage, moins de figurants. */
+export let runtimeLowPower = false;
 export function economyMode(): boolean {
+  if (runtimeLowPower) return true;
   try { return localStorage.getItem('bct-qualite') === 'economie'; } catch { return false; }
 }
 export function setEconomyMode(on: boolean) {

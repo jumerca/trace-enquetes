@@ -1,9 +1,9 @@
-# Rapport de tests, fonctionnalités et limites — V0.2.0
+# Rapport de tests, fonctionnalités et limites — V0.3.0
 
 Ce rapport distingue ce qui est **vérifié** (test automatisé ou contrôle manuel documenté) de ce qui
 est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée terminée sans preuve.
 
-## 1. Tests automatisés (`npm test`) — 39 tests, tous réussis
+## 1. Tests automatisés (`npm test`) — 46 tests, tous réussis
 
 | Domaine | Test | Résultat |
 |---|---|---|
@@ -24,6 +24,9 @@ est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée 
 | Justice | Aveux seuls → complément d'enquête ; dossier complet → poursuites ; personne disculpée refusée ; classement faute de preuves jugé approprié ; déclaration contredite exclue des charges | ✅ |
 | Entretiens | Les approches donnent accès à la mémoire de la personne ; la nervosité ne crée aucune charge ; aveux seulement en garde à vue | ✅ |
 | Carrière | 6 échelons ; aucune proposition sans dossier suffisant ; proposition sur dossier exemplaire ; avancement sur place (grade, moyens, renforts, volume d'affaires) ; refus ; mutation dans une ville plus grande (même commandant, même date, carrière conservée, nouvelle brigade fonctionnelle, sauvegarde) ; grades sans rétrogradation apparente en 1995 ; retraite à 65 ans ; migration des sauvegardes v1 ; annonce des changements d'époque | ✅ |
+| Commissariat (V0.3) | Agrandissement du terrain puis construction de nouvelles pièces ; allée du garage protégée ; pièces datées ; capacités (cellules, cantine, stand de tir) | ✅ |
+| Époques (V0.3) | Technologies disponibles selon l'année, achat et effet mesuré ; véhicule renouvelé avec le modèle de son époque | ✅ |
+| Réseau et retour (V0.3) | Antennes créées selon l'échelon ; détachement, inspection, dotation ; dossiers sensibles remontés au siège en simulation ; retour dans une ville quittée (équipe retrouvée, dossiers clos par le successeur), et repli sans archive | ✅ |
 | Longue durée | 3 années en délégation sans intervention : > 100 dossiers clôturés, > 70 % de décisions conformes aux faits, < 5 % de condamnations erronées, fatigue et compétences bornées, budget fini, sauvegarde < 8 Mo | ✅ |
 | Époques | 1975, 1985, 2005, 2015, 2025 (commune à métropole) : démarrage et un mois de simulation | ✅ |
 
@@ -38,20 +41,22 @@ pas infaillible), à équilibrer.
 
 ## 1 bis. Carrière complète simulée (`npx vite-node scripts/career-run.ts 11`)
 
-Commandant de 28 ans en 1975 dans une petite ville (20 000 habitants), délégation avancée, chaque
-proposition acceptée : **37 années simulées jusqu'à la retraite en 2012**, quatre promotions
-(Commissaire principal 1979, Commissaire divisionnaire 1983, Contrôleur général 1997, Inspecteur
-général 2003), passage par trois époques technologiques. Sur toute la carrière : 0 à 7 dossiers
-en attente en fin d'année, 94 à 99 % de décisions conformes aux faits, évaluations entre 11,4 et
-16,7/20, sauvegarde stable entre 1 et 4,7 Mo (registre d'archives au-delà de 5 ans), 8 à 17 s de
-calcul par année simulée. Une autre simulation a validé deux mutations successives (ville de
-80 000 puis de 250 000 habitants) avec une charge maîtrisée (3 à 12 dossiers en attente).
+**V0.3** — Commandant de 28 ans en 1975 dans une petite ville (20 000 habitants), délégation avancée,
+chaque proposition acceptée : **37 années jusqu'à la retraite en 2012**. Parcours : Commissaire
+principal (1979), Commissaire divisionnaire et réseau de 2 antennes (1983), mutation à Rochebrune
+(80 000 habitants, Contrôleur général, 3 antennes, 1998), mutation à Port-Vallon (250 000 habitants,
+Inspecteur général, 4 antennes, 2004). La flotte est renouvelée au fil des décennies (véhicules de
+1969-1973, puis de 1983-1986, 1994-1997, 2001-2004, 2011-2012) et 10 technologies sont adoptées.
+Sur toute la carrière : 0 à 11 dossiers en attente en fin d'année, 95 à 99 % de décisions conformes
+aux faits, stocks des antennes résorbés, sauvegarde de 1 à 8,2 Mo.
+Contrôle complémentaire : partie libre en métropole (700 000 habitants, 2015, 33 agents) sur un an :
+4 à 12 dossiers en attente, 96 à 99 % de décisions conformes.
 
-Cette simulation a révélé et permis de corriger : une boucle de l'IA déléguée (rapport réécrit en
-continu), des demandes de presse jamais purgées et des journaux non plafonnés (sauvegarde passée de
-3 à 108 Mo), un double comptage du volume d'affaires dans les grandes villes (structure submergée,
-évaluation à 0/20), une nouvelle structure sous-dotée après mutation, et un affichage de grade qui
-semblait rétrograder au passage de 1995.
+Les simulations longues ont révélé et permis de corriger, au fil des versions : une boucle de l'IA
+déléguée, des journaux non purgés (sauvegarde passée de 3 à 108 Mo), un double comptage du volume
+d'affaires, des structures sous-dotées après mutation et en métropole (jusqu'à 165 dossiers en
+attente), des véhicules de 1969 encore en service en 2006 et des technologies inaccessibles aux
+petites villes (coûts désormais proportionnés à l'époque et à la taille du service).
 
 ## 2. Contrôle dans un vrai navigateur (`scripts/e2e.cjs`)
 
@@ -122,11 +127,12 @@ année simulée après allègement des archives. Bundle : 545 ko (174 ko gzip) +
 - **Ville** : population agrégée par quartier ; seuls les lieux et personnes des affaires sont
   individualisés. Les piétons et la circulation sont décoratifs (pilotés par l'activité des
   quartiers), pas des habitants simulés un par un avec domicile et travail.
-- **Progression de carrière** : six échelons, mutations entre villes, retraite. Une mutation crée
-  une nouvelle brigade (personnel et dossiers en cours de l'ancienne ville ne suivent pas) ; il n'y a
-  pas de retour possible vers une ville déjà dirigée. Les échelons supérieurs augmentent le volume et
-  la gravité des affaires mais n'apportent pas encore de mécaniques propres (pilotage de plusieurs
-  brigades, arbitrages nationaux).
+- **Progression de carrière** : six échelons, mutations, retour dans une ville déjà dirigée (si son
+  archive est sur l'appareil ; sinon une brigade y est reconstituée), réseau d'antennes simulé de
+  façon agrégée (leurs dossiers ne sont pas instruits un par un, sauf les dossiers sensibles remontés
+  au siège). Les arbitrages proprement nationaux restent à venir.
+- **Fluidité sur téléphone** : toujours non mesurée sur un vrai appareil. Le jeu s'adapte désormais
+  seul (résolution puis nombre de figurants) et affiche sa fluidité à la demande (Options).
 - **Partenaires** : parquet, juge des libertés et juge d'instruction simulés ; médecins légistes,
   gendarmerie, services municipaux, hôpital et services sociaux n'interviennent que de façon
   implicite (laboratoire, textes des affaires).

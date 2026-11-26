@@ -24,6 +24,7 @@ const NAV: [string, string, string][] = [
   ['budget', '💶', 'Budget'],
   ['stats', '📊', 'Statistiques'],
   ['career', '🎖️', 'Carrière'],
+  ['network', '🛰️', 'Réseau'],
   ['archives', '🗄️', 'Archives'],
   ['media', '📰', 'Médias'],
   ['settings', '⚙️', 'Options'],
@@ -31,6 +32,10 @@ const NAV: [string, string, string][] = [
 
 const MAIN = ['station', 'city', 'cases', 'staffList'];
 const WEATHER: Record<string, string> = { clair: '☀️', nuageux: '⛅', pluie: '🌧️', orage: '⛈️', neige: '❄️', brouillard: '🌫️' };
+
+function showFps() {
+  try { return localStorage.getItem('bct-fps') === '1'; } catch { return false; }
+}
 
 export function GameScreen({ onQuit }: { onQuit: () => void }) {
   const [g, st] = useGame();
@@ -120,6 +125,7 @@ export function GameScreen({ onQuit }: { onQuit: () => void }) {
       <Panels onQuit={onQuit} />
       {showNotes && <Notices close={() => setShowNotes(false)} />}
       {g.toast && <div className="toast" role="status">{g.toast.text}</div>}
+      {showFps() && <div className="fps">{Math.round(g.engine?.fps ?? 0)} i/s · {g.engine?.quality === 'haute' ? 'qualité haute' : g.engine?.quality === 'reduite' ? 'résolution réduite' : 'mode minimal'}</div>}
     </div>
   );
 }

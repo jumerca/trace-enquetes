@@ -4,7 +4,8 @@ import { Rng } from '../core/rng';
 import { calendar, eraOf, LAB_LABELS } from '../sim/calendar';
 import { acceptInPlace, commanderAge, criteria, declineOffer, gradeFor, level, LEVELS, postTitle, RETIREMENT_AGE, yearsInPost } from '../sim/career';
 import { SIZE_LABEL } from '../sim/city';
-import { acceptMutation } from '../sim/sim';
+import { acceptMutation, returnToCity } from '../sim/sim';
+import { loadCity, saveCity } from '../save/save';
 import { Bar, PanelShell, Portrait, day, useGame } from './common';
 
 const ERAS = [1975, 1985, 1995, 2005, 2015, 2025];
@@ -43,7 +44,9 @@ export function Career() {
           <div className="row">
             {o.options.map((op, i) => op.kind === 'surplace'
               ? <button key={i} className="btn small green" onClick={() => { let t = ''; g.mutate((s) => { t = acceptInPlace(s, new Rng(s.minute), o.id); }); setMsg(t); }}>Accepter sur place ({st.city.name}, ressort élargi)</button>
-              : <button key={i} className="btn small navy" onClick={() => { if (!confirm(`Accepter la mutation à ${op.city} ? Vous quitterez ${st.city.name}, sa brigade et ses dossiers en cours.`)) return; const ns = acceptMutation(st, o.id); if (ns) g.replaceState(ns); }}>Accepter la mutation à {op.city} ({SIZE_LABEL[op.size].toLowerCase()})</button>)}
+              : op.kind === 'mutation'
+                ? <button key={i} className="btn small navy" onClick={async () => { if (!confirm(`Accepter la mutation à ${op.city} ? Vous quitterez ${st.city.name} ; votre successeur reprendra la brigade et ses dossiers en cours.`)) return; try { await saveCity(st); } catch { /* archive facultative */ } const ns = acceptMutation(st, o.id); if (ns) g.replaceState(ns); }}>Accepter la mutation à {op.city} ({SIZE_LABEL[op.size].toLowerCase()})</button>
+                : <button key={i} className="btn small navy" onClick={async () => { if (!confirm(`Revenir à ${op.city} avec ce nouveau grade ? Vous quitterez ${st.city.name}.`)) return; const old = await loadCity(op.city); try { await saveCity(st); } catch { /* archive facultative */ } const ns = returnToCity(st, o.id, old); if (ns) g.replaceState(ns); }}>Revenir à {op.city} (ancienne affectation)</button>)}
             <button className="btn small" onClick={() => { g.mutate((s) => declineOffer(s, o.id)); setMsg('Proposition déclinée.'); }}>Décliner</button>
           </div>
         </div>

@@ -7,6 +7,7 @@ import { caseLog, notify } from './log';
 import { spend } from './finance';
 import { condition, eff, fullName, gainXp, load, capacity } from './staff';
 import { PROOF } from './cases/builder';
+import { capacities } from './station';
 import type { ActionKind, Approach, Case, Clue, GameState, LabType, PlannedAction, RoomType, SkillKey, Staff } from './types';
 
 export interface ActionDef {
@@ -256,7 +257,7 @@ export function completeAction(st: GameState, rng: Rng, c: Case, a: PlannedActio
   }
   // erreur de procédure possible (fatigue, discipline)
   if (lead && (a.kind === 'audition' || a.kind === 'perquisition')) {
-    const risk = 0.02 + Math.max(0, lead.fatigue - 55) / 400 + (12 - lead.skills.discipline) / 200 + (12 - lead.skills.juridique) / 250;
+    const risk = (0.02 + Math.max(0, lead.fatigue - 55) / 400 + (12 - lead.skills.discipline) / 200 + (12 - lead.skills.juridique) / 250) * (a.kind === 'perquisition' && capacities(st).armurerie ? 0.6 : 1);
     if (rng.chance(Math.max(0, risk))) {
       c.procedureFlaws++;
       lead.errors++;

@@ -351,9 +351,13 @@ export function drawVehicle(ctx: CanvasRenderingContext2D, v: VehSpec, dir: Dir,
   const G = (f: number, s: number): [number, number] => [f * dx + s * rx, f * dy + s * ry];
   const big = v.kind === 'bus' || v.kind === 'camion';
   const van = v.kind === 'fourgon' || v.kind === 'technique';
-  const L = v.kind === 'bus' ? 1.5 : v.kind === 'camion' ? 1.15 : van ? 0.92 : 0.8;
+  // style de l'époque du modèle : 0 = années 1970 … 5 = années 2020 (électrique)
+  const yr = v.era || 1995;
+  const E = yr < 1985 ? 0 : yr < 1995 ? 1 : yr < 2005 ? 2 : yr < 2015 ? 3 : yr < 2022 ? 4 : 5;
+  const L = v.kind === 'bus' ? 1.5 : v.kind === 'camion' ? 1.15 : van ? 0.92 : E === 0 ? 0.86 : E >= 3 ? 0.78 : 0.8;
   const W = big ? 0.42 : van ? 0.38 : 0.34;
-  const body = v.body;
+  const marked = v.police && v.kind !== 'banalisee';
+  const body = marked ? (E === 0 ? '#24365a' : '#f1f1ec') : v.body;
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.strokeStyle = 'rgba(29,26,23,0.9)';
@@ -413,7 +417,7 @@ export function drawVehicle(ctx: CanvasRenderingContext2D, v: VehSpec, dir: Dir,
     }
   };
   drawWheels(false);
-  const zb = 4, zt = big ? 26 : van ? 20 : 11;
+  const zb = 4, zt = big ? 26 : van ? 20 : E >= 3 && v.kind !== 'civil' ? 12.5 : 11;
   const faces: Face[] = [];
   // caisse
   faces.push(...prism(-L / 2, L / 2, -W / 2, W / 2, zb, zt, body, { front: shade(body, 0.95) }));
@@ -432,15 +436,41 @@ export function drawVehicle(ctx: CanvasRenderingContext2D, v: VehSpec, dir: Dir,
   };
   const ws = W / 2;
   // phares et feux arrière
-  faceQuad(0, L / 2, -ws + 0.03, -ws + 0.1, zb + 3, zb + 6, v.lights ? '#fff7c4' : '#efe8cf', 'front');
-  faceQuad(0, L / 2, ws - 0.1, ws - 0.03, zb + 3, zb + 6, v.lights ? '#fff7c4' : '#efe8cf', 'front');
-  faceQuad(-L / 2, 0, -ws + 0.03, -ws + 0.1, zb + 3, zb + 6, '#c8322a', 'back');
-  faceQuad(-L / 2, 0, ws - 0.1, ws - 0.03, zb + 3, zb + 6, '#c8322a', 'back');
-  faceQuad(0, L / 2, -ws + 0.13, ws - 0.13, zb + 1.5, zb + 4.5, '#2a2a2a', 'front');
-  if (v.police && v.kind !== 'banalisee') {
+  const lamp = v.lights ? '#fff7c4' : '#efe8cf';
+  if (E === 5) {
+    // années 2020 : bandeau lumineux continu, pas de calandre (électrique)
+    faceQuad(0, L / 2, -ws + 0.03, ws - 0.03, zb + 4.5, zb + 5.8, lamp, 'front');
+    faceQuad(-L / 2, 0, -ws + 0.03, ws - 0.03, zb + 4.5, zb + 5.8, '#d0302a', 'back');
+  } else {
+    const hw = E === 0 ? 0.06 : E >= 3 ? 0.09 : 0.07;
+    faceQuad(0, L / 2, -ws + 0.03, -ws + 0.03 + hw, zb + 3, zb + (E === 0 ? 6.5 : 6), lamp, 'front');
+    faceQuad(0, L / 2, ws - 0.03 - hw, ws - 0.03, zb + 3, zb + (E === 0 ? 6.5 : 6), lamp, 'front');
+    faceQuad(-L / 2, 0, -ws + 0.03, -ws + 0.1, zb + 3, zb + 6, '#c8322a', 'back');
+    faceQuad(-L / 2, 0, ws - 0.1, ws - 0.03, zb + 3, zb + 6, '#c8322a', 'back');
+    faceQuad(0, L / 2, -ws + 0.13, ws - 0.13, zb + 1.5, zb + 4.5, E <= 1 ? '#3a3a3a' : '#2a2a2a', 'front');
+  }
+  if (E <= 1) {
+    // pare-chocs chromés (années 1970-1980)
+    faceQuad(0, L / 2, -ws, ws, zb - 1, zb + 1.2, '#c9ccd0', 'front');
+    faceQuad(-L / 2, 0, -ws, ws, zb - 1, zb + 1.2, '#c9ccd0', 'back');
+    for (const k of ['right', 'left'] as const) faceQuad(-L / 2, L / 2, 0, 0, zb - 1, zb + 0.8, '#c9ccd0', k);
+  }
+  if (marked) {
+    // livrées fictives successives de la police
     for (const k of ['right', 'left'] as const) {
-      faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 4, zb + 8, '#1f3a6e', k);
-      faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 8, zb + 9.3, '#e58a2c', k);
+      if (E === 0) faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 5, zb + 6.5, '#f1f1ec', k);
+      else if (E === 1) faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 3, zb + 8, '#1f3a6e', k);
+      else if (E === 2) { faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 4, zb + 8, '#1f3a6e', k); faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 8, zb + 9.3, '#e58a2c', k); }
+      else if (E === 3) { faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 3.5, zb + 8, '#1c3f8a', k); faceQuad(-L / 2 + 0.03, L / 2 - 0.03, 0, 0, zb + 8, zb + 9, '#c8322a', k); }
+      else {
+        // damier haute visibilité
+        const n = big || van ? 8 : 6;
+        for (let i = 0; i < n; i++) {
+          const f0 = -L / 2 + 0.03 + i * ((L - 0.06) / n), f1 = f0 + (L - 0.06) / n;
+          faceQuad(f0, f1, 0, 0, zb + 3, zb + 5.5, i % 2 ? '#f1f1ec' : '#1c3f8a', k);
+          faceQuad(f0, f1, 0, 0, zb + 5.5, zb + 8, i % 2 ? '#1c3f8a' : '#f1f1ec', k);
+        }
+      }
     }
   }
   if (van || big) {
@@ -457,18 +487,27 @@ export function drawVehicle(ctx: CanvasRenderingContext2D, v: VehSpec, dir: Dir,
   } else {
     // habitacle de voiture : vitrages en biseau
     const c0 = -L / 2 + 0.2, c1 = L / 2 - 0.26;
-    const cab = prism(c0, c1, -ws + 0.03, ws - 0.03, zt, zt + 8, glass, { top: body, taper: 0.06 });
-    for (const f of cab) poly(f.pts, f.kind === 'top' ? shade(body, 1.12) : f.fill);
+    const cabH = E === 0 ? 9 : E >= 3 ? 8.5 : 8;
+    const roof = marked && E === 0 ? '#f1f1ec' : body;
+    const cab = prism(c0, c1, -ws + 0.03, ws - 0.03, zt, zt + cabH, glass, { top: roof, taper: E === 0 ? 0.015 : E === 1 ? 0.03 : E === 2 ? 0.06 : 0.085 });
+    for (const f of cab) poly(f.pts, f.kind === 'top' ? shade(roof, 1.12) : f.fill);
     // montants
-    const [m1x, m1y] = S(...G((c0 + c1) / 2, ws - 0.03), zt), [m2x, m2y] = S(...G((c0 + c1) / 2, ws - 0.03), zt + 8);
-    const [n1x, n1y] = S(...G((c0 + c1) / 2, -ws + 0.03), zt), [n2x, n2y] = S(...G((c0 + c1) / 2, -ws + 0.03), zt + 8);
+    const [m1x, m1y] = S(...G((c0 + c1) / 2, ws - 0.03), zt), [m2x, m2y] = S(...G((c0 + c1) / 2, ws - 0.03), zt + cabH);
+    const [n1x, n1y] = S(...G((c0 + c1) / 2, -ws + 0.03), zt), [n2x, n2y] = S(...G((c0 + c1) / 2, -ws + 0.03), zt + cabH);
     ctx.beginPath(); ctx.moveTo(m1x, m1y); ctx.lineTo(m2x, m2y); ctx.moveTo(n1x, n1y); ctx.lineTo(n2x, n2y); ctx.stroke();
   }
-  if (v.police) {
-    const top = van || big ? zt : zt + 8;
+  // gyrophare : dôme unique (années 1970-1980), rampe, puis rampe LED fine ; aimanté sur les banalisées
+  if (v.police && (marked || v.lights)) {
+    const top = van || big ? zt : zt + (E === 0 ? 9 : E >= 3 ? 8.5 : 8);
     const on = !!v.lights && frame % 2 === 0;
-    const bar = prism(-0.05, 0.06, -0.12, 0.12, top, top + 3, on ? '#4aa8ff' : '#26457a');
-    for (const f of bar) poly(f.pts, f.fill);
+    if (E <= 1 || !marked) {
+      const [dx2, dy2] = S(0, 0, top);
+      ctx.fillStyle = on ? '#5ab4ff' : '#2a5aa0';
+      ctx.beginPath(); ctx.ellipse(dx2, dy2 - 2, 4, 4.5, 0, Math.PI, 0); ctx.rect(dx2 - 4, dy2 - 2, 8, 2); ctx.fill(); ctx.stroke();
+    } else {
+      const bar = prism(-0.05, 0.06, -ws + 0.05, ws - 0.05, top, top + (E >= 4 ? 1.8 : 3), on ? '#4aa8ff' : '#26457a');
+      for (const f of bar) poly(f.pts, f.fill);
+    }
     if (on) {
       const [gx, gy] = S(0, 0, top + 3);
       const g = ctx.createRadialGradient(gx, gy, 1, gx, gy, 16);
@@ -498,4 +537,17 @@ export function canvasOf(w: number, h: number, scale: number, fn: (ctx: CanvasRe
   ctx.scale(scale, scale);
   fn(ctx);
   return cv;
+}
+
+const vehCache = new Map<string, string>();
+/** Image d'un véhicule pour l'interface (fiche Équipements). */
+export function vehicleURL(v: VehSpec, dir: Dir = 'px'): string {
+  const key = JSON.stringify([v, dir]);
+  const hit = vehCache.get(key);
+  if (hit) return hit;
+  if (typeof document === 'undefined') return '';
+  // agrandi et centré sur le véhicule pour les fiches
+  const url = canvasOf(128, 96, 2, (ctx) => { ctx.translate(64, 52); ctx.scale(1.75, 1.75); ctx.translate(-64, -52); drawVehicle(ctx, v, dir); }).toDataURL('image/png');
+  vehCache.set(key, url);
+  return url;
 }

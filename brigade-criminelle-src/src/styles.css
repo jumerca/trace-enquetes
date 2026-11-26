@@ -88,7 +88,7 @@ h1, h2, h3, .title-font { font-family: Georgia, 'Times New Roman', serif; }
 @media (max-width: 1180px) { .hud .kpi.opt { display: none; } .hud .lbl { display: none; } }
 @media (max-width: 940px) { .hud .brand { display: none; } .hud .kpi span { display: none; } }
 
-.nav { position: absolute; top: var(--hud-h); left: 0; bottom: 0; width: var(--nav-w); background: #1f2738; z-index: 15; overflow: hidden; display: grid; grid-template-rows: repeat(19, minmax(0, 1fr)); padding: 2px 0; }
+.nav { position: absolute; top: var(--hud-h); left: 0; bottom: 0; width: var(--nav-w); background: #1f2738; z-index: 15; overflow: hidden; display: grid; grid-template-rows: repeat(20, minmax(0, 1fr)); padding: 2px 0; }
 .nav button { border: none; background: transparent; color: #d9d0bc; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0 2px; font-size: clamp(9px, 1.35vh, 11px); line-height: 1.05; min-height: 0; overflow: hidden; }
 .nav button .ic { font-size: clamp(14px, 2.4vh, 20px); }
 .nav button.on { background: rgba(216,154,58,.22); color: #fff; box-shadow: inset 3px 0 0 var(--ochre); }
@@ -258,3 +258,6 @@ table.t tr.click:hover td { background: #fff3d6; }
   table.t td[data-label=""]::before { display: none; }
   table.t td.wide { grid-column: 1 / -1; }
 }
+
+.fps { position: absolute; right: 8px; bottom: 8px; z-index: 25; background: rgba(22,29,43,.85); color: #9fe0b0; font: 600 12px ui-monospace, monospace; padding: 4px 8px; border-radius: 6px; pointer-events: none; }
+@media (max-width: 720px) { .fps { bottom: calc(var(--bar-h) + 8px); } }

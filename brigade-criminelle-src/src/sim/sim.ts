@@ -5,12 +5,14 @@ import { calendar, eraOf, MIN_D, MIN_H } from './calendar';
 import { districtActivity, generateCity } from './city';
 import { buildSagaCase, sagaDue } from './cases/saga';
 import { templates } from './cases/templates';
-import { makeBudget, evaluateFundRequest, totalEnvelope, totalSpent, spend } from './finance';
+import { makeBudget, evaluateFundRequest, remaining, totalEnvelope, totalSpent, spend } from './finance';
 import { ACTIONS, authGranted, completeAction, finishLab, investigatorsThink, pname, updateStage } from './investigation';
 import { charges, noCrimeWeight, suspicionRanking } from './knowledge';
 import { caseLog, notify } from './log';
 import { makeMagistrate, processRequests, processTrials, transmit } from './justice';
 import { capacities, initialStation } from './station';
+import { ensureNetwork, networkNewYear, networkNote, networkTick, payDotations } from './network';
+import { actionBonus, initialTechs, techBonus, techNewYear, wearFactor } from './tech';
 import { applyGrade, careerNewYear, commanderAge, gradeFor, level } from './career';
 import { ageOf, capacity, condition, fullName, gainXp, gradeIndex, gradesFor, isOnDuty, load, makeCandidate, makeStaff, refreshCandidates, salary, tickStaff } from './staff';
 import { PROOF } from './cases/builder';
@@ -18,7 +20,7 @@ import { eventActive, incidentFactor, mediaTick, receptionTick, rollEvents, staf
 import { randomAppearance } from './names';
 import type { Case, CitySize, Commander, GameState, Role, Staff, Unit, Vehicle } from './types';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const STEP = 10;
 
 export interface NewGameOptions {
@@ -47,7 +49,7 @@ export function newGame(o: NewGameOptions): GameState {
     settings: { assist: o.assist ?? 'assiste', autoPause: true, speed: 1 },
     counters: { staff: 0, case: 0, person: 0, action: 0, lab: 0, req: 0, mag: 0, notice: 0, event: 0, media: 0, room: 100, vehicle: 0, unit: 0 },
     weather: { kind: 'clair', temp: 8, until: 0 }, saga: { started: false, stepsSpawned: 0, resolved: false },
-    scenario: o.scenario ?? 'saint-clair', reception: { visitors: 0, satisfied: 0 }, hierarchy: { evaluations: [], rank: 0, postSince: startMinute, offers: [], career: [{ minute: startMinute, year, rank: 0, city: city.name, text: `Prise de fonctions à la tête de la brigade de ${city.name}.` }], retired: false },
+    scenario: o.scenario ?? 'saint-clair', reception: { visitors: 0, satisfied: 0 }, techs: initialTechs(year), hierarchy: { evaluations: [], rank: 0, postSince: startMinute, offers: [], career: [{ minute: startMinute, year, rank: 0, city: city.name, text: `Prise de fonctions à la tête de la brigade de ${city.name}.` }], retired: false },
   };
   // équipe initiale (scénario de référence : 12 personnes)
   const scale = { commune: 0.6, petite: 0.8, moyenne: 1, grande: 1.3, metropole: 1.6 }[o.size];
@@ -61,7 +63,7 @@ export function newGame(o: NewGameOptions): GameState {
   const o1 = mk('officier', { age: 46, specialite: 'Atteintes aux personnes' });
   const o2 = mk('officier', { age: 39, specialite: 'Délinquance financière' });
   const invs = [mk('enqueteur', { age: 34 }), mk('enqueteur', { age: 29 }), mk('enqueteur', { age: 42, specialite: 'Atteintes aux biens' }), mk('enqueteur', { age: 25, specialite: 'Généraliste' })];
-  if (scale >= 1.3) invs.push(mk('enqueteur'), mk('enqueteur'));
+  void scale;
   const ag1 = mk('agent', { age: 31 });
   const ag2 = mk('agent', { age: 27 });
   const ag3 = mk('agent', { age: 50 });
@@ -92,12 +94,49 @@ export function newGame(o: NewGameOptions): GameState {
   // justice
   st.magistrates.push(makeMagistrate(rng, st, 'procureur'), makeMagistrate(rng, st, 'substitut'), makeMagistrate(rng, st, 'juge_libertes'), makeMagistrate(rng, st, 'juge_instruction'));
   st.budget = makeBudget(st, year);
+  staffUp(st, rng, startMinute);
+  if (capacities(st).desks < investigators(st).length) notify(st, { level: 'alerte', text: `Postes de travail insuffisants : ${capacities(st).desks} bureaux pour ${investigators(st).length} enquêteurs. Construisez des bureaux d'enquête (menu Construction).` });
   refreshCandidates(rng, st);
   notify(st, { level: 'info', text: `Prise de fonctions à ${city.name}. Bienvenue, ${st.commander.grade.toLowerCase()} ${o.commander.nom}.` });
   // quelques affaires déjà en cours au début de partie
   for (let i = 0; i < (o.scenario === 'libre' ? 3 : 2); i++) spawnCase(st, rng, true);
   st.rng = rng.state;
   return st;
+}
+
+/** Volume d'affaires attendu (1 = brigade de 80 000 habitants) : taille de la ville et ressort
+ * de l'échelon, sans double comptage. */
+export function demandOf(st: Pick<GameState, 'city' | 'hierarchy'>): number {
+  const popF = Math.pow(st.city.population / 80000, 0.6);
+  return popF * Math.max(1, LEVELS_SCALE(st.hierarchy.rank) / Math.max(1, popF));
+}
+const LEVELS_SCALE = (rank: number) => [1, 1.3, 1.7, 2.1, 2.5, 3][Math.min(5, rank)];
+
+/** Effectif d'enquête cible : environ six enquêteurs par unité de volume d'affaires. */
+export function targetInvestigators(st: Pick<GameState, 'city' | 'hierarchy'>): number {
+  return Math.max(6, Math.round(6 * demandOf(st)));
+}
+
+/** Complète les effectifs d'une structure jusqu'à sa cible (création de partie, mutation). */
+export function staffUp(st: GameState, rng: Rng, minute: number) {
+  const year = calendar(st.startYear, minute).year;
+  const inv = st.staff.filter((s) => s.role === 'enqueteur' || s.role === 'officier').length;
+  const missing = targetInvestigators(st) - inv;
+  for (let i = 0; i < missing; i++) {
+    const role: Role = i % 3 === 2 ? 'officier' : 'enqueteur';
+    const s = makeStaff(rng, { id: `S${++st.counters.staff}`, role, year, minute });
+    s.unitId = st.units[i % 2]?.id ?? null;
+    st.staff.push(s);
+  }
+  const techsWanted = Math.max(1, Math.round(targetInvestigators(st) / 7));
+  for (let i = st.staff.filter((s) => s.role === 'technicien').length; i < techsWanted; i++) st.staff.push(makeStaff(rng, { id: `S${++st.counters.staff}`, role: 'technicien', year, minute }));
+  const agentsWanted = Math.max(3, Math.round(targetInvestigators(st) / 4));
+  for (let i = st.staff.filter((s) => s.role === 'agent').length; i < agentsWanted; i++) st.staff.push(makeStaff(rng, { id: `S${++st.counters.staff}`, role: 'agent', year, minute }));
+  // garage et véhicules à proportion
+  const wantVeh = Math.max(3, Math.round(targetInvestigators(st) / 3));
+  const era = eraOf(year);
+  while (st.vehicles.length < wantVeh) st.vehicles.push({ id: `V${++st.counters.vehicle}`, label: `Véhicule ${st.vehicles.length + 1}`, model: era.vehicles[st.vehicles.length % 2], kind: 'banalisee', year: year - rng.int(0, 4), condition: rng.int(70, 95), km: rng.int(10000, 80000), busyUntil: 0, caseId: null, color: [0x6b7a8f, 0xe8e4da, 0x2f3a48, 0x7a2e2e][st.vehicles.length % 4] });
+  st.budget.payroll = st.staff.reduce((t, x) => t + salary(x, year), 0);
 }
 
 export function yearNow(st: GameState) {
@@ -222,8 +261,7 @@ function hourly(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   const open = st.cases.filter((c) => c.status === 'ouverte').length;
   // volume d'affaires : taille de la ville et ressort de l'échelon (sans double comptage —
   // un poste élevé dans une grande ville couvre surtout la ville elle-même)
-  const popF = Math.pow(st.city.population / 80000, 0.6);
-  const demand = popF * Math.max(1, level(st).scale / Math.max(1, popF));
+  const demand = demandOf(st);
   const perDay = 0.36 * demand;
   const hourW = cal.hour >= 8 && cal.hour < 20 ? 1.4 : 0.45;
   if (open < 45 * Math.max(1, demand) && rng.chance((perDay / 24) * hourW)) spawnCase(st, rng);
@@ -282,7 +320,7 @@ function work(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
         v.busyUntil = st.minute + Math.round((a.hours + 0.5) * MIN_H);
         v.caseId = c.id;
         v.km += rng.int(8, 40);
-        v.condition = Math.max(0, v.condition - 0.4);
+        v.condition = Math.max(0, v.condition - 0.4 * wearFactor(st));
       }
       if (!a.started) a.started = st.minute;
       if (a.kind === 'audition') interviewsInUse++;
@@ -295,6 +333,9 @@ function work(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
       if (panne && (a.kind === 'recherche' || a.kind === 'rapport' || a.kind === 'requisition')) rate *= 0.5;
       if (a.kind === 'recherche' && cap.archives) rate *= 1.2;
       if (a.kind === 'recoupement' && cap.briefing) rate *= 1.15;
+      if (a.kind === 'audition') rate *= (cap.cells > 0 ? 1 : 1 / 1.6) * (cap.infirmerie ? 1.15 : 1);
+      if (a.kind === 'requisition' && cap.ecoutes) rate *= 1.3;
+      rate *= actionBonus(st, a.kind);
       if (a.kind === 'rapport' && st.staff.some((s) => s.role === 'secretaire' && isOnDuty(s, st))) rate *= 1.2;
       if (def.outside && (eventActive(st, 'tempete') || eventActive(st, 'neige'))) rate *= 0.6;
       if (def.outside && c.district === 'villages' && eventActive(st, 'route')) rate *= 0.7;
@@ -318,7 +359,7 @@ function work(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   // les appareils tournent en continu ; la présence d'un technicien accélère le traitement
   const benchSlots = Math.max(0, Math.min(cap.labBenches, Math.max(1, st.staff.filter((s) => s.role === 'technicien').length) * 2));
   for (const j of internal.slice(0, Math.max(slots, benchSlots))) {
-    j.hoursLeft -= (dt / 60) * (techs.length ? 1 : 0.4);
+    j.hoursLeft -= (dt / 60) * (techs.length ? 1 : 0.4) * (cap.signaletique && (j.type === 'empreintes' || j.type === 'photo') ? 1.3 : 1) * techBonus(st, j.type);
     if (j.hoursLeft <= 0) { finishLab(st, rng, j.id, techSkill); for (const t of techs) gainXp(t, 'scientifique', 0.06); }
   }
   for (const t of techs) if (!busy.has(t.id) && internal.length) { busy.add(t.id); t.task = { caseId: internal[0].caseId, action: 'labo', label: 'Analyses en laboratoire', room: 'labo' }; }
@@ -386,6 +427,19 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
     }
   }
   if (rng.chance(0.3)) staffDeparture(st, rng);
+  // installations d'entraînement : progression lente de l'endurance, du stress et de la discipline
+  const capD = capacities(st);
+  for (const s of st.staff) {
+    if (s.status !== 'service') continue;
+    if (capD.sport) { gainXp(s, 'endurance', 0.02); gainXp(s, 'stress', 0.015); }
+    if (capD.tir) gainXp(s, 'discipline', 0.015);
+  }
+  // réseau d'antennes (échelons supérieurs) : dossiers sensibles remontés au siège
+  const esc = networkTick(st, rng);
+  for (let k = 0; k < esc; k++) {
+    const c = spawnCase(st, rng);
+    if (c) { c.priority = Math.min(c.priority, 2) as 1 | 2; c.summary = `Dossier sensible transmis par une antenne du réseau. ${c.summary}`; }
+  }
   // véhicules : entretien quotidien
   for (const v of st.vehicles) {
     if (v.condition < 35 && rng.chance(0.1)) {
@@ -398,6 +452,7 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   if (eraOf(year).computers !== 'aucun') spend(st, 'informatique', 8);
   // paie mensuelle (masse salariale suivie séparément)
   if (cal.day === 1) {
+    payDotations(st);
     st.budget.payroll = st.staff.reduce((s, x) => s + salary(x, year), 0);
     st.budget.payrollPaid += Math.round(st.budget.payroll / 12);
   }
@@ -422,7 +477,7 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   if (st.settings.assist === 'delegation') {
     const inv = investigators(st).length;
     const pending = st.candidates.filter((c) => c.requested).length;
-    if (inv + pending < 6 + Math.round(level(st).ceiling * 0.6)) {
+    if (inv + pending < targetInvestigators(st)) {
       const c = st.candidates.find((x) => !x.requested && (x.staff.role === 'enqueteur' || x.staff.role === 'officier')) ?? makeCandidate(rng, st, 'sortie_ecole');
       if (!st.candidates.includes(c)) st.candidates.push(c);
       c.requested = true;
@@ -509,7 +564,18 @@ function newYear(st: GameState, rng: Rng, year: number) {
   st.hierarchy.evaluations.push({ year: year - 1, note, text: note >= 15 ? 'Excellente année : travail de qualité et équipe bien gérée.' : note >= 12 ? 'Année satisfaisante.' : note >= 9 ? 'Résultats contrastés : des progrès sont attendus.' : 'Année difficile : la hiérarchie demande un plan d\'amélioration.' });
   st.commander.reputation = Math.max(0, Math.min(100, st.commander.reputation + (note - 11) * 1.5));
   notify(st, { level: note >= 12 ? 'succes' : 'alerte', text: `Évaluation annuelle ${year - 1} : ${note}/20.` });
+  // la gestion du réseau d'antennes compte pour 30 % de l'évaluation aux échelons supérieurs
+  const nn = networkNote(st);
+  if (nn !== null) {
+    const ev = st.hierarchy.evaluations[st.hierarchy.evaluations.length - 1];
+    ev.note = Math.round((ev.note * 0.7 + nn * 0.3) * 10) / 10;
+    ev.text += ` Réseau d'antennes : ${nn}/20.`;
+  }
+  networkNewYear(st, year);
   careerNewYear(st, rng, year);
+  ensureNetwork(st, rng);
+  techNewYear(st, year);
+  fleetNewYear(st, rng, year);
   st.budget = makeBudget(st, year, (0.95 + note / 100) * level(st).budget);
   st.budget.history = b.history;
   st.budget.payrollPaid = 0;
@@ -630,24 +696,116 @@ export function acceptMutation(st: GameState, offerId: string): GameState | null
   ns.commander = { ...st.commander };
   const cmd = ns.staff.find((s) => s.id === 'CMD');
   if (cmd && oldCmd) Object.assign(cmd, { birthYear: oldCmd.birthYear, entryYear: oldCmd.entryYear, skills: { ...oldCmd.skills }, history: [...oldCmd.history], appearance: oldCmd.appearance, casesHandled: oldCmd.casesHandled, casesSolved: oldCmd.casesSolved });
-  ns.hierarchy = { ...st.hierarchy, rank: o.toRank, postSince: minute, offers: st.hierarchy.offers, career: [...st.hierarchy.career] };
+  ns.hierarchy = { ...st.hierarchy, rank: o.toRank, postSince: minute, offers: st.hierarchy.offers, career: [...st.hierarchy.career], pastCities: [...(st.hierarchy.pastCities ?? []).filter((p) => p.city !== st.city.name), { city: st.city.name, size: st.city.size, leftAt: minute }] };
   applyGrade(ns, gradeFor(o.toRank, calendar(ns.startYear, minute).year));
+  ensureNetwork(ns, new Rng(ns.seed ^ 0x51));
   for (const c of Object.keys(ns.budget.envelope) as (keyof typeof ns.budget.envelope)[]) ns.budget.envelope[c] = Math.round((ns.budget.envelope[c] * level(ns).budget) / 100) * 100;
-  // la structure d'accueil est dimensionnée pour son échelon : effectifs supplémentaires
-  const nrng = new Rng(ns.seed ^ 0x9e37);
-  const extra = Math.round(level(ns).ceiling * 0.7);
-  for (let i = 0; i < extra; i++) {
-    const role: Role = i % 4 === 3 ? 'technicien' : i % 3 === 2 ? 'officier' : 'enqueteur';
-    const s = makeStaff(nrng, { id: `S${++ns.counters.staff}`, role, year: calendar(ns.startYear, minute).year, minute });
-    s.unitId = ns.units[i % 2]?.id ?? null;
-    ns.staff.push(s);
-  }
-  if (extra >= 4 && !ns.vehicles.some((v) => v.kind === 'technique')) ns.vehicles.push({ id: `V${++ns.counters.vehicle}`, label: 'Véhicule technique', model: eraOf(calendar(ns.startYear, minute).year).vehicles[2], kind: 'technique', year: calendar(ns.startYear, minute).year, condition: 90, km: 20000, busyUntil: 0, caseId: null, color: 0xe8e4da });
+  // la structure d'accueil est dimensionnée pour son volume d'affaires
+  staffUp(ns, new Rng(ns.seed ^ 0x9e37), minute);
   ns.budget.payroll = ns.staff.reduce((t, x) => t + salary(x, calendar(ns.startYear, minute).year), 0);
   ns.settings = { ...st.settings, speed: 0 };
   ns.publicTrust = 55;
   const text = `Mutation et promotion : ${ns.commander.grade}, à la tête du poste « ${level(ns).title.replace('{ville}', opt.city)} » (${ns.city.population.toLocaleString('fr-FR')} habitants). Les dossiers de ${st.city.name} sont transmis à votre successeur.`;
   ns.hierarchy.career.push({ minute, year: calendar(ns.startYear, minute).year, rank: o.toRank, city: opt.city, text });
+  notify(ns, { level: 'succes', text });
+  return ns;
+}
+
+/** Flotte : les véhicules vieillissent ; en délégation, les plus anciens sont remplacés par le
+ * modèle de l'époque (le style des véhicules évolue donc avec les années). */
+export function fleetNewYear(st: GameState, rng: Rng, year: number) {
+  for (const v of [...st.vehicles]) {
+    const age = year - v.year;
+    if (age > 8) v.condition = Math.max(5, v.condition - 6);
+    if (age >= 14) {
+      // programme national de renouvellement : remplacement d'office, financé par l'administration
+      renewVehicle(st, rng, v.id, true);
+    } else if (st.settings.assist === 'delegation' && (age >= 10 || v.condition < 25) && remaining(st.budget, 'vehicules') > vehicleCost(st, v.kind) * 0.6) {
+      renewVehicle(st, rng, v.id);
+    } else if (age === 10) {
+      notify(st, { level: 'info', text: `${v.label} (${v.model}) a dix ans : un remplacement par un modèle actuel est conseillé (Équipements).` });
+    }
+  }
+}
+
+export function vehicleCost(st: GameState, kind: Vehicle['kind']): number {
+  const year = calendar(st.startYear, st.minute).year;
+  return Math.round(((kind === 'fourgon' || kind === 'technique' ? 26000 : 17000) * eraOf(year).budgetFactor) / 100) * 100;
+}
+
+export function renewVehicle(st: GameState, rng: Rng, id: string, national = false): string {
+  const v = st.vehicles.find((x) => x.id === id);
+  if (!v) return 'Véhicule introuvable.';
+  const year = calendar(st.startYear, st.minute).year;
+  const era = eraOf(year);
+  if (!national) spend(st, 'vehicules', vehicleCost(st, v.kind), (n) => notify(st, n));
+  const old = v.model;
+  v.model = era.vehicles[v.kind === 'fourgon' || v.kind === 'technique' ? 2 : rng.int(0, 1)];
+  v.year = year;
+  v.condition = 100;
+  v.km = 0;
+  notify(st, { level: 'succes', text: `${v.label} remplacé${national ? ' (programme national de renouvellement)' : ''} : ${old} → ${v.model} (${year}).` });
+  return `${v.label} renouvelé (${v.model}).`;
+}
+
+/** Retour dans une ville déjà dirigée : la brigade laissée à votre successeur est reprise telle
+ * qu'elle a évolué entre-temps (dossiers clos par le successeur, départs en retraite, expérience
+ * acquise, véhicules renouvelés). Si l'archive de la ville n'existe pas sur cet appareil, une
+ * nouvelle brigade est constituée dans cette ville. */
+export function returnToCity(st: GameState, offerId: string, archived: GameState | null): GameState | null {
+  const o = st.hierarchy.offers.find((x) => x.id === offerId);
+  const opt = o?.options.find((x) => x.kind === 'retour') as { kind: 'retour'; city: string; size: CitySize } | undefined;
+  if (!o || o.answered || !opt) return null;
+  const minute = st.minute - (st.minute % STEP);
+  const year = calendar(st.startYear, minute).year;
+  let ns: GameState;
+  if (archived && archived.city.name === opt.city) {
+    ns = archived;
+    const away = Math.max(0, (minute - ns.minute) / (365 * MIN_D));
+    ns.minute = minute;
+    // dossiers repris et clos par le successeur
+    const handled = ns.cases.filter((c) => c.status === 'ouverte' || c.status === 'transmise').length;
+    ns.cases = ns.cases.filter((c) => c.status !== 'ouverte' && c.status !== 'transmise');
+    ns.counters.arch_n = (ns.counters.arch_n ?? 0) + handled;
+    const rng = new Rng((ns.seed ^ minute) >>> 0);
+    // personnel : retraites, expérience gagnée en votre absence
+    ns.staff = ns.staff.filter((s) => s.id === 'CMD' || year - s.birthYear < 62);
+    for (const s of ns.staff) {
+      s.assignments = [];
+      s.task = null;
+      s.fatigue = 20;
+      s.status = 'service';
+      if (s.id !== 'CMD') for (let k = 0; k < Math.round(away * 3); k++) gainXp(s, rng.pick(['investigation', 'entretien', 'deduction', 'experience', 'analyse'] as const), 0.6);
+      s.history.push({ minute, kind: 'affectation', text: `Retour de ${st.commander.prenom} ${st.commander.nom} à la tête du service.` });
+    }
+    for (const v of ns.vehicles) { v.busyUntil = 0; v.caseId = null; if (year - v.year >= 10) renewVehicle(ns, rng, v.id); }
+    ns.lab.queue = [];
+    ns.requests = [];
+    ns.events = [];
+    ns.mediaRequests = [];
+    ns.notices = [];
+    ns.weather = { kind: 'clair', temp: 10, until: 0 };
+    ns.techs = [...new Set([...(ns.techs ?? []), ...initialTechs(year)])];
+    ns.budget = makeBudget(ns, year, 1);
+    refreshCandidates(rng, ns);
+    void handled;
+  } else {
+    ns = newGame({ seed: (st.seed * 17 + minute) >>> 0, startYear: st.startYear, size: opt.size, cityName: opt.city, scenario: 'libre', assist: st.settings.assist, minute, commander: { ...st.commander, age: commanderAge(st) } });
+  }
+  o.answered = true;
+  const oldCmd = st.staff.find((s) => s.id === 'CMD');
+  const cmd = ns.staff.find((s) => s.id === 'CMD');
+  if (cmd && oldCmd) Object.assign(cmd, { prenom: oldCmd.prenom, nom: oldCmd.nom, birthYear: oldCmd.birthYear, entryYear: oldCmd.entryYear, skills: { ...oldCmd.skills }, history: [...oldCmd.history], appearance: oldCmd.appearance, casesHandled: oldCmd.casesHandled, casesSolved: oldCmd.casesSolved });
+  ns.commander = { ...st.commander };
+  ns.hierarchy = { ...st.hierarchy, rank: o.toRank, postSince: minute, career: [...st.hierarchy.career], pastCities: [...(st.hierarchy.pastCities ?? []).filter((p) => p.city !== opt.city && p.city !== st.city.name), { city: st.city.name, size: st.city.size, leftAt: minute }] };
+  applyGrade(ns, gradeFor(o.toRank, year));
+  for (const c of Object.keys(ns.budget.envelope) as (keyof typeof ns.budget.envelope)[]) ns.budget.envelope[c] = Math.round((ns.budget.envelope[c] * level(ns).budget) / 100) * 100;
+  ns.network = undefined;
+  ensureNetwork(ns, new Rng(ns.seed ^ 0x77));
+  staffUp(ns, new Rng(ns.seed ^ 0x78), minute);
+  ns.settings = { ...st.settings, speed: 0 };
+  const text = `Retour à ${opt.city} avec le grade de ${ns.commander.grade}, à la tête du poste « ${level(ns).title.replace('{ville}', opt.city)} »${archived ? ' : vous retrouvez votre ancienne équipe.' : '.'}`;
+  ns.hierarchy.career.push({ minute, year, rank: o.toRank, city: opt.city, text });
   notify(ns, { level: 'succes', text });
   return ns;
 }

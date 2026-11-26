@@ -9,6 +9,7 @@ import { calendar, eraOf, LAB_LABELS, MIN_D } from './calendar';
 import { SIZE_POP } from './city';
 import { notify } from './log';
 import { makeCandidate } from './staff';
+import { ensureNetwork } from './network';
 import type { CitySize, GameState } from './types';
 
 export interface Level {
@@ -42,7 +43,7 @@ export function gradeFor(rank: number, year: number): string {
 const SIZES: CitySize[] = ['commune', 'petite', 'moyenne', 'grande', 'metropole'];
 const CITY_NAMES = ['Valmont', 'Rochebrune', 'Montclar', 'Belleriviere', 'Saint-Aurèle', 'Port-Vallon', 'Clairefontaine', 'Hautmesnil', 'Vercourt', 'Lussan-la-Ville'];
 
-export type OfferOption = { kind: 'surplace' } | { kind: 'mutation'; city: string; size: CitySize };
+export type OfferOption = { kind: 'surplace' } | { kind: 'mutation'; city: string; size: CitySize } | { kind: 'retour'; city: string; size: CitySize };
 export interface Offer { id: string; at: number; expires: number; toRank: number; options: OfferOption[]; answered: boolean; text: string }
 export interface CareerStep { minute: number; year: number; rank: number; city: string; text: string }
 
@@ -109,9 +110,15 @@ export function careerNewYear(st: GameState, rng: Rng, year: number) {
   const si = SIZES.indexOf(st.city.size);
   if (toRank >= 2 && si < SIZES.length - 1) {
     const size = SIZES[Math.min(SIZES.length - 1, si + 1)];
-    options.push({ kind: 'mutation', city: rng.pick(CITY_NAMES.filter((n) => n !== st.city.name)), size });
+    options.push({ kind: 'mutation', city: rng.pick(CITY_NAMES.filter((n) => n !== st.city.name && !(h.pastCities ?? []).some((p) => p.city === n))), size });
   }
-  const o: Offer = { id: `OF${++st.counters.event}`, at: st.minute, expires: st.minute + 90 * MIN_D, toRank, options, answered: false, text: `La direction vous propose le grade de ${gradeFor(toRank, year)} à la tête du poste « ${LEVELS[toRank].title.replace('{ville}', st.city.name)} ».` };
+  // retour possible dans une ville déjà dirigée, avec le nouveau grade
+  const past = (h.pastCities ?? []).filter((p) => p.city !== st.city.name);
+  if (toRank >= 2 && past.length) {
+    const p = past[past.length - 1];
+    options.push({ kind: 'retour', city: p.city, size: p.size });
+  }
+  const o: Offer = { id: `OF${st.minute}-${++st.counters.event}`, at: st.minute, expires: st.minute + 90 * MIN_D, toRank, options, answered: false, text: `La direction vous propose le grade de ${gradeFor(toRank, year)} à la tête du poste « ${LEVELS[toRank].title.replace('{ville}', st.city.name)} ».` };
   h.offers.push(o);
   notify(st, { level: 'urgent', text: `Proposition d'avancement : ${gradeFor(toRank, year)}. Réponse attendue sous trois mois (menu Carrière).` });
 }
@@ -146,6 +153,7 @@ export function acceptInPlace(st: GameState, rng: Rng, id: string): string {
     st.candidates.push(c);
   }
   st.commander.reputation = Math.min(100, st.commander.reputation + 4);
+  ensureNetwork(st, rng);
   const text = `Promotion : ${st.commander.grade}, à la tête du poste « ${postTitle(st)} ». ${n} renfort(s) annoncé(s), moyens relevés de ${Math.round((k - 1) * 100)} %.`;
   st.hierarchy.career.push({ minute: st.minute, year: calendar(st.startYear, st.minute).year, rank: st.hierarchy.rank, city: st.city.name, text });
   notify(st, { level: 'succes', text });

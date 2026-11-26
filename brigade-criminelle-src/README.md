@@ -1,6 +1,6 @@
 # Brigade criminelle Tycoon — Sous haute tension
 
-**JLG Creative — version 0.2.0**
+**JLG Creative — version 0.3.0**
 
 Jeu de gestion d'une brigade de police judiciaire dans une ville française fictive, en 2,5D isométrique.
 Le joueur recrute et organise ses équipes, supervise des enquêtes procédurales fondées sur une vérité
@@ -55,6 +55,10 @@ Pages de développement (serveur `npm run dev`) : `preview.html` (planche des pe
    mutation dans une ville plus grande. Six échelons, jusqu'à une coordination nationale fictive ;
    retraite à 65 ans.
 
+8. **Réseau** (menu 🛰️) : à partir de la brigade départementale, pilotez vos antennes (dotations,
+   priorités, inspections, affectations). **Construction** : achetez du terrain pour agrandir le site.
+   **Équipements** : renouvelez la flotte et adoptez les technologies de chaque décennie.
+
 ## Architecture
 
 ```
@@ -67,6 +71,8 @@ src/
     staff.ts             moteur du personnel : 18 compétences, grilles, fatigue, moral, progression
     cases/               générateur d'affaires : builder, 40 modèles procéduraux, grande affaire
     career.ts            progression de carrière : échelons, avancements, mutations, retraite
+    network.ts           réseau d'antennes des échelons supérieurs
+    tech.ts              technologies datées et leurs effets
     knowledge.ts         moteur des connaissances (ce que l'équipe sait, charges, contradictions)
     investigation.ts     actions d'enquête, découverte des informations, IA des enquêteurs
     interview.ts         entretiens supervisés (mémoire, émotions, sincérité, droits)

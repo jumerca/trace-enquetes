@@ -1,5 +1,42 @@
 # Journal des modifications
 
+## 0.3.0 — Commissariat agrandissable, époques, réseau d'antennes (26 novembre 2026)
+
+- **Site agrandissable** : achat de terrain vers l'est et le sud (jusqu'à 40 × 32 cases par étage),
+  surélévation, allée du garage préservée.
+- **9 nouvelles pièces** (30 au total), chacune avec un effet : cellules de garde à vue (sans
+  cellule, une audition prend 60 % de temps en plus), cantine (forte récupération), armurerie
+  (−40 % d'irrégularités en perquisition), salle de sport et stand de tir (progression de
+  l'endurance, du stress, de la discipline), infirmerie (auditions +15 %), identité judiciaire
+  (empreintes et photographies plus rapides), salle de presse (communiqués plus efficaces), salle
+  des interceptions (réquisitions +30 %). Certaines pièces n'existent qu'à partir de leur époque.
+- **Mobilier** : une trentaine de nouveaux éléments (barreaux de cellule, self et cuisine, armoires
+  fortes, appareils de sport, lit d'examen, toise, appareil photo à flash, pupitre, postes
+  d'interception, cibles, fontaine, distributeur, horloge animée, extincteur, panneau d'affichage,
+  carte, drapeau, imprimante, télécopieur…) ; décor ajoutable dans toutes les pièces.
+- **Bureaux selon la décennie** : machine à écrire, téléphone à cadran, terminal télématique, écran
+  cathodique, téléphone sans fil, écran plat, second écran, ordinateur portable, smartphone.
+- **Véhicules selon l'époque** : proportions, pare-chocs chromés, phares, bandeau LED des électriques ;
+  livrées de police fictives successives (bleu nuit à dôme, bandeau bleu, bleu et orange, bleu et
+  rouge, damier haute visibilité) ; le parc civil mêle modèles récents et anciens aux couleurs de
+  leur temps. Les véhicules vieillissent et sont remplacés par le modèle de l'époque.
+- **14 technologies** datées (télex, radios portatives, télématique, micro-informatique, fichier des
+  empreintes, téléphonie mobile, fichier génétique, procédure en réseau, vidéoprotection,
+  géolocalisation, plateforme numérique, terminaux mobiles, analyse de données, flotte électrique),
+  qui accélèrent durablement certaines tâches.
+- **Réseau d'antennes** dès la brigade départementale (2 à 5 antennes) : chef, effectifs, qualité,
+  moral, stock de dossiers ; dotations, priorités, inspections, détachement et rappel d'agents,
+  remplacement du chef ; dossiers sensibles remontés au siège ; 30 % de l'évaluation annuelle.
+- **Retour dans une ville déjà dirigée** : la brigade quittée est archivée sur l'appareil et retrouvée
+  à votre retour (équipe vieillie et plus expérimentée, retraites, véhicules renouvelés).
+- **Effectifs proportionnés au volume d'affaires** (environ six enquêteurs par unité de charge, avec
+  techniciens, agents et véhicules) : à la création d'une partie en grande ville ou en métropole, et
+  après une mutation ou un retour. Avertissement si les bureaux manquent.
+- **Coûts selon l'époque et la taille du service** (technologies, véhicules) ; **programme national**
+  de renouvellement des véhicules de plus de 14 ans ; conseil de remplacement à 10 ans.
+- **Fluidité** : adaptation automatique (résolution réduite puis mode minimal si l'appareil saccade)
+  et compteur d'images par seconde affichable (Options).
+
 ## 0.2.0 — 40 modèles d'affaires et progression de carrière (25 novembre 2026)
 
 - **40 modèles d'affaires** (14 → 40), couvrant les 15 types du cahier des charges :
