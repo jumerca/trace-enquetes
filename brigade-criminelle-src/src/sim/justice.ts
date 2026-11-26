@@ -194,6 +194,7 @@ export function reopen(st: GameState, c: Case, reason: string) {
   c.team = [];
   c.openedAt = st.minute;
   c.stalledH = 0;
+  (c as Case & { compact?: boolean }).compact = false;
   for (const k of c.clues) if (!k.found) k.attempts = 0;
   caseLog(st, c.id, `Réouverture du dossier : ${reason}`);
   notify(st, { level: 'urgent', text: `Réouverture : « ${c.title} » — ${reason}`, caseId: c.id });

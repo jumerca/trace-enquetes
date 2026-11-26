@@ -1,5 +1,34 @@
 # Journal des modifications
 
+## 0.2.0 — 40 modèles d'affaires et progression de carrière (25 novembre 2026)
+
+- **40 modèles d'affaires** (14 → 40), couvrant les 15 types du cahier des charges :
+  cambriolages (pavillon, appartement, commerce de nuit), vols (commerce, à la tire, chantier,
+  exploitation agricole, hôtel), escroqueries (aînés, faux placement, fausse location saisonnière,
+  fausses factures de garage), fraudes documentaires (état civil, certificats de formation,
+  testament), trafic d'œuvres (substitution, objets d'église, faussaire), sabotages (usine,
+  matériel de spectacle, accident de site — défaillance ou malveillance), extorsions (commerce,
+  chantage d'élu, racket d'entreprise), affaires financières (abus de biens, association,
+  subventions), vols de véhicules (voiture, utilitaire, collection, fausse déclaration à l'assurance),
+  affaires numériques (usurpation, intrusion, petites annonces, selon l'époque), disparitions
+  (inquiétante, randonneur), décès suspect, mort violente (non graphique), fausse déclaration,
+  dossier ancien. Chacun avec variations de personnes, lieux, horaires, auteur et fausses pistes.
+- **Progression de carrière** en six échelons : brigade de sûreté, service de police judiciaire,
+  brigade départementale, unité régionale, direction spécialisée, coordination nationale fictive.
+  Propositions d'avancement chaque 1er janvier selon l'ancienneté dans le poste, les évaluations,
+  la réputation, le moral des équipes et le respect des procédures ; acceptation sur place (ressort
+  élargi, moyens relevés, renforts) ou **mutation dans une ville plus grande** (nouvelle brigade,
+  même commandant, même date, même carrière) ; refus possible. Grades sur une échelle unique.
+- Retraite du commandant à 65 ans, bilan de carrière ; partie poursuivable à titre honoraire.
+- Annonce des changements d'époque (techniques de laboratoire, communications) au fil des décennies.
+- Nouvel écran « Carrière » : poste, critères d'avancement avec jauges, propositions, échelons,
+  parcours, évaluations, évolution des techniques par décennie.
+- Corrections trouvées par la simulation d'une carrière complète : boucle de l'IA déléguée qui
+  réécrivait son rapport, demandes de presse jamais purgées et journaux non plafonnés (la sauvegarde
+  grossissait sans limite), volume d'affaires compté deux fois dans les grandes villes, nouvelle
+  structure sous-dotée après une mutation.
+- Sauvegardes : format v2, migration automatique des parties v1.
+
 ## 0.1.1 — Qualité graphique de la carte et ergonomie (25 novembre 2026)
 
 - **Carte entièrement redessinée** : sol continu sans effet « damier » (variations douces, touffes

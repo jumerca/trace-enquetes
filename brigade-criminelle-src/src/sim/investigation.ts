@@ -410,7 +410,10 @@ export function propose(st: GameState, rng: Rng, c: Case, s: Staff): Proposal[] 
   const top = suspicionRanking(c)[0];
   const strong = top && top.total >= PROOF && !top.exculpated;
   const exhausted = out.filter((o) => o.utility > 0.4).length === 0 && age > 72;
-  if ((strong || noCrimeWeight(c) >= 8 || exhausted) && c.stage !== 'transmission' && !c.actions.some((a) => a.kind === 'rapport'))
+  // un rapport déjà rédigé n'est refait que si des éléments nouveaux sont apparus depuis
+  const lastReport = lastDone(c, 'rapport');
+  const freshSinceReport = f.some((k) => (k.foundAt ?? 0) > lastReport);
+  if ((strong || noCrimeWeight(c) >= 8 || exhausted) && c.stage !== 'transmission' && !c.actions.some((a) => a.kind === 'rapport') && (!lastReport || freshSinceReport))
     out.push({ kind: 'rapport', utility: strong || noCrimeWeight(c) >= 8 ? 1.0 : 0.5, reason: strong ? 'Les éléments réunis paraissent suffisants : préparer la transmission au parquet.' : noCrimeWeight(c) >= 8 ? 'Les éléments indiquent l\'absence d\'infraction : préparer le rapport.' : 'Les pistes semblent épuisées : rédiger un rapport de situation.' });
   // évaluation : une déduction faible rend le jugement plus bruité (jamais infaillible)
   const noise = (21 - s.skills.deduction) / 20 * 0.35;
@@ -421,7 +424,8 @@ export function propose(st: GameState, rng: Rng, c: Case, s: Staff): Proposal[] 
 
 function lastDone(c: Case, kind: ActionKind) {
   let t = 0;
-  for (const d of c.done) if (d.text.startsWith(ACTIONS[kind].label)) t = d.minute;
+  const prefix = kind === 'rapport' ? 'Rapport de synthèse rédigé' : ACTIONS[kind].label;
+  for (const d of c.done) if (d.text.startsWith(prefix)) t = d.minute;
   return t;
 }
 

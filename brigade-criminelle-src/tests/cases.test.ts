@@ -47,17 +47,20 @@ function checkCase(st: GameState, c: Case): string[] {
 }
 
 describe('Générateur d\'affaires', () => {
-  it('au moins 14 modèles procéduraux et la grande affaire', () => {
-    expect(templates(1995).length).toBeGreaterThanOrEqual(14);
+  it('40 modèles procéduraux et la grande affaire', () => {
+    expect(templates(1995).length).toBeGreaterThanOrEqual(40);
+    expect(new Set(templates(1995).map((t) => t.id)).size).toBe(templates(1995).length);
+    // les quinze types d'affaires du cahier des charges sont couverts
+    expect(new Set(templates(1995).map((t) => t.type)).size).toBe(15);
     expect(SAGA_STEPS.length).toBe(4);
   });
 
-  it('1 000 affaires procédurales sont solvables et cohérentes, toutes époques', () => {
+  it('2 000 affaires procédurales sont solvables et cohérentes, toutes époques', () => {
     const years = [1975, 1985, 1995, 2005, 2015, 2025];
     const problems: string[] = [];
     const counts: Record<string, number> = {};
     let n = 0;
-    for (let i = 0; n < 1000; i++) {
+    for (let i = 0; n < 2000; i++) {
       const year = years[i % years.length];
       const st = game(1000 + i, year);
       const rng = new Rng(7 + i * 13);
@@ -72,7 +75,7 @@ describe('Générateur d\'affaires', () => {
       }
     }
     expect(problems.slice(0, 15)).toEqual([]);
-    expect(Object.keys(counts).length).toBeGreaterThanOrEqual(14);
+    expect(Object.keys(counts).length).toBeGreaterThanOrEqual(40);
   });
 
   it('la grande affaire « Les ombres de Saint-Clair » est cohérente et contient une coïncidence', () => {

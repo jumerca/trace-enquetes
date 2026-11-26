@@ -23,6 +23,7 @@ const NAV: [string, string, string][] = [
   ['build', '🏗️', 'Construction'],
   ['budget', '💶', 'Budget'],
   ['stats', '📊', 'Statistiques'],
+  ['career', '🎖️', 'Carrière'],
   ['archives', '🗄️', 'Archives'],
   ['media', '📰', 'Médias'],
   ['settings', '⚙️', 'Options'],

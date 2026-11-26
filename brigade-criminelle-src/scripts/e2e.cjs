@@ -85,7 +85,7 @@ fs.mkdirSync(out, { recursive: true });
     await p.getByRole('button', { name: '×10' }).click();
     await p.waitForTimeout(2500);
     await p.screenshot({ path: `${out}/${tag}-09-commissariat-actif.png` });
-    for (const [nav, file] of [['Carte', '10-carte'], ['Enquêteurs', '11-personnel'], ['Planning', '12-planning'], ['Laboratoire', '13-labo'], ['Budget', '14-budget'], ['Statistiques', '15-stats'], ['Justice', '16-justice'], ['Recrutement', '17-recrutement'], ['Unités', '18-unites'], ['Médias', '19-medias'], ['Archives', '20-archives']]) {
+    for (const [nav, file] of [['Carte', '10-carte'], ['Enquêteurs', '11-personnel'], ['Planning', '12-planning'], ['Laboratoire', '13-labo'], ['Budget', '14-budget'], ['Statistiques', '15-stats'], ['Justice', '16-justice'], ['Recrutement', '17-recrutement'], ['Unités', '18-unites'], ['Médias', '19-medias'], ['Archives', '20-archives'], ['Carrière', '20b-carriere']]) {
       await go(nav);
       await p.waitForTimeout(nav === 'Carte' ? 2500 : 400);
       await p.screenshot({ path: `${out}/${tag}-${file}.png` });

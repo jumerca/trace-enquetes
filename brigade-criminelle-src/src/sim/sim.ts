@@ -11,13 +11,14 @@ import { charges, noCrimeWeight, suspicionRanking } from './knowledge';
 import { caseLog, notify } from './log';
 import { makeMagistrate, processRequests, processTrials, transmit } from './justice';
 import { capacities, initialStation } from './station';
+import { applyGrade, careerNewYear, commanderAge, gradeFor, level } from './career';
 import { ageOf, capacity, condition, fullName, gainXp, gradeIndex, gradesFor, isOnDuty, load, makeCandidate, makeStaff, refreshCandidates, salary, tickStaff } from './staff';
 import { PROOF } from './cases/builder';
 import { eventActive, incidentFactor, mediaTick, receptionTick, rollEvents, staffDeparture, updateWeather } from './world';
 import { randomAppearance } from './names';
 import type { Case, CitySize, Commander, GameState, Role, Staff, Unit, Vehicle } from './types';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const STEP = 10;
 
 export interface NewGameOptions {
@@ -28,23 +29,25 @@ export interface NewGameOptions {
   commander: Omit<Commander, 'grade' | 'appearance' | 'reputation'> & { appearance?: Commander['appearance'] };
   scenario?: 'saint-clair' | 'libre';
   assist?: GameState['settings']['assist'];
+  minute?: number; // reprise en cours de carrière (mutation)
 }
 
 export function newGame(o: NewGameOptions): GameState {
   const seed = o.seed ?? Math.floor(Math.random() * 1e9);
   const rng = new Rng(seed);
   const city = generateCity(rng, o.size, o.cityName ?? 'Saint-Clair');
-  const year = o.startYear;
+  const startMinute = o.minute ?? 9 * 60;
+  const year = calendar(o.startYear, startMinute).year;
   const st: GameState = {
-    version: SAVE_VERSION, seed, rng: 0, startYear: year, minute: 9 * 60,
-    commander: { ...o.commander, grade: year < 1995 ? 'Commissaire' : 'Commandant', reputation: o.commander.experience === 'chevronne' ? 62 : o.commander.experience === 'confirme' ? 50 : 40, appearance: o.commander.appearance ?? randomAppearance(rng, o.commander.sexe, o.commander.age) },
+    version: SAVE_VERSION, seed, rng: 0, startYear: o.startYear, minute: startMinute,
+    commander: { ...o.commander, grade: gradeFor(0, year), reputation: o.commander.experience === 'chevronne' ? 62 : o.commander.experience === 'confirme' ? 50 : 40, appearance: o.commander.appearance ?? randomAppearance(rng, o.commander.sexe, o.commander.age) },
     city, station: initialStation(), staff: [], units: [], vehicles: [], people: {}, cases: [],
     lab: { queue: [], done: 0, externalUsed: 0 }, magistrates: [], requests: [], budget: null as never, articles: [], mediaRequests: [],
     publicTrust: 55, events: [], notices: [], candidates: [], stats: [],
     settings: { assist: o.assist ?? 'assiste', autoPause: true, speed: 1 },
     counters: { staff: 0, case: 0, person: 0, action: 0, lab: 0, req: 0, mag: 0, notice: 0, event: 0, media: 0, room: 100, vehicle: 0, unit: 0 },
     weather: { kind: 'clair', temp: 8, until: 0 }, saga: { started: false, stepsSpawned: 0, resolved: false },
-    scenario: o.scenario ?? 'saint-clair', reception: { visitors: 0, satisfied: 0 }, hierarchy: { evaluations: [], rank: 0 },
+    scenario: o.scenario ?? 'saint-clair', reception: { visitors: 0, satisfied: 0 }, hierarchy: { evaluations: [], rank: 0, postSince: startMinute, offers: [], career: [{ minute: startMinute, year, rank: 0, city: city.name, text: `Prise de fonctions à la tête de la brigade de ${city.name}.` }], retired: false },
   };
   // équipe initiale (scénario de référence : 12 personnes)
   const scale = { commune: 0.6, petite: 0.8, moyenne: 1, grande: 1.3, metropole: 1.6 }[o.size];
@@ -106,7 +109,8 @@ export function spawnCase(st: GameState, rng: Rng, initial = false): Case | null
   const c = calendar(st.startYear, st.minute);
   const tpls = templates(c.year).filter((t) => !t.minYear || c.year >= t.minYear);
   // poids selon l'activité des quartiers concernés à cette heure et les événements en cours
-  const weights = tpls.map((t) => t.weight * Math.max(...t.districts.map((d) => {
+  const heavy = ['homicide', 'trafic_art', 'financiere', 'extorsion', 'numerique', 'ancien', 'escroquerie'];
+  const weights = tpls.map((t) => t.weight * (heavy.includes(t.type) ? 1 + st.hierarchy.rank * 0.3 : 1) * Math.max(...t.districts.map((d) => {
     const dist = st.city.districts.find((x) => x.id === d)!;
     return districtActivity(dist, c.weekday, c.hour, c.season) * incidentFactor(st, d);
   })));
@@ -216,9 +220,13 @@ function hourly(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   }
   // incidents : volume proportionnel à la population, modulé par l'heure
   const open = st.cases.filter((c) => c.status === 'ouverte').length;
-  const perDay = 0.36 * Math.pow(st.city.population / 80000, 0.6);
+  // volume d'affaires : taille de la ville et ressort de l'échelon (sans double comptage —
+  // un poste élevé dans une grande ville couvre surtout la ville elle-même)
+  const popF = Math.pow(st.city.population / 80000, 0.6);
+  const demand = popF * Math.max(1, level(st).scale / Math.max(1, popF));
+  const perDay = 0.36 * demand;
   const hourW = cal.hour >= 8 && cal.hour < 20 ? 1.4 : 0.45;
-  if (open < 45 && rng.chance((perDay / 24) * hourW)) spawnCase(st, rng);
+  if (open < 45 * Math.max(1, demand) && rng.chance((perDay / 24) * hourW)) spawnCase(st, rng);
   // décisions des enquêteurs (toutes les deux heures en service)
   if (cal.hour % 2 === 0 && cal.hour >= 8 && cal.hour <= 18) investigatorsThink(st, rng);
   // délégation avancée : l'adjoint attribue et transmet
@@ -241,7 +249,7 @@ function delegateHourly(st: GameState, rng: Rng) {
       if (top && top.total >= PROOF * 1.15 && !top.exculpated && top.material >= 6) transmit(st, rng, c, { kind: 'poursuites', pid: top.pid });
       else if (noCrimeWeight(c) >= 8) transmit(st, rng, c, { kind: 'classement_absence' });
       else if ((st.minute - c.openedAt) / MIN_D > 25) transmit(st, rng, c, { kind: top && top.total > 2 ? 'classement_insuffisant' : 'classement_inconnu' });
-      else c.stage = 'hypotheses';
+      // sinon le dossier reste prêt à transmettre : l'équipe poursuit si des éléments nouveaux arrivent
     } else if (c.stalledH > 72 && (st.minute - c.openedAt) / MIN_D > 30) {
       c.stage = 'transmission';
     }
@@ -414,7 +422,7 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   if (st.settings.assist === 'delegation') {
     const inv = investigators(st).length;
     const pending = st.candidates.filter((c) => c.requested).length;
-    if (inv + pending < 6) {
+    if (inv + pending < 6 + Math.round(level(st).ceiling * 0.6)) {
       const c = st.candidates.find((x) => !x.requested && (x.staff.role === 'enqueteur' || x.staff.role === 'officier')) ?? makeCandidate(rng, st, 'sortie_ecole');
       if (!st.candidates.includes(c)) st.candidates.push(c);
       c.requested = true;
@@ -434,9 +442,19 @@ export function compactArchives(st: GameState) {
     // un dossier jugé, ou sans auteur, ne sera pas rouvert : les pistes non explorées sont oubliées
     if (c.status === 'jugee' || !c.truth.culprit) c.clues = c.clues.filter((k) => k.found);
   }
+  // journaux plafonnés (dossiers rouverts ou très longs, historiques de carrière)
+  for (const c of st.cases) if (c.done.length > 150) c.done = c.done.slice(0, 3).concat(c.done.slice(-140));
+  const KEEP = new Set(['arrivee', 'promotion', 'mutation', 'decoration', 'erreur', 'formation', 'resolue', 'evaluation']);
+  for (const s of st.staff) if (s.history.length > 220) {
+    const imp = s.history.filter((h) => KEEP.has(h.kind));
+    const rest = s.history.filter((h) => !KEEP.has(h.kind)).slice(-100);
+    s.history = [...imp.slice(-120), ...rest].sort((a, b) => a.minute - b.minute);
+  }
+  // au-delà de six ans, un dossier classé n'est plus rouvert (prescription, modèle simplifié)
+  for (const c of st.cases) if (c.status === 'classee' && c.clues.length && st.minute - (c.outcome?.at ?? 0) > 6 * 365 * MIN_D) { c.clues = []; c.items = []; c.done = c.done.slice(-2); c.board = { notes: [], links: [], pos: {} }; }
   // au-delà d'un an, un dossier définitivement jugé (ou sans auteur) ne garde que sa fiche d'archive
   for (const c of st.cases) {
-    if (!(c.status === 'jugee' || (c.status === 'classee' && !c.truth.culprit))) continue;
+    if (!(c.status === 'jugee' || (c.status === 'classee' && (!c.truth.culprit || !c.clues.some((k) => !k.found))))) continue;
     if (st.minute - (c.outcome?.verdictAt ?? c.outcome?.at ?? 0) < 365 * MIN_D || !c.clues.length) continue;
     c.clues = [];
     c.items = [];
@@ -444,6 +462,23 @@ export function compactArchives(st: GameState) {
     c.board = { notes: [], links: [], pos: {} };
     c.actions = [];
   }
+  // au-delà de cinq ans, un dossier clos ne subsiste qu'en statistiques (registre d'archives)
+  const cutoff = st.minute - 5 * 365 * MIN_D;
+  const keep: Case[] = [];
+  for (const c of st.cases) {
+    const at = c.outcome?.verdictAt ?? c.outcome?.at;
+    const old = (c.status === 'jugee' || c.status === 'classee') && at !== undefined && at < cutoff && !c.saga && (c.status === 'jugee' || !c.clues.length);
+    if (!old) { keep.push(c); continue; }
+    const k = st.counters;
+    k.arch_n = (k.arch_n ?? 0) + 1;
+    k.arch_correct = (k.arch_correct ?? 0) + (c.outcome!.correct ? 1 : 0);
+    k.arch_quality = (k.arch_quality ?? 0) + c.outcome!.quality;
+    k.arch_conv = (k.arch_conv ?? 0) + (c.outcome!.verdict === 'condamnation' ? 1 : 0);
+    k.arch_class = (k.arch_class ?? 0) + (c.outcome!.decision.startsWith('classement') ? 1 : 0);
+    k.arch_flaws = (k.arch_flaws ?? 0) + c.procedureFlaws;
+    k.arch_reopened = (k.arch_reopened ?? 0) + (c.reopenCount > 0 ? 1 : 0);
+  }
+  if (keep.length !== st.cases.length) st.cases = keep;
   // les personnes qui n'apparaissent plus que dans des archives allégées sont oubliées
   if (Math.floor(st.minute / MIN_D) % 30 === 0) {
     const live = new Set<string>();
@@ -474,11 +509,8 @@ function newYear(st: GameState, rng: Rng, year: number) {
   st.hierarchy.evaluations.push({ year: year - 1, note, text: note >= 15 ? 'Excellente année : travail de qualité et équipe bien gérée.' : note >= 12 ? 'Année satisfaisante.' : note >= 9 ? 'Résultats contrastés : des progrès sont attendus.' : 'Année difficile : la hiérarchie demande un plan d\'amélioration.' });
   st.commander.reputation = Math.max(0, Math.min(100, st.commander.reputation + (note - 11) * 1.5));
   notify(st, { level: note >= 12 ? 'succes' : 'alerte', text: `Évaluation annuelle ${year - 1} : ${note}/20.` });
-  if (st.hierarchy.evaluations.slice(-3).length === 3 && st.hierarchy.evaluations.slice(-3).every((e) => e.note >= 14) && st.hierarchy.rank < 4) {
-    st.hierarchy.rank++;
-    notify(st, { level: 'succes', text: 'La direction vous propose un avancement : votre brigade voit son ressort élargi (progression de carrière).' });
-  }
-  st.budget = makeBudget(st, year, 0.95 + note / 100);
+  careerNewYear(st, rng, year);
+  st.budget = makeBudget(st, year, (0.95 + note / 100) * level(st).budget);
   st.budget.history = b.history;
   st.budget.payrollPaid = 0;
   // personnel : vieillissement, évaluations individuelles, retraites
@@ -581,3 +613,41 @@ export function hasUrgent(st: GameState, sinceCounter: number) {
 }
 
 export { charges, MIN_D, MIN_H };
+
+/** Mutation avec avancement dans une ville plus grande : nouvelle brigade, même commandant,
+ * même carrière, même date. Renvoie le nouvel état de partie. */
+export function acceptMutation(st: GameState, offerId: string): GameState | null {
+  const o = st.hierarchy.offers.find((x) => x.id === offerId);
+  const opt = o?.options.find((x) => x.kind === 'mutation') as { kind: 'mutation'; city: string; size: CitySize } | undefined;
+  if (!o || o.answered || !opt) return null;
+  o.answered = true;
+  const oldCmd = st.staff.find((s) => s.id === 'CMD');
+  const minute = st.minute - (st.minute % STEP);
+  const ns = newGame({
+    seed: (st.seed * 31 + st.minute) >>> 0, startYear: st.startYear, size: opt.size, cityName: opt.city, scenario: 'libre', assist: st.settings.assist, minute,
+    commander: { ...st.commander, age: commanderAge(st) },
+  });
+  ns.commander = { ...st.commander };
+  const cmd = ns.staff.find((s) => s.id === 'CMD');
+  if (cmd && oldCmd) Object.assign(cmd, { birthYear: oldCmd.birthYear, entryYear: oldCmd.entryYear, skills: { ...oldCmd.skills }, history: [...oldCmd.history], appearance: oldCmd.appearance, casesHandled: oldCmd.casesHandled, casesSolved: oldCmd.casesSolved });
+  ns.hierarchy = { ...st.hierarchy, rank: o.toRank, postSince: minute, offers: st.hierarchy.offers, career: [...st.hierarchy.career] };
+  applyGrade(ns, gradeFor(o.toRank, calendar(ns.startYear, minute).year));
+  for (const c of Object.keys(ns.budget.envelope) as (keyof typeof ns.budget.envelope)[]) ns.budget.envelope[c] = Math.round((ns.budget.envelope[c] * level(ns).budget) / 100) * 100;
+  // la structure d'accueil est dimensionnée pour son échelon : effectifs supplémentaires
+  const nrng = new Rng(ns.seed ^ 0x9e37);
+  const extra = Math.round(level(ns).ceiling * 0.7);
+  for (let i = 0; i < extra; i++) {
+    const role: Role = i % 4 === 3 ? 'technicien' : i % 3 === 2 ? 'officier' : 'enqueteur';
+    const s = makeStaff(nrng, { id: `S${++ns.counters.staff}`, role, year: calendar(ns.startYear, minute).year, minute });
+    s.unitId = ns.units[i % 2]?.id ?? null;
+    ns.staff.push(s);
+  }
+  if (extra >= 4 && !ns.vehicles.some((v) => v.kind === 'technique')) ns.vehicles.push({ id: `V${++ns.counters.vehicle}`, label: 'Véhicule technique', model: eraOf(calendar(ns.startYear, minute).year).vehicles[2], kind: 'technique', year: calendar(ns.startYear, minute).year, condition: 90, km: 20000, busyUntil: 0, caseId: null, color: 0xe8e4da });
+  ns.budget.payroll = ns.staff.reduce((t, x) => t + salary(x, calendar(ns.startYear, minute).year), 0);
+  ns.settings = { ...st.settings, speed: 0 };
+  ns.publicTrust = 55;
+  const text = `Mutation et promotion : ${ns.commander.grade}, à la tête du poste « ${level(ns).title.replace('{ville}', opt.city)} » (${ns.city.population.toLocaleString('fr-FR')} habitants). Les dossiers de ${st.city.name} sont transmis à votre successeur.`;
+  ns.hierarchy.career.push({ minute, year: calendar(ns.startYear, minute).year, rank: o.toRank, city: opt.city, text });
+  notify(ns, { level: 'succes', text });
+  return ns;
+}

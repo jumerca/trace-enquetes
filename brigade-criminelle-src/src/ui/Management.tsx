@@ -115,7 +115,8 @@ export function Stats() {
   const durations = closed.map((c) => (c.outcome!.at - c.openedAt) / MIN_D).sort((a, b) => a - b);
   const median = durations.length ? durations[Math.floor(durations.length / 2)] : 0;
   const inv = st.staff.filter((s) => s.role === 'enqueteur' || s.role === 'officier');
-  const quality = closed.length ? closed.reduce((s, c) => s + c.outcome!.quality, 0) / closed.length : 0;
+  const nArch = st.counters.arch_n ?? 0;
+  const quality = closed.length + nArch ? (closed.reduce((s, c) => s + c.outcome!.quality, 0) + (st.counters.arch_quality ?? 0)) / (closed.length + nArch) : 0;
   const correct = closed.filter((c) => c.outcome!.correct).length;
   const flaws = st.cases.reduce((s, c) => s + c.procedureFlaws, 0);
   const errors = st.staff.reduce((s, x) => s + x.history.filter((h) => h.kind === 'erreur').length, 0);
@@ -128,14 +129,14 @@ export function Stats() {
   return (
     <PanelShell title="Statistiques" wide>
       <div className="stat-grid">
-        <Stat v={st.cases.length} l="Dossiers ouverts (total)" />
-        <Stat v={closed.length} l="Dossiers clôturés" />
+        <Stat v={st.cases.length + (st.counters.arch_n ?? 0)} l="Dossiers ouverts (total)" />
+        <Stat v={closed.length + (st.counters.arch_n ?? 0)} l="Dossiers clôturés" />
         <Stat v={`${median.toFixed(1)} j`} l="Délai médian de traitement" />
         <Stat v={inv.length ? (inv.reduce((a, x) => a + load(x, st), 0) / inv.length).toFixed(1) : '—'} l="Charge moyenne par enquêteur" />
         <Stat v={`${Math.round(quality)}/100`} l="Qualité moyenne des dossiers" />
-        <Stat v={reopened} l="Affaires réouvertes" />
-        <Stat v={closed.length ? `${Math.round((correct / closed.length) * 100)} %` : '—'} l="Décisions conformes aux faits" tone="good" />
-        <Stat v={`${conv} / ${classes}`} l="Condamnations / classements" />
+        <Stat v={reopened + (st.counters.arch_reopened ?? 0)} l="Affaires réouvertes" />
+        <Stat v={closed.length + (st.counters.arch_n ?? 0) ? `${Math.round(((correct + (st.counters.arch_correct ?? 0)) / (closed.length + (st.counters.arch_n ?? 0))) * 100)} %` : '—'} l="Décisions conformes aux faits" tone="good" />
+        <Stat v={`${conv + (st.counters.arch_conv ?? 0)} / ${classes + (st.counters.arch_class ?? 0)}`} l="Condamnations / classements" />
         <Stat v={flaws} l="Irrégularités de procédure" tone={flaws ? 'bad' : undefined} />
         <Stat v={errors} l="Erreurs identifiées (carrières)" />
         <Stat v={labDone} l="Expertises réalisées" />
@@ -147,6 +148,7 @@ export function Stats() {
         <Stat v={`${Math.round((totalSpent(st.budget) / Math.max(1, totalEnvelope(st.budget))) * 100)} %`} l="Budget consommé" />
         <Stat v={Math.round(st.publicTrust)} l="Confiance du public" />
       </div>
+      {(st.counters.arch_n ?? 0) > 0 && <p className="muted">Dont {st.counters.arch_n} dossiers de plus de cinq ans conservés au registre d'archives (statistiques uniquement).</p>}
       <p className="muted">Le jeu ne récompense pas le nombre d'interpellations : un classement fondé faute de preuves est une décision professionnelle appropriée.</p>
       <div className="grid2">
         <div><h3>Dossiers en cours</h3><Spark data={s.map((x) => x.open)} label="Dossiers en cours" /></div>
