@@ -7,6 +7,7 @@ import { makeMagistrate, MAG_LABEL, reopen } from './justice';
 import { charges } from './knowledge';
 import { pname } from './investigation';
 import { fullName } from './staff';
+import { capacities } from './station';
 import type { Case, CityEvent, GameState } from './types';
 
 export function outlets(year: number) {
@@ -148,7 +149,7 @@ export function makeStatement(st: GameState, rng: Rng, c: Case, kind: Statement)
   for (const r of st.mediaRequests) if (r.caseId === c.id) r.answered = true;
   if (kind === 'faits') {
     article(st, outlet, c, `${c.title.split('—')[0].trim()} : la brigade fait le point`, 'Le commandant a présenté les faits établis et rappelé que l\'enquête se poursuit.', 0.4);
-    st.publicTrust = Math.min(100, st.publicTrust + 1.5);
+    st.publicTrust = Math.min(100, st.publicTrust + (capacities(st).presse ? 2.5 : 1.5));
     return 'Communiqué diffusé : faits confirmés, sans élément confidentiel.';
   }
   if (kind === 'appel_temoins') {

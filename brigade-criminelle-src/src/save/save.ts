@@ -1,5 +1,6 @@
 // Sauvegardes : JSON versionné, stockage IndexedDB (plusieurs emplacements), export/import.
-import { dateLabel } from '../sim/calendar';
+import { calendar, dateLabel } from '../sim/calendar';
+import { initialTechs } from '../sim/tech';
 import { SAVE_VERSION } from '../sim/sim';
 import type { GameState } from '../sim/types';
 
@@ -24,6 +25,11 @@ const MIGRATIONS: Record<number, (st: GameState) => GameState> = {
   1: (st) => {
     const h = st.hierarchy as Partial<GameState['hierarchy']> & { evaluations: GameState['hierarchy']['evaluations']; rank: number };
     st.hierarchy = { evaluations: h.evaluations ?? [], rank: Math.min(h.rank ?? 0, 5), postSince: h.postSince ?? 0, offers: h.offers ?? [], career: h.career ?? [{ minute: 0, year: st.startYear, rank: 0, city: st.city.name, text: `Prise de fonctions à la tête de la brigade de ${st.city.name}.` }], retired: h.retired ?? false };
+    return st;
+  },
+  // v2 → v3 : technologies et agrandissements (V0.3)
+  2: (st) => {
+    if (!Array.isArray(st.techs)) st.techs = initialTechs(calendar(st.startYear, st.minute).year);
     return st;
   },
 };
@@ -99,4 +105,17 @@ export function downloadSave(s: GameState) {
   a.download = `brigade-criminelle-${s.city.name.toLowerCase().replace(/\W+/g, '-')}-jour${Math.floor(s.minute / 1440) + 1}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/** Archive d'une ville quittée (mutation), pour pouvoir y revenir plus tard. */
+export async function saveCity(s: GameState) {
+  await tx('readwrite', (st) => st.put(serialize(s), `ville:${s.city.name}`));
+}
+export async function loadCity(name: string): Promise<GameState | null> {
+  try {
+    const json = await tx<string | undefined>('readonly', (st) => st.get(`ville:${name}`) as IDBRequest<string | undefined>);
+    return json ? deserialize(json) : null;
+  } catch {
+    return null;
+  }
 }

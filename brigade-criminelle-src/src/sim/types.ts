@@ -340,7 +340,8 @@ export interface JudicialRequest {
 export type RoomType =
   | 'accueil' | 'commandant' | 'bureaux' | 'briefing' | 'interrogatoire' | 'archives' | 'labo' | 'informatique'
   | 'preuves' | 'radio' | 'vestiaires' | 'repos' | 'cafeteria' | 'garage' | 'formation' | 'supervision'
-  | 'ancien' | 'financiere' | 'numerique' | 'liaison' | 'administratif' | 'couloir' | 'escalier';
+  | 'ancien' | 'financiere' | 'numerique' | 'liaison' | 'administratif' | 'couloir' | 'escalier'
+  | 'cellules' | 'cantine' | 'armurerie' | 'sport' | 'infirmerie' | 'signaletique' | 'presse' | 'ecoutes' | 'tir';
 
 export interface Furniture {
   id: string;
@@ -513,11 +514,14 @@ export interface GameState {
   saga: { started: boolean; stepsSpawned: number; resolved: boolean };
   scenario: 'saint-clair' | 'libre';
   reception: { visitors: number; satisfied: number };
+  techs: string[];
+  network?: import('./network').Network;
   hierarchy: {
     evaluations: { year: number; note: number; text: string }[];
     rank: number;
     postSince: number;
-    offers: { id: string; at: number; expires: number; toRank: number; options: ({ kind: 'surplace' } | { kind: 'mutation'; city: string; size: CitySize })[]; answered: boolean; text: string }[];
+    offers: { id: string; at: number; expires: number; toRank: number; options: ({ kind: 'surplace' } | { kind: 'mutation'; city: string; size: CitySize } | { kind: 'retour'; city: string; size: CitySize })[]; answered: boolean; text: string }[];
+    pastCities?: { city: string; size: CitySize; leftAt: number }[];
     career: { minute: number; year: number; rank: number; city: string; text: string }[];
     retired: boolean;
   };

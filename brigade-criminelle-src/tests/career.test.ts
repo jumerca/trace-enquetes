@@ -117,3 +117,76 @@ describe('Progression de carrière', () => {
     expect(st.notices.some((n) => n.text.includes('Nouvelle époque') && n.text.includes('biologiques'))).toBe(true);
   });
 });
+
+describe('Réseau d\'antennes et retour dans une ville (V0.3)', () => {
+  it('le réseau apparaît à la brigade départementale et se pilote', async () => {
+    const { ensureNetwork, networkTick, inspect, detachTo, setDotation, networkNote, capacityOf } = await import('../src/sim/network');
+    const st = game(40);
+    ensureNetwork(st, new Rng(1));
+    expect(st.network).toBeUndefined();
+    st.hierarchy.rank = 2;
+    ensureNetwork(st, new Rng(1));
+    expect(st.network!.antennes.length).toBe(2);
+    st.hierarchy.rank = 4;
+    ensureNetwork(st, new Rng(1));
+    expect(st.network!.antennes.length).toBe(4);
+    const a = st.network!.antennes[0];
+    const cap0 = capacityOf(a);
+    const inv = st.staff.find((s) => s.role === 'enqueteur')!;
+    detachTo(st, a.id, inv.id);
+    expect(st.staff.includes(inv)).toBe(false);
+    expect(capacityOf(a)).toBeGreaterThan(cap0);
+    const q = a.quality;
+    inspect(st, a.id);
+    expect(a.quality).toBeGreaterThan(q);
+    setDotation(st, a.id, 0);
+    expect(a.dotation).toBe(0);
+    for (let d = 0; d < 200; d++) networkTick(st, new Rng(d));
+    expect(networkNote(st)).not.toBeNull();
+  });
+
+  it('les dossiers sensibles des antennes remontent au siège pendant la simulation', () => {
+    const st = game(41, 1995, 'delegation');
+    st.hierarchy.rank = 3;
+    step(st, 2);
+    // force : réseau créé au prochain bilan, ici directement
+    return import('../src/sim/network').then(({ ensureNetwork }) => {
+      ensureNetwork(st, new Rng(2));
+      const before = st.cases.length;
+      step(st, 120 * 1440);
+      expect((st.counters.escalations ?? 0)).toBeGreaterThan(0);
+      expect(st.cases.length).toBeGreaterThan(before);
+    });
+  });
+
+  it('retour dans une ville déjà dirigée : on retrouve l\'équipe, vieillie et expérimentée', async () => {
+    const { returnToCity } = await import('../src/sim/sim');
+    const first = game(42);
+    first.hierarchy.rank = 1;
+    goodRecord(first);
+    careerNewYear(first, new Rng(5), 2000);
+    const ns = acceptMutation(first, first.hierarchy.offers[0].id)!;
+    expect(ns.hierarchy.pastCities!.map((p) => p.city)).toContain('Saint-Clair');
+    // quelques années plus tard, nouvelle proposition avec option de retour
+    goodRecord(ns);
+    ns.hierarchy.evaluations.push({ year: 2003, note: 17, text: '' }, { year: 2004, note: 17, text: '' });
+    careerNewYear(ns, new Rng(6), 2005);
+    const o = ns.hierarchy.offers.find((x) => !x.answered)!;
+    expect(o.options.some((x) => x.kind === 'retour' && x.city === 'Saint-Clair')).toBe(true);
+    const archived = deserialize(serialize(first));
+    const oldInv = archived.staff.filter((s) => s.id !== 'CMD').map((s) => s.id);
+    const back = returnToCity(ns, o.id, archived)!;
+    expect(back.city.name).toBe('Saint-Clair');
+    expect(back.minute).toBe(ns.minute - (ns.minute % 10));
+    expect(back.hierarchy.rank).toBe(o.toRank);
+    expect(back.staff.some((s) => oldInv.includes(s.id))).toBe(true);
+    expect(back.cases.every((c) => c.status !== 'ouverte')).toBe(true);
+    expect(back.hierarchy.pastCities!.map((p) => p.city)).not.toContain('Saint-Clair');
+    step(back, 5 * 1440);
+    // sans archive (autre appareil), une brigade est reconstituée dans cette ville
+    const o2 = { ...o, answered: false, id: 'X' };
+    ns.hierarchy.offers.push(o2);
+    const fresh = returnToCity(ns, 'X', null)!;
+    expect(fresh.city.name).toBe('Saint-Clair');
+  });
+});

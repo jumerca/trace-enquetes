@@ -40,9 +40,34 @@ export function drawFurniture(kind: string, x: number, y: number, year: number, 
         box(g, x + 0.28, y + 0.62, 0.44, 0.12, 1.5, 0x2a2a2a, 20);
         glow = [x + 0.5, y + 0.55, 0x5a8ac8];
       }
-      // dossiers et téléphone
+      // dossiers, téléphone et équipements selon l'époque
       box(g, x + 0.72, y + 0.25, 0.14, 0.2, 5, 0xe0c27a, 20);
-      box(g, x + 0.14, y + 0.22, 0.12, 0.14, 3, year < 1995 ? 0x7a2e2e : 0x2a2a2a, 20);
+      if (year < 1990) {
+        // téléphone à cadran
+        box(g, x + 0.12, y + 0.2, 0.16, 0.16, 4, [0x7a2e2e, 0xd8c8a0, 0x2a2a2a][seed % 3], 20);
+        const [hx, hy] = iso(x + 0.2, y + 0.28, 25); g.ellipse(hx, hy, 4, 1.6).fill(0x1d1a17);
+      } else if (year < 2008) {
+        box(g, x + 0.13, y + 0.22, 0.12, 0.14, 3, 0x3a3a3a, 20);
+        box(g, x + 0.15, y + 0.24, 0.04, 0.1, 5, 0x2a2a2a, 23);
+      } else {
+        // téléphone mobile sur socle
+        box(g, x + 0.16, y + 0.26, 0.06, 0.1, 1.5, 0x111111, 20);
+      }
+      if (year >= 1983 && year < 1996 && seed % 4 === 0) {
+        // terminal télématique
+        box(g, x + 0.62, y + 0.62, 0.22, 0.16, 9, 0x6b5a48, 20);
+        poly(g, [iso(x + 0.64, y + 0.78, 21), iso(x + 0.82, y + 0.78, 21), iso(x + 0.82, y + 0.78, 28), iso(x + 0.64, y + 0.78, 28)], 0x2a3a2a, 1, true, 0.4);
+      }
+      if (year >= 2015 && seed % 2 === 0) {
+        // second écran
+        box(g, x + 0.72, y + 0.48, 0.06, 0.06, 6, 0x333333, 20);
+        poly(g, [iso(x + 0.62, y + 0.52, 26), iso(x + 0.9, y + 0.52, 26), iso(x + 0.9, y + 0.52, 37), iso(x + 0.62, y + 0.52, 37)], 0x24344a, 1, true, 0.5);
+      }
+      if (year >= 2020 && seed % 3 === 1) {
+        // ordinateur portable
+        poly(g, [iso(x + 0.15, y + 0.6, 20.5), iso(x + 0.4, y + 0.6, 20.5), iso(x + 0.4, y + 0.78, 20.5), iso(x + 0.15, y + 0.78, 20.5)], 0x9aa0a6, 1, true, 0.4);
+        poly(g, [iso(x + 0.15, y + 0.6, 20.5), iso(x + 0.4, y + 0.6, 20.5), iso(x + 0.4, y + 0.6, 29), iso(x + 0.15, y + 0.6, 29)], 0x2a3f5a, 1, true, 0.4);
+      }
       // chaise (côté nord)
       box(g, x + 0.35, y - 0.25, 0.3, 0.3, 11, 0x2f3a48, 0);
       break;
@@ -134,6 +159,55 @@ export function drawFurniture(kind: string, x: number, y: number, year: number, 
       g.moveTo(a, b).lineTo(cc, d).stroke({ width: 1.5, color: 0xe8e0a0, alpha: 0.7 });
       break;
     }
+    case 'cellule': {
+      // banc de cellule, sol carrelé et grille sur la face avant
+      box(g, x + 0.08, y + 0.1, 0.84, 0.3, 10, 0xb0aca2, 0, { top: 0xc2bdb2 });
+      box(g, x + 0.65, y + 0.55, 0.22, 0.25, 9, 0xe8ecec, 0); // sanitaire
+      const bars = new Graphics();
+      for (let k = 0; k <= 8; k++) { const [a, b] = iso(x + k / 8, y + 0.98, 0), [c, d] = iso(x + k / 8, y + 0.98, 56); bars.moveTo(a, b).lineTo(c, d); }
+      const [h1, h2] = iso(x, y + 0.98, 56), [h3, h4] = iso(x + 1, y + 0.98, 56); bars.moveTo(h1, h2).lineTo(h3, h4);
+      const [m1, m2] = iso(x, y + 0.98, 28), [m3, m4] = iso(x + 1, y + 0.98, 28); bars.moveTo(m1, m2).lineTo(m3, m4);
+      bars.stroke({ width: 1.6, color: 0x4a4f55 });
+      c.addChild(bars);
+      break;
+    }
+    case 'lit_medical': box(g, x + 0.1, y + 0.15, 0.8, 0.55, 16, 0xdfe6e9, 0, { top: 0xf2f5f6 }); box(g, x + 0.1, y + 0.15, 0.25, 0.55, 20, 0xc8d8e0); break;
+    case 'pharmacie': box(g, x + 0.2, y + 0.25, 0.6, 0.4, 40, 0xf2f2f0); { const [a, b] = iso(x + 0.8, y + 0.45, 28); g.rect(a - 4, b - 1.5, 8, 3).fill(0x2f8a55); g.rect(a - 1.5, b - 4, 3, 8).fill(0x2f8a55); } break;
+    case 'rack_armes': box(g, x + 0.12, y + 0.25, 0.76, 0.5, 48, 0x3e4449, 0, { top: 0x4e555b }); for (let k = 0; k < 4; k++) { const [a, b] = iso(x + 0.88, y + 0.3 + k * 0.12, 10), [c2, d] = iso(x + 0.88, y + 0.3 + k * 0.12, 42); g.moveTo(a, b).lineTo(c2, d).stroke({ width: 0.8, color: 0x8a9096 }); } break;
+    case 'tapis_course': box(g, x + 0.05, y + 0.25, 0.9, 0.5, 6, 0x2a2a2a); box(g, x + 0.78, y + 0.3, 0.12, 0.4, 34, 0x4a4f55); box(g, x + 0.74, y + 0.3, 0.2, 0.4, 4, 0x2a3f5a, 34); break;
+    case 'banc_muscu': box(g, x + 0.2, y + 0.35, 0.6, 0.3, 12, 0x2a2a2a); box(g, x + 0.1, y + 0.2, 0.08, 0.6, 30, 0x8a9096); box(g, x + 0.82, y + 0.2, 0.08, 0.6, 30, 0x8a9096); { const [a, b] = iso(x + 0.14, y + 0.5, 32), [c2, d] = iso(x + 0.86, y + 0.5, 32); g.moveTo(a, b).lineTo(c2, d).stroke({ width: 2.5, color: 0x5a5f65 }); } break;
+    case 'sac_frappe': { const [a, b] = iso(x + 0.5, y + 0.5, 54); g.moveTo(a, b).lineTo(a, b + 10).stroke({ width: 1, color: 0x333333 }); g.roundRect(a - 7, b + 10, 14, 30, 6).fill(0x8a2e2e).stroke({ width: 1, color: INK }); } break;
+    case 'toise': { poly(g, [iso(x + 0.05, y + 0.3, 0), iso(x + 0.95, y + 0.3, 0), iso(x + 0.95, y + 0.3, 62), iso(x + 0.05, y + 0.3, 62)], 0xe8eef0, 1, true, 0.8); for (let k = 0; k < 6; k++) { const [a, b] = iso(x + 0.1, y + 0.3, 10 + k * 9), [c2, d] = iso(x + 0.9, y + 0.3, 10 + k * 9); g.moveTo(a, b).lineTo(c2, d).stroke({ width: 0.6, color: 0x6a7a8a }); } } break;
+    case 'appareil_photo': { const [a, b] = iso(x + 0.5, y + 0.5, 0); for (const dx2 of [-6, 0, 6]) g.moveTo(a, b - 34).lineTo(a + dx2, b + (dx2 ? 2 : 4)).stroke({ width: 1.2, color: 0x2a2a2a }); g.roundRect(a - 7, b - 42, 14, 9, 2).fill(0x1d1d1d); g.circle(a, b - 37.5, 3).fill(0x4a6a8a); const fl = new Graphics(); c.addChild(fl); anim.push({ g: fl, kind: 'flash', x: x + 0.5, y: y + 0.5, phase: seed }); } break;
+    case 'table_empreintes': box(g, x + 0.1, y + 0.2, 0.8, 0.6, 22, 0xd8dde0, 0, { top: 0xeaeef0 }); box(g, x + 0.25, y + 0.35, 0.3, 0.2, 1.5, 0x1d1d1d, 22); box(g, x + 0.6, y + 0.35, 0.2, 0.25, 1, 0xffffff, 22); break;
+    case 'pupitre': box(g, x + 0.3, y + 0.3, 0.4, 0.35, 30, 0x5a3a2a, 0, { top: 0x6b4c3b }); { const [a, b] = iso(x + 0.5, y + 0.55, 30); g.circle(a, b, 3).fill(0x1f3a6e); } break;
+    case 'chaises': for (let k = 0; k < 3; k++) { box(g, x + 0.08 + k * 0.3, y + 0.35, 0.24, 0.3, 10, 0x2f3a48); box(g, x + 0.08 + k * 0.3, y + 0.35, 0.24, 0.05, 20, 0x2f3a48); } break;
+    case 'console_ecoute': {
+      box(g, x + 0.08, y + 0.2, 0.84, 0.6, 20, 0x4a4f57, 0, { top: 0x5a6068 });
+      poly(g, [iso(x + 0.2, y + 0.4, 22), iso(x + 0.8, y + 0.4, 22), iso(x + 0.8, y + 0.4, 34), iso(x + 0.2, y + 0.4, 34)], year < 2005 ? 0x2d4a3a : 0x1e2a38, 1, true, 0.5);
+      const [a, b] = iso(x + 0.3, y + 0.7, 22); g.arc(a, b - 3, 4, Math.PI, 0).stroke({ width: 1.5, color: 0x1d1d1d });
+      const led = new Graphics(); c.addChild(led); anim.push({ g: led, kind: 'led', x: x + 0.75, y: y + 0.6, phase: seed });
+      glow = [x + 0.5, y + 0.6, 0x3a6a8a];
+      break;
+    }
+    case 'cible': {
+      box(g, x + 0.1, y + 0.75, 0.8, 0.15, 14, 0x6b5a48); // tablette de tir
+      poly(g, [iso(x + 0.3, y + 0.1, 20), iso(x + 0.7, y + 0.1, 20), iso(x + 0.7, y + 0.1, 52), iso(x + 0.3, y + 0.1, 52)], 0xf2ecd8, 1, true, 0.6);
+      const [a, b] = iso(x + 0.5, y + 0.1, 36); for (const r of [9, 6, 3]) g.ellipse(a, b, r, r * 1.1).stroke({ width: 1, color: 0x1d1a17 }); g.circle(a, b, 1.5).fill(0xc83a2a);
+      break;
+    }
+    case 'self': box(g, x, y + 0.25, 1, 0.5, 24, 0xb8bec2, 0, { top: 0xd8dee2 }); for (let k = 0; k < 3; k++) box(g, x + 0.08 + k * 0.3, y + 0.32, 0.24, 0.32, 3, [0xd89a3a, 0x7aa84a, 0xc8662a][k], 24); box(g, x, y + 0.25, 1, 0.08, 40, 0xcfd6da, 24, { alpha: 0.6 }); break;
+    case 'cuisine': box(g, x + 0.05, y + 0.15, 0.9, 0.7, 26, 0xc8cfd3, 0, { top: 0xdde3e6 }); for (const k of [0.3, 0.65]) { const [a, b] = iso(x + k, y + 0.5, 26); g.ellipse(a, b, 6, 3).stroke({ width: 1.2, color: 0x2a2a2a }); } { const st2 = new Graphics(); c.addChild(st2); anim.push({ g: st2, kind: 'steam', x: x + 0.4, y: y + 0.5, phase: seed }); } break;
+    case 'table_longue': box(g, x, y + 0.2, 1, 0.6, 17, 0xc8a878, 0, { top: 0xd8b888 }); box(g, x + 0.1, y - 0.12, 0.8, 0.25, 9, 0x8a6a4a); box(g, x + 0.1, y + 0.88, 0.8, 0.25, 9, 0x8a6a4a); for (let k = 0; k < 2; k++) box(g, x + 0.2 + k * 0.4, y + 0.35, 0.18, 0.14, 2, 0xf0f0f0, 17); break;
+    case 'fontaine': box(g, x + 0.35, y + 0.35, 0.3, 0.3, 30, 0xe8ecec); box(g, x + 0.38, y + 0.38, 0.24, 0.24, 14, 0x9ec4de, 30, { alpha: 0.8 }); break;
+    case 'distributeur': box(g, x + 0.15, y + 0.3, 0.7, 0.45, 48, 0xb83a2a, 0, { top: 0xc84a3a }); poly(g, [iso(x + 0.85, y + 0.35, 20), iso(x + 0.85, y + 0.7, 20), iso(x + 0.85, y + 0.7, 44), iso(x + 0.85, y + 0.35, 44)], 0x9ec4de, 0.85, true, 0.5); glow = [x + 0.7, y + 0.6, 0x8a4a3a]; break;
+    case 'horloge': { const [a, b] = iso(x + 0.5, y + 0.02, 52); g.circle(a, b, 6).fill(0xf6f2e6).stroke({ width: 1.2, color: INK }); const cl = new Graphics(); c.addChild(cl); anim.push({ g: cl, kind: 'clock', x: a, y: b, phase: seed }); break; }
+    case 'affichage': poly(g, [iso(x + 0.1, y + 0.02, 26), iso(x + 0.9, y + 0.02, 26), iso(x + 0.9, y + 0.02, 50), iso(x + 0.1, y + 0.02, 50)], 0xb08a5a, 1, true, 0.8); for (let k = 0; k < 4; k++) { const [a, b] = iso(x + 0.18 + k * 0.18, y + 0.02, 32 + (k % 2) * 8); g.rect(a - 3, b - 4, 6, 7).fill([0xf6f2e6, 0xf0e08a, 0xd8e8f6, 0xf6d8d8][k]); } break;
+    case 'extincteur': { const [a, b] = iso(x + 0.15, y + 0.15, 0); g.roundRect(a - 2.5, b - 14, 5, 14, 2).fill(0xc83a2a).stroke({ width: 0.6, color: INK }); g.rect(a - 1, b - 17, 2, 3).fill(0x2a2a2a); break; }
+    case 'carte': poly(g, [iso(x + 0.05, y + 0.02, 24), iso(x + 0.95, y + 0.02, 24), iso(x + 0.95, y + 0.02, 54), iso(x + 0.05, y + 0.02, 54)], 0xe8e0c8, 1, true, 0.8); for (let k = 0; k < 5; k++) { const [a, b] = iso(x + 0.15 + k * 0.17, y + 0.02, 30 + ((seed + k * 7) % 18)); g.circle(a, b, 1.4).fill(0xc83a2a); } { const [a, b] = iso(x + 0.1, y + 0.02, 40), [c2, d] = iso(x + 0.9, y + 0.02, 34); g.moveTo(a, b).lineTo(c2, d).stroke({ width: 1, color: 0x3a7ad8 }); } break;
+    case 'imprimante': box(g, x + 0.25, y + 0.3, 0.5, 0.4, 14, year < 2000 ? 0xd8d2c0 : 0x3a3f45); box(g, x + 0.3, y + 0.35, 0.3, 0.2, 2, 0xffffff, 14); break;
+    case 'fax': box(g, x + 0.3, y + 0.3, 0.4, 0.35, 10, 0xd8d2c0); box(g, x + 0.35, y + 0.4, 0.15, 0.2, 4, 0xffffff, 10); break;
+    case 'drapeau': { const [a, b] = iso(x + 0.2, y + 0.2, 0); g.moveTo(a, b).lineTo(a, b - 58).stroke({ width: 1.5, color: 0x8a7a5a }); g.rect(a, b - 58, 5, 12).fill(0x1f3a6e); g.rect(a + 5, b - 58, 5, 12).fill(0xffffff); g.rect(a + 10, b - 58, 5, 12).fill(0xc83a2a); break; }
     default: box(g, x + 0.2, y + 0.2, 0.6, 0.6, 16, shadeN(0x998877, 1));
   }
   return { c, anim, glow };
@@ -162,6 +236,8 @@ export function animate(a: Animated, t: number, on: boolean) {
     case 'rack': for (let i = 0; i < 6; i++) { const blink = Math.sin(p * (3 + i) + i) > 0.2; const [lx, ly] = iso(a.x + 0.8, a.y + 0.3 + (i % 2) * 0.3, 8 + Math.floor(i / 2) * 14); g.circle(lx, ly, 1.4).fill(blink ? (i % 3 ? 0x5aff8a : 0xffb030) : 0x1a3a22); } break;
     case 'led': case 'rec': { const [lx, ly] = iso(a.x, a.y, a.kind === 'rec' ? 22 : 30); const on2 = a.kind === 'rec' ? on && Math.sin(p * 4) > 0 : Math.sin(p * 2.5) > 0; g.circle(lx, ly, 1.8).fill(on2 ? 0xff4a3a : 0x4a1a1a); break; }
     case 'wall': for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { const [sx, sy] = iso(a.x + 0.15 + i * 0.25, a.y + 0.3, 22 + j * 14); const col = [0x4a7ab8, 0x3a8a5a, 0xb88a3a, 0x7a4ab8][(Math.floor(p) + i + j * 2) % 4]; g.rect(sx - 7, sy - 12, 15, 11).fill(on ? col : 0x1a1f25).stroke({ width: 0.6, color: INK }); } break;
+    case 'flash': if (Math.sin(p * 0.9) > 0.985 && on) { const [fx, fy] = iso(a.x, a.y, 42); g.circle(fx, fy, 10).fill({ color: 0xffffff, alpha: 0.8 }); } break;
+    case 'clock': { const ang = (t / 60000) % 1 * Math.PI * 2; g.moveTo(a.x, a.y).lineTo(a.x + Math.sin(ang) * 4.5, a.y - Math.cos(ang) * 4.5).stroke({ width: 0.8, color: INK }); const ang2 = (t / 720000) % 1 * Math.PI * 2; g.moveTo(a.x, a.y).lineTo(a.x + Math.sin(ang2) * 3, a.y - Math.cos(ang2) * 3).stroke({ width: 1.3, color: INK }); break; }
     case 'steam': if (on) for (let i = 0; i < 3; i++) { const k = (p * 0.8 + i / 3) % 1; const [sx, sy] = iso(a.x, a.y, 44 + k * 16); g.circle(sx + Math.sin(p * 3 + i) * 2, sy, 2 + k * 3).fill({ color: 0xffffff, alpha: 0.35 * (1 - k) }); } break;
   }
 }

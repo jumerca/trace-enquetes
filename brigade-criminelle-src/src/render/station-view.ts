@@ -2,7 +2,10 @@
 // pilotés par leurs tâches dans la simulation (navigation A*), véhicules et visiteurs.
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { calendar, daylight } from '../sim/calendar';
-import { navPath, roomAt, ROOM_DEFS, SH, SW, walkable } from '../sim/station';
+import { navPath, roomAt, ROOM_DEFS, walkable } from '../sim/station';
+
+// emprise courante du terrain (agrandissable) : mise à jour à chaque image depuis la simulation
+let SW = 22, SH = 14;
 import type { GameState, Person, Room, RoomType, Staff } from '../sim/types';
 import type { CharSpec, Look, Pose } from './art';
 import type { View } from './engine';
@@ -72,6 +75,8 @@ export class StationView implements View {
   }
 
   bounds() {
+    SW = this.get().station.w;
+    SH = this.get().station.h;
     const [l] = iso(-2, SH + 4), [r] = iso(SW + 4, -2);
     const [, t] = iso(-2, -2, WALL_H), [, b] = iso(SW + 4, SH + 4);
     return { x: l, y: t, w: r - l, h: b - t };
@@ -226,7 +231,7 @@ export class StationView implements View {
       st.vehicles.forEach((v, i) => {
         const p = places[i % Math.max(1, places.length)];
         const home = p ? { x: p.x + 0.5, y: p.y + 0.6 } : { x: 2 + i * 3, y: SH + 2 };
-        const s = new Sprite(vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : v.kind === 'technique' ? 'technique' : 'banalisee', police: true, era: year }, 'ny'));
+        const s = new Sprite(vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : v.kind === 'technique' ? 'technique' : 'banalisee', police: true, era: v.year }, 'ny'));
         s.anchor.set(0.5, 60 / 96);
         s.scale.set(1.25);
         this.objects.addChild(s);
@@ -489,7 +494,9 @@ export class StationView implements View {
   // ————— boucle d'affichage —————
   update(dtMs: number, time: number) {
     const st = this.get();
-    const sig = `${this.floor}|${st.station.rooms.map((r) => `${r.id}${r.x}${r.y}${r.w}${r.h}${r.built > st.minute}${r.furniture.length}`).join()}|${calendar(st.startYear, st.minute).season}|${st.vehicles.length}|${Math.round(daylight(st.startYear, st.minute) * 4)}|${this.showLabels}`;
+    SW = st.station.w;
+    SH = st.station.h;
+    const sig = `${this.floor}|${SW}x${SH}|${st.station.rooms.map((r) => `${r.id}${r.x}${r.y}${r.w}${r.h}${r.built > st.minute}${r.furniture.length}`).join()}|${calendar(st.startYear, st.minute).season}|${st.vehicles.length}|${Math.round(daylight(st.startYear, st.minute) * 4)}|${this.showLabels}`;
     if (sig !== this.sig) { this.sig = sig; this.rebuild(st); }
     if (time - this.lastThink > 400) { this.lastThink = time; this.think(st); }
     const dt = dtMs / 1000;
@@ -559,8 +566,7 @@ export class StationView implements View {
         if (k * 1.6 > dy) { y = SH + 2; x = vs.home.x + (k * 1.6 - dy); dir = 'nx'; visible = x < SW + 4; }
         else { y = vs.home.y + k * 1.6; }
       }
-      const year = calendar(st.startYear, st.minute).year;
-      vs.s.texture = vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : 'banalisee', police: true, era: year, lights: out && v.caseId !== null && Math.floor(time / 250) % 2 === 0 }, dir, 0);
+      vs.s.texture = vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : 'banalisee', police: true, era: v.year, lights: out && v.caseId !== null && Math.floor(time / 250) % 2 === 0 }, dir, 0);
       const [px, py] = iso(x, y);
       vs.s.position.set(px, py);
       vs.s.visible = this.floor === 0 && visible;

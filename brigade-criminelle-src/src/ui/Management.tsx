@@ -6,10 +6,13 @@ import { CAT_LABELS, remaining, requestFunds, spend, totalEnvelope, totalSpent }
 import { charges, found } from '../sim/knowledge';
 import { MAG_LABEL, reopen } from '../sim/justice';
 import { notify } from '../sim/log';
-import { BUILDABLE, buildCost, canPlaceFurniture, capacities, FURN_COST, FURN_LABEL, placeRoom, ROOM_DEFS, ROOM_FURN } from '../sim/station';
+import { BUILDABLE, buildCost, canExtend, canPlaceFurniture, capacities, extend, EXTENSIONS, furnAvailable, FURN_COST, FURN_LABEL, placeRoom, roomAvailable, ROOM_DEFS, ROOM_FURN } from '../sim/station';
 import { fullName, load } from '../sim/staff';
 import { BUDGET_CATS, type BudgetCat, type GameState } from '../sim/types';
 import { placeStatus } from '../render/city-view';
+import { vehicleURL } from '../render/art';
+import { buyTech, owned, techAvailable, techCost, TECHS } from '../sim/tech';
+import { renewVehicle, vehicleCost } from '../sim/sim';
 import { economyMode, setEconomyMode } from '../render/engine';
 import { downloadSave, saveSlot, SLOT_NAMES, SLOTS, type Slot } from '../save/save';
 import { DECISION_LABEL, STATUS_LABEL, TYPE_LABEL } from './Cases';
@@ -208,25 +211,59 @@ export function Media() {
 
 export function Equipment() {
   const [g, st] = useGame();
-  const era = eraOf(calendar(st.startYear, st.minute).year);
+  const year = calendar(st.startYear, st.minute).year;
+  const era = eraOf(year);
   const cap = capacities(st);
+  const [msg, setMsg] = useState('');
+  const spec = (v: (typeof st.vehicles)[number]) => ({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: (v.kind === 'fourgon' ? 'fourgon' : v.kind === 'technique' ? 'technique' : 'banalisee') as 'banalisee', police: true, era: v.year });
   return (
-    <PanelShell title="Véhicules et équipements">
-      {st.vehicles.map((v) => (
-        <div className="card" key={v.id}>
-          <div className="row between"><b>🚓 {v.label}</b><span className="muted">{v.model} ({v.year})</span></div>
-          <div className="grid3"><div>État<Bar v={v.condition} /></div><div>{v.km.toLocaleString('fr-FR')} km</div><div>{v.busyUntil > st.minute ? `En mission jusqu'à ${when(st, v.busyUntil).slice(11)}` : 'Disponible'}</div></div>
-          <button className="btn small" disabled={v.condition > 90} onClick={() => g.mutate((x) => { spend(x, 'entretien', 450); v.condition = Math.min(100, v.condition + 35); })}>Entretien (450 €)</button>
-        </div>
-      ))}
-      <div className="card">
-        <h3>Acquérir un véhicule</h3>
-        <p className="muted">Places de garage : {cap.garage} ({st.vehicles.length} occupées). Crédits véhicules : {eur(remaining(st.budget, 'vehicules'))}.</p>
-        <div className="row">{era.vehicles.map((m, i) => <button key={m} className="btn small" disabled={st.vehicles.length >= cap.garage} onClick={() => g.mutate((x) => { spend(x, 'vehicules', i === 2 ? 26000 : 17000, (n) => notify(x, n)); x.vehicles.push({ id: `V${++x.counters.vehicle}`, label: `${i === 2 ? 'Fourgon' : 'Véhicule'} ${x.vehicles.length + 1}`, model: m, kind: i === 2 ? 'fourgon' : 'banalisee', year: calendar(x.startYear, x.minute).year, condition: 100, km: 0, busyUntil: 0, caseId: null, color: [0x6b7a8f, 0xe8e4da, 0x2f3a48, 0x7a2e2e][x.vehicles.length % 4] }); })}>{m} ({eur(i === 2 ? 26000 : 17000)})</button>)}</div>
+    <PanelShell title="Véhicules, technologies et équipements" wide>
+      {msg && <div className="card" style={{ background: '#fff3d6' }}>{msg}</div>}
+      <h3>Parc automobile</h3>
+      <div className="grid2">
+        {st.vehicles.map((v) => (
+          <div className="card" key={v.id}>
+            <div className="row" style={{ alignItems: 'flex-start' }}>
+              <img src={vehicleURL(spec(v))} alt="" style={{ width: 110, height: 82 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <b>{v.label}</b><div className="muted">{v.model} — mis en service en {v.year} ({year - v.year} an{year - v.year > 1 ? 's' : ''})</div>
+                <div>État<Bar v={v.condition} /></div>
+                <div className="muted">{v.km.toLocaleString('fr-FR')} km · {v.busyUntil > st.minute ? `en mission jusqu'à ${when(st, v.busyUntil).slice(11)}` : 'disponible'}</div>
+              </div>
+            </div>
+            <div className="row" style={{ marginTop: 6 }}>
+              <button className="btn small" disabled={v.condition > 90} onClick={() => g.mutate((x) => { spend(x, 'entretien', 450); v.condition = Math.min(100, v.condition + 35); })}>Entretien (450 €)</button>
+              <button className="btn small" disabled={year - v.year < 3} onClick={() => { let t = ''; g.mutate((x) => { t = renewVehicle(x, new Rng(x.minute), v.id); }); setMsg(t); }}>Remplacer par un modèle {era.label.toLowerCase().replace('années', 'des années')} ({eur(vehicleCost(st, v.kind))})</button>
+            </div>
+          </div>
+        ))}
       </div>
       <div className="card">
-        <h3>Informatique et matériel</h3>
-        <p style={{ fontSize: 13 }}>Époque : {era.label} — {era.computers === 'aucun' ? 'machines à écrire et fichiers papier (recherches plus lentes)' : era.computers === 'terminal' ? 'terminaux et Minitel' : era.computers === 'pc' ? 'premiers ordinateurs individuels' : 'réseau informatique du service'}. Communications : {era.phone}.</p>
+        <h3>Acquérir un véhicule</h3>
+        <p className="muted">Places de garage : {cap.garage} ({st.vehicles.length} occupées). Crédits véhicules : {eur(remaining(st.budget, 'vehicules'))}. Les modèles proposés et la livrée évoluent avec les décennies.</p>
+        <div className="row">{era.vehicles.map((m, i) => (
+          <button key={m} className="btn small" disabled={st.vehicles.length >= cap.garage} onClick={() => g.mutate((x) => { spend(x, 'vehicules', vehicleCost(x, i === 2 ? 'fourgon' : 'banalisee'), (n) => notify(x, n)); x.vehicles.push({ id: `V${++x.counters.vehicle}`, label: `${i === 2 ? 'Fourgon' : 'Véhicule'} ${x.vehicles.length + 1}`, model: m, kind: i === 2 ? 'fourgon' : 'banalisee', year, condition: 100, km: 0, busyUntil: 0, caseId: null, color: [0x6b7a8f, 0xe8e4da, 0x2f3a48, 0x7a2e2e][x.vehicles.length % 4] }); })}>
+            <img src={vehicleURL({ body: '#e8e4da', kind: i === 2 ? 'fourgon' : 'banalisee', police: true, era: year })} alt="" style={{ width: 64, height: 48, verticalAlign: 'middle' }} /> {m} ({eur(vehicleCost(st, i === 2 ? 'fourgon' : 'banalisee'))})
+          </button>
+        ))}</div>
+      </div>
+      <h3>Technologies et méthodes</h3>
+      <p className="muted">Les techniques de laboratoire progressent d'elles-mêmes avec les époques ; ces équipements s'achètent et accélèrent durablement certaines tâches. {era.label} — informatique : {era.computers === 'aucun' ? 'machines à écrire et fichiers papier' : era.computers === 'terminal' ? 'terminaux et Minitel' : era.computers === 'pc' ? 'premiers ordinateurs individuels' : era.computers === 'reseau' ? 'réseau informatique' : 'outils en ligne'} ; communications : {era.phone}.</p>
+      <div className="grid2">
+        {TECHS.map((t) => {
+          const av = techAvailable(t, year), has = owned(st, t.id);
+          return (
+            <div className="card" key={t.id} style={{ opacity: av ? 1 : 0.55 }}>
+              <div className="row between"><b>{t.label}</b><span className={`tag ${has ? 'fait' : av ? 'p2' : ''}`}>{has ? 'En service' : av ? 'Disponible' : `Dès ${t.year}`}</span></div>
+              <div className="muted">{t.desc}</div>
+              <div style={{ fontSize: 12 }}>{[...Object.entries(t.actions ?? {}).map(([k, m]) => `${ACTION_LABEL[k] ?? k} +${Math.round((m! - 1) * 100)} %`), ...Object.entries(t.lab ?? {}).map(([k, m]) => `${LAB_LABELS[k as keyof typeof LAB_LABELS]} +${Math.round((m! - 1) * 100)} %`), ...(t.wear ? [`usure des véhicules −${Math.round((1 - t.wear) * 100)} %`] : [])].join(' · ')}</div>
+              {!has && <button className="btn small" disabled={!av} onClick={() => { let m = ''; g.mutate((x) => { m = buyTech(x, t.id); }); setMsg(m); }}>Acquérir ({eur(techCost(st, t))})</button>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="card">
+        <h3>Petit matériel</h3>
         <div className="row">
           <button className="btn small" onClick={() => g.mutate((x) => { spend(x, 'equipements', 3000); for (const s of x.staff) s.moral = Math.min(100, s.moral + 2); notify(x, { level: 'succes', text: 'Renouvellement du petit matériel (radios, appareils photo, mallettes).' }); })}>Renouveler le petit matériel (3 000 €)</button>
           {era.computers !== 'aucun' && <button className="btn small" onClick={() => g.mutate((x) => { spend(x, 'informatique', 6000); for (const s of x.staff) if (s.skills.informatique < 14) s.skills.informatique++; notify(x, { level: 'succes', text: 'Postes informatiques modernisés.' }); })}>Moderniser les postes (6 000 €)</button>}
@@ -235,6 +272,8 @@ export function Equipment() {
     </PanelShell>
   );
 }
+
+const ACTION_LABEL: Record<string, string> = { constatations: 'Constatations', voisinage: 'Voisinage', entretien: 'Entretiens', recherche: 'Recherches', requisition: 'Réquisitions', perquisition: 'Perquisitions', recoupement: 'Recoupements', audition: 'Auditions', rapport: 'Rédaction' };
 
 export function Build() {
   const [g, st] = useGame();
@@ -277,11 +316,12 @@ export function Build() {
           else g.setBuildMode({ kind: 'furniture', fkind: v.slice(2) });
         }}>
           <option value="">— Choisir —</option>
-          <optgroup label="Pièces (tracez un rectangle sur le plan)">{BUILDABLE.map((t) => <option key={t} value={`r:${t}`}>{ROOM_DEFS[t].label} — dès {eur(buildCost(t, 2, 2))}</option>)}</optgroup>
-          <optgroup label="Mobilier (touchez une case libre)">{furnKinds.map((k) => <option key={k} value={`f:${k}`}>{FURN_LABEL[k]} — {eur(FURN_COST[k] ?? 0)}</option>)}</optgroup>
+          <optgroup label="Pièces (tracez un rectangle sur le plan)">{BUILDABLE.filter((t) => roomAvailable(t, calendar(st.startYear, st.minute).year)).map((t) => <option key={t} value={`r:${t}`}>{ROOM_DEFS[t].label} — dès {eur(buildCost(t, 2, 2))}</option>)}</optgroup>
+          <optgroup label="Mobilier et équipements (touchez une case libre)">{furnKinds.filter((k) => furnAvailable(k, calendar(st.startYear, st.minute).year)).map((k) => <option key={k} value={`f:${k}`}>{FURN_LABEL[k]} — {eur(FURN_COST[k] ?? 0)}</option>)}</optgroup>
         </select>
         {Array.from({ length: st.station.floors }, (_, f) => <button key={f} className={`btn small ${g.station?.floor === f ? 'navy' : ''}`} onClick={() => g.setFloor(f)}>{f === 0 ? 'RDC' : `Étage ${f}`}</button>)}
         {st.station.floors < 3 && <button className="btn small" onClick={() => g.mutate((s) => { spend(s, 'batiments', 60000, (n) => notify(s, n)); s.station.floors++; s.station.rooms.push({ id: `R${++s.counters.room}`, type: 'escalier', floor: s.station.floors - 1, x: 19, y: 0, w: 3, h: 6, doors: [{ x: 20, y: 5 }], furniture: [], built: s.minute + 60 * MIN_D }, { id: `R${++s.counters.room}`, type: 'couloir', floor: s.station.floors - 1, x: 0, y: 6, w: 22, h: 2, doors: [], furniture: [], built: s.minute + 60 * MIN_D }); notify(s, { level: 'info', text: 'Surélévation du bâtiment lancée (60 000 €, deux mois de travaux).' }); })}>Ajouter un étage (60 000 €)</button>}
+        {EXTENSIONS.map((e) => <button key={e.id} className="btn small" disabled={!!canExtend(st.station, e.id)} title={canExtend(st.station, e.id) ?? ''} onClick={() => { if (!confirm(`${e.label} : acquisition et viabilisation du terrain pour ${eur(e.cost)} ?`)) return; g.mutate((s) => { spend(s, 'batiments', e.cost, (n) => notify(s, n)); extend(s.station, e.id); notify(s, { level: 'succes', text: `${e.label} : nouveau terrain constructible (${s.station.w} × ${s.station.h} cases).` }); }); g.station?.setFloor(g.station.floor); }}>{e.label} — {eur(e.cost)}</button>)}
         <button className="btn small" onClick={() => { g.setBuildMode(null); g.close(); }}>Terminer</button>
         <span className="muted" style={{ flexBasis: '100%' }}>{mode?.kind === 'room' ? `${ROOM_DEFS[mode.type].label} : ${ROOM_DEFS[mode.type].effect} Surface minimale ${ROOM_DEFS[mode.type].minArea} cases ; la porte est placée automatiquement côté couloir.` : mode?.kind === 'furniture' ? 'Le mobilier ne doit ni bloquer une porte ni couper la circulation.' : 'Choisissez une pièce ou un meuble. Crédits bâtiments : ' + eur(remaining(st.budget, 'batiments'))}{err ? ` — ${err}` : ''}</span>
       </div>
@@ -359,6 +399,8 @@ export function Settings({ onQuit }: { onQuit: () => void }) {
           <label key={k} className="row" style={{ alignItems: 'flex-start', marginBottom: 6 }}><input type="radio" checked={st.settings.assist === k} onChange={() => g.mutate((s) => { s.settings.assist = k; })} /><span><b>{l}</b><br /><span className="muted">{d}</span></span></label>
         ))}
         <label className="row"><input type="checkbox" defaultChecked={economyMode()} onChange={(e) => { setEconomyMode(e.target.checked); setMsg('Réglage graphique enregistré : il s\'applique au prochain lancement du jeu.'); }} /> Mode économie graphique (téléphones modestes : moins de figurants, rendu allégé)</label>
+        <label className="row"><input type="checkbox" defaultChecked={(() => { try { return localStorage.getItem('bct-fps') === '1'; } catch { return false; } })()} onChange={(e) => { try { localStorage.setItem('bct-fps', e.target.checked ? '1' : '0'); } catch { /* indisponible */ } g.bump(true); }} /> Afficher la fluidité (images par seconde) en bas de l'écran</label>
+        <p className="muted" style={{ margin: '2px 0 6px' }}>Fluidité actuelle : <b>{Math.round(g.engine?.fps ?? 0)} images/s</b> — {g.engine?.quality === 'haute' ? 'qualité haute' : g.engine?.quality === 'reduite' ? 'résolution réduite automatiquement (l\'appareil saccadait)' : 'mode minimal automatique (moins de figurants)'}. Le jeu s'adapte seul si l'appareil peine.</p>
         <label className="row"><input type="checkbox" checked={st.settings.autoPause} onChange={(e) => g.mutate((s) => { s.settings.autoPause = e.target.checked; })} /> Pause automatique lors d'un événement urgent</label>
       </div>
       <div className="card">

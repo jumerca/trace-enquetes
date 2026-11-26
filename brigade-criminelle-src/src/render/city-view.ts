@@ -16,7 +16,7 @@ export interface CityCallbacks { onCase(id: string): void; onPlace(id: string): 
 interface Pt { x: number; y: number }
 interface Car {
   s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; body: string; vk: string; police: boolean;
-  key?: string; parked?: boolean; leaving?: boolean; blocked: number; x: number; y: number; hx: number; hy: number; dir: Dir; texKey?: string;
+  key?: string; parked?: boolean; leaving?: boolean; blocked: number; x: number; y: number; hx: number; hy: number; dir: Dir; texKey?: string; era: number;
 }
 interface Ped { s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; spec: CharSpec; x: number; y: number; fade: number }
 
@@ -28,6 +28,13 @@ const PED_POOL: CharSpec[] = Array.from({ length: 24 }, (_, i) => {
   return { a: { skin: (i * 5) % 6, hair: i % 5 === 4 ? 6 : (i * 3) % 6, hairStyle: sexe === 'F' ? 3 + (i % 4) : i % 3, outfit: (i * 7) % 10, build: i % 3, glasses: i % 4 === 1, beard: sexe === 'M' && i % 6 === 2 }, sexe, look: i % 11 === 5 ? 'costume' : 'civil' } as CharSpec;
 });
 const CAR_COLORS = ['#8a2e2e', '#2f5d50', '#d9c27a', '#ebe7dc', '#3d4a5c', '#8a8a8a', '#355070', '#b56576'];
+/** Teintes de carrosserie à la mode selon la décennie du modèle. */
+function carColors(era: number): string[] {
+  if (era < 1985) return ['#c8a060', '#8a6a3a', '#6a7a3a', '#c86a2a', '#e8e0c8', '#7a2e2e', '#3a5a7a', '#d8c040'];
+  if (era < 1995) return ['#b8332a', '#e8e4da', '#2f4f6f', '#4a4f57', '#8a8a8a', '#6a3a5a', '#2f5d50', '#c8a060'];
+  if (era < 2015) return CAR_COLORS;
+  return ['#e9e9e6', '#2a2a2e', '#8a8f96', '#4a4f57', '#1c3f6a', '#8a2e2e', '#cfd3d6', '#3a5a4a'];
+}
 const ROOF = { tuile: 0xb35a3c, ardoise: 0x56606c, zinc: 0x8c959b, plat: 0x8a877e, bac: 0x9ea4a8 };
 const ASPHALT = 0x4b4e53, CURB = 0xd9d3c4, WALK = 0xc8c0ac;
 
@@ -518,7 +525,7 @@ export class CityView implements View {
     return out;
   }
 
-  private spawnCar(st: GameState, police?: { key: string; from: number; to: number; body: string; vk: string }) {
+  private spawnCar(st: GameState, police?: { key: string; from: number; to: number; body: string; vk: string; era: number }) {
     const roads = st.city.roads;
     const a = police ? police.from : roads[Math.floor(Math.random() * roads.length)];
     const b = police ? police.to : roads[Math.floor(Math.random() * roads.length)];
@@ -526,13 +533,18 @@ export class CityView implements View {
     if (path.length < (police ? 2 : 7)) return;
     const pts = this.lanePath(path);
     const big = Math.random();
-    const body = police?.body ?? CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+    const year = calendar(st.startYear, st.minute).year;
+    // style par tranche d'époque (limite le nombre de textures) ; le parc mêle modèles récents et anciens
+    const raw = police?.era ?? year - Math.floor(Math.random() * Math.random() * 18);
+    const era = raw < 1985 ? 1980 : raw < 1995 ? 1990 : raw < 2005 ? 2000 : raw < 2015 ? 2010 : raw < 2022 ? 2018 : 2024;
+    const pal = carColors(era);
+    const body = police?.body ?? pal[Math.floor(Math.random() * pal.length)];
     const vk = police?.vk ?? (big < 0.05 ? 'bus' : big < 0.12 ? 'camion' : big < 0.2 ? 'fourgon' : 'civil');
     const s = new Sprite();
     s.anchor.set(0.5, 60 / 96);
     s.alpha = 0;
     this.objects.addChild(s);
-    this.cars.push({ s, pts, seg: 0, t: 0, speed: police ? 1.9 : 1.2 + Math.random() * 0.5, body, vk, police: !!police, key: police?.key, blocked: 0, x: pts[0].x, y: pts[0].y, hx: 1, hy: 0, dir: 'px' });
+    this.cars.push({ s, pts, seg: 0, t: 0, speed: police ? 1.9 : 1.2 + Math.random() * 0.5, body, vk, police: !!police, key: police?.key, era, blocked: 0, x: pts[0].x, y: pts[0].y, hx: 1, hy: 0, dir: 'px' });
   }
 
   private walkPath(start: number, goal: number): number[] {
@@ -606,7 +618,7 @@ export class CityView implements View {
       const c = st.cases.find((x) => x.id === v.caseId);
       const pl = c && st.city.places.find((p) => p.id === c.placeId);
       if (!pl) continue;
-      this.spawnCar(st, { key, from: hq.y * st.city.w + hq.x, to: pl.y * st.city.w + pl.x, body: '#' + v.color.toString(16).padStart(6, '0'), vk: v.kind === 'fourgon' ? 'fourgon' : 'banalisee' });
+      this.spawnCar(st, { key, from: hq.y * st.city.w + hq.x, to: pl.y * st.city.w + pl.x, body: '#' + v.color.toString(16).padStart(6, '0'), vk: v.kind === 'fourgon' ? 'fourgon' : 'banalisee', era: v.year });
     }
     for (const c of this.cars) if (c.police && c.key) {
       const v = st.vehicles.find((x) => x.id === c.key!.split('|')[0]);
@@ -689,7 +701,7 @@ export class CityView implements View {
     for (const c of this.cars) {
       if (c.parked) {
         if (c.leaving) { c.s.alpha -= dt * 1.5; }
-        else { const lt = Math.floor(time / 280) % 2 === 0; const tk = `${c.dir}${lt}`; if (tk !== c.texKey) { c.texKey = tk; c.s.texture = vehTexture({ body: c.body, kind: c.vk as 'banalisee', police: true, era: 0, lights: lt }, c.dir); } }
+        else { const lt = Math.floor(time / 280) % 2 === 0; const tk = `${c.dir}${lt}`; if (tk !== c.texKey) { c.texKey = tk; c.s.texture = vehTexture({ body: c.body, kind: c.vk as 'banalisee', police: true, era: c.era, lights: lt }, c.dir); } }
         continue;
       }
       let ahead = false;
@@ -729,7 +741,7 @@ export class CityView implements View {
       c.s.alpha = Math.min(1, c.s.alpha + dt * 3, remaining * 2);
       const lt = c.police ? Math.floor(time / 250) % 2 === 0 : lightsOn;
       const tk = `${c.dir}${lt}`;
-      if (tk !== c.texKey) { c.texKey = tk; c.s.texture = vehTexture({ body: c.body, kind: c.vk as 'civil', police: c.police, era: 0, lights: lt }, c.dir); }
+      if (tk !== c.texKey) { c.texKey = tk; c.s.texture = vehTexture({ body: c.body, kind: c.vk as 'civil', police: c.police, era: c.era, lights: lt }, c.dir); }
       const [sx, sy] = iso(c.x, c.y);
       c.s.position.set(sx, sy);
       c.s.zIndex = (c.x + c.y) * 10 + 0.6;

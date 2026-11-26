@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { calendar, MIN_D } from '../sim/calendar';
 import { spend } from '../sim/finance';
 import { notify } from '../sim/log';
-import { arrive, promote, sendTraining, TRAININGS } from '../sim/sim';
+import { arrive, promote, sendTraining, targetInvestigators, TRAININGS } from '../sim/sim';
 import { level } from '../sim/career';
 import { ageOf, capacity, fullName, load, overall, ROLE_LABELS, salary } from '../sim/staff';
 import { lookOf } from '../render/station-view';
@@ -94,7 +94,7 @@ export function StaffProfile({ id }: { id: string }) {
 export function Recruit() {
   const [g, st] = useGame();
   const [sel, setSel] = useState<string | null>(null);
-  const ceiling = 14 + level(st).ceiling + Math.round(Math.sqrt(st.city.population / 80000) * 4) - 4;
+  const ceiling = Math.max(14 + level(st).ceiling, Math.round(targetInvestigators(st) * 1.9));
   const pending = st.candidates.filter((c) => c.requested).length;
   const cand = st.candidates.find((c) => c.staff.id === sel);
   const year = calendar(st.startYear, st.minute).year;

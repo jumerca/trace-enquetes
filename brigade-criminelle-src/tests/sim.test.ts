@@ -158,7 +158,7 @@ describe('Commissariat', () => {
   it('construction : collisions, porte automatique, mobilier qui ne bloque pas la circulation', () => {
     const st = game(1);
     expect(placeRoom(st, 'cafeteria', 0, 0, 0, 4, 4).ok).toBe(false); // occupé
-    const r = placeRoom(st, 'cafeteria', 0, 17, 8, 5, 6);
+    const r = placeRoom(st, 'cafeteria', 1, 11, 8, 6, 6);
     expect(r.ok).toBe(true);
     expect(r.room!.doors.length).toBe(1);
     expect(roomConnected(st.station, r.room!)).toBe(true);
@@ -194,5 +194,65 @@ describe('Simulation de longue durée', () => {
       step(st, 30 * 1440);
       expect(st.cases.length).toBeGreaterThan(2);
     }
+  });
+});
+
+describe('Commissariat agrandissable (V0.3)', () => {
+  it('agrandir le terrain puis construire cellules, cantine et autres pièces', async () => {
+    const { extend, placeRoom, capacities, canPlaceRoom, roomAvailable, BUILDABLE } = await import('../src/sim/station');
+    const st = game(31);
+    expect(capacities(st).cells).toBeGreaterThan(0); // le commissariat de référence a des cellules
+    expect(canPlaceRoom(st.station, 0, 22, 0, 6, 6)).toMatch(/agrandissez/);
+    extend(st.station, 'est');
+    expect(st.station.w).toBe(28);
+    expect(placeRoom(st, 'cantine', 0, 22, 0, 6, 6).ok).toBe(true);
+    // l'allée du garage reste libre
+    extend(st.station, 'sud');
+    expect(placeRoom(st, 'tir', 0, 2, 14, 6, 4).ok).toBe(false);
+    expect(placeRoom(st, 'tir', 0, 6, 14, 8, 4).ok).toBe(true);
+    for (const r of st.station.rooms) r.built = 0;
+    const cap = capacities(st);
+    expect(cap.cantine).toBe(1);
+    expect(cap.tir).toBe(true);
+    // pièces datées : pas d'unité numérique en 1975
+    expect(roomAvailable('numerique', 1975)).toBe(false);
+    expect(roomAvailable('cellules', 1975)).toBe(true);
+    expect(BUILDABLE.length).toBeGreaterThanOrEqual(30);
+  });
+  it('les cellules raccourcissent les gardes à vue, la cantine aide à récupérer', async () => {
+    const { capacities } = await import('../src/sim/station');
+    const st = game(32);
+    const withCells = capacities(st).cells;
+    st.station.rooms = st.station.rooms.filter((r) => r.type !== 'cellules');
+    expect(capacities(st).cells).toBe(0);
+    expect(withCells).toBeGreaterThan(0);
+  });
+});
+
+describe('Technologies et flotte au fil des époques (V0.3)', () => {
+  it('technologies disponibles selon l\'année, achat et effet', async () => {
+    const { TECHS, buyTech, actionBonus, initialTechs } = await import('../src/sim/tech');
+    expect(initialTechs(1975)).toEqual([]);
+    expect(initialTechs(2025).length).toBeGreaterThan(8);
+    const st = game(33, 1995, 'manuel');
+    expect(st.techs).toContain('telex');
+    expect(st.techs).not.toContain('adn');
+    expect(buyTech(st, 'adn')).toMatch(/Pas encore/);
+    const before = actionBonus(st, 'requisition');
+    st.minute += 14 * 365 * 1440; // 2009
+    buyTech(st, 'geoloc');
+    expect(actionBonus(st, 'requisition')).toBeGreaterThan(before);
+    expect(TECHS.length).toBeGreaterThanOrEqual(12);
+  });
+  it('un véhicule renouvelé prend le modèle de son époque', async () => {
+    const { renewVehicle } = await import('../src/sim/sim');
+    const { eraOf } = await import('../src/sim/calendar');
+    const { Rng } = await import('../src/core/rng');
+    const st = game(34, 1975, 'manuel');
+    st.minute += 30 * 366 * 1440; // 2005
+    const v = st.vehicles[0];
+    renewVehicle(st, new Rng(1), v.id);
+    expect(v.year).toBe(2005);
+    expect(eraOf(2005).vehicles).toContain(v.model);
   });
 });

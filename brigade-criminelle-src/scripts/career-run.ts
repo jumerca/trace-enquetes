@@ -19,7 +19,9 @@ while (!st.hierarchy.retired && k < 45) {
   const closed = st.cases.filter((c) => c.outcome && c.outcome.decision !== 'complement');
   const ok = closed.length ? Math.round(closed.filter((c) => c.outcome!.correct).length / closed.length * 100) : 0;
   const ev = st.hierarchy.evaluations.slice(-1)[0];
-  console.log(`${y} | ${postTitle(st)} | ${st.commander.grade} | ${st.city.name} ${st.city.population} hab | staff ${st.staff.length} | cas ${st.cases.length} ouverts ${st.cases.filter((c) => c.status === 'ouverte').length} conformes ${ok}% | éval ${ev?.note ?? '-'} | rép ${Math.round(st.commander.reputation)} | ${Math.round(JSON.stringify(st).length / 1024)} Ko | ${Math.round((Date.now() - t0) / 1000)} s`);
+  const net = st.network ? ` | antennes ${st.network.antennes.length} stock ${Math.round(st.network.antennes.reduce((t, a) => t + a.backlog, 0))}` : '';
+  const fleet = st.vehicles.map((v) => v.year).join(',');
+  console.log(`${y} | ${postTitle(st)} | ${st.commander.grade} | ${st.city.name} ${st.city.population} hab | staff ${st.staff.length} | cas ${st.cases.length} ouverts ${st.cases.filter((c) => c.status === 'ouverte').length} conformes ${ok}% | éval ${ev?.note ?? '-'} | rép ${Math.round(st.commander.reputation)} | ${Math.round(JSON.stringify(st).length / 1024)} Ko | ${Math.round((Date.now() - t0) / 1000)} s${net} | techs ${st.techs.length} | flotte ${fleet}`);
 }
 console.log('FIN carrière', st.hierarchy.retired ? 'retraite' : 'non terminée', 'échelon', st.hierarchy.rank, level(st).grade);
 for (const c of st.hierarchy.career) console.log('  ', c.year, c.city, c.text);
