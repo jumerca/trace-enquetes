@@ -53,6 +53,14 @@ pas infaillible), à équilibrer.
 
 ## 1 bis. Carrière complète simulée (`npx vite-node scripts/career-run.ts 11`)
 
+**V0.4** — Même carrière (1975 → retraite en 2012), cette fois jusqu'au sommet : Directeur central
+en 2000 à Hautmesnil (700 000 habitants, 33 agents, 5 antennes), avec le pilotage national actif
+12 ans. Un premier passage a révélé deux défauts, corrigés : l'adjoint délégué n'inspectait jamais
+les antennes (stock montant à 202 dossiers) et choisissait parfois la pire option d'un arbitrage.
+Après correction : stock des antennes résorbé (0 en fin d'année), 6 à 16 dossiers en attente au
+siège, 97 à 98 % de décisions conformes, évaluations 13,1 à 18,4/20. Sauvegarde : jusqu'à 11,6 Mo
+au poste national dans une métropole (registre détaillé limité à 3 ans quand le volume est élevé).
+
 **V0.3** — Commandant de 28 ans en 1975 dans une petite ville (20 000 habitants), délégation avancée,
 chaque proposition acceptée : **37 années jusqu'à la retraite en 2012**. Parcours : Commissaire
 principal (1979), Commissaire divisionnaire et réseau de 2 antennes (1983), mutation à Rochebrune
