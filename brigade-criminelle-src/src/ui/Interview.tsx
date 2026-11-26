@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Rng } from '../core/rng';
 import { APPROACHES, demeanor, endInterview, interviewTurn, startInterview, type InterviewSession } from '../sim/interview';
 import type { Case } from '../sim/types';
@@ -18,7 +19,7 @@ export function InterviewModal({ c, pid, custody, onClose }: { c: Case; pid: str
   if (!s) return null;
   const per = st.people[pid];
   const close = () => { g.mutate((x) => endInterview(x, s)); onClose(); };
-  return (
+  return createPortal(
     <div className="modal-bg" role="dialog" aria-label="Entretien">
       <div className="modal">
         <div className="panel-head">
@@ -39,5 +40,5 @@ export function InterviewModal({ c, pid, custody, onClose }: { c: Case; pid: str
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }

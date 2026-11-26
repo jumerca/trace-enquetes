@@ -1,13 +1,13 @@
-# Rapport de tests, fonctionnalités et limites — V0.1.0
+# Rapport de tests, fonctionnalités et limites — V0.2.0
 
 Ce rapport distingue ce qui est **vérifié** (test automatisé ou contrôle manuel documenté) de ce qui
 est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée terminée sans preuve.
 
-## 1. Tests automatisés (`npm test`) — 30 tests, tous réussis
+## 1. Tests automatisés (`npm test`) — 39 tests, tous réussis
 
 | Domaine | Test | Résultat |
 |---|---|---|
-| Solvabilité | 1 000 affaires procédurales générées (14 modèles × 6 époques) : toute personne identifiable, auteur démontrable (charges ≥ 12, éléments matériels ≥ 6, jamais disculpé), absence d'infraction démontrable quand il n'y a pas d'auteur, aucun innocent accusable sans élément disculpant | ✅ |
+| Solvabilité | **2 000** affaires procédurales générées (**40 modèles** × 6 époques, 15 types d'affaires) : toute personne identifiable, auteur démontrable (charges ≥ 12, éléments matériels ≥ 6, jamais disculpé), absence d'infraction démontrable quand il n'y a pas d'auteur, aucun innocent accusable sans élément disculpant | ✅ |
 | Cohérence des témoignages | Toute déclaration mensongère est réfutable par un fait vérifiable ; références internes (personnes, pièces, prérequis) valides ; aucun texte « undefined » | ✅ |
 | Grande affaire | Les 4 dossiers sont cohérents ; 3 sont liés, l'antiquaire est une coïncidence malgré l'élément commun ; personnages partagés | ✅ |
 | Persistance de la vérité | La vérité de chaque dossier ne change pas pendant 20 jours de simulation | ✅ |
@@ -23,6 +23,7 @@ est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée 
 | Commissariat | A* entre étages ; collisions de construction ; porte automatique ; circulation préservée | ✅ |
 | Justice | Aveux seuls → complément d'enquête ; dossier complet → poursuites ; personne disculpée refusée ; classement faute de preuves jugé approprié ; déclaration contredite exclue des charges | ✅ |
 | Entretiens | Les approches donnent accès à la mémoire de la personne ; la nervosité ne crée aucune charge ; aveux seulement en garde à vue | ✅ |
+| Carrière | 6 échelons ; aucune proposition sans dossier suffisant ; proposition sur dossier exemplaire ; avancement sur place (grade, moyens, renforts, volume d'affaires) ; refus ; mutation dans une ville plus grande (même commandant, même date, carrière conservée, nouvelle brigade fonctionnelle, sauvegarde) ; grades sans rétrogradation apparente en 1995 ; retraite à 65 ans ; migration des sauvegardes v1 ; annonce des changements d'époque | ✅ |
 | Longue durée | 3 années en délégation sans intervention : > 100 dossiers clôturés, > 70 % de décisions conformes aux faits, < 5 % de condamnations erronées, fatigue et compétences bornées, budget fini, sauvegarde < 8 Mo | ✅ |
 | Époques | 1975, 1985, 2005, 2015, 2025 (commune à métropole) : démarrage et un mois de simulation | ✅ |
 
@@ -35,7 +36,31 @@ Les classements « charges insuffisantes » jugés inappropriés (~6 %) provienn
 classe après 25 jours un dossier où l'auteur était presque démontré : comportement voulu (l'IA n'est
 pas infaillible), à équilibrer.
 
+## 1 bis. Carrière complète simulée (`npx vite-node scripts/career-run.ts 11`)
+
+Commandant de 28 ans en 1975 dans une petite ville (20 000 habitants), délégation avancée, chaque
+proposition acceptée : **37 années simulées jusqu'à la retraite en 2012**, quatre promotions
+(Commissaire principal 1979, Commissaire divisionnaire 1983, Contrôleur général 1997, Inspecteur
+général 2003), passage par trois époques technologiques. Sur toute la carrière : 0 à 7 dossiers
+en attente en fin d'année, 94 à 99 % de décisions conformes aux faits, évaluations entre 11,4 et
+16,7/20, sauvegarde stable entre 1 et 4,7 Mo (registre d'archives au-delà de 5 ans), 8 à 17 s de
+calcul par année simulée. Une autre simulation a validé deux mutations successives (ville de
+80 000 puis de 250 000 habitants) avec une charge maîtrisée (3 à 12 dossiers en attente).
+
+Cette simulation a révélé et permis de corriger : une boucle de l'IA déléguée (rapport réécrit en
+continu), des demandes de presse jamais purgées et des journaux non plafonnés (sauvegarde passée de
+3 à 108 Mo), un double comptage du volume d'affaires dans les grandes villes (structure submergée,
+évaluation à 0/20), une nouvelle structure sous-dotée après mutation, et un affichage de grade qui
+semblait rétrograder au passage de 1995.
+
 ## 2. Contrôle dans un vrai navigateur (`scripts/e2e.cjs`)
+
+**V0.1.1** : le parcours tourne sur quatre formats (1366 × 800, tablette 1024 × 700, mobile 412 × 860,
+petit mobile 360 × 740) et vérifie en plus, sur chaque écran, l'absence de tout défilement horizontal
+(HUD, panneaux, tableaux, page) et que le menu tient sans défilement : **aucune erreur, aucun
+débordement**. Contrôle de la circulation (script sur la carte) : 100 % des véhicules sur la chaussée,
+quasi tous sur la voie de droite (les autres en virage), 100 % des piétons sur trottoirs ou passages.
+
 
 Parcours automatisé sur le build de production (Chromium, 1366 × 800 et 412 × 860) : écran titre,
 création de carrière, commissariat, simulation d'une journée, liste des affaires, dossier,
@@ -71,7 +96,7 @@ année simulée après allègement des archives. Bundle : 545 ko (174 ko gzip) +
 | Bureaux interactifs | ✅ toucher un personnage ou une pièce ouvre sa fiche |
 | Planning | ✅ |
 | Moteur d'affectation | ✅ manuel, suggestion, délégation |
-| Au moins cinq affaires jouables | ✅ 14 modèles procéduraux + 4 dossiers scénarisés |
+| Au moins cinq affaires jouables | ✅ 40 modèles procéduraux + 4 dossiers scénarisés |
 | Témoins et suspects | ✅ mémoire, sincérité, nervosité, coopération, droits |
 | Tableau d'enquête | ✅ |
 | Laboratoire simplifié, résultats d'examens | ✅ file d'attente, paillasses, prestataire, traçabilité |
@@ -84,7 +109,10 @@ année simulée après allègement des archives. Bundle : 545 ko (174 ko gzip) +
 
 ## 5. Limites connues et écarts avec le cahier des charges complet
 
-- **Modèles d'affaires** : 14 modèles procéduraux (objectif version complète : 40). Les textes des
+- **Modèles d'affaires** : 40 modèles procéduraux (objectif atteint). La plupart (33) reposent sur
+  le même squelette d'enquête (auteur, fausses pistes, alibi réfutable, pièce à analyser, perquisition,
+  aveux) avec des textes et des personnages propres : la variété tient surtout au récit, moins à la
+  structure. Les textes des
   déclarations sont rédigés à la troisième personne (style procès-verbal) ; l'accord en genre de
   quelques phrases génériques reste approximatif.
 - **Graphismes** : personnages, véhicules et mobilier sont dessinés procéduralement (style BD) ;
@@ -94,8 +122,11 @@ année simulée après allègement des archives. Bundle : 545 ko (174 ko gzip) +
 - **Ville** : population agrégée par quartier ; seuls les lieux et personnes des affaires sont
   individualisés. Les piétons et la circulation sont décoratifs (pilotés par l'activité des
   quartiers), pas des habitants simulés un par un avec domicile et travail.
-- **Progression de carrière** (brigade départementale, régionale…) : seulement un indicateur
-  d'avancement après de bonnes évaluations — prévu en V0.5. Pas de changement de ville.
+- **Progression de carrière** : six échelons, mutations entre villes, retraite. Une mutation crée
+  une nouvelle brigade (personnel et dossiers en cours de l'ancienne ville ne suivent pas) ; il n'y a
+  pas de retour possible vers une ville déjà dirigée. Les échelons supérieurs augmentent le volume et
+  la gravité des affaires mais n'apportent pas encore de mécaniques propres (pilotage de plusieurs
+  brigades, arbitrages nationaux).
 - **Partenaires** : parquet, juge des libertés et juge d'instruction simulés ; médecins légistes,
   gendarmerie, services municipaux, hôpital et services sociaux n'interviennent que de façon
   implicite (laboratoire, textes des affaires).

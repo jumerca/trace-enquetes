@@ -57,7 +57,7 @@ const EVENTS: EvDef[] = [
     return { kind: 'restriction', title: 'Restrictions budgétaires', text: `Gel de crédits : l'enveloppe annuelle est réduite de ${Math.round(cut * 100)} %.`, start: st.minute, end: st.minute + 90 * MIN_D, incidentFactor: 1 };
   } },
   { kind: 'reouverture', p: 0.003, make: (st, rng) => {
-    const cands = st.cases.filter((c) => c.status === 'classee' && c.truth.culprit && st.minute - (c.outcome?.at ?? 0) > 60 * MIN_D);
+    const cands = st.cases.filter((c) => c.status === 'classee' && c.truth.culprit && c.clues.some((k) => !k.found) && st.minute - (c.outcome?.at ?? 0) > 60 * MIN_D);
     if (!cands.length) return null;
     const c = rng.pick(cands);
     reopen(st, c, rng.pick(['un témoin se manifeste après un article de presse', 'une technique d\'analyse nouvelle permet de réexaminer les scellés', 'la victime apporte un document retrouvé']));
@@ -129,6 +129,8 @@ export function mediaTick(st: GameState, rng: Rng) {
     st.publicTrust = Math.max(0, st.publicTrust - 0.5);
   }
   st.articles = st.articles.slice(-200);
+  // demandes de déclaration traitées : conservées 30 jours, 60 au plus
+  st.mediaRequests = st.mediaRequests.filter((r) => !r.answered || st.minute - r.until < 30 * MIN_D).slice(-60);
 }
 
 function article(st: GameState, outlet: string, c: Case, title: string, body: string, tone: number, erroneous = false) {

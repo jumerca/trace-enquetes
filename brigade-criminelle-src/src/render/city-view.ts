@@ -1,37 +1,63 @@
-// Carte isométrique vivante de la ville : quartiers, bâtiments, lieux avec horaires,
-// circulation, piétons, véhicules de police en mission et marqueurs d'affaires.
+// Carte isométrique vivante de la ville : sol continu, routes avec trottoirs, marquages et
+// passages piétons, voie ferrée, rivière animée, bâtiments détaillés selon le quartier, éclairage
+// public, circulation sur voies (conduite à droite, distances de sécurité, virages), piétons qui
+// marchent sur les trottoirs et traversent aux passages, véhicules de police en mission.
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
-import { hash2 } from '../core/rng';
+import { hash2, valueNoise } from '../core/rng';
 import { calendar, daylight } from '../sim/calendar';
 import { districtActivity, placeOpen, roadPath, T } from '../sim/city';
 import type { DistrictId, GameState, Place } from '../sim/types';
-import type { CharSpec } from './art';
-import type { View } from './engine';
-import { box, charTexture, iso, mix, poly, shadeN, TH, TW, vehTexture } from './iso';
+import type { CharSpec, Dir } from './art';
+import { economyMode, type View } from './engine';
+import { charTexture, iso, mix, poly, shadeN, TH, TW, vehTexture } from './iso';
 
 export interface CityCallbacks { onCase(id: string): void; onPlace(id: string): void }
 
-interface Mover { s: Sprite; path: number[]; i: number; t: number; speed: number; kind: 'car' | 'ped' | 'police'; caseId?: string; spec?: CharSpec; body?: string; vk?: string; done?: boolean; parked?: boolean }
+interface Pt { x: number; y: number }
+interface Car {
+  s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; body: string; vk: string; police: boolean;
+  key?: string; parked?: boolean; leaving?: boolean; blocked: number; x: number; y: number; hx: number; hy: number; dir: Dir; texKey?: string;
+}
+interface Ped { s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; spec: CharSpec; x: number; y: number; fade: number }
 
-const ROOF = { tuile: 0xb0583a, ardoise: 0x5a6470, zinc: 0x8a9298, plat: 0x7a7a76, bac: 0x9aa0a4 };
+const INK = 0x1d1a17;
+
+/** Garde-robe limitée de passants : les textures sont partagées (mémoire maîtrisée). */
+const PED_POOL: CharSpec[] = Array.from({ length: 24 }, (_, i) => {
+  const sexe = i % 2 ? 'F' : 'M';
+  return { a: { skin: (i * 5) % 6, hair: i % 5 === 4 ? 6 : (i * 3) % 6, hairStyle: sexe === 'F' ? 3 + (i % 4) : i % 3, outfit: (i * 7) % 10, build: i % 3, glasses: i % 4 === 1, beard: sexe === 'M' && i % 6 === 2 }, sexe, look: i % 11 === 5 ? 'costume' : 'civil' } as CharSpec;
+});
+const CAR_COLORS = ['#8a2e2e', '#2f5d50', '#d9c27a', '#ebe7dc', '#3d4a5c', '#8a8a8a', '#355070', '#b56576'];
+const ROOF = { tuile: 0xb35a3c, ardoise: 0x56606c, zinc: 0x8c959b, plat: 0x8a877e, bac: 0x9ea4a8 };
+const ASPHALT = 0x4b4e53, CURB = 0xd9d3c4, WALK = 0xc8c0ac;
 
 export class CityView implements View {
   root = new Container();
   lights = new Container();
   private ground = new Graphics();
+  private water = new Graphics();
+  private extra = new Container();
   private objects = new Container();
   private markers = new Container();
   private labels = new Container();
-  private movers: Mover[] = [];
+  private cars: Car[] = [];
+  private peds: Ped[] = [];
   private sig = '';
-  private roadSet = new Set<number>();
+  private road = new Set<number>();
+  private walk = new Set<number>();
   private placeAt = new Map<number, Place>();
+  private waterTiles: number[] = [];
   private lastSpawn = 0;
+  private lastMarkers = 0;
+  private markerSig = '';
+  private rings: { g: Graphics; x: number; y: number; col: number }[] = [];
+  private view = { x: -1e9, y: -1e9, w: 2e9, h: 2e9 };
+  private statics: { o: Container; x0: number; y0: number; x1: number; y1: number }[] = [];
   speed = 1;
 
   constructor(private get: () => GameState, private cb: CityCallbacks) {
     this.objects.sortableChildren = true;
-    this.root.addChild(this.ground, this.objects, this.markers, this.labels);
+    this.root.addChild(this.ground, this.extra, this.water, this.objects, this.markers, this.labels);
   }
 
   bounds() {
@@ -43,335 +69,728 @@ export class CityView implements View {
   night() { const st = this.get(); return (1 - daylight(st.startYear, st.minute)) * 0.78; }
   outdoor() { return 1; }
 
+  private tileOf(i: number): Pt { const w = this.get().city.w; return { x: i % w, y: Math.floor(i / w) }; }
+
+  // ————————————————————— décor statique —————————————————————
   private rebuild(st: GameState) {
     const city = st.city;
+    const w = city.w;
     const cal = calendar(st.startYear, st.minute);
     const season = cal.season;
-    this.roadSet = new Set(city.roads);
-    this.placeAt = new Map(city.places.map((p) => [p.y * city.w + p.x, p]));
-    this.objects.removeChildren().forEach((c) => c.destroy());
+    this.road = new Set(city.roads);
+    this.placeAt = new Map(city.places.map((p) => [p.y * w + p.x, p]));
+    this.walk = new Set(city.tiles.map((t, i) => ((t === T.trottoir || t === T.place || t === T.pave) && !this.placeAt.has(i) ? i : -1)).filter((i) => i >= 0));
+    this.waterTiles = city.tiles.map((t, i) => (t === T.eau ? i : -1)).filter((i) => i >= 0);
+    for (const c of this.cars) c.s.destroy();
+    for (const p of this.peds) p.s.destroy();
+    this.cars = []; this.peds = [];
+    this.objects.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.statics = [];
+    this.markerSig = '';
     this.lights.removeChildren().forEach((c) => c.destroy());
     this.labels.removeChildren().forEach((c) => c.destroy());
+    this.extra.removeChildren().forEach((c) => c.destroy());
     const g = this.ground;
     g.clear();
     const snow = st.weather.kind === 'neige' || (season === 'hiver' && st.weather.temp < 1);
-    const grass = snow ? 0xe8ecef : season === 'hiver' ? 0x8f9a7a : season === 'automne' ? 0x9a9a58 : season === 'ete' ? 0x8aa250 : 0x7aa456;
-    const field = season === 'ete' ? 0xd8c070 : season === 'automne' ? 0x9a7a4a : season === 'hiver' ? (snow ? 0xe4e6e2 : 0x8a7a5a) : 0x9ab858;
+    const grass = snow ? 0xe9edf0 : season === 'hiver' ? 0x93a080 : season === 'automne' ? 0x9ea05e : season === 'ete' ? 0x8fa755 : 0x80ab5a;
+    const fieldCols = snow ? [0xe6e8e4, 0xdfe2de] : season === 'ete' ? [0xdcc574, 0xc9b25e, 0xa8b860] : season === 'automne' ? [0x9c7b4c, 0x8a6c42, 0xa88f5a] : season === 'hiver' ? [0x8c7d5c, 0x7f7556] : [0x9cbc5c, 0x8aae52, 0xb4c86a];
+    const tq = (x: number, y: number, x1 = x + 1, y1 = y + 1): [number, number][] => [iso(x, y), iso(x1, y), iso(x1, y1), iso(x, y1)];
+    const fill = (pts: [number, number][], col: number, a = 1) => g.poly(pts.flat()).fill({ color: col, alpha: a });
+    // 1) sol de base, sans variation case par case (aucun effet « damier »)
     for (let y = 0; y < city.h; y++)
-      for (let x = 0; x < city.w; x++) {
-        const t = city.tiles[y * city.w + x];
-        const n = hash2(x, y, 7);
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x, t = city.tiles[i];
         let col = grass;
-        if (t === T.route) col = 0x55585d;
-        else if (t === T.trottoir) col = snow ? 0xd8dcde : 0xb7b0a0;
-        else if (t === T.place) col = 0xc9bc9a;
-        else if (t === T.pave) col = 0xa89a80;
-        else if (t === T.eau) col = mix(0x3f6f8f, 0x5a8aaa, n);
-        else if (t === T.foret) col = snow ? 0xdfe4e2 : shadeN(0x5a7a40, 0.92 + n * 0.1);
-        else if (t === T.champ) col = shadeN(field, 0.94 + n * 0.1);
-        else if (t === T.rail) col = 0x7a6a5a;
-        else col = shadeN(grass, 0.95 + n * 0.08);
-        poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], col, 1, false);
-        if (t === T.rail) { const [a, b] = iso(x, y + 0.35), [c, d] = iso(x + 1, y + 0.35); g.moveTo(a, b).lineTo(c, d).stroke({ width: 1.2, color: 0x3a3a3a }); const [e, f] = iso(x, y + 0.65), [h, i] = iso(x + 1, y + 0.65); g.moveTo(e, f).lineTo(h, i).stroke({ width: 1.2, color: 0x3a3a3a }); }
-        if (t === T.route) {
-          const horiz = this.roadSet.has(y * city.w + x - 1) || this.roadSet.has(y * city.w + x + 1);
-          const vert = this.roadSet.has((y - 1) * city.w + x) || this.roadSet.has((y + 1) * city.w + x);
-          if (horiz && !vert && x % 2 === 0) { const [a, b] = iso(x + 0.2, y + 0.5), [c, d] = iso(x + 0.7, y + 0.5); g.moveTo(a, b).lineTo(c, d).stroke({ width: 1.5, color: 0xe8e2c8, alpha: 0.7 }); }
-          if (vert && !horiz && y % 2 === 0) { const [a, b] = iso(x + 0.5, y + 0.2), [c, d] = iso(x + 0.5, y + 0.7); g.moveTo(a, b).lineTo(c, d).stroke({ width: 1.5, color: 0xe8e2c8, alpha: 0.7 }); }
-          if (city.tiles[y * city.w + x - 1] === T.eau || city.tiles[y * city.w + x + 1] === T.eau) box(g, x, y, 1, 1, 3, 0x8a8478);
+        if (t === T.route) col = ASPHALT;
+        else if (t === T.trottoir) col = snow ? 0xdfe2e3 : WALK;
+        else if (t === T.place || t === T.pave) col = snow ? 0xe2e2dc : 0xcbbd99;
+        else if (t === T.eau) col = 0x3f6f8f;
+        else if (t === T.foret) col = snow ? 0xdde5e2 : mix(grass, 0x3d5e30, 0.55);
+        if (t === T.herbe || t === T.foret) {
+          // variations douces et continues (bruit lissé à grande échelle), fondues dans la couleur
+          const nz = valueNoise(x, y, 6, 3);
+          if (nz > 0.55) col = mix(col, snow ? 0xffffff : 0x5e7f3c, (nz - 0.55) * 0.5);
+          else if (nz < 0.35) col = mix(col, snow ? 0xc8d2d8 : 0xb8b060, (0.35 - nz) * 0.45);
+        }
+        else if (t === T.champ) {
+          const k = Math.floor(hash2(Math.floor(x / 3), Math.floor(y / 3), 9) * fieldCols.length);
+          col = fieldCols[k];
+        } else if (t === T.rail) col = 0x8a8072;
+        fill(tq(x, y), col);
+      }
+    // 3) détails : touffes d'herbe, sillons, fleurs
+    const det = new Graphics();
+    for (let y = 0; y < city.h; y++)
+      for (let x = 0; x < w; x++) {
+        const t = city.tiles[y * w + x];
+        if (t === T.herbe && !snow) {
+          for (let k = 0; k < 2; k++) {
+            const u = hash2(x * 7 + k, y * 3, 21), v = hash2(x * 5, y * 11 + k, 22);
+            const [a, b] = iso(x + u, y + v);
+            det.moveTo(a - 2, b).lineTo(a - 1, b - 3).moveTo(a, b).lineTo(a, b - 4).moveTo(a + 2, b).lineTo(a + 1, b - 3);
+            if (season === 'printemps' && hash2(x, y, k) > 0.8) det.circle(a + 3, b - 2, 1.2);
+          }
+        }
+        if (t === T.champ) {
+          for (let k = 1; k < 5; k++) {
+            const [a, b] = iso(x + k / 5, y + 0.04), [c, d] = iso(x + k / 5, y + 0.96);
+            det.moveTo(a, b).lineTo(c, d);
+          }
         }
       }
-    // bâtiments : lieux nommés + bâti diffus selon le quartier
+    det.stroke({ width: 1, color: snow ? 0xc8ced2 : 0x4f6a32, alpha: 0.45 });
+    if (season === 'printemps') {
+      for (let y = 0; y < city.h; y++) for (let x = 0; x < w; x++) if (city.tiles[y * w + x] === T.herbe && hash2(x, y, 1) > 0.8) { const [a, b] = iso(x + 0.7, y + 0.3); det.circle(a, b, 1.5).fill(hash2(x, y, 2) > 0.5 ? 0xf0e070 : 0xf0b0c8); }
+    }
+    this.extra.addChild(det);
+    // 4) berges, eau, ponts
+    for (const i of this.waterTiles) {
+      const { x, y } = this.tileOf(i);
+      for (const [nx, ny, edge] of [[x - 1, y, 'w'], [x + 1, y, 'e'], [x, y - 1, 'n'], [x, y + 1, 's']] as const) {
+        const t = city.tiles[ny * w + nx];
+        if (t === undefined || t === T.eau || t === T.route) continue;
+        const e = 0.14;
+        const pts = edge === 'w' ? tq(x, y, x + e, y + 1) : edge === 'e' ? tq(x + 1 - e, y, x + 1, y + 1) : edge === 'n' ? tq(x, y, x + 1, y + e) : tq(x, y + 1 - e, x + 1, y + 1);
+        fill(pts, snow ? 0xd8dcd8 : 0xb9a77a);
+      }
+    }
+    // 5) routes : bordures, trottoirs, marquages, passages piétons, ponts
+    const isR = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < city.h && this.road.has(y * w + x);
+    const lines = new Graphics();
+    const zebra = new Graphics();
+    for (const r of city.roads) {
+      const { x, y } = this.tileOf(r);
+      const L = isR(x - 1, y), R = isR(x + 1, y), U = isR(x, y - 1), D = isR(x, y + 1);
+      const horiz = (L || R) && !U && !D, vert = (U || D) && !L && !R;
+      const cross = (L || R) && (U || D);
+      const c = 0.07;
+      // bordures de trottoir sur les côtés sans route
+      if (!U) fill(tq(x, y, x + 1, y + c), CURB);
+      if (!D) fill(tq(x, y + 1 - c, x + 1, y + 1), CURB);
+      if (!L) fill(tq(x, y, x + c, y + 1), CURB);
+      if (!R) fill(tq(x + 1 - c, y, x + 1, y + 1), CURB);
+      const over = city.tiles[r] === T.route && (city.tiles[r - 1] === T.eau || city.tiles[r + 1] === T.eau);
+      if (over) {
+        // tablier de pont et garde-corps
+        const rail = new Graphics();
+        for (const yy of [y + 0.04, y + 0.96]) { const [a, b] = iso(x, yy, 6), [cc, d] = iso(x + 1, yy, 6); rail.moveTo(a, b).lineTo(cc, d); for (let k = 0; k <= 4; k++) { const [p, q] = iso(x + k / 4, yy, 0), [p2, q2] = iso(x + k / 4, yy, 6); rail.moveTo(p, q).lineTo(p2, q2); } }
+        rail.stroke({ width: 1.4, color: 0x6a645a });
+        rail.zIndex = (x + y + 1) * 10;
+        this.objects.addChild(rail);
+      }
+      if (horiz) {
+        for (const k of [0.15, 0.6]) { const [a, b] = iso(x + k, y + 0.5), [cc, d] = iso(x + k + 0.25, y + 0.5); lines.moveTo(a, b).lineTo(cc, d); }
+        // passage piéton à l'approche d'un carrefour
+        const nearX = (isR(x + 1, y) && (isR(x + 1, y - 1) || isR(x + 1, y + 1))) ? x + 0.82 : (isR(x - 1, y) && (isR(x - 1, y - 1) || isR(x - 1, y + 1))) ? x + 0.05 : -1;
+        if (nearX >= 0) for (let k = 0; k < 5; k++) fill([iso(nearX, y + 0.12 + k * 0.16), iso(nearX + 0.13, y + 0.12 + k * 0.16), iso(nearX + 0.13, y + 0.2 + k * 0.16), iso(nearX, y + 0.2 + k * 0.16)].map(([a, b]) => [a, b]) as [number, number][], 0xeeeae0);
+      } else if (vert) {
+        for (const k of [0.15, 0.6]) { const [a, b] = iso(x + 0.5, y + k), [cc, d] = iso(x + 0.5, y + k + 0.25); lines.moveTo(a, b).lineTo(cc, d); }
+        const nearY = (isR(x, y + 1) && (isR(x - 1, y + 1) || isR(x + 1, y + 1))) ? y + 0.82 : (isR(x, y - 1) && (isR(x - 1, y - 1) || isR(x + 1, y - 1))) ? y + 0.05 : -1;
+        if (nearY >= 0) for (let k = 0; k < 5; k++) fill([iso(x + 0.12 + k * 0.16, nearY), iso(x + 0.2 + k * 0.16, nearY), iso(x + 0.2 + k * 0.16, nearY + 0.13), iso(x + 0.12 + k * 0.16, nearY + 0.13)], 0xeeeae0);
+      } else if (cross) {
+        // carrefour : légère usure centrale
+        const [a, b] = iso(x + 0.5, y + 0.5);
+        g.ellipse(a, b, 14, 7).fill({ color: 0x3f4247, alpha: 0.22 });
+      }
+    }
+    lines.stroke({ width: 1.6, color: 0xf2eedc, alpha: 0.85 });
+    void zebra;
+    this.extra.addChild(lines);
+    // 6) voie ferrée : ballast, traverses, rails
+    const rails = new Graphics();
+    for (let i = 0; i < city.tiles.length; i++) {
+      if (city.tiles[i] !== T.rail) continue;
+      const { x, y } = this.tileOf(i);
+      for (let k = 0; k < 4; k++) { const [a, b] = iso(x + k / 4 + 0.06, y + 0.28), [c, d] = iso(x + k / 4 + 0.06, y + 0.72); rails.moveTo(a, b).lineTo(c, d); }
+      rails.stroke({ width: 2.2, color: 0x5a4632 });
+      for (const v of [0.38, 0.62]) { const [a, b] = iso(x, y + v), [c, d] = iso(x + 1, y + v); rails.moveTo(a, b).lineTo(c, d); }
+      rails.stroke({ width: 1.5, color: 0x9aa0a6 });
+    }
+    this.extra.addChild(rails);
+    // 7) bâtiments : lieux nommés et bâti des quartiers
     const year = cal.year;
-    for (const p of city.places) this.building(p.x, p.y, p.kind, p.floors, p.district, year, season, snow, p);
+    for (const p of city.places) this.building(p.x, p.y, p.kind, p.floors, p.district, season, snow, p);
     for (const d of city.districts) {
       for (let y = d.y; y < d.y + d.h; y++)
         for (let x = d.x; x < d.x + d.w; x++) {
-          if (x < 0 || y < 0 || x >= city.w || y >= city.h) continue;
-          const i = y * city.w + x;
+          if (x < 0 || y < 0 || x >= w || y >= city.h) continue;
+          const i = y * w + x;
           const t = city.tiles[i];
           if (this.placeAt.has(i)) continue;
           const n = hash2(x, y, 31);
-          if (t === T.foret) { if (n < 0.75) this.tree(x + 0.3 + n * 0.4, y + 0.3 + hash2(x, y, 5) * 0.4, season, snow, true); continue; }
+          if (t === T.foret) {
+            const m = 1 + Math.floor(hash2(x, y, 41) * 3);
+            for (let k = 0; k < m; k++) this.tree(x + 0.2 + hash2(x + k, y, 5) * 0.6, y + 0.2 + hash2(x, y + k, 6) * 0.6, season, snow, true);
+            continue;
+          }
           if (t !== T.herbe && t !== T.trottoir) continue;
-          const dens = { centre: 0.85, vieille: 0.9, commercial: 0.6, residentiel: 0.7, pavillons: 0.55, gare: 0.6, industrie: 0.55, campus: 0.45, hopital: 0.4, tourisme: 0.2, rural: 0.06, foret: 0, villages: 0.12, axes: 0.05 }[d.id];
-          if (n < dens && t === T.herbe) this.building(x, y, null, 0, d.id, year, season, snow);
-          else if (n > 0.85 && t === T.herbe) this.tree(x + 0.5, y + 0.5, season, snow, false);
+          if (t === T.trottoir && !['centre', 'vieille', 'residentiel', 'commercial', 'gare', 'campus', 'pavillons', 'hopital', 'industrie'].includes(d.id)) continue;
+          const dens = { centre: 0.92, vieille: 0.95, commercial: 0.65, residentiel: 0.75, pavillons: 0.62, gare: 0.65, industrie: 0.6, campus: 0.5, hopital: 0.45, tourisme: 0.22, rural: 0.06, foret: 0, villages: 0.16, axes: 0.05 }[d.id];
+          if (n < dens) this.building(x, y, null, 0, d.id, season, snow);
+          else if (t === T.herbe && n > 0.8) this.tree(x + 0.5, y + 0.5, season, snow, false);
+          else if (t === T.herbe && (d.id === 'pavillons' || d.id === 'villages')) this.hedge(x, y, season, snow);
         }
     }
-    // réverbères le long des avenues
-    for (const r of city.roads) {
-      const x = r % city.w, y = Math.floor(r / city.w);
-      if ((x + y) % 5 !== 0 || x < 8 || x > 41 || y < 12 || y > 38) continue;
+    void year;
+    // 8) éclairage public sur les trottoirs
+    for (const i of this.walk) {
+      const { x, y } = this.tileOf(i);
+      if ((x * 3 + y * 5) % 7 !== 0) continue;
+      if (!(isR(x - 1, y) || isR(x + 1, y) || isR(x, y - 1) || isR(x, y + 1))) continue;
+      const lamp = new Graphics();
       const [a, b] = iso(x + 0.5, y + 0.5);
+      lamp.ellipse(a, b, 4, 2).fill({ color: 0, alpha: 0.25 });
+      lamp.rect(a - 1, b - 34, 2, 34).fill(0x2f3236);
+      lamp.moveTo(a, b - 34).lineTo(a + 6, b - 37).stroke({ width: 1.5, color: 0x2f3236 });
+      lamp.ellipse(a + 7, b - 36.5, 3, 1.6).fill(0xf6e8b0).stroke({ width: 0.6, color: INK });
+      lamp.zIndex = (x + y + 1) * 10 + 2;
+      this.objects.addChild(lamp);
       const l = new Graphics();
-      l.ellipse(a, b, 34, 16).fill({ color: 0x8a7038, alpha: 0.6 });
+      for (let k = 4; k >= 1; k--) l.ellipse(a + 4, b + 2, 10 * k, 5 * k).fill({ color: 0x8a6a30, alpha: 0.11 });
+      l.circle(a + 7, b - 36, 5).fill({ color: 0xffe6a8, alpha: 0.9 });
       this.lights.addChild(l);
     }
-    // noms des quartiers
+    // 9) noms des quartiers (cartouches)
     for (const d of city.districts) {
       if (d.id === 'axes') continue;
       const [cx, cy] = iso(d.x + d.w / 2, d.y + d.h / 2);
-      const t = new Text({ text: d.name, style: { fontSize: 18, fill: 0xfaf4e6, fontWeight: '700', stroke: { color: 0x1d1a17, width: 4 }, fontFamily: 'Georgia, serif' } });
+      const c = new Container();
+      const t = new Text({ text: d.name.toUpperCase(), style: { fontSize: 13, fill: 0xfaf4e6, fontWeight: '700', letterSpacing: 1.5, fontFamily: 'Georgia, serif' }, resolution: 3 });
       t.anchor.set(0.5);
-      t.position.set(cx, cy - 40);
-      t.alpha = 0.8;
-      this.labels.addChild(t);
+      const bg = new Graphics();
+      bg.roundRect(-t.width / 2 - 8, -11, t.width + 16, 22, 11).fill({ color: 0x161d2b, alpha: 0.72 }).stroke({ width: 1, color: 0xd89a3a, alpha: 0.8 });
+      c.addChild(bg, t);
+      c.position.set(cx, cy - 60);
+      this.labels.addChild(c);
     }
   }
 
-  private building(x: number, y: number, kind: Place['kind'] | null, floors: number, d: DistrictId, _year: number, season: string, snow: boolean, place?: Place) {
+  /** Retraits de l'emprise bâtie : 0,3 case du côté des rues (le trottoir). */
+  private insets(x: number, y: number) {
+    const w = this.get().city.w;
+    const r = (xx: number, yy: number) => this.road.has(yy * w + xx);
+    const S = 0.3;
+    return { l: r(x - 1, y) ? S : 0, r: r(x + 1, y) ? S : 0, u: r(x, y - 1) ? S : 0, d: r(x, y + 1) ? S : 0 };
+  }
+
+  /** Point de marche sur une case de trottoir : le long de la chaussée voisine. */
+  private walkPoint(i: number, lat: number): Pt {
+    const w = this.get().city.w;
+    const x = i % w, y = Math.floor(i / w);
+    let ox = 0, oy = 0;
+    if (this.road.has(i - 1)) ox -= 1;
+    if (this.road.has(i + 1)) ox += 1;
+    if (this.road.has(i - w)) oy -= 1;
+    if (this.road.has(i + w)) oy += 1;
+    const k = 0.34 + lat;
+    return { x: x + 0.5 + ox * k, y: y + 0.5 + oy * k };
+  }
+
+  private hedge(x: number, y: number, season: string, snow: boolean) {
+    const g = new Graphics();
+    const col = snow ? 0xe6ece9 : season === 'automne' ? 0x8a7a3a : 0x4e7a38;
+    const [a, b] = iso(x + 0.1, y + 0.9, 0), [c, d] = iso(x + 0.9, y + 0.9, 0);
+    g.moveTo(a, b).lineTo(c, d).stroke({ width: 4, color: col });
+    g.zIndex = (x + y + 1.8) * 10;
+    this.objects.addChild(g);
+  }
+
+  private building(x: number, y: number, kind: Place['kind'] | null, floors: number, d: DistrictId, season: string, snow: boolean, place?: Place) {
+    const ins = this.insets(x, y);
     const g = new Graphics();
     const n = hash2(x, y, 11);
-    let h = 30, roof: number = ROOF.tuile, wall = 0xd8c8a8, w = 0.86, dd = 0.86, gable = true;
+    let h = 30, roof: number = ROOF.tuile, wall = 0xd8c8a8, w = 0.86, dd = 0.86, style: 'gable' | 'hip' | 'flat' | 'shed' = 'gable';
+    let shop = false;
     switch (d) {
-      case 'vieille': h = 34 + Math.floor(n * 3) * 12; roof = ROOF.ardoise; wall = mix(0xd9c9a3, 0xc0a880, n); w = dd = 0.92; break;
-      case 'centre': h = 42 + Math.floor(n * 3) * 14; roof = n > 0.5 ? ROOF.zinc : ROOF.ardoise; wall = mix(0xe6dcc6, 0xcdbf9f, n); w = dd = 0.92; break;
-      case 'residentiel': h = 50 + Math.floor(n * 4) * 16; roof = ROOF.plat; wall = mix(0xe2ddd2, 0xc9c2b2, n); gable = false; break;
-      case 'commercial': h = 22; roof = ROOF.bac; wall = [0xd84a3a, 0x3a7ab8, 0xe0b040, 0x8a9aa8][Math.floor(n * 4)]; gable = false; break;
-      case 'industrie': h = 26; roof = ROOF.bac; wall = mix(0x9aa0a4, 0x7a8288, n); gable = n > 0.5; break;
-      case 'campus': h = 36 + Math.floor(n * 2) * 12; roof = ROOF.ardoise; wall = mix(0xb86a4a, 0xa85a3a, n); break;
-      case 'hopital': h = 50; roof = ROOF.plat; wall = 0xeef0ee; gable = false; break;
-      case 'gare': h = 30; roof = ROOF.zinc; wall = 0xd8cbb0; break;
-      default: h = 20 + Math.floor(n * 2) * 8; roof = n > 0.6 ? ROOF.ardoise : ROOF.tuile; wall = mix(0xeee2c8, 0xd8c8a0, n); w = dd = 0.7;
+      case 'vieille': h = 30 + Math.floor(n * 3) * 11; roof = ROOF.ardoise; wall = mix(0xe0cfa8, 0xc9ae82, n); w = dd = 0.94; style = n > 0.5 ? 'hip' : 'gable'; shop = n > 0.6; break;
+      case 'centre': h = 40 + Math.floor(n * 3) * 13; roof = n > 0.5 ? ROOF.zinc : ROOF.ardoise; wall = mix(0xeae0c9, 0xd2c3a2, n); w = dd = 0.94; style = 'hip'; shop = n > 0.35; break;
+      case 'residentiel': h = 48 + Math.floor(n * 4) * 14; roof = ROOF.plat; wall = mix(0xe6e1d6, 0xcfc8b8, n); style = 'flat'; break;
+      case 'commercial': h = 20; roof = ROOF.bac; wall = [0xe4dccb, 0xd5cfc4, 0xe8e0cf][Math.floor(n * 3)]; style = 'flat'; shop = true; w = 0.9; dd = 0.9; break;
+      case 'industrie': h = 24 + Math.floor(n * 2) * 6; roof = ROOF.bac; wall = mix(0xa4aaae, 0x868d92, n); style = n > 0.5 ? 'shed' : 'flat'; w = dd = 0.92; break;
+      case 'campus': h = 34 + Math.floor(n * 2) * 11; roof = ROOF.ardoise; wall = mix(0xbf6f4d, 0xa95a3c, n); style = 'gable'; break;
+      case 'hopital': h = 48; roof = ROOF.plat; wall = 0xeef0ee; style = 'flat'; break;
+      case 'gare': h = 28; roof = ROOF.zinc; wall = 0xdacdb2; style = 'gable'; shop = n > 0.5; break;
+      default: h = 18 + Math.floor(n * 2) * 8; roof = n > 0.55 ? ROOF.ardoise : ROOF.tuile; wall = mix(0xf0e4ca, 0xdccba4, n); w = dd = 0.66; style = 'gable';
     }
     if (kind) {
-      h = Math.max(h, 18 + floors * 14);
-      if (kind === 'commissariat') { wall = 0xe0d6c0; roof = ROOF.ardoise; h = 48; }
-      if (kind === 'mairie' || kind === 'tribunal') { wall = 0xeae0c8; roof = ROOF.ardoise; h = 56; }
-      if (kind === 'eglise') { wall = 0xc8b898; roof = ROOF.ardoise; h = 60; }
-      if (kind === 'hopital') { wall = 0xf2f4f2; h = 70; gable = false; roof = ROOF.plat; }
-      if (kind === 'usine' || kind === 'entrepot') { wall = 0x9aa4ac; roof = ROOF.bac; h = 30; }
-      if (kind === 'ferme') { wall = 0xd8c8a0; roof = ROOF.tuile; h = 22; }
-      if (kind === 'parc') { this.tree(x + 0.5, y + 0.5, season, snow, false); this.tree(x + 0.2, y + 0.8, season, snow, true); return; }
-      if (kind === 'camping') { g.poly([...iso(x + 0.2, y + 0.6), ...iso(x + 0.5, y + 0.3, 14), ...iso(x + 0.8, y + 0.6)]).fill(0xd88a3a).stroke({ width: 1, color: 0x1d1a17 }); g.zIndex = (x + y + 1) * 10; this.objects.addChild(g); return; }
+      h = Math.max(h, 18 + floors * 13);
       w = dd = 0.94;
+      if (kind === 'commissariat') { wall = 0xe6dcc6; roof = ROOF.ardoise; h = 46; style = 'hip'; }
+      if (kind === 'mairie' || kind === 'tribunal') { wall = 0xefe5cc; roof = ROOF.ardoise; h = 54; style = 'hip'; }
+      if (kind === 'eglise') { wall = 0xcfbf9c; roof = ROOF.ardoise; h = 44; style = 'gable'; }
+      if (kind === 'hopital') { wall = 0xf2f4f2; h = 66; style = 'flat'; roof = ROOF.plat; }
+      if (kind === 'usine' || kind === 'entrepot') { wall = 0xa0aab0; roof = ROOF.bac; h = 30; style = 'shed'; }
+      if (kind === 'ferme') { wall = 0xdccca4; roof = ROOF.tuile; h = 22; style = 'gable'; }
+      if (kind === 'commerce' || kind === 'bar' || kind === 'restaurant' || kind === 'bijouterie' || kind === 'antiquaire' || kind === 'banque' || kind === 'supermarche') shop = true;
+      if (kind === 'parc') { this.tree(x + 0.3, y + 0.35, season, snow, false); this.tree(x + 0.7, y + 0.7, season, snow, false); this.bench(x + 0.5, y + 0.2); return; }
+      if (kind === 'camping') {
+        for (let k = 0; k < 3; k++) { const [a, b] = iso(x + 0.2 + k * 0.28, y + 0.3 + (k % 2) * 0.35); g.poly([a - 7, b, a, b - 9, a + 7, b, a + 2, b + 3]).fill([0xd8823a, 0x3a7ab8, 0x5a9a4a][k]).stroke({ width: 0.8, color: INK }); }
+        g.zIndex = (x + y + 1) * 10; this.objects.addChild(g); return;
+      }
     }
-    const x0 = x + (1 - w) / 2, y0 = y + (1 - dd) / 2;
-    box(g, x0, y0, w, dd, h, wall, 0, { top: shadeN(roof, 1.05) });
-    // fenêtres
-    const lvl = Math.max(1, Math.floor(h / 14));
-    const lit: [number, number, boolean][] = [];
-    for (let k = 0; k < lvl; k++) for (let j = 0; j < 2; j++) {
-      const z = 8 + k * 14;
-      if (z + 8 > h) continue;
-      const u = x0 + 0.2 + j * 0.4 * w;
-      poly(g, [iso(u, y0 + dd, z), iso(u + 0.18, y0 + dd, z), iso(u + 0.18, y0 + dd, z + 7), iso(u, y0 + dd, z + 7)], 0x3a4a5a, 1, false);
-      const v = y0 + 0.2 + j * 0.4 * dd;
-      poly(g, [iso(x0 + w, v, z), iso(x0 + w, v + 0.18, z), iso(x0 + w, v + 0.18, z + 7), iso(x0 + w, v, z + 7)], 0x34424f, 1, false);
-      lit.push([u + 0.09, z + 3.5, hash2(x * 3 + k, y * 5 + j, 3) < (kind === 'hopital' ? 0.8 : 0.45)]);
+    // emprise : retrait côté rue pour laisser le trottoir libre
+    let x0 = x + (1 - w) / 2, y0 = y + (1 - dd) / 2, x1 = x0 + w, y1 = y0 + dd;
+    x0 = Math.max(x0, x + ins.l); x1 = Math.min(x1, x + 1 - ins.r); y0 = Math.max(y0, y + ins.u); y1 = Math.min(y1, y + 1 - ins.d);
+    w = x1 - x0; dd = y1 - y0;
+    // ombre portée au sol (soleil à l'ouest-sud-ouest)
+    g.poly([...iso(x1, y0), ...iso(x1 + h / 90, y0 + h / 160), ...iso(x1 + h / 90, y1 + h / 160), ...iso(x0 + h / 160, y1 + h / 160), ...iso(x0, y1)]).fill({ color: 0x000000, alpha: 0.18 });
+    const right = shadeN(wall, 0.8), left = shadeN(wall, 0.94);
+    // façades
+    poly(g, [iso(x1, y0), iso(x1, y1), iso(x1, y1, h), iso(x1, y0, h)], right, 1, true, 0.8);
+    poly(g, [iso(x0, y1), iso(x1, y1), iso(x1, y1, h), iso(x0, y1, h)], left, 1, true, 0.8);
+    // soubassement et corniche
+    poly(g, [iso(x0, y1), iso(x1, y1), iso(x1, y1, 4), iso(x0, y1, 4)], shadeN(wall, 0.7), 1, false);
+    poly(g, [iso(x1, y0), iso(x1, y1), iso(x1, y1, 4), iso(x1, y0, 4)], shadeN(wall, 0.6), 1, false);
+    // fenêtres sur les deux façades visibles
+    const levels = Math.max(1, Math.floor((h - 6) / 13));
+    const cols = Math.max(2, Math.round(w * 4));
+    const lit: [number, number][] = [];
+    const glassDay = 0x7f98ad, frame = 0xf3eee2;
+    for (let k = 0; k < levels; k++) {
+      const z = 7 + k * 13;
+      if (z + 8 > h) break;
+      const ground = k === 0 && shop;
+      for (let j = 0; j < cols; j++) {
+        const u0 = x0 + (j + 0.22) * (w / cols), u1 = x0 + (j + 0.78) * (w / cols);
+        if (ground) {
+          poly(g, [iso(u0 - 0.04, y1, 2), iso(u1 + 0.04, y1, 2), iso(u1 + 0.04, y1, 10), iso(u0 - 0.04, y1, 10)], 0x9cc0d0, 1, true, 0.6);
+        } else {
+          poly(g, [iso(u0, y1, z), iso(u1, y1, z), iso(u1, y1, z + 7), iso(u0, y1, z + 7)], glassDay, 1, false);
+          g.poly([...iso(u0, y1, z), ...iso(u1, y1, z), ...iso(u1, y1, z + 7), ...iso(u0, y1, z + 7)]).stroke({ width: 0.8, color: frame });
+          if (d === 'vieille' || d === 'centre') poly(g, [iso(u0 - 0.03, y1, z - 1), iso(u1 + 0.03, y1, z - 1), iso(u1 + 0.03, y1, z), iso(u0 - 0.03, y1, z)], 0x6b4c3b, 1, false);
+        }
+        if (hash2(x * 13 + j, y * 7 + k, 3) < (kind === 'hopital' ? 0.85 : 0.45)) lit.push([(u0 + u1) / 2, z]);
+        const v0 = y0 + (j + 0.22) * (dd / cols), v1 = y0 + (j + 0.78) * (dd / cols);
+        if (!ground) {
+          poly(g, [iso(x1, v0, z), iso(x1, v1, z), iso(x1, v1, z + 7), iso(x1, v0, z + 7)], shadeN(glassDay, 0.85), 1, false);
+          g.poly([...iso(x1, v0, z), ...iso(x1, v1, z), ...iso(x1, v1, z + 7), ...iso(x1, v0, z + 7)]).stroke({ width: 0.8, color: shadeN(frame, 0.85) });
+        }
+      }
     }
-    if (gable) {
-      // toit à deux pans
-      const top = h + 12 + (d === 'vieille' ? 6 : 0);
-      poly(g, [iso(x0, y0 + dd, h), iso(x0 + w, y0 + dd, h), iso(x0 + w, y0 + dd / 2, top), iso(x0, y0 + dd / 2, top)], snow ? 0xf0f2f2 : roof);
-      poly(g, [iso(x0 + w, y0, h), iso(x0 + w, y0 + dd, h), iso(x0 + w, y0 + dd / 2, top)], shadeN(wall, 0.75));
+    // vitrine : auvent coloré et enseigne
+    if (shop) {
+      const aw = [0xc83a2a, 0x2f6d4a, 0x1f3a6e, 0xd89a3a, 0x7a2e5a][Math.floor(n * 5)];
+      poly(g, [iso(x0, y1, 13), iso(x1, y1, 13), iso(x1, y1 + 0.16, 9), iso(x0, y1 + 0.16, 9)], aw, 1, true, 0.6);
+      for (let k = 0; k < 6; k++) { const u = x0 + (k + 0.5) * (w / 6); g.poly([...iso(u - 0.04, y1 + 0.16, 9), ...iso(u + 0.04, y1 + 0.16, 9), ...iso(u + 0.04, y1 + 0.12, 10.5)]).fill({ color: 0xffffff, alpha: 0.5 }); }
+    } else if (kind !== null || d === 'pavillons' || d === 'villages' || d === 'rural') {
+      // porte d'entrée
+      const um = x0 + w * 0.5;
+      poly(g, [iso(um - 0.07, y1, 0), iso(um + 0.07, y1, 0), iso(um + 0.07, y1, 10), iso(um - 0.07, y1, 10)], 0x6b4c3b, 1, true, 0.6);
     }
-    if (kind === 'eglise') { box(g, x0 + w * 0.3, y0 + dd * 0.3, w * 0.4, dd * 0.4, 40, wall, h); const [a, b] = iso(x0 + w / 2, y0 + dd / 2, h + 40); g.poly([a - 8, b, a + 8, b, a, b - 22]).fill(ROOF.ardoise).stroke({ width: 1, color: 0x1d1a17 }); }
+    // toiture
+    const R = snow ? 0xf2f4f5 : roof;
+    if (style === 'flat') {
+      poly(g, [iso(x0, y0, h), iso(x1, y0, h), iso(x1, y1, h), iso(x0, y1, h)], shadeN(R, 1.08), 1, true, 0.8);
+      // acrotère et édicules techniques
+      poly(g, [iso(x0, y1, h), iso(x1, y1, h), iso(x1, y1, h + 3), iso(x0, y1, h + 3)], shadeN(wall, 0.88), 1, false);
+      poly(g, [iso(x1, y0, h), iso(x1, y1, h), iso(x1, y1, h + 3), iso(x1, y0, h + 3)], shadeN(wall, 0.75), 1, false);
+      const bx = x0 + w * 0.3, by = y0 + dd * 0.3;
+      poly(g, [iso(bx + 0.2, by, h), iso(bx + 0.2, by + 0.2, h), iso(bx + 0.2, by + 0.2, h + 6), iso(bx + 0.2, by, h + 6)], 0x8a8e92, 1, true, 0.5);
+      poly(g, [iso(bx, by + 0.2, h), iso(bx + 0.2, by + 0.2, h), iso(bx + 0.2, by + 0.2, h + 6), iso(bx, by + 0.2, h + 6)], 0x9ea2a6, 1, true, 0.5);
+      poly(g, [iso(bx, by, h + 6), iso(bx + 0.2, by, h + 6), iso(bx + 0.2, by + 0.2, h + 6), iso(bx, by + 0.2, h + 6)], 0xb6babd, 1, true, 0.5);
+      if (kind === 'hopital') { const [a, b] = iso(x0 + w * 0.6, y0 + dd * 0.6, h); g.rect(a - 6, b - 2, 12, 4).fill(0xc83a2a); g.rect(a - 2, b - 6, 4, 12).fill(0xc83a2a); }
+    } else if (style === 'shed') {
+      // toiture en sheds (usines)
+      const n2 = 3;
+      for (let k = 0; k < n2; k++) {
+        const a0 = x0 + (k / n2) * w, a1 = x0 + ((k + 1) / n2) * w;
+        poly(g, [iso(a0, y1, h), iso(a1, y1, h), iso(a1, y1, h + 10), iso(a0, y1, h)], shadeN(R, 0.95), 1, true, 0.6);
+        poly(g, [iso(a0, y0, h), iso(a1, y0, h + 10), iso(a1, y1, h + 10), iso(a0, y1, h)], shadeN(R, 1.1), 1, true, 0.6);
+        poly(g, [iso(a1, y0, h), iso(a1, y1, h), iso(a1, y1, h + 10), iso(a1, y0, h + 10)], 0x6f8fa8, 1, true, 0.6);
+      }
+      if (kind === 'usine') { const [a, b] = iso(x0 + w * 0.2, y0 + dd * 0.2, h); g.rect(a - 3, b - 30, 6, 30).fill(0x8a5a4a).stroke({ width: 0.8, color: INK }); }
+    } else {
+      const ridge = h + (style === 'hip' ? 14 : 16) * Math.min(1, w + 0.2);
+      if (style === 'hip') {
+        // toit à quatre pans
+        const inset = Math.min(w, dd) * 0.3;
+        const ra = iso(x0 + inset, y0 + dd / 2, ridge), rb = iso(x1 - inset, y0 + dd / 2, ridge);
+        poly(g, [iso(x0, y0, h), iso(x1, y0, h), rb, ra], shadeN(R, 0.95), 1, true, 0.7);
+        poly(g, [iso(x1, y0, h), iso(x1, y1, h), rb], shadeN(R, 0.78), 1, true, 0.7);
+        poly(g, [iso(x0, y1, h), iso(x1, y1, h), rb, ra], shadeN(R, 1.05), 1, true, 0.7);
+        if (!snow) for (let k = 1; k < 4; k++) { const t = k / 4; const [a, b] = iso(x0 + inset * t, y1 - (dd / 2) * t, h + (ridge - h) * t), [c, e] = iso(x1 - inset * t, y1 - (dd / 2) * t, h + (ridge - h) * t); g.moveTo(a, b).lineTo(c, e).stroke({ width: 0.6, color: shadeN(R, 0.8), alpha: 0.7 }); }
+        // lucarne
+        if (h > 34 && !snow) { const u = x0 + w * 0.5; poly(g, [iso(u - 0.08, y1 - 0.12, h + 3), iso(u + 0.08, y1 - 0.12, h + 3), iso(u + 0.08, y1 - 0.12, h + 9), iso(u - 0.08, y1 - 0.12, h + 9)], 0xf3eee2, 1, true, 0.6); }
+      } else {
+        // toit à deux pans, faîtage selon x
+        const ra = iso(x0, y0 + dd / 2, ridge), rb = iso(x1, y0 + dd / 2, ridge);
+        poly(g, [iso(x0, y1, h), iso(x1, y1, h), rb, ra], shadeN(R, 1.04), 1, true, 0.7);
+        poly(g, [iso(x1, y0, h), iso(x1, y1, h), rb], shadeN(wall, 0.72), 1, true, 0.7);
+        if (!snow) for (let k = 1; k < 4; k++) { const t = k / 4; const [a, b] = iso(x0, y1 - (dd / 2) * t, h + (ridge - h) * t), [c, e] = iso(x1, y1 - (dd / 2) * t, h + (ridge - h) * t); g.moveTo(a, b).lineTo(c, e).stroke({ width: 0.6, color: shadeN(R, 0.78), alpha: 0.75 }); }
+      }
+      // cheminée
+      if (n > 0.3 && kind !== 'eglise') {
+        const cx = x0 + w * 0.72, cy = y0 + dd * 0.35;
+        poly(g, [iso(cx + 0.1, cy, ridge - 8), iso(cx + 0.1, cy + 0.1, ridge - 8), iso(cx + 0.1, cy + 0.1, ridge + 2), iso(cx + 0.1, cy, ridge + 2)], 0x8a5a44, 1, true, 0.5);
+        poly(g, [iso(cx, cy + 0.1, ridge - 8), iso(cx + 0.1, cy + 0.1, ridge - 8), iso(cx + 0.1, cy + 0.1, ridge + 2), iso(cx, cy + 0.1, ridge + 2)], 0x9e6a52, 1, true, 0.5);
+      }
+      if (kind === 'eglise') {
+        // clocher
+        const cx = x0 + w * 0.35, cy = y0 + dd * 0.35, s2 = 0.3;
+        poly(g, [iso(cx + s2, cy, h), iso(cx + s2, cy + s2, h), iso(cx + s2, cy + s2, h + 36), iso(cx + s2, cy, h + 36)], shadeN(wall, 0.8), 1, true, 0.7);
+        poly(g, [iso(cx, cy + s2, h), iso(cx + s2, cy + s2, h), iso(cx + s2, cy + s2, h + 36), iso(cx, cy + s2, h + 36)], shadeN(wall, 0.94), 1, true, 0.7);
+        const top = iso(cx + s2 / 2, cy + s2 / 2, h + 64);
+        poly(g, [iso(cx, cy + s2, h + 36), iso(cx + s2, cy + s2, h + 36), top], shadeN(ROOF.ardoise, 1.05), 1, true, 0.7);
+        poly(g, [iso(cx + s2, cy, h + 36), iso(cx + s2, cy + s2, h + 36), top], shadeN(ROOF.ardoise, 0.8), 1, true, 0.7);
+      }
+    }
+    // enseignes particulières
     if (kind === 'commissariat') {
-      const [a, b] = iso(x0 + w / 2, y0 + dd, h - 8);
-      g.rect(a - 18, b - 6, 36, 9).fill(0x1f3a6e).stroke({ width: 1, color: 0x1d1a17 });
-      const t = new Text({ text: 'POLICE', style: { fontSize: 7, fill: 0xffffff, fontWeight: 'bold' } });
-      t.anchor.set(0.5); t.position.set(a, b - 1.5); t.zIndex = (x + y + 1) * 10 + 1; this.objects.addChild(t);
+      const [a, b] = iso(x0 + w / 2, y1, h - 6);
+      g.roundRect(a - 18, b - 6, 36, 9, 2).fill(0x1f3a6e).stroke({ width: 1, color: INK });
+      const t = new Text({ text: 'POLICE', style: { fontSize: 7, fill: 0xffffff, fontWeight: 'bold' }, resolution: 4 });
+      t.anchor.set(0.5); t.position.set(a, b - 1.5); t.zIndex = (x + y + 1) * 10 + 1;
+      this.objects.addChild(t);
+      // drapeau
+      const [fx, fy] = iso(x1 - 0.1, y1, h);
+      g.moveTo(fx, fy).lineTo(fx, fy - 16).stroke({ width: 1, color: 0x2a2a2a });
+      g.rect(fx, fy - 16, 4, 6).fill(0x1f3a6e); g.rect(fx + 4, fy - 16, 4, 6).fill(0xffffff); g.rect(fx + 8, fy - 16, 4, 6).fill(0xc83a2a);
     }
-    if (place && kind !== 'maison' && kind !== 'immeuble') {
-      // enseigne
-      const [a, b] = iso(x0 + w * 0.5, y0 + dd, 14);
-      g.rect(a - 12, b - 4, 24, 6).fill(kind === 'commissariat' ? 0x1f3a6e : 0xf2e6c8).stroke({ width: 0.6, color: 0x1d1a17 });
-    }
+    if (kind === 'gare') { const [a, b] = iso(x0 + w / 2, y1, h - 4); g.circle(a, b - 4, 4).fill(0xffffff).stroke({ width: 0.8, color: INK }); }
     g.zIndex = (x + y + 1) * 10;
-    if (place) { g.eventMode = 'none'; (g as Graphics & { placeId?: string }).placeId = place.id; }
+    if (place) (g as Graphics & { placeId?: string }).placeId = place.id;
     this.objects.addChild(g);
-    // lumières nocturnes
-    for (const [u, z, on] of lit) {
-      if (!on) continue;
-      const [lx, ly] = iso(u, y0 + dd, z);
+    // fenêtres éclairées la nuit
+    if (lit.length) {
       const l = new Graphics();
-      l.rect(lx - 3, ly - 4, 6, 7).fill({ color: 0xd8a848, alpha: 1 });
+      for (const [u, z] of lit) { const [lx, ly] = iso(u, y1, z + 3.5); l.rect(lx - 2.5, ly - 3, 5, 6).fill({ color: 0xe0b050, alpha: 0.95 }); }
       this.lights.addChild(l);
     }
   }
 
-  private tree(x: number, y: number, season: string, snow: boolean, small: boolean) {
+  private bench(x: number, y: number) {
+    const g = new Graphics();
+    poly(g, [iso(x - 0.15, y, 3), iso(x + 0.15, y, 3), iso(x + 0.15, y + 0.06, 3), iso(x - 0.15, y + 0.06, 3)], 0x7a5a3a, 1, true, 0.5);
+    g.zIndex = (x + y) * 10;
+    this.objects.addChild(g);
+  }
+
+  private tree(x: number, y: number, season: string, snow: boolean, forest: boolean) {
     const t = new Graphics();
     const [a, b] = iso(x, y);
-    const r = small ? 9 : 12;
-    t.ellipse(a, b, r, r * 0.4).fill({ color: 0, alpha: 0.18 });
-    t.rect(a - 1.5, b - 14, 3, 14).fill(0x5a4030);
-    const conifer = small && hash2(Math.floor(x * 10), Math.floor(y * 10), 2) > 0.5;
+    const n = hash2(Math.floor(x * 13), Math.floor(y * 17), 2);
+    const r = forest ? 8 + n * 4 : 10 + n * 4;
+    t.ellipse(a + 3, b + 1, r * 0.9, r * 0.38).fill({ color: 0, alpha: 0.2 });
+    const conifer = forest && n > 0.45;
     if (conifer) {
-      t.poly([a - r, b - 10, a + r, b - 10, a, b - 10 - r * 2.6]).fill(snow ? 0xdfe8e4 : 0x2f5a3a).stroke({ width: 0.8, color: 0x1d1a17, alpha: 0.6 });
-    } else if (season === 'hiver') {
-      for (let i = -1; i <= 1; i++) t.moveTo(a, b - 12).lineTo(a + i * 8, b - 26).stroke({ width: 1.4, color: 0x5a4030 });
-      if (snow) t.circle(a, b - 24, 5).fill({ color: 0xffffff, alpha: 0.7 });
+      t.rect(a - 1.2, b - 6, 2.4, 6).fill(0x5a4030);
+      const col = snow ? 0xe2ebe7 : 0x2f5a3c;
+      for (let k = 0; k < 3; k++) {
+        const yy = b - 6 - k * r * 0.6, rr = r * (1 - k * 0.25);
+        t.poly([a - rr, yy, a + rr, yy, a, yy - r * 1.05]).fill(shadeN(col, 1 + k * 0.08)).stroke({ width: 0.7, color: INK, alpha: 0.45 });
+        t.poly([a, yy, a + rr, yy, a, yy - r * 1.05]).fill({ color: 0x000000, alpha: 0.12 });
+      }
     } else {
-      const c = season === 'automne' ? [0xc87a2a, 0xd8a03a] : season === 'printemps' ? [0x7aaa4a, 0xe8c0d0] : [0x4a7a3a, 0x5a8a42];
-      t.circle(a, b - 20, r).fill(c[0]).stroke({ width: 0.8, color: 0x1d1a17, alpha: 0.5 });
-      t.circle(a + 4, b - 25, r * 0.6).fill(c[1]);
+      t.moveTo(a, b).lineTo(a, b - r * 1.3).stroke({ width: 2.4, color: 0x5a4030 });
+      if (season === 'hiver') {
+        for (let i = -2; i <= 2; i++) t.moveTo(a, b - r * 0.9).lineTo(a + i * r * 0.35, b - r * 2.1 + Math.abs(i) * 3).stroke({ width: 1.2, color: 0x5a4030 });
+        if (snow) t.ellipse(a, b - r * 1.9, r * 0.6, r * 0.25).fill({ color: 0xffffff, alpha: 0.8 });
+      } else {
+        const pal = season === 'automne' ? [0xc4742a, 0xd99a3a, 0xa8562a] : season === 'printemps' ? [0x76a84a, 0x92c05c, 0xeac2d4] : [0x467a38, 0x5a9244, 0x356a2c];
+        const cy = b - r * 1.6;
+        t.circle(a - r * 0.4, cy + r * 0.25, r * 0.7).fill(pal[2]).stroke({ width: 0.7, color: INK, alpha: 0.4 });
+        t.circle(a + r * 0.45, cy + r * 0.2, r * 0.68).fill(pal[0]).stroke({ width: 0.7, color: INK, alpha: 0.4 });
+        t.circle(a, cy - r * 0.2, r * 0.8).fill(pal[0]).stroke({ width: 0.7, color: INK, alpha: 0.4 });
+        t.circle(a - r * 0.25, cy - r * 0.4, r * 0.38).fill({ color: pal[1], alpha: 0.9 });
+        t.circle(a + r * 0.3, cy + r * 0.35, r * 0.45).fill({ color: 0x000000, alpha: 0.12 });
+      }
     }
-    t.zIndex = (x + y + 0.5) * 10;
+    t.zIndex = (x + y) * 10 + 1;
     this.objects.addChild(t);
   }
 
-  // ————— circulation et marqueurs —————
-  private randomRoad(): number {
-    const st = this.get();
-    return st.city.roads[Math.floor(Math.random() * st.city.roads.length)];
+  // ————————————————————— circulation —————————————————————
+  /** Trajectoire sur la voie de droite : points aux franchissements de cases, décalés à droite. */
+  private lanePath(path: number[], off = 0.22): Pt[] {
+    const P = path.map((i) => this.tileOf(i));
+    const out: Pt[] = [];
+    const right = (a: Pt, b: Pt) => { const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y); return { x: -dy, y: dx }; };
+    if (P.length < 2) return out;
+    const r0 = right(P[0], P[1]);
+    out.push({ x: P[0].x + 0.5 + r0.x * off, y: P[0].y + 0.5 + r0.y * off });
+    for (let k = 0; k < P.length - 1; k++) {
+      const r = right(P[k], P[k + 1]);
+      out.push({ x: (P[k].x + P[k + 1].x) / 2 + 0.5 + r.x * off, y: (P[k].y + P[k + 1].y) / 2 + 0.5 + r.y * off });
+    }
+    const rl = right(P[P.length - 2], P[P.length - 1]);
+    out.push({ x: P[P.length - 1].x + 0.5 + rl.x * off, y: P[P.length - 1].y + 0.5 + rl.y * off });
+    return out;
   }
 
-  private spawnMovers(st: GameState) {
+  private spawnCar(st: GameState, police?: { key: string; from: number; to: number; body: string; vk: string }) {
+    const roads = st.city.roads;
+    const a = police ? police.from : roads[Math.floor(Math.random() * roads.length)];
+    const b = police ? police.to : roads[Math.floor(Math.random() * roads.length)];
+    const path = roadPath(st.city, a, b);
+    if (path.length < (police ? 2 : 7)) return;
+    const pts = this.lanePath(path);
+    const big = Math.random();
+    const body = police?.body ?? CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+    const vk = police?.vk ?? (big < 0.05 ? 'bus' : big < 0.12 ? 'camion' : big < 0.2 ? 'fourgon' : 'civil');
+    const s = new Sprite();
+    s.anchor.set(0.5, 60 / 96);
+    s.alpha = 0;
+    this.objects.addChild(s);
+    this.cars.push({ s, pts, seg: 0, t: 0, speed: police ? 1.9 : 1.2 + Math.random() * 0.5, body, vk, police: !!police, key: police?.key, blocked: 0, x: pts[0].x, y: pts[0].y, hx: 1, hy: 0, dir: 'px' });
+  }
+
+  private walkPath(start: number, goal: number): number[] {
+    // BFS sur les trottoirs ; traversée d'une chaussée autorisée en ligne droite (passage piéton)
+    const w = this.get().city.w;
+    const prev = new Map<number, number>([[start, -1]]);
+    const q = [start];
+    while (q.length) {
+      const c = q.shift()!;
+      if (c === goal) break;
+      for (const d of [1, -1, w, -w]) {
+        let n = c + d;
+        if (Math.abs((n % w) - (c % w)) > 1) continue;
+        if (this.road.has(n) && (this.walk.has(n + d) || n + d === goal)) n = n + d; // traverse
+        else if (!this.walk.has(n) && n !== goal) continue;
+        if (prev.has(n)) continue;
+        prev.set(n, c);
+        q.push(n);
+      }
+      if (prev.size > 900) break;
+    }
+    if (!prev.has(goal)) return [];
+    const out: number[] = [];
+    for (let c = goal; c !== -1; c = prev.get(c)!) out.push(c);
+    return out.reverse();
+  }
+
+  private spawnPed(st: GameState) {
+    const w = st.city.w;
+    const places = st.city.places.filter((p) => p.kind !== 'parc' && p.kind !== 'ferme');
+    const nearWalk = (p: Place) => [p.y * w + p.x - 1, p.y * w + p.x + 1, (p.y - 1) * w + p.x, (p.y + 1) * w + p.x].find((i) => this.walk.has(i));
+    const walks = [...this.walk];
+    const a = Math.random() < 0.5 ? nearWalk(places[Math.floor(Math.random() * places.length)]) : walks[Math.floor(Math.random() * walks.length)];
+    const b = Math.random() < 0.6 ? nearWalk(places[Math.floor(Math.random() * places.length)]) : walks[Math.floor(Math.random() * walks.length)];
+    if (a === undefined || b === undefined || a === b) return;
+    const pa = this.tileOf(a), pb = this.tileOf(b);
+    if (Math.abs(pa.x - pb.x) + Math.abs(pa.y - pb.y) > 22) return;
+    const path = this.walkPath(a, b);
+    if (path.length < 4) return;
+    const lat = (Math.random() - 0.5) * 0.12;
+    const pts: Pt[] = [];
+    for (let k = 0; k < path.length; k++) {
+      const p = this.walkPoint(path[k], lat);
+      // traversée : on reste aligné avec le passage
+      pts.push(p);
+    }
+    const spec = PED_POOL[Math.floor(Math.random() * PED_POOL.length)];
+    const s = new Sprite(charTexture(spec, 'walk', 0, false));
+    s.anchor.set(0.5, 66 / 72);
+    s.scale.set(0.3);
+    s.alpha = 0;
+    this.objects.addChild(s);
+    this.peds.push({ s, pts, seg: 0, t: 0, speed: 0.38 + Math.random() * 0.18, spec, x: pts[0].x, y: pts[0].y, fade: 0 });
+  }
+
+  private spawn(st: GameState) {
     const cal = calendar(st.startYear, st.minute);
     const act = st.city.districts.reduce((s, d) => s + districtActivity(d, cal.weekday, cal.hour, cal.season), 0) / st.city.districts.length;
     const night = cal.hour < 6 || cal.hour >= 22;
-    const wantCars = Math.round((night ? 4 : 10 + act * 18) * Math.min(1.6, Math.sqrt(st.city.population / 80000)));
-    const wantPeds = Math.round(night ? 3 : 14 + act * 26);
-    const cars = this.movers.filter((m) => m.kind === 'car').length;
-    const peds = this.movers.filter((m) => m.kind === 'ped').length;
-    if (cars < wantCars) {
-      const a = this.randomRoad(), b = this.randomRoad();
-      const path = roadPath(st.city, a, b);
-      if (path.length > 3) {
-        const big = Math.random();
-        const body = ['#7a2e2e', '#2f5d50', '#d9c27a', '#e8e4da', '#3d4a5c', '#8a8a8a', '#355070', '#b56576'][Math.floor(Math.random() * 8)];
-        const vk = big < 0.06 ? 'bus' : big < 0.14 ? 'camion' : 'civil';
-        const s = new Sprite(vehTexture({ body, kind: vk as 'civil', police: false, era: cal.year }, true));
-        s.anchor.set(0.5, 0.75); s.scale.set(0.5);
-        this.objects.addChild(s);
-        this.movers.push({ s, path, i: 0, t: 0, speed: 2.4 + Math.random(), kind: 'car', body, vk });
-      }
-    }
-    if (peds < wantPeds) {
-      const side = st.city.tiles.map((t, i) => (t === T.trottoir || t === T.place || t === T.pave ? i : -1)).filter((i) => i >= 0);
-      const a = side[Math.floor(Math.random() * side.length)];
-      const path = [a];
-      let cur = a;
-      for (let k = 0; k < 14; k++) {
-        const w = st.city.w;
-        const nb = [cur - 1, cur + 1, cur - w, cur + w].filter((j) => [T.trottoir, T.place, T.pave].includes(st.city.tiles[j] as 2 | 3 | 9));
-        if (!nb.length) break;
-        cur = nb[Math.floor(Math.random() * nb.length)];
-        path.push(cur);
-      }
-      const sexe = Math.random() < 0.5 ? 'F' : 'M';
-      const spec: CharSpec = { a: { skin: Math.floor(Math.random() * 6), hair: Math.floor(Math.random() * 7), hairStyle: sexe === 'F' ? 3 + Math.floor(Math.random() * 4) : Math.floor(Math.random() * 3), outfit: Math.floor(Math.random() * 10), build: 1, glasses: false, beard: false }, sexe, look: 'civil' };
-      const s = new Sprite(charTexture(spec, 'walk', 0, false));
-      s.anchor.set(0.5, 66 / 72); s.scale.set(0.42);
-      this.objects.addChild(s);
-      this.movers.push({ s, path, i: 0, t: 0, speed: 0.7 + Math.random() * 0.3, kind: 'ped', spec });
-    }
+    const eco = economyMode() ? 0.5 : 1;
+    const wantCars = eco * Math.round((night ? 5 : 14 + act * 22) * Math.min(1.6, Math.sqrt(st.city.population / 80000)));
+    const wantPeds = eco * Math.round(night ? 4 : 20 + act * 40) * (st.weather.kind === 'pluie' || st.weather.kind === 'orage' ? 0.5 : 1);
+    if (this.cars.filter((c) => !c.police).length < wantCars) this.spawnCar(st);
+    for (let k = 0; k < 3 && this.peds.length < wantPeds; k++) this.spawnPed(st);
     // véhicules de police en mission : du commissariat vers le lieu de l'affaire
     const hq = st.city.places.find((p) => p.kind === 'commissariat');
     for (const v of st.vehicles) {
       if (!v.caseId || v.busyUntil <= st.minute || !hq) continue;
-      if (this.movers.some((m) => m.kind === 'police' && m.caseId === `${v.id}|${v.caseId}`)) continue;
+      const key = `${v.id}|${v.caseId}`;
+      if (this.cars.some((c) => c.key === key)) continue;
       const c = st.cases.find((x) => x.id === v.caseId);
       const pl = c && st.city.places.find((p) => p.id === c.placeId);
       if (!pl) continue;
-      const path = roadPath(st.city, hq.y * st.city.w + hq.x, pl.y * st.city.w + pl.x);
-      if (path.length < 2) continue;
-      const body = '#' + v.color.toString(16).padStart(6, '0');
-      const s = new Sprite(vehTexture({ body, kind: v.kind === 'fourgon' ? 'fourgon' : 'banalisee', police: true, era: cal.year, lights: true }, true));
-      s.anchor.set(0.5, 0.75); s.scale.set(0.55);
-      this.objects.addChild(s);
-      this.movers.push({ s, path, i: 0, t: 0, speed: 3.2, kind: 'police', caseId: `${v.id}|${v.caseId}`, body, vk: v.kind === 'fourgon' ? 'fourgon' : 'banalisee' });
+      this.spawnCar(st, { key, from: hq.y * st.city.w + hq.x, to: pl.y * st.city.w + pl.x, body: '#' + v.color.toString(16).padStart(6, '0'), vk: v.kind === 'fourgon' ? 'fourgon' : 'banalisee' });
     }
-    for (const m of this.movers) if (m.kind === 'police') {
-      const [vid] = m.caseId!.split('|');
-      const v = st.vehicles.find((x) => x.id === vid);
-      if (!v || v.busyUntil <= st.minute) m.done = true;
+    for (const c of this.cars) if (c.police && c.key) {
+      const v = st.vehicles.find((x) => x.id === c.key!.split('|')[0]);
+      if (!v || v.busyUntil <= st.minute) c.leaving = true;
     }
   }
 
   private drawMarkers(st: GameState, time: number) {
-    this.markers.removeChildren().forEach((c) => c.destroy());
-    const byPlace = new Map<string, { n: number; prio: number; id: string }>();
+    const byPlace = new Map<string, { n: number; prio: number }>();
     for (const c of st.cases) {
       if (c.status !== 'ouverte') continue;
       const e = byPlace.get(c.placeId);
-      if (!e) byPlace.set(c.placeId, { n: 1, prio: c.priority, id: c.id });
-      else { e.n++; if (c.priority < e.prio) { e.prio = c.priority; e.id = c.id; } }
+      if (!e) byPlace.set(c.placeId, { n: 1, prio: c.priority });
+      else { e.n++; e.prio = Math.min(e.prio, c.priority); }
     }
-    for (const [pid, e] of byPlace) {
-      const p = st.city.places.find((x) => x.id === pid);
-      if (!p) continue;
-      const [a, b] = iso(p.x + 0.5, p.y + 0.5, 70);
-      const g = new Container();
-      const gg = new Graphics();
-      g.addChild(gg);
-      const col = e.prio === 1 ? 0xd83a2a : e.prio === 2 ? 0xe0a030 : 0x3a8ad8;
-      const pulse = (Math.sin(time / 300) + 1) / 2;
-      const [ga, gb] = iso(p.x + 0.5, p.y + 0.5);
-      gg.ellipse(ga, gb, 20 + pulse * 8, 10 + pulse * 4).stroke({ width: 2, color: col, alpha: 0.8 - pulse * 0.5 });
-      gg.moveTo(a, b + 14).lineTo(ga, gb).stroke({ width: 1.5, color: 0x1d1a17, alpha: 0.5 });
-      gg.poly([a - 11, b - 12, a + 11, b - 12, a + 11, b + 6, a + 3, b + 6, a, b + 14, a - 3, b + 6, a - 11, b + 6]).fill(col).stroke({ width: 1.5, color: 0x1d1a17 });
-      const t = new Text({ text: e.n > 1 ? String(e.n) : '!', style: { fontSize: 12, fill: 0xffffff, fontWeight: 'bold' } });
-      t.anchor.set(0.5); t.position.set(a, b - 3);
-      g.addChild(t);
-      this.markers.addChild(g);
+    const sig = [...byPlace].map(([k, v]) => `${k}:${v.n}:${v.prio}`).join('|');
+    if (sig !== this.markerSig) {
+      this.markerSig = sig;
+      this.markers.removeChildren().forEach((c) => c.destroy({ children: true }));
+      this.rings = [];
+      for (const [pid, e] of byPlace) {
+        const p = st.city.places.find((x) => x.id === pid);
+        if (!p) continue;
+        const [a, b] = iso(p.x + 0.5, p.y + 0.5, 78);
+        const [ga, gb] = iso(p.x + 0.5, p.y + 0.5);
+        const col = e.prio === 1 ? 0xd83a2a : e.prio === 2 ? 0xe0a030 : 0x3a8ad8;
+        const c = new Container();
+        const ring = new Graphics();
+        const g = new Graphics();
+        g.moveTo(a, b + 16).lineTo(ga, gb).stroke({ width: 1.5, color: INK, alpha: 0.5 });
+        g.circle(a, b, 14).fill(col).stroke({ width: 2, color: 0xffffff });
+        g.poly([a - 6, b + 11, a + 6, b + 11, a, b + 19]).fill(col);
+        const t = new Text({ text: e.n > 1 ? String(e.n) : '!', style: { fontSize: 14, fill: 0xffffff, fontWeight: 'bold' }, resolution: 3 });
+        t.anchor.set(0.5); t.position.set(a, b);
+        c.addChild(ring, g, t);
+        this.markers.addChild(c);
+        this.rings.push({ g: ring, x: ga, y: gb, col });
+      }
     }
+    const pulse = (Math.sin(time / 300) + 1) / 2;
+    for (const r of this.rings) { r.g.clear(); r.g.ellipse(r.x, r.y, 22 + pulse * 10, 11 + pulse * 5).stroke({ width: 2.5, color: r.col, alpha: 0.85 - pulse * 0.55 }); }
+  }
+
+  viewport(x: number, y: number, w: number, h: number) {
+    this.view = { x: x - 120, y: y - 160, w: w + 240, h: h + 320 };
+  }
+
+  /** Masque les objets fixes hors de l'écran (gain important quand on est zoomé). */
+  private cull() {
+    if (!this.statics.length) {
+      for (const o of [...this.objects.children, ...this.lights.children]) {
+        const b = o.getLocalBounds();
+        this.statics.push({ o: o as Container, x0: b.minX, y0: b.minY, x1: b.maxX, y1: b.maxY });
+      }
+    }
+    const v = this.view;
+    for (const s of this.statics) s.o.visible = s.x1 >= v.x && s.x0 <= v.x + v.w && s.y1 >= v.y && s.y0 <= v.y + v.h;
   }
 
   update(dtMs: number, time: number) {
     const st = this.get();
     const cal = calendar(st.startYear, st.minute);
-    const sig = `${cal.season}|${st.weather.kind === 'neige'}|${st.city.places.length}`;
+    const sig = `${cal.season}|${st.weather.kind === 'neige' || (cal.season === 'hiver' && st.weather.temp < 1)}|${st.city.places.length}`;
     if (sig !== this.sig) {
       this.sig = sig;
-      for (const m of this.movers) m.s.destroy();
-      this.movers = [];
       this.rebuild(st);
+      this.cull();
+      // démarrage « à chaud » : la ville est déjà animée à l'ouverture de la carte
+      for (let k = 0; k < 40; k++) this.spawn(st);
+      for (const c of this.cars) { c.seg = Math.floor(Math.random() * Math.max(1, c.pts.length - 3)); c.s.alpha = 1; }
+      for (const p of this.peds) { p.seg = Math.floor(Math.random() * Math.max(1, p.pts.length - 2)); p.fade = 1; }
     }
-    if (time - this.lastSpawn > 300) { this.lastSpawn = time; this.spawnMovers(st); this.drawMarkers(st, time); }
-    const dt = dtMs / 1000;
-    const k = Math.min(4, Math.max(1, Math.sqrt(this.speed || 1)));
+    if (time - this.lastSpawn > 250) { this.lastSpawn = time; this.spawn(st); }
+    if (time - this.lastMarkers > 50) { this.lastMarkers = time; this.drawMarkers(st, time); this.cull(); }
+    const dt = Math.min(0.1, dtMs / 1000);
+    const k = Math.min(3, Math.max(1, Math.sqrt(this.speed || 1)));
+    if (Math.floor(time / 80) !== Math.floor((time - dtMs) / 80)) this.animateWater(time);
+    const lightsOn = daylight(st.startYear, st.minute) < 0.45;
+    // voitures : avance le long de la trajectoire, distance de sécurité
+    for (const c of this.cars) {
+      if (c.parked) {
+        if (c.leaving) { c.s.alpha -= dt * 1.5; }
+        else { const lt = Math.floor(time / 280) % 2 === 0; const tk = `${c.dir}${lt}`; if (tk !== c.texKey) { c.texKey = tk; c.s.texture = vehTexture({ body: c.body, kind: c.vk as 'banalisee', police: true, era: 0, lights: lt }, c.dir); } }
+        continue;
+      }
+      let ahead = false;
+      for (const o of this.cars) {
+        if (o === c || o.s.alpha < 0.3) continue;
+        const vx = o.x - c.x, vy = o.y - c.y;
+        const dist = Math.hypot(vx, vy);
+        if (dist > 0.75) continue;
+        const along = (vx * c.hx + vy * c.hy) / (dist || 1);
+        if (along > 0.55 && o.hx * c.hx + o.hy * c.hy > -0.2) { ahead = true; break; }
+      }
+      if (ahead && c.blocked < 2.5) { c.blocked += dt; }
+      else {
+        c.blocked = Math.max(0, c.blocked - dt);
+        let move = c.speed * k * dt;
+        while (move > 0 && c.seg < c.pts.length - 1) {
+          const a = c.pts[c.seg], b = c.pts[c.seg + 1];
+          const len = Math.hypot(b.x - a.x, b.y - a.y) || 1e-6;
+          const rem = (1 - c.t) * len;
+          if (move < rem) { c.t += move / len; move = 0; }
+          else { move -= rem; c.seg++; c.t = 0; }
+        }
+      }
+      if (c.seg >= c.pts.length - 1) {
+        if (c.police && !c.leaving) { c.parked = true; continue; }
+        c.s.alpha -= dt * 2.5;
+        continue;
+      }
+      const a = c.pts[c.seg], b = c.pts[c.seg + 1];
+      c.x = a.x + (b.x - a.x) * c.t; c.y = a.y + (b.y - a.y) * c.t;
+      const hx = b.x - a.x, hy = b.y - a.y;
+      const hl = Math.hypot(hx, hy) || 1;
+      c.hx = hx / hl; c.hy = hy / hl;
+      // orientation : axe dominant du segment (dans un virage, bascule à mi-parcours)
+      c.dir = Math.abs(hx) >= Math.abs(hy) ? (hx > 0 ? 'px' : 'nx') : (hy > 0 ? 'py' : 'ny');
+      const remaining = c.pts.length - 1 - c.seg - c.t;
+      c.s.alpha = Math.min(1, c.s.alpha + dt * 3, remaining * 2);
+      const lt = c.police ? Math.floor(time / 250) % 2 === 0 : lightsOn;
+      const tk = `${c.dir}${lt}`;
+      if (tk !== c.texKey) { c.texKey = tk; c.s.texture = vehTexture({ body: c.body, kind: c.vk as 'civil', police: c.police, era: 0, lights: lt }, c.dir); }
+      const [sx, sy] = iso(c.x, c.y);
+      c.s.position.set(sx, sy);
+      c.s.zIndex = (c.x + c.y) * 10 + 0.6;
+    }
+    // piétons
+    for (const p of this.peds) {
+      let move = p.speed * k * dt;
+      while (move > 0 && p.seg < p.pts.length - 1) {
+        const a = p.pts[p.seg], b = p.pts[p.seg + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1e-6;
+        const rem = (1 - p.t) * len;
+        if (move < rem) { p.t += move / len; move = 0; } else { move -= rem; p.seg++; p.t = 0; }
+      }
+      const done = p.seg >= p.pts.length - 1;
+      p.fade = done ? p.fade - dt * 2 : Math.min(1, p.fade + dt * 2);
+      p.s.alpha = Math.max(0, p.fade);
+      if (done) continue;
+      const a = p.pts[p.seg], b = p.pts[p.seg + 1];
+      p.x = a.x + (b.x - a.x) * p.t; p.y = a.y + (b.y - a.y) * p.t;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const frame = Math.floor(time / (170 / k)) % 4;
+      const back = dx < -0.01 || dy < -0.01;
+      const pk = frame * 2 + (back ? 1 : 0);
+      if ((p as Ped & { tk?: number }).tk !== pk) { (p as Ped & { tk?: number }).tk = pk; p.s.texture = charTexture(p.spec, 'walk', frame, back); }
+      // tourné vers la gauche de l'écran : miroir
+      p.s.scale.x = (dx - dy) < 0 ? -0.3 : 0.3;
+      const [sx, sy] = iso(p.x, p.y);
+      p.s.position.set(sx, sy);
+      p.s.zIndex = (p.x + p.y) * 10 + 0.5;
+    }
+    for (const c of this.cars.filter((x) => x.s.alpha <= 0 && (x.seg >= x.pts.length - 1 || x.leaving))) { this.objects.removeChild(c.s); c.s.destroy(); }
+    this.cars = this.cars.filter((x) => !x.s.destroyed);
+    for (const p of this.peds.filter((x) => x.fade <= 0 && x.seg >= x.pts.length - 1)) { this.objects.removeChild(p.s); p.s.destroy(); }
+    this.peds = this.peds.filter((x) => !x.s.destroyed);
+  }
+
+  private animateWater(time: number) {
+    const g = this.water;
+    g.clear();
+    const st = this.get();
     const w = st.city.w;
-    const lightsOn = daylight(st.startYear, st.minute) < 0.4;
-    for (const m of this.movers) {
-      if (m.parked) {
-        if (m.done) { m.s.alpha -= dt; if (m.s.alpha <= 0) m.path = []; }
-        else if (m.kind === 'police') m.s.texture = vehTexture({ body: m.body!, kind: m.vk as 'banalisee', police: true, era: cal.year, lights: Math.floor(time / 300) % 2 === 0 }, true);
-        continue;
-      }
-      m.t += dt * m.speed * k;
-      while (m.t >= 1 && m.i < m.path.length - 1) { m.t -= 1; m.i++; }
-      if (m.i >= m.path.length - 1) {
-        if (m.kind === 'police' && !m.done) { m.parked = true; continue; }
-        m.path = [];
-        continue;
-      }
-      const a = m.path[m.i], b = m.path[m.i + 1];
-      const ax = a % w + 0.5, ay = Math.floor(a / w) + 0.5, bx = b % w + 0.5, by = Math.floor(b / w) + 0.5;
-      const dxv = bx - ax, dyv = by - ay;
-      // les voitures roulent à droite de la chaussée
-      const off = m.kind === 'ped' ? 0 : 0.18;
-      const x = ax + dxv * m.t + (dyv !== 0 ? -Math.sign(dyv) * off : 0), y = ay + dyv * m.t + (dxv !== 0 ? Math.sign(dxv) * off : 0);
-      const [sx, sy] = iso(x, y);
-      m.s.position.set(sx, sy);
-      m.s.zIndex = (x + y) * 10 + 0.5;
-      if (m.kind === 'ped') {
-        const frame = Math.floor(time / 140) % 4;
-        m.s.texture = charTexture(m.spec!, 'walk', frame, dxv < 0 || dyv < 0);
-      } else {
-        const alongX = dxv !== 0;
-        m.s.texture = vehTexture({ body: m.body!, kind: (m.vk ?? 'civil') as 'civil', police: m.kind === 'police', era: cal.year, lights: m.kind === 'police' ? Math.floor(time / 250) % 2 === 0 : lightsOn }, alongX);
-        m.s.scale.x = (alongX ? dxv < 0 : dyv < 0) ? -Math.abs(m.s.scale.y) : Math.abs(m.s.scale.y);
+    for (const i of this.waterTiles) {
+      if (this.road.has(i)) continue;
+      const x = i % w, y = Math.floor(i / w);
+      for (let k = 0; k < 2; k++) {
+        const ph = ((time / 2600 + hash2(x, y, k + 7)) % 1);
+        const u = 0.15 + hash2(x, y, k) * 0.6, v = ph;
+        const [a, b] = iso(x + u, y + v), [c, d] = iso(x + u + 0.18, y + v);
+        g.moveTo(a, b).lineTo(c, d);
       }
     }
-    const dead = this.movers.filter((m) => !m.path.length);
-    for (const m of dead) { this.objects.removeChild(m.s); m.s.destroy(); }
-    this.movers = this.movers.filter((m) => m.path.length);
+    g.stroke({ width: 1.2, color: 0xcfe4f0, alpha: 0.45 });
   }
 
   tap(wx: number, wy: number) {
     const st = this.get();
-    // marqueurs d'affaires
-    for (const c of st.cases) {
-      if (c.status !== 'ouverte') continue;
-      const p = st.city.places.find((x) => x.id === c.placeId);
-      if (!p) continue;
-      const [a, b] = iso(p.x + 0.5, p.y + 0.5, 70);
-      if (Math.hypot(a - wx, b - wy) < 18) {
-        const best = st.cases.filter((x) => x.status === 'ouverte' && x.placeId === p.id).sort((u, v) => u.priority - v.priority)[0];
+    for (const pl of st.city.places) {
+      if (!st.cases.some((c) => c.status === 'ouverte' && c.placeId === pl.id)) continue;
+      const [a, b] = iso(pl.x + 0.5, pl.y + 0.5, 78);
+      if (Math.hypot(a - wx, b - wy) < 22) {
+        const best = st.cases.filter((x) => x.status === 'ouverte' && x.placeId === pl.id).sort((u, v) => u.priority - v.priority)[0];
         this.cb.onCase(best.id);
         return;
       }

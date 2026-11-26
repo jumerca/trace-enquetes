@@ -189,6 +189,18 @@ export class Game {
     try { await saveSlot('auto', this.st); } catch { /* stockage indisponible : sans conséquence */ }
   }
 
+  /** Remplace la partie en cours (mutation dans une autre ville) et reconstruit les vues. */
+  replaceState(ns: GameState) {
+    this.st = ns;
+    this.noticeSeen = ns.counters.notice - 1;
+    this.panel = null;
+    this.history = [];
+    this.setSpeed(0);
+    if (this.station) this.station.setFloor(0);
+    this.setScreen(this.screen);
+    this.autosave();
+  }
+
   mutate(fn: (st: GameState) => void) {
     fn(this.st);
     this.bump(true);

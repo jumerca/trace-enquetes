@@ -64,6 +64,7 @@ export function CaseView({ id, tab: tab0 }: { id: string; tab?: string }) {
         <span className="tag">{STATUS_LABEL[c.status]}</span>
         <span className="muted">{place?.name} — {districtName(st.city, c.district)}</span>
       </div>
+      <div className="stage-mini">Étape {STAGES.findIndex((x) => x[0] === c.stage) + 1}/14 : <b>{STAGES.find((x) => x[0] === c.stage)?.[1]}</b></div>
       <div className="pipeline">{STAGES.map(([k, l], i) => { const cur = STAGES.findIndex((s) => s[0] === c.stage); return <span key={k} className={i < cur ? 'done' : i === cur ? 'cur' : ''}>{l}</span>; })}</div>
       <Tabs tabs={[['synthese', 'Synthèse'], ['actions', `Investigations${proposals ? ` (${proposals})` : ''}`], ['board', 'Tableau d\'enquête'], ['personnes', 'Personnes'], ['pieces', 'Pièces et analyses'], ['journal', 'Journal'], ['justice', 'Justice et médias']]} value={tab} onChange={setTab} />
       {tab === 'synthese' && <Synthese c={c} />}
@@ -108,18 +109,17 @@ function Synthese({ c }: { c: Case }) {
           {lead ? <p style={{ margin: '4px 0' }}>Responsable : <b>{fullName(lead)}</b> ({lead.grade}){c.team.length > 1 ? ` — équipe : ${c.team.filter((x) => x !== c.lead).map((x) => fullName(st.staff.find((s) => s.id === x)!)).join(', ')}` : ''}</p> : <p style={{ margin: '4px 0', color: 'var(--red)' }}>Ce dossier n'est pas encore attribué.</p>}
           {sug && <p className="muted">Suggestion de l'adjoint : {fullName(st.staff.find((s) => s.id === sug.lead)!)} avec {sug.team.map((x) => fullName(st.staff.find((s) => s.id === x)!)).join(', ') || 'personne d\'autre'}. <button className="btn small" onClick={() => { setLeadSel(sug.lead); setSel([sug.lead, ...sug.team]); }}>Reprendre</button></p>}
           <div className="tbl-wrap">
-            <table className="t"><thead><tr><th>Resp.</th><th>Équipe</th><th>Nom</th><th>Spécialité</th><th>Charge</th><th>Fatigue</th><th>Disponibilité</th></tr></thead>
+            <table className="t"><thead><tr><th>Resp.</th><th>Équipe</th><th>Nom et spécialité</th><th>Charge</th><th>Fatigue</th><th>Disponibilité</th></tr></thead>
               <tbody>{invs.map((s) => {
                 const l = load(s, st), cap = capacity(s);
                 return (
                   <tr key={s.id}>
-                    <td><input type="radio" name="lead" checked={leadSel === s.id} onChange={() => { setLeadSel(s.id); if (!sel.includes(s.id)) setSel([...sel, s.id]); }} disabled={s.role === 'technicien'} aria-label={`Responsable ${fullName(s)}`} /></td>
-                    <td><input type="checkbox" checked={sel.includes(s.id)} onChange={(e) => setSel(e.target.checked ? [...sel, s.id] : sel.filter((x) => x !== s.id))} aria-label={`Équipe ${fullName(s)}`} /></td>
-                    <td>{fullName(s)} <span className="muted">{s.grade}</span></td>
-                    <td className="muted">{s.specialite}</td>
-                    <td><Bar v={l} max={cap * 1.5} invert /> {l}/{cap.toFixed(1)}</td>
-                    <td><Bar v={s.fatigue} invert /></td>
-                    <td>{s.status === 'service' ? 'En service' : s.status}</td>
+                    <td data-label="Responsable"><input type="radio" name="lead" checked={leadSel === s.id} onChange={() => { setLeadSel(s.id); if (!sel.includes(s.id)) setSel([...sel, s.id]); }} disabled={s.role === 'technicien'} aria-label={`Responsable ${fullName(s)}`} /></td>
+                    <td data-label="Équipe"><input type="checkbox" checked={sel.includes(s.id)} onChange={(e) => setSel(e.target.checked ? [...sel, s.id] : sel.filter((x) => x !== s.id))} aria-label={`Équipe ${fullName(s)}`} /></td>
+                    <td className="wide"><b>{fullName(s)}</b> <span className="muted">{s.grade} · {s.specialite}</span></td>
+                    <td data-label="Charge"><Bar v={l} max={cap * 1.5} invert /> {l}/{cap.toFixed(1)}</td>
+                    <td data-label="Fatigue"><Bar v={s.fatigue} invert /></td>
+                    <td data-label="Disponibilité">{s.status === 'service' ? 'En service' : s.status}</td>
                   </tr>
                 );
               })}</tbody></table>

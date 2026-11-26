@@ -108,7 +108,7 @@ export class StationView implements View {
         if (y >= SH + 1 && y <= SH + 3) col = 0x4f5256; // rue
         else if (x >= -3 && x <= -2) col = 0x55585c; // rue latérale
         else if (y === SH || x === -1 || (y >= SH + 4)) col = 0xb9b2a2; // trottoir
-        poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], (x + y) % 2 ? col : shadeN(col, 0.97), 1, false);
+        poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], col, 1, false);
         if (col === 0x4f5256 && y === SH + 2 && x % 2 === 0) { const [a, b] = iso(x + 0.2, y + 0.5), [c, d] = iso(x + 0.8, y + 0.5); g.moveTo(a, b).lineTo(c, d).stroke({ width: 2, color: 0xe8e4d0, alpha: 0.8 }); }
       }
     // arbres d'alignement
@@ -126,7 +126,7 @@ export class StationView implements View {
     for (let y = 0; y < SH; y++)
       for (let x = 0; x < SW; x++) {
         const r = roomAt(st.station, f, x, y);
-        if (!r) { if (f === 0) poly(fg, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], (x + y) % 2 ? 0x8d8a80 : 0x87847a, 1, false); continue; }
+        if (!r) { if (f === 0) poly(fg, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], 0x8a877d, 1, false); continue; }
         const def = ROOM_DEFS[r.type];
         const tex = def.floorTex;
         let col = tex === 'moquette' ? mix(FLOOR_COL.moquette, def.color, 0.35) : FLOOR_COL[tex];
@@ -226,9 +226,9 @@ export class StationView implements View {
       st.vehicles.forEach((v, i) => {
         const p = places[i % Math.max(1, places.length)];
         const home = p ? { x: p.x + 0.5, y: p.y + 0.6 } : { x: 2 + i * 3, y: SH + 2 };
-        const s = new Sprite(vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : v.kind === 'technique' ? 'technique' : 'banalisee', police: true, era: year }, false));
-        s.anchor.set(0.5, 0.78);
-        s.scale.set(0.9);
+        const s = new Sprite(vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : v.kind === 'technique' ? 'technique' : 'banalisee', police: true, era: year }, 'ny'));
+        s.anchor.set(0.5, 60 / 96);
+        s.scale.set(1.25);
         this.objects.addChild(s);
         this.vehicles.set(v.id, { s, out: false, t: 0, x: home.x, y: home.y, home });
       });
@@ -247,8 +247,8 @@ export class StationView implements View {
       t.circle(a - 7, b - 28, r * 0.7).fill(leaf[1]);
       t.circle(a + 7, b - 38, r * 0.6).fill(leaf[2]);
     } else {
-      for (let i = -1; i <= 1; i++) t.moveTo(a, b - 22).lineTo(a + i * 10, b - 40 - Math.abs(i) * 2).stroke({ width: 1.6, color: 0x5a4030 });
-      t.circle(a, b - 36, 8).fill({ color: 0xffffff, alpha: 0.5 });
+      for (let i = -2; i <= 2; i++) t.moveTo(a, b - 18).lineTo(a + i * 7, b - 40 + Math.abs(i) * 3).stroke({ width: 1.4, color: 0x5a4030 });
+      for (let i = -1; i <= 1; i += 2) t.moveTo(a + i * 7, b - 37).lineTo(a + i * 11, b - 44).stroke({ width: 1, color: 0x5a4030 });
     }
     t.zIndex = (x + y) * 10;
     this.objects.addChild(t);
@@ -547,20 +547,20 @@ export class StationView implements View {
       const out = v.busyUntil > st.minute;
       if (out !== vs.out) { vs.out = out; vs.t = 0; }
       vs.t += dt;
-      let x = vs.home.x, y = vs.home.y, alongX = false, visible = true;
+      let x = vs.home.x, y = vs.home.y, dir: 'px' | 'nx' | 'py' | 'ny' = 'ny', visible = true;
       if (out) {
         // sortie : descend vers la rue puis file vers l'est
         const k = vs.t * 1.6;
-        if (k < SH + 2 - vs.home.y) { y = vs.home.y + k; alongX = false; }
-        else { y = SH + 2; x = vs.home.x + (k - (SH + 2 - vs.home.y)); alongX = true; visible = x < SW + 4; }
+        if (k < SH + 2 - vs.home.y) { y = vs.home.y + k; dir = 'py'; }
+        else { y = SH + 2; x = vs.home.x + (k - (SH + 2 - vs.home.y)); dir = 'px'; visible = x < SW + 4; }
       } else if (vs.t < 6) {
         const k = 6 - vs.t;
         const dy = SH + 2 - vs.home.y;
-        if (k * 1.6 > dy) { y = SH + 2; x = vs.home.x + (k * 1.6 - dy); alongX = true; visible = x < SW + 4; }
+        if (k * 1.6 > dy) { y = SH + 2; x = vs.home.x + (k * 1.6 - dy); dir = 'nx'; visible = x < SW + 4; }
         else { y = vs.home.y + k * 1.6; }
       }
       const year = calendar(st.startYear, st.minute).year;
-      vs.s.texture = vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : 'banalisee', police: true, era: year, lights: out && v.caseId !== null && Math.floor(time / 250) % 2 === 0 }, alongX, 0);
+      vs.s.texture = vehTexture({ body: '#' + v.color.toString(16).padStart(6, '0'), kind: v.kind === 'fourgon' ? 'fourgon' : 'banalisee', police: true, era: year, lights: out && v.caseId !== null && Math.floor(time / 250) % 2 === 0 }, dir, 0);
       const [px, py] = iso(x, y);
       vs.s.position.set(px, py);
       vs.s.visible = this.floor === 0 && visible;

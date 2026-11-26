@@ -6,6 +6,7 @@ import type { Rng } from '../../core/rng';
 import { calendar, eraOf, MIN_D, MIN_H } from '../calendar';
 import type { Case, CaseType, DistrictId, GameState, LabType, PlaceKind } from '../types';
 import { CaseBuilder, hm, pickPlace } from './builder';
+import { accidentSite, disparitionRandonneur, scripts2, volVoitureDeclare } from './templates2';
 
 export interface Template {
   id: string;
@@ -17,9 +18,9 @@ export interface Template {
   build: (st: GameState, rng: Rng, opts?: { district?: DistrictId }) => Case;
 }
 
-interface Suspect { prof: string; link: string; trait: string; motive: string; record?: boolean; age?: [number, number] }
+export interface Suspect { prof: string; link: string; trait: string; motive: string; record?: boolean; age?: [number, number] }
 
-interface CrimeScript {
+export interface CrimeScript {
   id: string;
   type: CaseType;
   kinds: PlaceKind[];
@@ -45,7 +46,7 @@ interface CrimeScript {
   extra?: (b: CaseBuilder, ids: { victim: string; culprit: string; herrings: string[] }) => void;
 }
 
-function crime(s: CrimeScript, st: GameState, rng: Rng, district?: DistrictId): Case {
+export function crime(s: CrimeScript, st: GameState, rng: Rng, district?: DistrictId): Case {
   const place = pickPlace(st, rng, s.kinds, district);
   const day = st.minute - rng.int(0, 2) * MIN_D;
   const factsAt = day - (day % MIN_D) + rng.int(s.hours[0] * 60, s.hours[1] * 60 - 1);
@@ -117,7 +118,7 @@ function crime(s: CrimeScript, st: GameState, rng: Rng, district?: DistrictId): 
   });
 }
 
-const VEHICLES = ['une camionnette blanche avec une échelle sur le toit', 'un scooter rouge', 'une berline grise ancienne', 'une petite voiture bleue cabossée', 'un vélo de course jaune', 'une fourgonnette verte'];
+export const VEHICLES = ['une camionnette blanche avec une échelle sur le toit', 'un scooter rouge', 'une berline grise ancienne', 'une petite voiture bleue cabossée', 'un vélo de course jaune', 'une fourgonnette verte'];
 const vt = (rng: Rng) => rng.pick(VEHICLES);
 
 function scripts(rng: Rng, year: number): CrimeScript[] {
@@ -476,7 +477,8 @@ export function templates(year: number): Template[] {
   const crimeT = (id: string, label: string, weight: number, districts: DistrictId[], minYear?: number): Template => ({
     id, type: 'vol', label, weight, districts, minYear,
     build: (st, rng, o) => {
-      const s = scripts(rngFor(rng), calendar(st.startYear, st.minute).year).find((x) => x.id === id)!;
+      const y = calendar(st.startYear, st.minute).year;
+      const s = scripts(rngFor(rng), y).find((x) => x.id === id) ?? scripts2(rngFor(rng), y).find((x) => x.id === id)!;
       return crime(s, st, rng, o?.district);
     },
   });
@@ -496,5 +498,32 @@ export function templates(year: number): Template[] {
     { id: 'deces-suspect', type: 'deces_suspect', label: 'Décès suspect', weight: 3, districts: ['pavillons', 'villages', 'rural', 'residentiel'], build: (st, rng, o) => decesSuspect(st, rng, o?.district) },
     { id: 'fausse-declaration', type: 'fausse_declaration', label: 'Fausse déclaration', weight: 6, districts: ['residentiel', 'centre', 'pavillons'], build: (st, rng, o) => fausseDeclaration(st, rng, o?.district) },
     { id: 'dossier-ancien', type: 'ancien', label: 'Dossier ancien', weight: 1, districts: ['centre'], build: (st, rng) => dossierAncien(st, rng) },
+    // ————— V0.2 : 26 modèles supplémentaires —————
+    { ...crimeT('cambriolage-bijouterie', 'Cambriolage nocturne de commerce', 4, ['centre', 'vieille', 'commercial']), type: 'cambriolage' },
+    { ...crimeT('cambriolage-appartement', 'Cambriolage d\'appartement', 8, ['residentiel', 'centre', 'campus']), type: 'cambriolage' },
+    { ...crimeT('vol-tire', 'Vols à la tire', 6, ['gare', 'commercial', 'centre', 'tourisme']), type: 'vol' },
+    { ...crimeT('vol-chantier', 'Vol sur un chantier', 4, ['industrie', 'commercial', 'axes']), type: 'vol' },
+    { ...crimeT('vol-ferme', 'Vol dans une exploitation agricole', 3, ['rural', 'villages']), type: 'vol' },
+    { ...crimeT('vol-hotel', 'Vols dans un hôtel', 3, ['gare', 'vieille', 'tourisme', 'axes']), type: 'vol' },
+    { ...crimeT('escroquerie-placement', 'Escroquerie au faux placement', 3, ['centre', 'pavillons', 'residentiel']), type: 'escroquerie' },
+    { ...crimeT('escroquerie-location', 'Fausse location saisonnière', 3, ['tourisme', 'villages', 'pavillons']), type: 'escroquerie' },
+    { ...crimeT('escroquerie-garage', 'Fausses factures de garage', 2, ['commercial', 'axes']), type: 'escroquerie' },
+    { ...crimeT('fraude-permis', 'Faux certificats de formation', 2, ['centre', 'commercial']), type: 'fraude_doc' },
+    { ...crimeT('faux-testament', 'Testament contesté', 2, ['centre', 'vieille']), type: 'fraude_doc' },
+    { ...crimeT('objets-eglise', 'Objets d\'église dérobés', 1, ['vieille', 'villages']), type: 'trafic_art' },
+    { ...crimeT('faussaire', 'Faux tableaux', 1, ['vieille', 'centre', 'tourisme']), type: 'trafic_art' },
+    { ...crimeT('sabotage-fete', 'Sabotage de matériel de spectacle', 1, ['tourisme', 'residentiel', 'vieille']), type: 'sabotage' },
+    { ...crimeT('chantage-elu', 'Chantage envers un élu', 1, ['centre']), type: 'extorsion' },
+    { ...crimeT('racket-chantier', 'Racket d\'entreprise', 2, ['industrie', 'commercial']), type: 'extorsion' },
+    { ...crimeT('detournement-asso', 'Détournement dans une association', 3, ['residentiel', 'pavillons', 'campus']), type: 'financiere' },
+    { ...crimeT('fraude-subventions', 'Fraude aux subventions', 2, ['rural', 'industrie']), type: 'financiere' },
+    { ...crimeT('vol-utilitaire', 'Vol d\'utilitaire', 6, ['pavillons', 'industrie', 'villages']), type: 'vol_vehicule' },
+    { ...crimeT('vol-collection', 'Vol de voiture de collection', 1, ['pavillons', 'villages', 'tourisme']), type: 'vol_vehicule' },
+    { ...crimeT('piratage-messagerie', 'Intrusion informatique', 2, ['campus', 'centre', 'commercial'], 1990), type: 'numerique' },
+    { ...crimeT('arnaque-annonces', 'Arnaque aux annonces en ligne', 4, ['campus', 'residentiel', 'commercial'], 2000), type: 'numerique' },
+    { ...crimeT('homicide-domaine', 'Mort violente', 1, ['villages', 'rural', 'tourisme', 'pavillons']), type: 'homicide' },
+    { id: 'disparition-randonneur', type: 'disparition', label: 'Randonneur disparu', weight: 2, districts: ['foret', 'villages'], build: (st, rng) => disparitionRandonneur(st, rng) },
+    { id: 'vol-voiture-declare', type: 'fausse_declaration', label: 'Vol de voiture déclaré', weight: 4, districts: ['residentiel', 'pavillons', 'commercial'], build: (st, rng, o) => volVoitureDeclare(st, rng, o?.district) },
+    { id: 'accident-site', type: 'sabotage', label: 'Accident grave sur un site', weight: 1, districts: ['industrie'], build: (st, rng) => accidentSite(st, rng) },
   ];
 }

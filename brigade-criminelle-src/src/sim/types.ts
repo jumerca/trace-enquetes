@@ -513,5 +513,12 @@ export interface GameState {
   saga: { started: boolean; stepsSpawned: number; resolved: boolean };
   scenario: 'saint-clair' | 'libre';
   reception: { visitors: number; satisfied: number };
-  hierarchy: { evaluations: { year: number; note: number; text: string }[]; rank: number };
+  hierarchy: {
+    evaluations: { year: number; note: number; text: string }[];
+    rank: number;
+    postSince: number;
+    offers: { id: string; at: number; expires: number; toRank: number; options: ({ kind: 'surplace' } | { kind: 'mutation'; city: string; size: CitySize })[]; answered: boolean; text: string }[];
+    career: { minute: number; year: number; rank: number; city: string; text: string }[];
+    retired: boolean;
+  };
 }

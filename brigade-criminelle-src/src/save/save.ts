@@ -19,7 +19,14 @@ export function serialize(s: GameState): string {
 }
 
 /** Migrations successives : chaque version future ajoutera une étape ici. */
-const MIGRATIONS: Record<number, (st: GameState) => GameState> = {};
+const MIGRATIONS: Record<number, (st: GameState) => GameState> = {
+  // v1 → v2 : progression de carrière (V0.2)
+  1: (st) => {
+    const h = st.hierarchy as Partial<GameState['hierarchy']> & { evaluations: GameState['hierarchy']['evaluations']; rank: number };
+    st.hierarchy = { evaluations: h.evaluations ?? [], rank: Math.min(h.rank ?? 0, 5), postSince: h.postSince ?? 0, offers: h.offers ?? [], career: h.career ?? [{ minute: 0, year: st.startYear, rank: 0, city: st.city.name, text: `Prise de fonctions à la tête de la brigade de ${st.city.name}.` }], retired: h.retired ?? false };
+    return st;
+  },
+};
 
 export function deserialize(json: string): GameState {
   const f = JSON.parse(json) as SaveFile;

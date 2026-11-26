@@ -1,6 +1,6 @@
 # Brigade criminelle Tycoon — Sous haute tension
 
-**JLG Creative — version 0.1.0 (V0.1 jouable)**
+**JLG Creative — version 0.2.0**
 
 Jeu de gestion d'une brigade de police judiciaire dans une ville française fictive, en 2,5D isométrique.
 Le joueur recrute et organise ses équipes, supervise des enquêtes procédurales fondées sur une vérité
@@ -23,6 +23,7 @@ npm run build:pages  # build + copie dans ../brigade-criminelle (publication Git
 npm run test:e2e -- http://localhost:4175/ test-results   # parcours navigateur (après `npm run preview`)
 node scripts/perf.cjs http://localhost:4175/            # mesure indicative images/s et mémoire
 npx vite-node scripts/longrun.ts <graine> <mois>         # simulation longue en délégation, bilan mensuel
+npx vite-node scripts/career-run.ts <graine>             # carrière complète 1975 → retraite, bilan annuel
 ```
 
 Pages de développement (serveur `npm run dev`) : `preview.html` (planche des personnages et véhicules),
@@ -48,6 +49,12 @@ Pages de développement (serveur `npm run dev`) : `preview.html` (planche des pe
    d'infraction, charges insuffisantes, auteur inconnu). Le parquet peut demander un complément
    d'enquête ; le jugement simulé intervient plus tard.
 
+7. **Carrière** (menu 🎖️) : chaque 1er janvier, la direction examine votre dossier (ancienneté dans
+   le poste, évaluations, réputation, moral des équipes, irrégularités). Si tout est rempli, une
+   proposition d'avancement arrive : sur place (ressort élargi, moyens relevés, renforts) ou par
+   mutation dans une ville plus grande. Six échelons, jusqu'à une coordination nationale fictive ;
+   retraite à 65 ans.
+
 ## Architecture
 
 ```
@@ -58,7 +65,8 @@ src/
     calendar.ts          moteur temporel, époques et technologies (1975 → 2025)
     city.ts              moteur urbain : carte, quartiers, lieux et horaires, A* routier
     staff.ts             moteur du personnel : 18 compétences, grilles, fatigue, moral, progression
-    cases/               générateur d'affaires : builder, 14 modèles procéduraux, grande affaire
+    cases/               générateur d'affaires : builder, 40 modèles procéduraux, grande affaire
+    career.ts            progression de carrière : échelons, avancements, mutations, retraite
     knowledge.ts         moteur des connaissances (ce que l'équipe sait, charges, contradictions)
     investigation.ts     actions d'enquête, découverte des informations, IA des enquêteurs
     interview.ts         entretiens supervisés (mémoire, émotions, sincérité, droits)
