@@ -280,3 +280,9 @@ table.t tr.click:hover td { background: #fff3d6; }
 .partner-grid .card { margin: 0; }
 .quote { font-style: italic; background: #f4ecdb; border-left: 3px solid var(--ochre); padding: 4px 8px; margin: 6px 0; border-radius: 4px; }
 @media (max-width: 640px) { .partner-grid { grid-template-columns: 1fr; } }
+.tuto.top, .tuto-pill.top { bottom: auto; top: calc(var(--hud-h) + 8px); }
+@media (max-width: 720px) { .tuto.top, .tuto-pill.top { bottom: auto; top: calc(var(--hud-h) + 6px); max-height: 38vh; } .tuto { max-height: 38vh; } }
+/* la fiche laisse passer les touchers vers le jeu (seuls ses boutons sont actifs) */
+.tuto { pointer-events: none; }
+.tuto button { pointer-events: auto; }
+.menu-sheet { z-index: 50 !important; }

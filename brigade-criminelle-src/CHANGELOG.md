@@ -1,5 +1,54 @@
 # Journal des modifications
 
+## 0.4.0 — Prise en main, époques des personnages, son, partenaires, ville vivante (26 novembre 2026)
+
+- **Tutoriel de prise en main** en 16 étapes (proposé à la création de carrière) : chaque étape
+  met en évidence le bouton ou le menu concerné et se valide d'elle-même quand l'action est faite ;
+  fiche repliable, placée à l'opposé de l'élément à toucher. Nouveau menu **❓ Guide** (règles,
+  commandes, relance du tutoriel).
+- **Personnages selon l'époque** : coiffures (cheveux longs et favoris des années 1970, permanentes
+  et nuques longues des années 1980, raie au milieu des années 1990, dégradés et chignons ensuite),
+  vêtements (cols pelle à tarte et pattes d'éléphant, épaulettes, coupes amples, cols roulés, coupes
+  ajustées, sweats à capuche et doudounes), couleurs de chaque décennie, lunettes, moustaches et barbes,
+  baladeur, téléphone (combiné, portable à clapet, smartphone), écouteurs sans fil ; uniformes
+  (képi, casquette, gilet tactique « POLICE », caméra-piéton). Portraits et figurants suivent l'année.
+- **Son** (synthétisé, sans fichier) : musique d'ambiance générative dont l'instrumentation suit la
+  décennie (piano électrique et basse marchante, synthétiseurs, rythmique trip-hop, nappes) et dont le
+  tempo monte avec les affaires urgentes ; ambiances (frappe à la machine ou au clavier selon
+  l'époque, circulation, klaxons, oiseaux) ; effets : sonnerie de téléphone d'époque à chaque nouveau
+  dossier, sirène deux-tons pour l'urgence, coup de tampon pour les décisions, carillon, réussite et
+  échec. Réglages dans Options.
+- **Enquêtes plus variées** : six variantes de déroulement qui changent la structure d'une affaire
+  (faux alibi fourni par un proche à faire craquer, auteur en fuite à localiser, piste montée de
+  toutes pièces contre un innocent, faux aveux d'une personne vulnérable à démonter, traces fragiles
+  qui se dégradent si l'analyse tarde, témoins qui deviennent introuvables mais images ou registres à
+  requérir). **Séries** : un auteur non arrêté peut récidiver, avec le même mode opératoire et un
+  élément qui renvoie au dossier précédent.
+- **Partenaires incarnés** : médecin légiste, gendarmerie, maire, direction de l'hôpital, services
+  sociaux, correspondant des banques et opérateurs. Chacun a un nom, un portrait, une relation et des
+  répliques. Ils vous sollicitent (sécuriser une fête, prêter un enquêteur, assister à une autopsie,
+  régler des actes impayés, signaler une personne vulnérable…) et attendent une réponse ; vous pouvez
+  leur demander un appui sur une affaire (examens prioritaires, opération conjointe, images et
+  registres, accès aux admissions, réquisitions accélérées, participation aux travaux). Appuis aussi
+  disponibles depuis le dossier.
+- **Ville vivante** : feux tricolores aux carrefours urbains (onde verte, arrêt au rouge et à l'orange,
+  piétons qui attendent leur tour) ; les **personnes liées aux affaires** sont suivies une à une sur la
+  carte (domicile, travail, sorties du soir, absentes en garde à vue), avec leur nom ; les toucher
+  ouvre le dossier.
+- **Construction libre** : pièces en L (quatre orientations), déplacement d'une pièce avec son
+  mobilier (y compris vers un autre étage), rotation et retrait des meubles, **démolition remboursée**
+  (60 % de la construction, 90 % si les travaux n'étaient pas finis, 50 % du mobilier) ; contrôle que
+  plus aucune pièce ne se retrouve sans accès.
+- **Sommet de carrière** : aux deux derniers échelons, pilotage national — répartition de l'effort
+  entre cinq priorités (qui change les affaires remontées et la vitesse des enquêtes), crises
+  nationales, demandes du cabinet ministériel (fictif), réformes datées (fichier commun, pôles
+  financiers, police de proximité, indicateurs chiffrés, réforme de la garde à vue, office cyber),
+  nominations, arbitrages budgétaires ; confiance du ministère ; 25 % de l'évaluation annuelle.
+- **Équilibrage sur Saint-Clair 1995** : fréquence des demandes des partenaires, séries et variantes
+  ajustées pour éviter l'engorgement ; l'adjoint présente au parquet les petits dossiers enlisés quand
+  le service est débordé et ménage l'équipe fatiguée ; pénalité des irrégularités rapportée au volume
+  traité ; réputation qui progresse moins vite.
+
 ## 0.3.0 — Commissariat agrandissable, époques, réseau d'antennes (26 novembre 2026)
 
 - **Site agrandissable** : achat de terrain vers l'est et le sud (jusqu'à 40 × 32 cases par étage),

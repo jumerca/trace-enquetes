@@ -335,6 +335,11 @@ export function finishLab(st: GameState, rng: Rng, jobId: string, techSkill: num
     return;
   }
   clue.attempts++;
+  // traces fragiles : envoyées trop tard, elles se sont dégradées
+  if (clue.expiresAfterH !== undefined && j.queuedAt > c.factsAt + clue.expiresAfterH * MIN_H && !it.degraded) {
+    it.degraded = true;
+    caseLog(st, c.id, `Les traces de « ${it.label} » se sont dégradées avant l'analyse : le résultat sera plus difficile à obtenir.`);
+  }
   const skill = techSkill * (0.6 + q * 0.6) * (it.degraded ? 0.7 : 1);
   if (rng.chance(successChance(skill + 3, clue.difficulty, clue.attempts))) {
     discover(st, c, clue, undefined);

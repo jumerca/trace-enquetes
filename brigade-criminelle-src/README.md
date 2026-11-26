@@ -1,6 +1,6 @@
 # Brigade criminelle Tycoon — Sous haute tension
 
-**JLG Creative — version 0.3.0**
+**JLG Creative — version 0.4.0**
 
 Jeu de gestion d'une brigade de police judiciaire dans une ville française fictive, en 2,5D isométrique.
 Le joueur recrute et organise ses équipes, supervise des enquêtes procédurales fondées sur une vérité
@@ -27,9 +27,13 @@ npx vite-node scripts/career-run.ts <graine>             # carrière complète 1
 ```
 
 Pages de développement (serveur `npm run dev`) : `preview.html` (planche des personnages et véhicules),
+`eras.html` (personnages de 1976 à 2025), `station.html?lshape=1` (pièce en L et meubles tournés),
 `station.html?f=1&m=200` (commissariat seul), `city.html?m=600` (carte seule).
 
 ## Prise en main
+
+Un **tutoriel guidé** (16 étapes) est proposé à la création de carrière ; le menu **❓ Guide** le relance
+et résume les règles.
 
 1. **Nouvelle carrière** : nom, prénom, âge, portrait, expérience, formation, spécialité, style de
    management ; scénario de référence (Saint-Clair, 1995, 80 000 habitants, « Les ombres de Saint-Clair »)
@@ -58,6 +62,14 @@ Pages de développement (serveur `npm run dev`) : `preview.html` (planche des pe
 8. **Réseau** (menu 🛰️) : à partir de la brigade départementale, pilotez vos antennes (dotations,
    priorités, inspections, affectations). **Construction** : achetez du terrain pour agrandir le site.
    **Équipements** : renouvelez la flotte et adoptez les technologies de chaque décennie.
+
+9. **Partenaires** (menu 🤝) : légiste, gendarmerie, maire, hôpital, services sociaux, banques et
+   opérateurs vous sollicitent et peuvent vous appuyer sur une affaire, selon la relation entretenue.
+   Aux deux derniers échelons, **Carrière** ajoute le **pilotage national** (priorités, crises, cabinet,
+   réformes, nominations).
+
+10. **Construction** : pièces rectangulaires ou en L, déplacement d'une pièce (menu de la pièce),
+   rotation et retrait des meubles, démolition remboursée. **Son** : réglages dans Options.
 
 ## Architecture
 

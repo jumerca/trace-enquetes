@@ -40,12 +40,19 @@ export function Tutorial() {
   const t = st.tutorial;
   const step = t?.on ? STEPS[t.step] : undefined;
   const [collapsed, setCollapsed] = useState(false);
+  const [top, setTop] = useState(false);
   // mise en évidence de l'élément visé
   useEffect(() => {
     if (!step) return;
     const sels = [step.target, step.nav ? `[data-nav="${step.nav}"]` : '', step.nav && !['station', 'city', 'cases', 'staffList'].includes(step.nav) ? '.menu-btn' : ''].filter(Boolean).join(',');
-    if (!sels) return;
-    const mark = () => document.querySelectorAll(sels).forEach((el, i) => { if (i < 3 || !step.target) el.classList.add('tuto-hl'); });
+    const mark = () => {
+      if (sels) document.querySelectorAll(sels).forEach((el, i) => { if (i < 3 || !step.target) el.classList.add('tuto-hl'); });
+      // la fiche du tutoriel se place à l'opposé de l'élément à toucher, pour ne jamais le masquer
+      const el = document.querySelector('.tuto-hl');
+      if (document.querySelector('.build-bar')) setTop(true);
+      else if (el) { const r = el.getBoundingClientRect(); setTop(r.top + r.height / 2 > window.innerHeight * 0.5); }
+      else setTop(false);
+    };
     mark();
     const id = window.setInterval(mark, 600);
     return () => { clearInterval(id); document.querySelectorAll('.tuto-hl').forEach((el) => el.classList.remove('tuto-hl')); };
@@ -61,9 +68,9 @@ export function Tutorial() {
   if (!step || !t) return null;
   const last = t.step === STEPS.length - 1;
   const next = () => g.mutate((s) => { if (!s.tutorial) return; if (last) s.tutorial.on = false; else s.tutorial.step++; });
-  if (collapsed) return <button className="tuto-pill" onClick={() => setCollapsed(false)}>❓ Tutoriel {t.step + 1}/{STEPS.length}</button>;
+  if (collapsed) return <button className={`tuto-pill ${top ? 'top' : ''}`} onClick={() => setCollapsed(false)}>❓ Tutoriel {t.step + 1}/{STEPS.length}</button>;
   return (
-    <div className="tuto" role="dialog" aria-label="Tutoriel">
+    <div className={`tuto ${top ? 'top' : ''}`} role="dialog" aria-label="Tutoriel">
       <div className="row between"><span className="muted">Prise en main · {t.step + 1}/{STEPS.length}</span><button className="back" onClick={() => setCollapsed(true)} title="Réduire">▾</button></div>
       <div className="tuto-bar"><i style={{ width: `${((t.step + 1) / STEPS.length) * 100}%` }} /></div>
       <h3>{step.title}</h3>

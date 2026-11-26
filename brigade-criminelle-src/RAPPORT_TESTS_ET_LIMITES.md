@@ -1,9 +1,9 @@
-# Rapport de tests, fonctionnalités et limites — V0.3.0
+# Rapport de tests, fonctionnalités et limites — V0.4.0
 
 Ce rapport distingue ce qui est **vérifié** (test automatisé ou contrôle manuel documenté) de ce qui
 est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée terminée sans preuve.
 
-## 1. Tests automatisés (`npm test`) — 46 tests, tous réussis
+## 1. Tests automatisés (`npm test`) — 52 tests, tous réussis
 
 | Domaine | Test | Résultat |
 |---|---|---|
@@ -29,8 +29,20 @@ est **partiel** ou **non réalisé**. Aucune fonctionnalité n'y est déclarée 
 | Réseau et retour (V0.3) | Antennes créées selon l'échelon ; détachement, inspection, dotation ; dossiers sensibles remontés au siège en simulation ; retour dans une ville quittée (équipe retrouvée, dossiers clos par le successeur), et repli sans archive | ✅ |
 | Longue durée | 3 années en délégation sans intervention : > 100 dossiers clôturés, > 70 % de décisions conformes aux faits, < 5 % de condamnations erronées, fatigue et compétences bornées, budget fini, sauvegarde < 8 Mo | ✅ |
 | Époques | 1975, 1985, 2005, 2015, 2025 (commune à métropole) : démarrage et un mois de simulation | ✅ |
+| Variantes (V0.4) | Les six variantes de déroulement apparaissent ; toutes restent solvables (incluses dans les 2 000 affaires) ; un auteur non arrêté récidive et le nouveau dossier renvoie au précédent | ✅ |
+| Partenaires (V0.4) | Six partenaires ; une demande arrive, la réponse modifie la relation ; une sollicitation acceptée accélère l'affaire ; pas de nouvelle sollicitation immédiate | ✅ |
+| Sommet (V0.4) | Aucun pilotage national avant l'échelon 5 ; priorités toujours égales à 100 % ; arbitrages générés et décidés ; note de pilotage | ✅ |
+| Construction (V0.4) | Pièce en L (angle retiré inaccessible), déplacement avec mobilier, démolition remboursée au centime ; refus de démolir un couloir qui couperait l'accès à d'autres pièces | ✅ |
 
-Simulation longue de contrôle (`npx vite-node scripts/longrun.ts 7 36`, délégation avancée, 3 ans) :
+**Équilibrage V0.4 sur Saint-Clair 1995** (`scripts/longrun.ts`, délégation avancée, graines 1 à 4,
+13 mois) : la première version des nouveautés provoquait un engorgement sur deux graines sur trois
+(jusqu'à 45 dossiers en attente, fatigue moyenne 65-78, évaluation 1,1 à 5,4/20). Après réglage :
+2 à 29 dossiers en attente fin décembre, 113 à 142 dossiers dans l'année, délai médian 6 à 10 jours,
+93 à 97 % de décisions conformes aux faits, évaluations 14,8 à 16,6/20, budget consommé à 62-72 %
+(le reste finance les choix du joueur : construction, technologies, partenaires). Sur 3 ans (graine 5) :
+2 à 4 dossiers en attente en fin d'année.
+
+Simulation longue de contrôle de la V0.3 (`npx vite-node scripts/longrun.ts 7 36`, délégation avancée, 3 ans) :
 343 dossiers ouverts, 2 encore en cours fin 1997 ; 251 condamnations conformes, 32 classements pour
 absence d'infraction, 16 relaxes ; délai médian de traitement 8,2 jours ; évaluations 15,3 puis 13,3/20.
 La grande affaire est résolue correctement (Marchal et Valois condamnés, l'archiviste retrouvé,
@@ -114,36 +126,40 @@ année simulée après allègement des archives. Bundle : 545 ko (174 ko gzip) +
 
 ## 5. Limites connues et écarts avec le cahier des charges complet
 
-- **Modèles d'affaires** : 40 modèles procéduraux (objectif atteint). La plupart (33) reposent sur
-  le même squelette d'enquête (auteur, fausses pistes, alibi réfutable, pièce à analyser, perquisition,
-  aveux) avec des textes et des personnages propres : la variété tient surtout au récit, moins à la
-  structure. Les textes des
+- **Modèles d'affaires** : 40 modèles procéduraux. 33 partagent un squelette commun, mais 60 % des
+  affaires reçoivent l'une des six variantes de déroulement, et certaines forment des séries ; la
+  grande affaire scénarisée reste la seule intrigue écrite à la main. Les textes des
   déclarations sont rédigés à la troisième personne (style procès-verbal) ; l'accord en genre de
   quelques phrases génériques reste approximatif.
 - **Graphismes** : personnages, véhicules et mobilier sont dessinés procéduralement (style BD) ;
   ce ne sont pas des graphismes définitifs. Animations présentes : marche, course, conversation,
   ordinateur, lecture, téléphone, transport de dossiers, assis ; arrivée/départ en véhicule au
   commissariat.
-- **Ville** : population agrégée par quartier ; seuls les lieux et personnes des affaires sont
-  individualisés. Les piétons et la circulation sont décoratifs (pilotés par l'activité des
-  quartiers), pas des habitants simulés un par un avec domicile et travail.
+- **Ville** : les personnes liées aux affaires en cours sont suivies une à une sur la carte (domicile,
+  travail, sorties ; jusqu'à 18 à la fois). Les autres passants et la circulation suivent l'activité
+  des quartiers et les feux, sans identité propre ; il n'y a ni bouchons ni accidents de la route.
 - **Progression de carrière** : six échelons, mutations, retour dans une ville déjà dirigée (si son
   archive est sur l'appareil ; sinon une brigade y est reconstituée), réseau d'antennes simulé de
   façon agrégée (leurs dossiers ne sont pas instruits un par un, sauf les dossiers sensibles remontés
-  au siège). Les arbitrages proprement nationaux restent à venir.
+  au siège). Le pilotage national (V0.4) passe par des arbitrages et des priorités, pas par la
+  gestion individuelle de chaque service régional.
 - **Fluidité sur téléphone** : toujours non mesurée sur un vrai appareil. Le jeu s'adapte désormais
   seul (résolution puis nombre de figurants) et affiche sa fluidité à la demande (Options).
-- **Partenaires** : parquet, juge des libertés et juge d'instruction simulés ; médecins légistes,
-  gendarmerie, services municipaux, hôpital et services sociaux n'interviennent que de façon
-  implicite (laboratoire, textes des affaires).
-- **Construction** : pièces rectangulaires sur une emprise fixe de 22 × 14 cases par étage ;
-  pas de rotation du mobilier ; la démolition ne rembourse rien.
+- **Partenaires** : six partenaires incarnés (demandes et appuis) en plus des magistrats. Leurs
+  échanges passent par des choix à options, pas par un dialogue libre ; ils ne se déplacent pas au
+  commissariat.
+- **Construction** : rectangles et L (pas de formes libres plus complexes) ; la rotation d'un meuble
+  est un quart de tour visuel (les meubles occupent une seule case).
 - **Web Worker** : non utilisé — la simulation coûte ≈ 0,2 ms par pas et tourne sur le fil principal.
-- **Audio** : aucun son dans cette version.
+- **Audio** : musique et effets synthétisés à la volée (pas d'enregistrements ni de voix) ; le son
+  démarre au premier toucher, comme l'exigent les navigateurs.
+- **Personnages** : la tenue suit l'année en cours pour tout le monde ; l'âge ne change pas le style
+  (un retraité de 2025 s'habille comme un jeune de 2025).
 - **Entretiens supervisés** : ils ne consomment pas de temps de jeu (instantanés) ; l'aléa des
   entretiens supervisés n'est pas sauvegardé (le reste de la simulation est reproductible).
-- **Équilibrage** : volumes, coûts et délais calibrés sur Saint-Clair 1995 ; les autres tailles et
-  époques n'ont été testées que sur un mois.
+- **Équilibrage** : calibré sur Saint-Clair 1995 (4 graines sur 13 mois, une sur 3 ans) et sur une
+  carrière complète en délégation ; non mesuré sur un joueur réel en gestion manuelle. En délégation
+  l'adjoint obtient souvent « excellente année » : la difficulté vient surtout de la gestion manuelle.
 - **Déploiement** : le build est copié dans `brigade-criminelle/` pour GitHub Pages ; l'adresse
   publique n'a pas pu être contrôlée depuis l'environnement de développement (accès réseau à
   github.io indisponible). Elle sera active après fusion sur la branche publiée.

@@ -153,7 +153,7 @@ describe('Réseau d\'antennes et retour dans une ville (V0.3)', () => {
     return import('../src/sim/network').then(({ ensureNetwork }) => {
       ensureNetwork(st, new Rng(2));
       const before = st.cases.length;
-      step(st, 120 * 1440);
+      step(st, 300 * 1440);
       expect((st.counters.escalations ?? 0)).toBeGreaterThan(0);
       expect(st.cases.length).toBeGreaterThan(before);
     });

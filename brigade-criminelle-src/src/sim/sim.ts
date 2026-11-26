@@ -170,7 +170,32 @@ export function spawnCase(st: GameState, rng: Rng, initial = false, types?: Case
   const cs = t.build(st, rng, { district });
   st.cases.push(cs);
   onNewCase(st, rng, cs);
+  // certains auteurs récidivent : une série d'affaires liées se prépare (inconnue du joueur)
+  if (t.crime && cs.truth.culprit && !initial && rng.chance(0.07)) {
+    (st.series ??= []).push({ tpl: t.id, culprit: cs.truth.culprit, caseId: cs.id, due: st.minute + rng.int(5, 14) * MIN_D, left: rng.chance(0.3) ? 2 : 1 });
+  }
   return cs;
+}
+
+/** Récidive : nouvelle affaire du même auteur, même mode opératoire, si l'auteur court toujours. */
+function seriesTick(st: GameState, rng: Rng) {
+  if (!st.series?.length) return;
+  const year = calendar(st.startYear, st.minute).year;
+  for (const s of [...st.series]) {
+    if (s.due > st.minute) continue;
+    const first = st.cases.find((c) => c.id === s.caseId);
+    const caught = st.cases.some((c) => (c.id === s.caseId || c.series === (first?.series ?? s.caseId)) && c.outcome?.designated === s.culprit && c.outcome.decision === 'poursuites');
+    const t = templates(year).find((x) => x.id === s.tpl);
+    if (caught || !t || !st.people[s.culprit]) { st.series = st.series.filter((x) => x !== s); continue; }
+    const last = st.cases.filter((c) => c.series === (first?.series ?? s.caseId) || c.id === s.caseId).pop() ?? first;
+    const cs = t.build(st, rng, { district: rng.pick(t.districts), forced: { culprit: s.culprit, linkTo: last?.id ?? s.caseId } });
+    st.cases.push(cs);
+    onNewCase(st, rng, cs);
+    s.left--;
+    s.caseId = cs.id;
+    s.due = st.minute + rng.int(6, 15) * MIN_D;
+    if (s.left <= 0) st.series = st.series.filter((x) => x !== s);
+  }
 }
 
 function onNewCase(st: GameState, rng: Rng, cs: Case) {
@@ -267,9 +292,10 @@ function hourly(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   // volume d'affaires : taille de la ville et ressort de l'échelon (sans double comptage —
   // un poste élevé dans une grande ville couvre surtout la ville elle-même)
   const demand = demandOf(st);
-  const perDay = 0.36 * demand;
+  const perDay = 0.34 * demand;
   const hourW = cal.hour >= 8 && cal.hour < 20 ? 1.4 : 0.45;
   if (open < 45 * Math.max(1, demand) && rng.chance((perDay / 24) * hourW)) spawnCase(st, rng);
+  if (cal.hour === 10) seriesTick(st, rng);
   // décisions des enquêteurs (toutes les deux heures en service)
   if (cal.hour % 2 === 0 && cal.hour >= 8 && cal.hour <= 18) investigatorsThink(st, rng);
   // délégation avancée : l'adjoint attribue et transmet
@@ -284,6 +310,8 @@ function hourly(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
 }
 
 function delegateHourly(st: GameState, rng: Rng) {
+  const openN = st.cases.filter((c) => c.status === 'ouverte').length;
+  const overloaded = openN > investigators(st).length * 1.6;
   for (const c of st.cases) {
     if (c.status !== 'ouverte') continue;
     if (!c.lead) { autoAssign(st, rng, c); continue; }
@@ -291,9 +319,12 @@ function delegateHourly(st: GameState, rng: Rng) {
       const top = suspicionRanking(c)[0];
       if (top && top.total >= PROOF * 1.15 && !top.exculpated && top.material >= 6) transmit(st, rng, c, { kind: 'poursuites', pid: top.pid });
       else if (noCrimeWeight(c) >= 8) transmit(st, rng, c, { kind: 'classement_absence' });
-      else if ((st.minute - c.openedAt) / MIN_D > 25) transmit(st, rng, c, { kind: top && top.total > 2 ? 'classement_insuffisant' : 'classement_inconnu' });
+      else if ((st.minute - c.openedAt) / MIN_D > (overloaded && c.priority >= 2 ? 10 : 25)) transmit(st, rng, c, { kind: top && top.total > 2 ? 'classement_insuffisant' : 'classement_inconnu' });
       // sinon le dossier reste prêt à transmettre : l'équipe poursuit si des éléments nouveaux arrivent
     } else if (c.stalledH > 72 && (st.minute - c.openedAt) / MIN_D > 30) {
+      c.stage = 'transmission';
+    } else if (overloaded && c.priority >= 2 && c.stalledH > 36 && (st.minute - c.openedAt) / MIN_D > (c.priority === 3 ? 8 : 18)) {
+      // service débordé : les dossiers mineurs enlisés sont présentés au parquet en l'état
       c.stage = 'transmission';
     }
   }
@@ -569,9 +600,11 @@ function newYear(st: GameState, rng: Rng, year: number) {
   const flaws = closed.reduce((s, c) => s + c.procedureFlaws, 0);
   const moral = st.staff.reduce((s, x) => s + x.moral, 0) / st.staff.length;
   const budgetOk = totalSpent(b) <= totalEnvelope(b) * 1.02 ? 1 : 0;
-  const note = Math.max(0, Math.min(20, Math.round((q / 100 * 6 + correct * 6 + moral / 100 * 3 + budgetOk * 2 + st.publicTrust / 100 * 3 - flaws * 0.3) * 10) / 10));
+  // irrégularités : pénalité rapportée au volume traité (au plus 6 points)
+  const flawPen = Math.min(6, flaws / Math.max(8, closed.length) * 9);
+  const note = Math.max(0, Math.min(20, Math.round((q / 100 * 6 + correct * 6 + moral / 100 * 3 + budgetOk * 2 + st.publicTrust / 100 * 3 - flawPen) * 10) / 10));
   st.hierarchy.evaluations.push({ year: year - 1, note, text: note >= 15 ? 'Excellente année : travail de qualité et équipe bien gérée.' : note >= 12 ? 'Année satisfaisante.' : note >= 9 ? 'Résultats contrastés : des progrès sont attendus.' : 'Année difficile : la hiérarchie demande un plan d\'amélioration.' });
-  st.commander.reputation = Math.max(0, Math.min(100, st.commander.reputation + (note - 11) * 1.5));
+  st.commander.reputation = Math.max(0, Math.min(100, st.commander.reputation + (note - 12) * 1.2));
   notify(st, { level: note >= 12 ? 'succes' : 'alerte', text: `Évaluation annuelle ${year - 1} : ${note}/20.` });
   // la gestion du réseau d'antennes compte pour 30 % de l'évaluation aux échelons supérieurs
   const nn = networkNote(st);

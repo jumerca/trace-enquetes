@@ -17,8 +17,15 @@ interface Pt { x: number; y: number }
 interface Car {
   s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; body: string; vk: string; police: boolean;
   key?: string; parked?: boolean; leaving?: boolean; blocked: number; x: number; y: number; hx: number; hy: number; dir: Dir; texKey?: string; era: number;
+  tiles: number[];
 }
-interface Ped { s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; spec: CharSpec; x: number; y: number; fade: number }
+interface Ped { s: Sprite; pts: Pt[]; seg: number; t: number; speed: number; spec: CharSpec; x: number; y: number; fade: number; tiles: number[] }
+/** Feu tricolore à un carrefour : deux phases (axe x / axe y), décalées pour une « onde verte ». */
+interface Signal { i: number; x: number; y: number; g: Graphics; off: number; key: string }
+type Light = 'v' | 'o' | 'r';
+/** Personne liée à une affaire, suivie individuellement sur la carte (domicile, travail, sorties). */
+interface Actor { pid: string; caseId: string; s: Sprite; tag: Text; spec: CharSpec; pts: Pt[]; seg: number; t: number; x: number; y: number; goal: string; tk?: number; hidden: boolean }
+const CYCLE = 16;
 
 const INK = 0x1d1a17;
 
@@ -60,6 +67,11 @@ export class CityView implements View {
   private rings: { g: Graphics; x: number; y: number; col: number }[] = [];
   private view = { x: -1e9, y: -1e9, w: 2e9, h: 2e9 };
   private statics: { o: Container; x0: number; y0: number; x1: number; y1: number }[] = [];
+  private signals: Signal[] = [];
+  private sigAt = new Map<number, Signal>();
+  private clock = 0;
+  private actors = new Map<string, Actor>();
+  private lastActors = 0;
   speed = 1;
 
   constructor(private get: () => GameState, private cb: CityCallbacks) {
@@ -91,6 +103,8 @@ export class CityView implements View {
     for (const c of this.cars) c.s.destroy();
     for (const p of this.peds) p.s.destroy();
     this.cars = []; this.peds = [];
+    for (const a of this.actors.values()) { a.s.destroy(); a.tag.destroy(); }
+    this.actors.clear();
     this.objects.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.statics = [];
     this.markerSig = '';
@@ -203,6 +217,24 @@ export class CityView implements View {
     }
     lines.stroke({ width: 1.6, color: 0xf2eedc, alpha: 0.85 });
     void zebra;
+    // feux tricolores aux carrefours urbains (pas en campagne)
+    this.signals = []; this.sigAt = new Map();
+    const rural = new Set<DistrictId>(['rural', 'foret', 'villages']);
+    const distAt = (x: number, y: number) => city.districts.find((d) => x >= d.x && x < d.x + d.w && y >= d.y && y < d.y + d.h)?.id;
+    for (const r of city.roads) {
+      const { x, y } = this.tileOf(r);
+      const n = [isR(x - 1, y), isR(x + 1, y), isR(x, y - 1), isR(x, y + 1)];
+      if (n.filter(Boolean).length < 3 || !((n[0] || n[1]) && (n[2] || n[3]))) continue;
+      const d = distAt(x, y);
+      if (d && rural.has(d)) continue;
+      if (city.tiles[r] !== T.route) continue;
+      const sg: Signal = { i: r, x, y, g: new Graphics(), off: (x * 1.7 + y * 0.9) % CYCLE, key: '' };
+      sg.g.zIndex = (x + y + 1) * 10 + 4;
+      this.objects.addChild(sg.g);
+      this.signals.push(sg);
+      this.sigAt.set(r, sg);
+    }
+    this.drawSignals();
     this.extra.addChild(lines);
     // 6) voie ferrée : ballast, traverses, rails
     const rails = new Graphics();
@@ -525,6 +557,103 @@ export class CityView implements View {
     return out;
   }
 
+  /** État du feu pour un axe de circulation. */
+  private light(sg: Signal, axis: 'x' | 'y'): Light {
+    const t = (this.clock + sg.off) % CYCLE;
+    if (axis === 'x') return t < 6.5 ? 'v' : t < 8 ? 'o' : 'r';
+    return t >= 8 && t < 14.5 ? 'v' : t >= 14.5 ? 'o' : 'r';
+  }
+
+  private drawSignals() {
+    const col: Record<Light, number> = { v: 0x3cd46a, o: 0xf2a33a, r: 0xe8443a };
+    for (const sg of this.signals) {
+      const lx = this.light(sg, 'x'), ly = this.light(sg, 'y');
+      const key = lx + ly;
+      if (key === sg.key) continue;
+      sg.key = key;
+      const g = sg.g;
+      g.clear();
+      // deux mâts aux angles opposés : l'un pour l'axe x, l'autre pour l'axe y
+      for (const [u, v, st] of [[-0.12, 1.12, lx], [1.12, -0.12, ly]] as [number, number, Light][]) {
+        const [a, b] = iso(sg.x + u, sg.y + v);
+        g.moveTo(a, b).lineTo(a, b - 24).stroke({ width: 1.6, color: 0x2a2d33 });
+        g.roundRect(a - 3, b - 36, 6, 14, 1.5).fill(0x1d1f24).stroke({ width: 0.8, color: 0x000000 });
+        (['r', 'o', 'v'] as Light[]).forEach((k, i) => g.circle(a, b - 33 + i * 4, 1.5).fill({ color: st === k ? col[k] : 0x3a3a3a, alpha: st === k ? 1 : 0.8 }));
+        if (st) g.circle(a, b - 33 + ['r', 'o', 'v'].indexOf(st) * 4, 3.2).fill({ color: col[st], alpha: 0.25 });
+      }
+    }
+  }
+
+  /** Les personnes liées aux affaires en cours, suivies une à une : domicile la nuit, travail en
+   * journée, sorties le soir ; absentes si elles sont en garde à vue ou disparues. */
+  private updateActors(st: GameState) {
+    const cal = calendar(st.startYear, st.minute);
+    const w = st.city.w;
+    const want = new Map<string, string>();
+    for (const c of st.cases) {
+      if (c.status !== 'ouverte') continue;
+      for (const cp of c.persons) {
+        if (!cp.known || cp.inCustody || cp.role === 'disparu' || want.has(cp.pid)) continue;
+        want.set(cp.pid, c.id);
+        if (want.size >= 18) break;
+      }
+      if (want.size >= 18) break;
+    }
+    for (const [pid, a] of this.actors) if (!want.has(pid)) { this.objects.removeChild(a.s); this.labels.removeChild(a.tag); a.s.destroy(); a.tag.destroy(); this.actors.delete(pid); }
+    const places = st.city.places;
+    const pickIn = (pid: string, kinds: Place['kind'][], salt: number, district?: DistrictId) => {
+      const list = places.filter((p) => kinds.includes(p.kind) && (!district || p.district === district));
+      const all = list.length ? list : places.filter((p) => kinds.includes(p.kind));
+      if (!all.length) return places[0];
+      return all[Math.floor(hash2(Number(pid.slice(1)) || 1, salt, 5) * all.length) % all.length];
+    };
+    for (const [pid, caseId] of want) {
+      const person = st.people[pid];
+      if (!person) continue;
+      const home = (person.homePlace && places.find((p) => p.id === person.homePlace)) || pickIn(pid, ['maison', 'immeuble'], 1, person.district);
+      const work = pickIn(pid, ['commerce', 'usine', 'entrepot', 'banque', 'mairie', 'hopital', 'ecole', 'universite', 'restaurant', 'garage', 'supermarche', 'hotel'], 2);
+      const leisure = pickIn(pid, ['bar', 'restaurant', 'parc', 'commerce'], 3);
+      const retired = person.age >= 64 || /retrait|sans emploi/.test(person.profession);
+      const h = cal.hour;
+      const goalPlace = h < 7 || h >= 22 ? home : h < 18 ? (retired ? (h >= 10 && h < 12 ? leisure : home) : (cal.weekday === 0 ? leisure : work)) : h < 20 ? leisure : home;
+      const hidden = goalPlace === home && (h < 6 || h >= 22.5);
+      let a = this.actors.get(pid);
+      if (!a) {
+        const spec: CharSpec = { a: person.appearance, sexe: person.sexe, look: 'civil' };
+        const s = new Sprite(charTexture(spec, 'idle', 0, false));
+        s.anchor.set(0.5, 66 / 72);
+        s.scale.set(0.36);
+        const tag = new Text({ text: `${person.prenom} ${person.nom[0]}.`, style: { fontSize: 11, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x1f2738, width: 3 } }, resolution: 3 });
+        tag.anchor.set(0.5, 1);
+        this.objects.addChild(s);
+        this.labels.addChild(tag);
+        const start = this.nearWalk(goalPlace) ?? st.city.roads[0];
+        const p0 = this.walkPoint(start, 0);
+        a = { pid, caseId, s, tag, spec, pts: [p0], seg: 0, t: 0, x: p0.x, y: p0.y, goal: goalPlace.id, hidden };
+        this.actors.set(pid, a);
+      }
+      a.caseId = caseId;
+      a.hidden = hidden;
+      if (a.goal !== goalPlace.id && a.seg >= a.pts.length - 1) {
+        const from = Math.round(a.y - 0.5) * w + Math.round(a.x - 0.5);
+        const startT = this.walk.has(from) ? from : this.nearWalkTile(from) ?? from;
+        const to = this.nearWalk(goalPlace);
+        const path = to !== undefined ? this.walkPath(startT, to) : [];
+        if (path.length >= 2) { a.pts = path.map((i) => this.walkPoint(i, 0.06)); a.seg = 0; a.t = 0; }
+        a.goal = goalPlace.id;
+      }
+    }
+  }
+  private nearWalk(p: Place): number | undefined {
+    const w = this.get().city.w;
+    return [p.y * w + p.x - 1, p.y * w + p.x + 1, (p.y - 1) * w + p.x, (p.y + 1) * w + p.x].find((i) => this.walk.has(i));
+  }
+  private nearWalkTile(i: number): number | undefined {
+    const w = this.get().city.w;
+    for (let r = 1; r < 4; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const j = i + dy * w + dx; if (this.walk.has(j)) return j; }
+    return undefined;
+  }
+
   private spawnCar(st: GameState, police?: { key: string; from: number; to: number; body: string; vk: string; era: number }) {
     const roads = st.city.roads;
     const a = police ? police.from : roads[Math.floor(Math.random() * roads.length)];
@@ -544,7 +673,7 @@ export class CityView implements View {
     s.anchor.set(0.5, 60 / 96);
     s.alpha = 0;
     this.objects.addChild(s);
-    this.cars.push({ s, pts, seg: 0, t: 0, speed: police ? 1.9 : 1.2 + Math.random() * 0.5, body, vk, police: !!police, key: police?.key, era, blocked: 0, x: pts[0].x, y: pts[0].y, hx: 1, hy: 0, dir: 'px' });
+    this.cars.push({ s, pts, seg: 0, t: 0, speed: police ? 1.9 : 1.2 + Math.random() * 0.5, body, vk, police: !!police, key: police?.key, era, blocked: 0, x: pts[0].x, y: pts[0].y, hx: 1, hy: 0, dir: 'px', tiles: path });
   }
 
   private walkPath(start: number, goal: number): number[] {
@@ -597,7 +726,7 @@ export class CityView implements View {
     s.scale.set(0.3);
     s.alpha = 0;
     this.objects.addChild(s);
-    this.peds.push({ s, pts, seg: 0, t: 0, speed: 0.38 + Math.random() * 0.18, spec, x: pts[0].x, y: pts[0].y, fade: 0 });
+    this.peds.push({ s, pts, seg: 0, t: 0, speed: 0.38 + Math.random() * 0.18, spec, x: pts[0].x, y: pts[0].y, fade: 0, tiles: path });
   }
 
   private spawn(st: GameState) {
@@ -697,6 +826,9 @@ export class CityView implements View {
     const k = Math.min(3, Math.max(1, Math.sqrt(this.speed || 1)));
     if (Math.floor(time / 80) !== Math.floor((time - dtMs) / 80)) this.animateWater(time);
     const lightsOn = daylight(st.startYear, st.minute) < 0.45;
+    this.clock += dt * k;
+    this.drawSignals();
+    if (time - this.lastActors > 400) { this.lastActors = time; this.updateActors(st); }
     // voitures : avance le long de la trajectoire, distance de sécurité
     for (const c of this.cars) {
       if (c.parked) {
@@ -717,6 +849,18 @@ export class CityView implements View {
       else {
         c.blocked = Math.max(0, c.blocked - dt);
         let move = c.speed * k * dt;
+        // feu rouge (ou orange, s'il reste la place de s'arrêter) à l'entrée du carrefour
+        const j = c.seg + 1;
+        if (!c.police && j >= 1 && j < c.tiles.length) {
+          const sg = this.sigAt.get(c.tiles[j]);
+          if (sg) {
+            const a = c.pts[c.seg], b = c.pts[j];
+            const rem = (1 - c.t) * (Math.hypot(b.x - a.x, b.y - a.y) || 1e-6);
+            const axis = (c.tiles[j] % st.city.w) !== (c.tiles[j - 1] % st.city.w) ? 'x' : 'y';
+            const l = this.light(sg, axis);
+            if ((l === 'r' || (l === 'o' && rem > 0.25)) && rem < 0.6) move = Math.max(0, Math.min(move, rem - 0.14));
+          }
+        }
         while (move > 0 && c.seg < c.pts.length - 1) {
           const a = c.pts[c.seg], b = c.pts[c.seg + 1];
           const len = Math.hypot(b.x - a.x, b.y - a.y) || 1e-6;
@@ -749,6 +893,19 @@ export class CityView implements View {
     // piétons
     for (const p of this.peds) {
       let move = p.speed * k * dt;
+      // traversée réglée par les feux : on attend que la circulation transversale soit arrêtée
+      const j = p.seg + 1;
+      if (j >= 1 && j < p.tiles.length && this.road.has(p.tiles[j]) && !this.road.has(p.tiles[j - 1])) {
+        const w = st.city.w, ti = p.tiles[j];
+        const sg = this.sigAt.get(ti) ?? this.sigAt.get(ti + 1) ?? this.sigAt.get(ti - 1) ?? this.sigAt.get(ti + w) ?? this.sigAt.get(ti - w);
+        if (sg) {
+          const crossX = (ti % w) !== (p.tiles[j - 1] % w);
+          const ok = this.light(sg, crossX ? 'y' : 'x') === 'r';
+          const a = p.pts[p.seg], b = p.pts[j];
+          const rem = (1 - p.t) * (Math.hypot(b.x - a.x, b.y - a.y) || 1e-6);
+          if (!ok && rem < 0.35) move = Math.max(0, Math.min(move, rem - 0.1));
+        }
+      }
       while (move > 0 && p.seg < p.pts.length - 1) {
         const a = p.pts[p.seg], b = p.pts[p.seg + 1];
         const len = Math.hypot(b.x - a.x, b.y - a.y) || 1e-6;
@@ -771,6 +928,31 @@ export class CityView implements View {
       const [sx, sy] = iso(p.x, p.y);
       p.s.position.set(sx, sy);
       p.s.zIndex = (p.x + p.y) * 10 + 0.5;
+    }
+    // personnes suivies
+    for (const a of this.actors.values()) {
+      let move = 0.42 * k * dt;
+      while (move > 0 && a.seg < a.pts.length - 1) {
+        const p0 = a.pts[a.seg], p1 = a.pts[a.seg + 1];
+        const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1e-6;
+        const rem = (1 - a.t) * len;
+        if (move < rem) { a.t += move / len; move = 0; } else { move -= rem; a.seg++; a.t = 0; }
+      }
+      const walking = a.seg < a.pts.length - 1;
+      const p0 = a.pts[Math.min(a.seg, a.pts.length - 1)], p1 = a.pts[Math.min(a.seg + 1, a.pts.length - 1)];
+      a.x = p0.x + (p1.x - p0.x) * a.t; a.y = p0.y + (p1.y - p0.y) * a.t;
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const frame = walking ? Math.floor(time / (170 / k)) % 4 : Math.floor(time / 700) % 4;
+      const back = walking && (dx < -0.01 || dy < -0.01);
+      const tk = frame * 2 + (back ? 1 : 0) + (walking ? 0 : 100);
+      if (a.tk !== tk) { a.tk = tk; a.s.texture = charTexture(a.spec, walking ? 'walk' : 'idle', frame, back); }
+      a.s.scale.x = walking && (dx - dy) < 0 ? -0.36 : 0.36;
+      const vis = !a.hidden || walking;
+      a.s.visible = vis; a.tag.visible = vis;
+      const [sx, sy] = iso(a.x, a.y);
+      a.s.position.set(sx, sy);
+      a.s.zIndex = (a.x + a.y) * 10 + 0.55;
+      a.tag.position.set(sx, sy - 27);
     }
     for (const c of this.cars.filter((x) => x.s.alpha <= 0 && (x.seg >= x.pts.length - 1 || x.leaving))) { this.objects.removeChild(c.s); c.s.destroy(); }
     this.cars = this.cars.filter((x) => !x.s.destroyed);
@@ -798,6 +980,11 @@ export class CityView implements View {
 
   tap(wx: number, wy: number) {
     const st = this.get();
+    for (const a of this.actors.values()) {
+      if (!a.s.visible) continue;
+      const [sx, sy] = iso(a.x, a.y);
+      if (Math.hypot(sx - wx, sy - 12 - wy) < 16) { this.cb.onCase(a.caseId); return; }
+    }
     for (const pl of st.city.places) {
       if (!st.cases.some((c) => c.status === 'ouverte' && c.placeId === pl.id)) continue;
       const [a, b] = iso(pl.x + 0.5, pl.y + 0.5, 78);

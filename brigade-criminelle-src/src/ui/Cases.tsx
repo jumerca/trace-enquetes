@@ -10,6 +10,8 @@ import { Rng } from '../core/rng';
 import type { Case, CaseStage, GameState, PlannedAction } from '../sim/types';
 import { Board } from './Board';
 import { InterviewModal } from './Interview';
+import { acceptChance, PARTNER_INFO, PARTNER_LABEL, SOLICITATIONS, solicit } from '../sim/partners';
+import { sfx } from '../audio/audio';
 import { Bar, eur, PanelShell, Portrait, SortTable, Tabs, useGame, when } from './common';
 import { makeStatement, type Statement } from '../sim/world';
 
@@ -135,6 +137,7 @@ function Synthese({ c }: { c: Case }) {
       {c.status !== 'ouverte' && c.outcome?.verdict && (
         <div className="card"><h3>Ce qui s'est réellement passé</h3><p>{c.truth.summary}</p><div className="muted">La vérité d'une affaire n'est révélée qu'après la décision de justice.</div></div>
       )}
+      {c.status === 'ouverte' && <PartnerHelp c={c} />}
       {c.linkedCases.length > 0 && <div className="card"><h3>Dossiers liés par l'équipe</h3>{c.linkedCases.map((x) => { const o = st.cases.find((k) => k.id === x); return o ? <div key={x}><button className="btn small" onClick={() => g.open({ id: 'case', arg: x })}>{o.title}</button></div> : null; })}</div>}
     </>
   );
@@ -355,5 +358,32 @@ function JusticeTab({ c }: { c: Case }) {
 
 export function caseLinkHints(st: GameState, c: Case): string[] {
   // indices découverts qui pointent vers une autre étape de la grande affaire
-  return found(c).filter((k) => k.links).map((k) => k.links!).map((key) => st.cases.find((x) => x.saga && x.templateId === `saga-${key}`)?.id).filter(Boolean) as string[];
+  return found(c).filter((k) => k.links).map((k) => k.links!).map((key) => st.cases.find((x) => x.id === key)?.id ?? st.cases.find((x) => x.saga && x.templateId === `saga-${key}`)?.id).filter(Boolean) as string[];
+}
+
+/** Appuis extérieurs sollicitables pour ce dossier (partenaires incarnés). */
+function PartnerHelp({ c }: { c: Case }) {
+  const [g, st] = useGame();
+  const [msg, setMsg] = useState('');
+  const ps = st.partners;
+  if (!ps) return null;
+  const sols = SOLICITATIONS.filter((x) => x.forCase && (!x.caseTypes || x.caseTypes.includes(c.type)));
+  const active = (c.boosts ?? []).filter((b) => b.until > st.minute);
+  return (
+    <div className="card">
+      <h3>Appuis extérieurs</h3>
+      {active.length > 0 && <p className="muted" style={{ marginTop: 0 }}>En cours : {active.map((b) => `${PARTNER_LABEL[b.by as keyof typeof PARTNER_LABEL]} jusqu'au ${when(st, b.until).slice(0, 10)}`).join(', ')}.</p>}
+      {sols.map((so) => {
+        const p = ps.list.find((x) => x.kind === so.partner)!;
+        const busy = p.busyUntil > st.minute;
+        return (
+          <div key={so.id} className="row between" style={{ padding: '2px 0' }}>
+            <span style={{ minWidth: 0, flex: 1 }}>{PARTNER_INFO[p.kind].title(p)} <span className="muted">({PARTNER_LABEL[p.kind]}) — {so.label}, accord probable {Math.round(acceptChance(p) * 100)} %</span></span>
+            <button className="btn small navy" disabled={busy} onClick={() => { let r = { ok: false, text: '' }; g.mutate((s) => { r = solicit(s, new Rng(s.minute + so.id.length), so.id, c.id); }); sfx(r.ok ? 'success' : 'fail'); setMsg(r.text); }}>{busy ? 'Déjà sollicité' : 'Solliciter'}</button>
+          </div>
+        );
+      })}
+      {msg && <p className="quote">{msg}</p>}
+    </div>
+  );
 }

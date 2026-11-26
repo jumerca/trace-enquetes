@@ -359,6 +359,7 @@ export interface Room {
   floor: number;
   x: number; y: number; w: number; h: number;
   doors: { x: number; y: number }[]; // cases de porte (sur la bordure)
+  cut?: { x: number; y: number; w: number; h: number }; // angle retiré (pièce en L)
   furniture: Furniture[];
   built: number; // minute de construction
 }
@@ -522,6 +523,7 @@ export interface GameState {
   partners?: import('./partners').PartnersState;
   summit?: import('./summit').SummitState;
   tutorial?: { on: boolean; step: number };
+  series?: { tpl: string; culprit: string; caseId: string; due: number; left: number }[]; // affaires en série à venir (même auteur)
   hierarchy: {
     evaluations: { year: number; note: number; text: string }[];
     rank: number;

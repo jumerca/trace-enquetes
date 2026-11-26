@@ -321,7 +321,7 @@ export function partnersDaily(st: GameState, rng: Rng, spawn: (types: CaseType[]
   for (const p of ps.list) p.relation += (50 - p.relation) * 0.004;
   // nouvelle demande (environ une tous les 4 à 5 jours ; plus fréquentes dans les grands ressorts)
   const pending = ps.requests.filter((r) => !r.answered).length;
-  if (pending < 3 && rng.chance(0.2 + st.hierarchy.rank * 0.02)) {
+  if (pending < 3 && rng.chance(0.085 + st.hierarchy.rank * 0.015)) {
     const p = rng.pick(ps.list);
     const gen = rng.pick(GENS[p.kind]);
     const r = gen(st, rng, p, year);
@@ -330,7 +330,12 @@ export function partnersDaily(st: GameState, rng: Rng, spawn: (types: CaseType[]
       ps.requests.push(req);
       notify(st, { level: 'alerte', text: `${PARTNER_INFO[p.kind].title(p)} (${PARTNER_LABEL[p.kind]}) : ${r.title}. Répondez dans le menu Partenaires.` });
       // en délégation avancée, l'adjoint répond de façon prudente
-      if (st.settings.assist === 'delegation') answerRequest(st, rng, req.id, 0, spawn);
+      if (st.settings.assist === 'delegation') {
+        // l'adjoint ménage l'équipe quand elle est fatiguée : il évite alors de prêter du monde
+        const tired = st.staff.reduce((t, s) => t + s.fatigue, 0) / Math.max(1, st.staff.length) > 50;
+        const k = tired ? Math.max(0, req.options.findIndex((o) => !o.effect.lend)) : 0;
+        answerRequest(st, rng, req.id, k, spawn);
+      }
     }
   }
 }

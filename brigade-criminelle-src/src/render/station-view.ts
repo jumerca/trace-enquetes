@@ -2,7 +2,7 @@
 // pilotés par leurs tâches dans la simulation (navigation A*), véhicules et visiteurs.
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { calendar, daylight } from '../sim/calendar';
-import { navPath, roomAt, ROOM_DEFS, walkable } from '../sim/station';
+import { canPlaceRoom, cutFor, inRoom, navPath, roomAt, ROOM_DEFS, walkable, type Shape } from '../sim/station';
 
 // emprise courante du terrain (agrandissable) : mise à jour à chaque image depuis la simulation
 let SW = 22, SH = 14;
@@ -17,9 +17,10 @@ export interface StationCallbacks {
   onRoom(id: string): void;
   onBuildRect?(floor: number, x: number, y: number, w: number, h: number): void;
   onPlaceFurniture?(roomId: string, x: number, y: number): void;
+  onMoveTo?(floor: number, x: number, y: number): void;
 }
 
-export type BuildMode = { kind: 'room'; type: RoomType } | { kind: 'furniture'; fkind: string } | null;
+export type BuildMode = { kind: 'room'; type: RoomType; shape?: Shape } | { kind: 'furniture'; fkind: string } | { kind: 'move'; roomId: string } | null;
 
 interface Agent {
   id: string;
@@ -188,6 +189,12 @@ export class StationView implements View {
       for (const fu of r.furniture) {
         const d = drawFurniture(fu.kind, fu.x, fu.y, year, seed++);
         d.c.zIndex = (fu.x + fu.y + 1) * 10;
+        if (fu.rot) {
+          // rotation d'un quart de tour : symétrie autour de l'axe vertical de la case
+          const [cx] = iso(fu.x + 0.5, fu.y + 0.5);
+          d.c.scale.x = -1;
+          d.c.x = 2 * cx;
+        }
         this.objects.addChild(d.c);
         this.anims.push(...d.anim);
         if (d.glow) { const [gx, gy] = iso(d.glow[0], d.glow[1], 20); const l = new Graphics(); l.ellipse(gx, gy, 18, 10).fill({ color: d.glow[2], alpha: 0.5 }); this.lights.addChild(l); }
@@ -586,9 +593,21 @@ export class StationView implements View {
     if (this.mode.kind === 'room' && this.dragA && this.dragB) {
       const x0 = Math.min(this.dragA.x, this.dragB.x), y0 = Math.min(this.dragA.y, this.dragB.y);
       const x1 = Math.max(this.dragA.x, this.dragB.x), y1 = Math.max(this.dragA.y, this.dragB.y);
-      let ok = x0 >= 0 && y0 >= 0 && x1 < SW && y1 < SH && x1 - x0 >= 1 && y1 - y0 >= 1;
-      for (let y = y0; y <= y1 && ok; y++) for (let x = x0; x <= x1; x++) if (roomAt(st.station, this.floor, x, y)) ok = false;
-      poly(g, [iso(x0, y0), iso(x1 + 1, y0), iso(x1 + 1, y1 + 1), iso(x0, y1 + 1)], ok ? 0x5ad87a : 0xd85a5a, 0.45, true, 2);
+      const cut = cutFor(this.mode.shape, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+      const shape = { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1, cut };
+      const ok = !canPlaceRoom(st.station, this.floor, x0, y0, shape.w, shape.h, cut) && (!this.mode.shape || this.mode.shape === 'rect' || !!cut);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (inRoom(shape, x, y)) poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], ok ? 0x5ad87a : 0xd85a5a, 0.45, false);
+    } else if (this.mode.kind === 'move' && this.hoverT) {
+      // fantôme de la pièce à son futur emplacement (coin nord sous le doigt)
+      const r = st.station.rooms.find((x) => x.id === (this.mode as { roomId: string }).roomId);
+      if (r) {
+        const { x: nx, y: ny } = this.hoverT;
+        const cut = r.cut ? { ...r.cut, x: r.cut.x + nx - r.x, y: r.cut.y + ny - r.y } : undefined;
+        const shape = { x: nx, y: ny, w: r.w, h: r.h, cut };
+        const others = { ...st.station, rooms: st.station.rooms.filter((x) => x !== r) };
+        const ok = !canPlaceRoom(others, this.floor, nx, ny, r.w, r.h, cut);
+        for (let y = ny; y < ny + r.h; y++) for (let x = nx; x < nx + r.w; x++) if (inRoom(shape, x, y)) poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], ok ? 0x5a9ad8 : 0xd85a5a, 0.45, false);
+      }
     } else if (this.hoverT) {
       const { x, y } = this.hoverT;
       poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], 0xffe08a, 0.5, true, 1.5);
@@ -626,6 +645,7 @@ export class StationView implements View {
       if (r) this.cb.onPlaceFurniture?.(r.id, t.x, t.y);
       return;
     }
+    if (this.mode?.kind === 'move') { this.cb.onMoveTo?.(this.floor, t.x, t.y); return; }
     // personnage le plus proche du point touché
     let best: Agent | null = null, bd = 30;
     for (const a of this.agents.values()) {

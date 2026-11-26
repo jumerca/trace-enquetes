@@ -34,6 +34,7 @@ export class Game {
   private noticeSeen = 0;
   onBuildRect?: (floor: number, x: number, y: number, w: number, h: number) => void;
   onPlaceFurniture?: (roomId: string, x: number, y: number) => void;
+  onMoveTo?: (floor: number, x: number, y: number) => void;
 
   constructor(st: GameState) {
     this.st = st;
@@ -63,6 +64,7 @@ export class Game {
       onRoom: (id) => this.open({ id: 'room', arg: id }),
       onBuildRect: (f, x, y, w, h) => this.onBuildRect?.(f, x, y, w, h),
       onPlaceFurniture: (r, x, y) => this.onPlaceFurniture?.(r, x, y),
+      onMoveTo: (f, x, y) => this.onMoveTo?.(f, x, y),
     });
     this.setScreen('station');
     this.timer = window.setInterval(() => this.loop(), 100);
@@ -86,6 +88,7 @@ export class Game {
         onRoom: (id) => this.open({ id: 'room', arg: id }),
         onBuildRect: (f, x, y, w, h) => this.onBuildRect?.(f, x, y, w, h),
         onPlaceFurniture: (r, x, y) => this.onPlaceFurniture?.(r, x, y),
+        onMoveTo: (f, x, y) => this.onMoveTo?.(f, x, y),
       });
       this.station.setFloor(old.floor);
       this.station.mode = this.buildMode;

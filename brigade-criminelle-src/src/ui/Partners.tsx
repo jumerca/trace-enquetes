@@ -38,6 +38,15 @@ export function PartnersPanel() {
           </div>
         );
       })}
+      <div className="card">
+        <label className="row">Affaire pour laquelle solliciter un appui :
+          <select value={caseSel} onChange={(e) => setCaseSel(e.target.value)}>
+            <option value="">— choisir une affaire en cours —</option>
+            {open.map((c) => <option key={c.id} value={c.id}>{c.number} · {c.title}</option>)}
+          </select>
+        </label>
+        {caseSel && (() => { const c = st.cases.find((x) => x.id === caseSel); const b = c?.boosts?.filter((x) => x.until > st.minute) ?? []; return b.length ? <p className="muted">Appuis en cours : {b.map((x) => `${PARTNER_LABEL[x.by as keyof typeof PARTNER_LABEL]} (jusqu'au ${when(st, x.until).slice(0, 10)})`).join(', ')}</p> : null; })()}
+      </div>
       <div className="partner-grid">
         {ps.list.map((p) => {
           const info = PARTNER_INFO[p.kind];
@@ -52,7 +61,7 @@ export function PartnersPanel() {
                   <h3 style={{ margin: '2px 0' }}>{info.title(p)}</h3>
                   <div className="muted">{info.org(year)}</div>
                   <div style={{ marginTop: 4 }}>Relation <Bar v={p.relation} /></div>
-                  <div className="muted">{p.relation >= 70 ? 'Excellente' : p.relation >= 50 ? 'Cordiale' : p.relation >= 30 ? 'Tendue' : 'Détériorée'} · accord probable {Math.round(acceptChance(p) * 100)} %{p.favours ? ` · vous doit ${p.favours} service(s)` : ''}</div>
+                  <div className="muted">{p.relation >= 70 ? 'Excellente' : p.relation >= 42 ? 'Cordiale' : p.relation >= 25 ? 'Tendue' : 'Détériorée'} · accord probable {Math.round(acceptChance(p) * 100)} %{p.favours ? ` · vous doit ${p.favours} service(s)` : ''}</div>
                 </div>
               </div>
               <p className="muted" style={{ margin: '6px 0' }}>{info.help}</p>
@@ -66,15 +75,6 @@ export function PartnersPanel() {
             </div>
           );
         })}
-      </div>
-      <div className="card">
-        <label className="row">Affaire concernée par les sollicitations :
-          <select value={caseSel} onChange={(e) => setCaseSel(e.target.value)}>
-            <option value="">— choisir une affaire en cours —</option>
-            {open.map((c) => <option key={c.id} value={c.id}>{c.number} · {c.title}</option>)}
-          </select>
-        </label>
-        {caseSel && (() => { const c = st.cases.find((x) => x.id === caseSel); const b = c?.boosts?.filter((x) => x.until > st.minute) ?? []; return b.length ? <p className="muted">Appuis en cours : {b.map((x) => `${PARTNER_LABEL[x.by as keyof typeof PARTNER_LABEL]} (jusqu'au ${when(st, x.until).slice(0, 10)})`).join(', ')}</p> : null; })()}
       </div>
       <div className="card"><h3>Historique des relations</h3><div className="log">{[...ps.history].reverse().slice(0, 30).map((h, i) => <div key={i}><time>{when(st, h.minute)}</time><b>{PARTNER_LABEL[h.partner]} : </b>{h.text}</div>)}{!ps.history.length && <span className="muted">Aucun échange pour l'instant.</span>}</div></div>
     </PanelShell>

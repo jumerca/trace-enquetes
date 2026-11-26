@@ -95,7 +95,7 @@ export function furnish(r: Room): Furniture[] {
   const x0 = r.x, y0 = r.y, x1 = r.x + r.w - 1, y1 = r.y + r.h - 1;
   const isDoorZone = (x: number, y: number) => r.doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 1);
   const put = (k: string, x: number, y: number, rot: 0 | 1 = 0) => {
-    if (x < x0 || y < y0 || x > x1 || y > y1 || isDoorZone(x, y) || out.some((f) => f.x === x && f.y === y)) return;
+    if (x < x0 || y < y0 || x > x1 || y > y1 || !inRoom(r, x, y) || isDoorZone(x, y) || out.some((f) => f.x === x && f.y === y)) return;
     out.push(F(k, x, y, rot));
   };
   switch (r.type) {
@@ -191,8 +191,29 @@ export function initialStation(): Station {
   return { w: SW, h: SH, floors: 2, lot: { x: 0, y: 0, w: SW, h: SH }, rooms };
 }
 
+/** Case appartenant à la pièce (rectangle, moins l'angle retiré pour une pièce en L). */
+export function inRoom(r: Pick<Room, 'x' | 'y' | 'w' | 'h' | 'cut'>, x: number, y: number): boolean {
+  if (x < r.x || y < r.y || x >= r.x + r.w || y >= r.y + r.h) return false;
+  const c = r.cut;
+  return !(c && x >= c.x && y >= c.y && x < c.x + c.w && y < c.y + c.h);
+}
+export function roomArea(r: Pick<Room, 'w' | 'h' | 'cut'>): number {
+  return r.w * r.h - (r.cut ? r.cut.w * r.cut.h : 0);
+}
+export type Shape = 'rect' | 'L-no' | 'L-ne' | 'L-so' | 'L-se';
+export const SHAPE_LABEL: Record<Shape, string> = { rect: 'Rectangle', 'L-no': 'En L (angle nord retiré)', 'L-ne': 'En L (angle est retiré)', 'L-so': 'En L (angle ouest retiré)', 'L-se': 'En L (angle sud retiré)' };
+/** Angle retiré pour une pièce en L (la moitié de chaque côté, arrondie vers le bas). */
+export function cutFor(shape: Shape | undefined, x: number, y: number, w: number, h: number): Room['cut'] {
+  if (!shape || shape === 'rect' || w < 3 || h < 3) return undefined;
+  const cw = Math.floor(w / 2), ch = Math.floor(h / 2);
+  // repères de l'écran isométrique : nord = haut (x0,y0), est = droite (x1,y0), ouest = gauche (x0,y1), sud = bas (x1,y1)
+  const cx = shape === 'L-ne' || shape === 'L-se' ? x + w - cw : x;
+  const cy = shape === 'L-so' || shape === 'L-se' ? y + h - ch : y;
+  return { x: cx, y: cy, w: cw, h: ch };
+}
+
 export function roomAt(s: Station, floor: number, x: number, y: number): Room | undefined {
-  return s.rooms.find((r) => r.floor === floor && x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h);
+  return s.rooms.find((r) => r.floor === floor && inRoom(r, x, y));
 }
 
 export function furnitureAt(r: Room, x: number, y: number) {
@@ -250,7 +271,7 @@ export function spotIn(s: Station, r: Room, near?: string, k = 0): { f: number; 
   const targets = near ? r.furniture.filter((f) => f.kind === near) : [];
   for (let y = r.y; y < r.y + r.h; y++)
     for (let x = r.x; x < r.x + r.w; x++) {
-      if (!walkable(s, r.floor, x, y)) continue;
+      if (!inRoom(r, x, y) || !walkable(s, r.floor, x, y)) continue;
       const d = targets.length ? Math.min(...targets.map((t) => Math.abs(t.x - x) + Math.abs(t.y - y))) : 0;
       free.push({ x, y, d });
     }
@@ -304,11 +325,12 @@ export function capacities(st: GameState) {
 }
 
 // ————— Construction —————
-export function canPlaceRoom(s: Station, floor: number, x: number, y: number, w: number, h: number): string | null {
+export function canPlaceRoom(s: Station, floor: number, x: number, y: number, w: number, h: number, cut?: Room['cut']): string | null {
   if (w < 2 || h < 2) return 'Une pièce mesure au moins 2 × 2 cases.';
   if (x < 0 || y < 0 || x + w > s.w || y + h > s.h) return 'Hors de l\'emprise du terrain : agrandissez le site.';
   if (floor >= s.floors) return 'Cet étage n\'existe pas encore.';
-  for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) if (roomAt(s, floor, xx, yy)) return 'Emplacement déjà occupé.';
+  const shape = { x, y, w, h, cut };
+  for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) if (inRoom(shape, xx, yy) && roomAt(s, floor, xx, yy)) return 'Emplacement déjà occupé.';
   // l'allée devant les portes extérieures des garages doit rester libre jusqu'à la rue
   if (floor === 0) for (const g of s.rooms.filter((r) => r.type === 'garage' && r.floor === 0)) for (const d of g.doors) {
     if (d.y !== g.y + g.h - 1) continue;
@@ -318,10 +340,13 @@ export function canPlaceRoom(s: Station, floor: number, x: number, y: number, w:
 }
 
 /** Porte automatique : sur le bord de la pièce, vers un couloir de préférence. */
-export function autoDoor(s: Station, floor: number, x: number, y: number, w: number, h: number): { x: number; y: number } | null {
+export function autoDoor(s: Station, floor: number, x: number, y: number, w: number, h: number, cut?: Room['cut']): { x: number; y: number } | null {
   const cands: { x: number; y: number; ox: number; oy: number }[] = [];
-  for (let xx = x; xx < x + w; xx++) { cands.push({ x: xx, y, ox: xx, oy: y - 1 }); cands.push({ x: xx, y: y + h - 1, ox: xx, oy: y + h }); }
-  for (let yy = y; yy < y + h; yy++) { cands.push({ x, y: yy, ox: x - 1, oy: yy }); cands.push({ x: x + w - 1, y: yy, ox: x + w, oy: yy }); }
+  const shape = { x, y, w, h, cut };
+  for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+    if (!inRoom(shape, xx, yy)) continue;
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) if (!inRoom(shape, xx + dx, yy + dy)) cands.push({ x: xx, y: yy, ox: xx + dx, oy: yy + dy });
+  }
   const scored = cands
     .map((c) => ({ c, r: roomAt(s, floor, c.ox, c.oy) }))
     .filter((v) => v.r && walkable(s, floor, v.c.ox, v.c.oy))
@@ -329,25 +354,28 @@ export function autoDoor(s: Station, floor: number, x: number, y: number, w: num
   return scored.length ? { x: scored[0].c.x, y: scored[0].c.y } : null;
 }
 
-export function buildCost(type: RoomType, w: number, h: number) {
-  return Math.round(ROOM_DEFS[type].cost + w * h * 160);
+export function buildCost(type: RoomType, w: number, h: number, cut?: Room['cut']) {
+  return Math.round(ROOM_DEFS[type].cost + roomArea({ w, h, cut }) * 160);
 }
 
-export function placeRoom(st: GameState, type: RoomType, floor: number, x: number, y: number, w: number, h: number): { ok: boolean; msg: string; room?: Room } {
+export function placeRoom(st: GameState, type: RoomType, floor: number, x: number, y: number, w: number, h: number, shape?: Shape): { ok: boolean; msg: string; room?: Room } {
   const s = st.station;
-  const err = canPlaceRoom(s, floor, x, y, w, h);
+  const cut = cutFor(shape, x, y, w, h);
+  if (shape && shape !== 'rect' && !cut) return { ok: false, msg: 'Une pièce en L mesure au moins 3 × 3 cases.' };
+  const err = canPlaceRoom(s, floor, x, y, w, h, cut);
   if (err) return { ok: false, msg: err };
-  if (w * h < ROOM_DEFS[type].minArea) return { ok: false, msg: `Surface minimale : ${ROOM_DEFS[type].minArea} cases.` };
-  const door = autoDoor(s, floor, x, y, w, h);
+  if (roomArea({ w, h, cut }) < ROOM_DEFS[type].minArea) return { ok: false, msg: `Surface minimale : ${ROOM_DEFS[type].minArea} cases.` };
+  const door = autoDoor(s, floor, x, y, w, h, cut);
   if (!door) return { ok: false, msg: 'La pièce doit toucher un couloir ou une autre pièce pour avoir une porte.' };
-  const r: Room = { id: `R${++st.counters.room}`, type, floor, x, y, w, h, doors: [door], furniture: [], built: st.minute + Math.max(2, Math.round(w * h / 4)) * 24 * 60 };
+  const r: Room = { id: `R${++st.counters.room}`, type, floor, x, y, w, h, cut, doors: [door], furniture: [], built: st.minute + Math.max(2, Math.round(roomArea({ w, h, cut }) / 4)) * 24 * 60 };
+  if (!cut) delete r.cut;
   r.furniture = furnish(r);
   s.rooms.push(r);
   return { ok: true, msg: `Travaux lancés : ${ROOM_DEFS[type].label}.`, room: r };
 }
 
 export function canPlaceFurniture(s: Station, r: Room, kind: string, x: number, y: number): string | null {
-  if (x < r.x || y < r.y || x >= r.x + r.w || y >= r.y + r.h) return 'En dehors de la pièce.';
+  if (!inRoom(r, x, y)) return 'En dehors de la pièce.';
   if (furnitureAt(r, x, y)) return 'Case déjà occupée.';
   if (r.doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 0)) return 'Ne pas bloquer une porte.';
   if (!(ROOM_FURN[r.type] ?? []).includes(kind)) return 'Ce mobilier n\'a pas sa place dans cette pièce.';
@@ -367,13 +395,101 @@ export function roomConnected(s: Station, r: Room): boolean {
     const [x, y] = q.pop()!;
     const k = `${x},${y}`;
     if (seen.has(k)) continue;
-    if (x < r.x || y < r.y || x >= r.x + r.w || y >= r.y + r.h || !walkable(s, r.floor, x, y)) continue;
+    if (!inRoom(r, x, y) || !walkable(s, r.floor, x, y)) continue;
     seen.add(k);
     q.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
   }
   let free = 0;
-  for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (walkable(s, r.floor, x, y)) free++;
+  for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (inRoom(r, x, y) && walkable(s, r.floor, x, y)) free++;
   return seen.size === free;
+}
+
+/** Toutes les pièces restent accessibles depuis l'accueil (et les étages par l'escalier). */
+export function allReachable(s: Station): boolean {
+  const acc = s.rooms.find((r) => r.type === 'accueil' && r.floor === 0) ?? s.rooms.find((r) => r.floor === 0);
+  if (!acc) return true;
+  const start = { f: acc.floor, x: acc.doors[0]?.x ?? acc.x, y: acc.doors[0]?.y ?? acc.y };
+  const seen = new Set<number>([node(start.f, start.x, start.y)]);
+  const q = [node(start.f, start.x, start.y)];
+  const stairs = s.rooms.filter((r) => r.type === 'escalier');
+  while (q.length) {
+    const n = q.pop()!;
+    const { f, x, y } = unnode(n);
+    const next: number[] = [];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (passable(s, f, x, y, x + dx, y + dy)) next.push(node(f, x + dx, y + dy));
+    if (roomAt(s, f, x, y)?.type === 'escalier') for (const o of stairs) if (o.floor !== f && Math.abs(o.floor - f) === 1 && inRoom(o, x, y)) next.push(node(o.floor, x, y));
+    for (const m of next) if (!seen.has(m)) { seen.add(m); q.push(m); }
+  }
+  return s.rooms.every((r) => r.type === 'escalier' || r.doors.length === 0 || r.doors.some((d) => seen.has(node(r.floor, d.x, d.y))) || [...seen].some((m) => { const u = unnode(m); return u.f === r.floor && inRoom(r, u.x, u.y); }));
+}
+
+/** Valeur de reprise d'une pièce démolie : 60 % de la construction et 50 % du mobilier
+ * (90 % si les travaux n'étaient pas terminés). */
+export function refundValue(st: GameState, r: Room): number {
+  if (r.type === 'escalier') return 0;
+  const build = buildCost(r.type, r.w, r.h, r.cut);
+  const furn = r.furniture.reduce((t, f) => t + (FURN_COST[f.kind] ?? 200), 0);
+  return Math.round((r.built > st.minute ? 0.9 : 0.6) * build + 0.5 * furn);
+}
+
+export function demolish(st: GameState, id: string): { ok: boolean; msg: string } {
+  const s = st.station;
+  const r = s.rooms.find((x) => x.id === id);
+  if (!r) return { ok: false, msg: 'Pièce introuvable.' };
+  if (['escalier', 'accueil'].includes(r.type)) return { ok: false, msg: 'Cette pièce est indispensable au bâtiment.' };
+  s.rooms = s.rooms.filter((x) => x !== r);
+  if (!allReachable(s)) { s.rooms.push(r); return { ok: false, msg: 'Impossible : d\'autres pièces n\'auraient plus d\'accès.' }; }
+  const v = refundValue(st, r);
+  st.budget.envelope.batiments += v;
+  return { ok: true, msg: `Démolition (${ROOM_DEFS[r.type].label}) : ${v.toLocaleString('fr-FR')} € reversés aux crédits de bâtiments.` };
+}
+
+export function moveCost(r: Room): number {
+  return Math.round(buildCost(r.type, r.w, r.h, r.cut) * 0.35 + r.furniture.length * 60);
+}
+
+/** Déplace une pièce (avec son mobilier) vers un nouvel emplacement, éventuellement à un autre étage. */
+export function moveRoom(st: GameState, id: string, floor: number, nx: number, ny: number): { ok: boolean; msg: string } {
+  const s = st.station;
+  const r = s.rooms.find((x) => x.id === id);
+  if (!r) return { ok: false, msg: 'Pièce introuvable.' };
+  if (['escalier', 'accueil', 'garage', 'couloir'].includes(r.type)) return { ok: false, msg: 'Cette pièce ne peut pas être déplacée.' };
+  if (floor > 0 && r.type === 'cellules') return { ok: false, msg: 'Les cellules restent au rez-de-chaussée.' };
+  const dx = nx - r.x, dy = ny - r.y;
+  if (!dx && !dy && floor === r.floor) return { ok: false, msg: 'La pièce est déjà ici.' };
+  const cut = r.cut ? { ...r.cut, x: r.cut.x + dx, y: r.cut.y + dy } : undefined;
+  const old = { ...r, doors: [...r.doors], furniture: r.furniture.map((f) => ({ ...f })), cut: r.cut ? { ...r.cut } : undefined };
+  s.rooms = s.rooms.filter((x) => x !== r);
+  const err = canPlaceRoom(s, floor, nx, ny, r.w, r.h, cut);
+  const door = err ? null : autoDoor(s, floor, nx, ny, r.w, r.h, cut);
+  if (err || !door) { s.rooms.push(r); return { ok: false, msg: err ?? 'Le nouvel emplacement doit toucher un couloir ou une pièce.' }; }
+  Object.assign(r, { floor, x: nx, y: ny, cut, doors: [door] });
+  if (!cut) delete r.cut;
+  for (const f of r.furniture) { f.x += dx; f.y += dy; }
+  // le mobilier ne doit bloquer ni la nouvelle porte ni la circulation
+  r.furniture = r.furniture.filter((f) => Math.abs(f.x - door.x) + Math.abs(f.y - door.y) > 0);
+  s.rooms.push(r);
+  let guard = 0;
+  while (!roomConnected(s, r) && r.furniture.length && guard++ < 40) {
+    r.furniture.sort((a, b) => (Math.abs(a.x - door.x) + Math.abs(a.y - door.y)) - (Math.abs(b.x - door.x) + Math.abs(b.y - door.y)));
+    r.furniture.shift();
+  }
+  if (!allReachable(s)) { s.rooms = s.rooms.filter((x) => x !== r); s.rooms.push(Object.assign(r, old)); return { ok: false, msg: 'Impossible : d\'autres pièces n\'auraient plus d\'accès.' }; }
+  r.built = Math.max(r.built, st.minute + 2 * 24 * 60);
+  return { ok: true, msg: `${ROOM_DEFS[r.type].label} déménagé${r.furniture.length < old.furniture.length ? ` (${old.furniture.length - r.furniture.length} meuble(s) retiré(s) pour dégager le passage)` : ''}. Deux jours de déménagement.` };
+}
+
+export function rotateFurniture(r: Room, fid: string) {
+  const f = r.furniture.find((x) => x.id === fid);
+  if (f) f.rot = f.rot ? 0 : 1;
+}
+export function removeFurniture(st: GameState, r: Room, fid: string): number {
+  const f = r.furniture.find((x) => x.id === fid);
+  if (!f) return 0;
+  r.furniture = r.furniture.filter((x) => x !== f);
+  const v = Math.round((FURN_COST[f.kind] ?? 200) * 0.5);
+  st.budget.envelope.equipements += v;
+  return v;
 }
 
 /** Agrandissements du site : acquisition de terrain vers l'est ou le sud (paliers de 6 cases). */

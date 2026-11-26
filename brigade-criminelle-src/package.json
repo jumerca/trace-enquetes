@@ -1,7 +1,7 @@
 {
   "name": "brigade-criminelle-tycoon",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Brigade criminelle Tycoon — Sous haute tension — JLG Creative",
   "scripts": {

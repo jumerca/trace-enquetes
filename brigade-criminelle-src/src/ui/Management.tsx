@@ -7,7 +7,7 @@ import { CAT_LABELS, remaining, requestFunds, spend, totalEnvelope, totalSpent }
 import { charges, found } from '../sim/knowledge';
 import { MAG_LABEL, reopen } from '../sim/justice';
 import { notify } from '../sim/log';
-import { BUILDABLE, buildCost, canExtend, canPlaceFurniture, capacities, extend, EXTENSIONS, furnAvailable, FURN_COST, FURN_LABEL, placeRoom, roomAvailable, ROOM_DEFS, ROOM_FURN } from '../sim/station';
+import { BUILDABLE, buildCost, canExtend, canPlaceFurniture, capacities, cutFor, demolish, extend, EXTENSIONS, furnAvailable, FURN_COST, FURN_LABEL, moveCost, moveRoom, placeRoom, refundValue, removeFurniture, roomArea, roomAvailable, ROOM_DEFS, ROOM_FURN, rotateFurniture, SHAPE_LABEL, type Shape } from '../sim/station';
 import { fullName, load } from '../sim/staff';
 import { BUDGET_CATS, type BudgetCat, type GameState } from '../sim/types';
 import { placeStatus } from '../render/city-view';
@@ -284,9 +284,10 @@ export function Build() {
     g.onBuildRect = (floor, x, y, w, h) => {
       if (g.buildMode?.kind !== 'room') return;
       const type = g.buildMode.type;
-      const cost = buildCost(type, w, h);
+      const shape = g.buildMode.shape;
+      const cost = buildCost(type, w, h, cutFor(shape, x, y, w, h));
       g.mutate((s) => {
-        const r = placeRoom(s, type, floor, x, y, w, h);
+        const r = placeRoom(s, type, floor, x, y, w, h, shape);
         if (r.ok) { spend(s, 'batiments', cost, (n) => notify(s, n)); notify(s, { level: 'info', text: `${r.msg} Coût : ${eur(cost)}. Livraison le ${day(s, r.room!.built)}.` }); }
         setErr(r.ok ? `${r.msg} (${eur(cost)})` : r.msg);
       });
@@ -303,7 +304,20 @@ export function Build() {
         setErr(`${FURN_LABEL[kind]} installé (${eur(FURN_COST[kind] ?? 200)}).`);
       });
     };
-    return () => { g.onBuildRect = undefined; g.onPlaceFurniture = undefined; };
+    g.onMoveTo = (floor, x, y) => {
+      if (g.buildMode?.kind !== 'move') return;
+      const id = g.buildMode.roomId;
+      g.mutate((s) => {
+        const r = s.station.rooms.find((q) => q.id === id);
+        if (!r) return;
+        const cost = moveCost(r);
+        const res = moveRoom(s, id, floor, x, y);
+        if (res.ok) { spend(s, 'batiments', cost, (n) => notify(s, n)); g.setBuildMode(null); }
+        setErr(res.ok ? `${res.msg} Coût : ${eur(cost)}.` : res.msg);
+      });
+      g.station?.setFloor(g.station.floor);
+    };
+    return () => { g.onBuildRect = undefined; g.onPlaceFurniture = undefined; g.onMoveTo = undefined; };
   }, [g]);
   const furnKinds = [...new Set(Object.values(ROOM_FURN).flat())] as string[];
   return (
@@ -313,18 +327,19 @@ export function Build() {
         <select value={mode?.kind === 'room' ? `r:${mode.type}` : mode?.kind === 'furniture' ? `f:${mode.fkind}` : ''} onChange={(e) => {
           const v = e.target.value;
           if (!v) g.setBuildMode(null);
-          else if (v.startsWith('r:')) g.setBuildMode({ kind: 'room', type: v.slice(2) as never });
+          else if (v.startsWith('r:')) g.setBuildMode({ kind: 'room', type: v.slice(2) as never, shape: mode?.kind === 'room' ? mode.shape : 'rect' });
           else g.setBuildMode({ kind: 'furniture', fkind: v.slice(2) });
         }}>
           <option value="">— Choisir —</option>
           <optgroup label="Pièces (tracez un rectangle sur le plan)">{BUILDABLE.filter((t) => roomAvailable(t, calendar(st.startYear, st.minute).year)).map((t) => <option key={t} value={`r:${t}`}>{ROOM_DEFS[t].label} — dès {eur(buildCost(t, 2, 2))}</option>)}</optgroup>
           <optgroup label="Mobilier et équipements (touchez une case libre)">{furnKinds.filter((k) => furnAvailable(k, calendar(st.startYear, st.minute).year)).map((k) => <option key={k} value={`f:${k}`}>{FURN_LABEL[k]} — {eur(FURN_COST[k] ?? 0)}</option>)}</optgroup>
         </select>
+        {mode?.kind === 'room' && <select value={mode.shape ?? 'rect'} onChange={(e) => g.setBuildMode({ ...mode, shape: e.target.value as Shape })} aria-label="Forme de la pièce">{(Object.keys(SHAPE_LABEL) as Shape[]).map((k) => <option key={k} value={k}>{SHAPE_LABEL[k]}</option>)}</select>}
         {Array.from({ length: st.station.floors }, (_, f) => <button key={f} className={`btn small ${g.station?.floor === f ? 'navy' : ''}`} onClick={() => g.setFloor(f)}>{f === 0 ? 'RDC' : `Étage ${f}`}</button>)}
         {st.station.floors < 3 && <button className="btn small" onClick={() => g.mutate((s) => { spend(s, 'batiments', 60000, (n) => notify(s, n)); s.station.floors++; s.station.rooms.push({ id: `R${++s.counters.room}`, type: 'escalier', floor: s.station.floors - 1, x: 19, y: 0, w: 3, h: 6, doors: [{ x: 20, y: 5 }], furniture: [], built: s.minute + 60 * MIN_D }, { id: `R${++s.counters.room}`, type: 'couloir', floor: s.station.floors - 1, x: 0, y: 6, w: 22, h: 2, doors: [], furniture: [], built: s.minute + 60 * MIN_D }); notify(s, { level: 'info', text: 'Surélévation du bâtiment lancée (60 000 €, deux mois de travaux).' }); })}>Ajouter un étage (60 000 €)</button>}
         {EXTENSIONS.map((e) => <button key={e.id} className="btn small" disabled={!!canExtend(st.station, e.id)} title={canExtend(st.station, e.id) ?? ''} onClick={() => { if (!confirm(`${e.label} : acquisition et viabilisation du terrain pour ${eur(e.cost)} ?`)) return; g.mutate((s) => { spend(s, 'batiments', e.cost, (n) => notify(s, n)); extend(s.station, e.id); notify(s, { level: 'succes', text: `${e.label} : nouveau terrain constructible (${s.station.w} × ${s.station.h} cases).` }); }); g.station?.setFloor(g.station.floor); }}>{e.label} — {eur(e.cost)}</button>)}
         <button className="btn small" onClick={() => { g.setBuildMode(null); g.close(); }}>Terminer</button>
-        <span className="muted" style={{ flexBasis: '100%' }}>{mode?.kind === 'room' ? `${ROOM_DEFS[mode.type].label} : ${ROOM_DEFS[mode.type].effect} Surface minimale ${ROOM_DEFS[mode.type].minArea} cases ; la porte est placée automatiquement côté couloir.` : mode?.kind === 'furniture' ? 'Le mobilier ne doit ni bloquer une porte ni couper la circulation.' : 'Choisissez une pièce ou un meuble. Crédits bâtiments : ' + eur(remaining(st.budget, 'batiments'))}{err ? ` — ${err}` : ''}</span>
+        <span className="muted" style={{ flexBasis: '100%' }}>{mode?.kind === 'move' ? `Déplacement : touchez le futur emplacement du coin nord de la pièce (changez d'étage si besoin). Coût : ${eur(moveCost(st.station.rooms.find((r) => r.id === mode.roomId)!))}.` : mode?.kind === 'room' ? `${ROOM_DEFS[mode.type].label} : ${ROOM_DEFS[mode.type].effect} Surface minimale ${ROOM_DEFS[mode.type].minArea} cases ; la porte est placée automatiquement côté couloir.${mode.shape && mode.shape !== 'rect' ? ' Forme en L : tracez le rectangle englobant (3 × 3 minimum), l\'angle choisi est retiré.' : ''}` : mode?.kind === 'furniture' ? 'Le mobilier ne doit ni bloquer une porte ni couper la circulation.' : 'Choisissez une pièce ou un meuble. Crédits bâtiments : ' + eur(remaining(st.budget, 'batiments'))}{err ? ` — ${err}` : ''}</span>
       </div>
     </>
   );
@@ -332,6 +347,7 @@ export function Build() {
 
 export function RoomInfo({ id }: { id: string }) {
   const [g, st] = useGame();
+  const [msg, setMsg] = useState('');
   const r = st.station.rooms.find((x) => x.id === id);
   if (!r) return <PanelShell title="Pièce">Introuvable.</PanelShell>;
   const def = ROOM_DEFS[r.type];
@@ -340,9 +356,16 @@ export function RoomInfo({ id }: { id: string }) {
     <PanelShell title={def.label}>
       <p>{def.desc}</p>
       <p><b>Effet :</b> {def.effect}</p>
-      <p className="muted">{r.w} × {r.h} cases · {r.floor === 0 ? 'rez-de-chaussée' : `étage ${r.floor}`} · {r.furniture.length} meuble(s){r.built > st.minute ? ` · travaux jusqu'au ${day(st, r.built)}` : ''}</p>
+      <p className="muted">{r.cut ? 'Pièce en L' : `${r.w} × ${r.h} cases`} · {roomArea(r)} cases · {r.floor === 0 ? 'rez-de-chaussée' : `étage ${r.floor}`} · {r.furniture.length} meuble(s){r.built > st.minute ? ` · travaux jusqu'au ${day(st, r.built)}` : ''}</p>
+      {msg && <p style={{ background: '#fff3d6', padding: 6, borderRadius: 6 }}>{msg}</p>}
       <div className="card"><h3>Présents</h3>{here.map((s) => <div key={s.id}><button className="btn small" onClick={() => g.open({ id: 'staff', arg: s.id })}>{fullName(s)}</button> <span className="muted">{s.task?.label}</span></div>)}{!here.length && <span className="muted">Personne.</span>}</div>
-      {!['couloir', 'escalier', 'accueil'].includes(r.type) && <button className="btn small red" onClick={() => { if (confirm('Démolir cette pièce ?')) { g.mutate((s) => { s.station.rooms = s.station.rooms.filter((x) => x !== r); spend(s, 'batiments', 300); }); g.back(); } }}>Démolir (300 €)</button>}
+      {r.furniture.length > 0 && <div className="card"><h3>Mobilier</h3>
+        {r.furniture.map((f) => <div key={f.id} className="row between" style={{ padding: '2px 0' }}><span>{FURN_LABEL[f.kind] ?? f.kind} <span className="muted">({f.x - r.x + 1}, {f.y - r.y + 1}){f.rot ? ' · tourné' : ''}</span></span><span className="row"><button className="btn small" onClick={() => { g.mutate((s) => rotateFurniture(s.station.rooms.find((x) => x.id === r.id)!, f.id)); g.station?.setFloor(g.station.floor); }} title="Tourner d'un quart de tour">↻ Tourner</button><button className="btn small" onClick={() => { let v = 0; g.mutate((s) => { v = removeFurniture(s, s.station.rooms.find((x) => x.id === r.id)!, f.id); }); setMsg(`Meuble retiré : ${eur(v)} récupérés (revente).`); g.station?.setFloor(g.station.floor); }}>Retirer (+{eur(Math.round((FURN_COST[f.kind] ?? 200) * 0.5))})</button></span></div>)}
+      </div>}
+      <div className="row">
+        {!['couloir', 'escalier', 'accueil', 'garage'].includes(r.type) && <button className="btn small navy" onClick={() => { g.setBuildMode({ kind: 'move', roomId: r.id }); g.open({ id: 'build' }); }}>Déplacer… ({eur(moveCost(r))})</button>}
+        {!['escalier', 'accueil'].includes(r.type) && <button className="btn small red" onClick={() => { if (!confirm(`Démolir cette pièce ? ${eur(refundValue(st, r))} seront reversés aux crédits de bâtiments.`)) return; let res = { ok: false, msg: '' }; g.mutate((s) => { res = demolish(s, r.id); }); if (res.ok) { g.say(res.msg); g.back(); } else setMsg(res.msg); }}>Démolir (remboursement {eur(refundValue(st, r))})</button>}
+      </div>
     </PanelShell>
   );
 }

@@ -15,7 +15,8 @@ export interface Template {
   weight: number; // fréquence relative
   districts: DistrictId[]; // quartiers où l'affaire peut survenir
   minYear?: number;
-  build: (st: GameState, rng: Rng, opts?: { district?: DistrictId }) => Case;
+  crime?: boolean; // modèle générique (auteur unique) : peut donner une série
+  build: (st: GameState, rng: Rng, opts?: { district?: DistrictId; forced?: { culprit: string; linkTo: string } }) => Case;
 }
 
 export interface Suspect { prof: string; link: string; trait: string; motive: string; record?: boolean; age?: [number, number] }
@@ -46,7 +47,7 @@ export interface CrimeScript {
   extra?: (b: CaseBuilder, ids: { victim: string; culprit: string; herrings: string[] }) => void;
 }
 
-export function crime(s: CrimeScript, st: GameState, rng: Rng, district?: DistrictId): Case {
+export function crime(s: CrimeScript, st: GameState, rng: Rng, district?: DistrictId, forced?: { culprit: string; linkTo: string }): Case {
   const place = pickPlace(st, rng, s.kinds, district);
   const day = st.minute - rng.int(0, 2) * MIN_D;
   const factsAt = day - (day % MIN_D) + rng.int(s.hours[0] * 60, s.hours[1] * 60 - 1);
@@ -58,8 +59,9 @@ export function crime(s: CrimeScript, st: GameState, rng: Rng, district?: Distri
   const nb = Math.min(pool.length, rng.chance(0.4) ? 3 : 2);
   while (chosen.length < nb) chosen.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
   const ci = rng.int(0, chosen.length - 1);
-  const ids = chosen.map((x) => b.person('suspect', { prof: x.prof, record: x.record, age: x.age ?? [20, 64], sincerity: rng.range(0.2, 0.9) }));
+  const ids = chosen.map((x, i) => b.person('suspect', { prof: x.prof, record: x.record, age: x.age ?? [20, 64], sincerity: rng.range(0.2, 0.9), reuse: forced && i === ci ? forced.culprit : undefined }));
   const culprit = ids[ci];
+  if (forced) chosen[ci] = { ...chosen[ci], prof: st.people[culprit].profession };
   const herrings = ids.filter((_, i) => i !== ci);
   const C = b.n(culprit);
   const il = b.il(culprit);
@@ -98,10 +100,10 @@ export function crime(s: CrimeScript, st: GameState, rng: Rng, district?: Distri
   const kAl = b.clue({ nature: 'declaration', text: s.alibi(C, il), action: 'entretien', personId: culprit, difficulty: 2, skill: 'entretien', reliable: false });
   const kChk = b.clue({ nature: 'fait', text: s.alibiCheck(C, il), action: 'recherche', requires: [kAl], difficulty: 9, skill: 'investigation', reliable: true, contradicts: [kAl], implicates: [{ pid: culprit, w: 4 }], time: -40 });
   // Analyse de l'élément matériel (comparaison possible une fois la personne identifiée)
-  b.clue({ nature: 'analyse', text: s.item.result(C), action: 'labo', itemId: item, labType: s.item.lab, requires: [kV], difficulty: 8, skill: 'scientifique', reliable: true, implicates: [{ pid: culprit, w: 6 }] });
+  const kLab = b.clue({ nature: 'analyse', text: s.item.result(C), action: 'labo', itemId: item, labType: s.item.lab, requires: [kV], difficulty: 8, skill: 'scientifique', reliable: true, implicates: [{ pid: culprit, w: 6 }] });
   if (s.records) b.clue({ nature: 'document', text: s.records.text(C), action: s.records.requisition ? 'requisition' : 'recherche', personId: culprit, requires: [kV], difficulty: 7, skill: 'analyse', reliable: true, implicates: [{ pid: culprit, w: 4 }] });
-  b.clue({ nature: 'fait', text: s.search(C), action: 'perquisition', personId: culprit, requires: [kChk], difficulty: 6, skill: 'observation', reliable: true, implicates: [{ pid: culprit, w: 7 }] });
-  b.clue({ nature: 'declaration', text: s.confess(C, il), action: 'audition', personId: culprit, approach: 'element', requires: [kChk], difficulty: 12, skill: 'psychologie', reliable: true, confession: true, implicates: [{ pid: culprit, w: 3 }] });
+  const kPerq = b.clue({ nature: 'fait', text: s.search(C), action: 'perquisition', personId: culprit, requires: [kChk], difficulty: 6, skill: 'observation', reliable: true, implicates: [{ pid: culprit, w: 7 }] });
+  const kConf = b.clue({ nature: 'declaration', text: s.confess(C, il), action: 'audition', personId: culprit, approach: 'element', requires: [kChk], difficulty: 12, skill: 'psychologie', reliable: true, confession: true, implicates: [{ pid: culprit, w: 3 }] });
   // Fausses pistes : antécédents ou comportement suspect… et éléments disculpants vérifiables
   herrings.forEach((h, i) => {
     const hs = chosen[ids.indexOf(h)];
@@ -113,9 +115,80 @@ export function crime(s: CrimeScript, st: GameState, rng: Rng, district?: Distri
     b.clue({ nature: 'fait', text: `Vérification : au moment des faits, ${H} se trouvait en réalité ${rng.pick(['à un rendez-vous médical', 'chez un ami qu\'il ne voulait pas mêler à l\'affaire', 'sur son lieu de travail, attesté par le registre', 'au marché, plusieurs commerçants le confirment'])}. ${hs.trait[0].toUpperCase() + hs.trait.slice(1)} ne correspond pas au témoignage.`, action: 'recherche', requires: [kLie], difficulty: 7, skill: 'investigation', reliable: true, contradicts: [kLie], exculpates: [h] });
   });
   s.extra?.(b, { victim, culprit, herrings });
+  // Variante de déroulement : chaque affaire peut prendre un tour différent
+  const tw = applyTwist(b, rng, st, { culprit, herrings, victim, kV, kW, kAl, kChk, kLab, kPerq, kConf, kConst, C, il });
+  if (forced) {
+    // série : même auteur, même mode opératoire qu'un dossier précédent
+    const prev = st.cases.find((x) => x.id === forced.linkTo);
+    b.clue({ nature: 'hypothese', text: `Le mode opératoire rappelle trait pour trait le dossier ${prev?.number ?? 'précédent'} (${prev?.title ?? 'affaire similaire'}).`, action: 'recoupement', requires: [kConst], difficulty: 6, skill: 'deduction', reliable: true, links: forced.linkTo, implicates: [{ pid: culprit, w: 1 }] });
+    b.c.series = prev?.series ?? forced.linkTo;
+    if (prev) prev.series = b.c.series;
+  }
+  const extraSummary = tw === 'preuve_fragile' ? ' Les traces relevées sont fragiles : elles doivent être analysées rapidement.' : tw === 'fuite' ? ' L\'entourage signale qu\'une personne a quitté le quartier précipitamment.' : tw === 'temoin_tardif' ? ' Le secteur se vide (départs en vacances) : les témoins risquent de devenir introuvables.' : '';
   return b.finish({
-    title: s.title(place.name), summary: s.summary(V, place.name, when), priority: s.priority, complexity: s.complexity + (nb === 3 ? 1 : 0), urgency: s.priority === 1 ? 0.7 : 0.35, media: s.media,
+    title: s.title(place.name), summary: s.summary(V, place.name, when) + extraSummary, priority: tw === 'fuite' ? Math.min(2, s.priority) as 1 | 2 : s.priority, complexity: s.complexity + (nb === 3 ? 1 : 0) + (tw && tw !== 'temoin_tardif' ? 1 : 0), urgency: s.priority === 1 || tw === 'fuite' ? 0.7 : 0.35, media: s.media,
   });
+}
+
+export type Twist = 'complice' | 'fuite' | 'mise_en_scene' | 'faux_aveux' | 'preuve_fragile' | 'temoin_tardif';
+
+/** Variantes de déroulement, pour que deux affaires du même type ne se ressemblent pas :
+ * alibi couvert par un proche, auteur en fuite, piste montée de toutes pièces, faux aveux
+ * d'une personne vulnérable, preuve qui se dégrade, témoins qui disparaissent. */
+function applyTwist(b: CaseBuilder, rng: Rng, st: GameState, k: { culprit: string; herrings: string[]; victim: string; kV: string; kW: string; kAl: string; kChk: string; kLab: string; kPerq: string; kConf: string; kConst: string; C: string; il: string }): Twist | null {
+  if (!rng.chance(0.6)) return null;
+  const year = calendar(st.startYear, st.minute).year;
+  const options: Twist[] = ['complice', 'fuite', 'preuve_fragile', 'temoin_tardif'];
+  if (k.herrings.length) options.push('mise_en_scene', 'faux_aveux');
+  const tw = rng.pick(options);
+  const cl = (id: string) => b.c.clues.find((x) => x.id === id)!;
+  b.c.twist = tw;
+  switch (tw) {
+    case 'complice': {
+      const acc = b.person('proche', { prof: rng.pick(['ami d\'enfance', 'conjoint', 'collègue de travail', 'beau-frère', 'voisine']), age: [22, 70], sincerity: 0.3, nervosity: 0.75 });
+      const A = b.n(acc);
+      cl(k.kAl).revealsPerson = acc;
+      const kLie = b.clue({ nature: 'declaration', text: `${A} confirme : « ${k.C} était avec moi toute la soirée. »`, action: 'entretien', personId: acc, requires: [k.kAl], difficulty: 2, skill: 'entretien', reliable: false });
+      const kBreak = b.clue({ nature: 'declaration', text: `Confronté${b.e(acc)} à ses incohérences, ${A} reconnaît avoir menti pour couvrir ${k.C}.`, action: 'entretien', personId: acc, approach: 'contradiction', requires: [kLie], difficulty: 9, skill: 'psychologie', reliable: true, contradicts: [kLie, k.kAl], implicates: [{ pid: k.culprit, w: 3 }] });
+      cl(k.kChk).requires = [k.kAl, kBreak];
+      b.c.truth.summary += ` ${A} a fourni un faux alibi.`;
+      break;
+    }
+    case 'fuite': {
+      const kLoc = b.clue({ nature: 'document', text: `${k.C} a quitté son domicile le lendemain des faits. Recherches : ${k.il} est localisé${b.e(k.culprit)} chez un parent, ${rng.pick(['dans un village voisin', 'dans le département voisin', 'dans un hôtel près de la gare'])}.`, action: 'recherche', requires: [k.kChk], difficulty: 9, skill: 'investigation', reliable: true, implicates: [{ pid: k.culprit, w: 2 }] });
+      cl(k.kPerq).requires = [k.kChk, kLoc];
+      cl(k.kConf).requires = [k.kChk, kLoc];
+      b.c.truth.timeline.push({ t: 24 * 60, text: `${k.C} quitte son domicile pour se cacher.` });
+      break;
+    }
+    case 'mise_en_scene': {
+      const h = k.herrings[0];
+      const H = b.n(h);
+      const kPlant = b.clue({ nature: 'fait', text: `Un objet personnel de ${H} est retrouvé bien en évidence sur les lieux.`, action: 'constatations', difficulty: 3, skill: 'observation', reliable: false, implicates: [{ pid: h, w: 4 }], revealsPerson: h });
+      b.clue({ nature: 'hypothese', text: `Recoupement : l'objet de ${H} lui avait été dérobé quelques jours plus tôt (main courante déposée). Il a été placé là pour égarer l'enquête.`, action: 'recoupement', requires: [kPlant, k.kV], difficulty: 9, skill: 'deduction', reliable: true, contradicts: [kPlant], exculpates: [h], implicates: [{ pid: k.culprit, w: 2 }] });
+      b.c.truth.summary += ` ${k.C} a tenté de faire accuser ${H}.`;
+      break;
+    }
+    case 'faux_aveux': {
+      const h = k.herrings[0];
+      const H = b.n(h);
+      b.p(h).nervosity = 0.95; b.p(h).sincerity = 0.4;
+      const kFalse = b.clue({ nature: 'declaration', text: `Épuisé${b.e(h)}, ${H} finit par lâcher : « C'est moi, voilà, laissez-moi tranquille. »`, action: 'entretien', personId: h, approach: 'confrontation', requires: [k.kV], difficulty: 3, skill: 'entretien', reliable: false, implicates: [{ pid: h, w: 3 }] });
+      b.clue({ nature: 'fait', text: `Les « aveux » de ${H} ne contiennent aucun détail exact (heure, objet, accès aux lieux) : ${b.il(h)} a cédé à la pression.`, action: 'recoupement', requires: [kFalse, k.kConst], difficulty: 8, skill: 'deduction', reliable: true, contradicts: [kFalse], exculpates: [h] });
+      break;
+    }
+    case 'preuve_fragile':
+      cl(k.kLab).expiresAfterH = 24 * rng.int(3, 5);
+      cl(k.kConst).difficulty = 3;
+      break;
+    case 'temoin_tardif': {
+      cl(k.kW).expiresAfterH = 24 * 2;
+      const label = year >= 2000 ? 'Images de vidéoprotection d\'un commerce voisin' : year >= 1985 ? 'Relevés de badge et carnet du gardien' : 'Registre et témoignage du gardien de nuit';
+      b.clue({ nature: 'document', text: `${label} : on y reconnaît ${k.C} aux abords des lieux.`, action: year >= 2000 ? 'requisition' : 'recherche', requires: [k.kV], difficulty: 9, skill: 'analyse', reliable: true, implicates: [{ pid: k.culprit, w: 2 }], personId: year >= 2000 ? k.culprit : undefined });
+      break;
+    }
+  }
+  return tw;
 }
 
 export const VEHICLES = ['une camionnette blanche avec une échelle sur le toit', 'un scooter rouge', 'une berline grise ancienne', 'une petite voiture bleue cabossée', 'un vélo de course jaune', 'une fourgonnette verte'];
@@ -475,11 +548,11 @@ function dossierAncien(st: GameState, rng: Rng): Case {
 export function templates(year: number): Template[] {
   const rngFor = (rng: Rng) => rng;
   const crimeT = (id: string, label: string, weight: number, districts: DistrictId[], minYear?: number): Template => ({
-    id, type: 'vol', label, weight, districts, minYear,
+    id, type: 'vol', label, weight, districts, minYear, crime: true,
     build: (st, rng, o) => {
       const y = calendar(st.startYear, st.minute).year;
       const s = scripts(rngFor(rng), y).find((x) => x.id === id) ?? scripts2(rngFor(rng), y).find((x) => x.id === id)!;
-      return crime(s, st, rng, o?.district);
+      return crime(s, st, rng, o?.district, o?.forced);
     },
   });
   void year;
