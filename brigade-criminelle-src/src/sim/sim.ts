@@ -11,7 +11,7 @@ import { charges, noCrimeWeight, suspicionRanking } from './knowledge';
 import { caseLog, notify } from './log';
 import { makeMagistrate, processRequests, processTrials, transmit } from './justice';
 import { capacities, initialStation } from './station';
-import { ensureNetwork, networkNewYear, networkNote, networkTick, payDotations } from './network';
+import { ensureNetwork, inspect, networkNewYear, networkNote, networkTick, payDotations } from './network';
 import { actionBonus, initialTechs, techBonus, techNewYear, wearFactor } from './tech';
 import { applyGrade, careerNewYear, commanderAge, gradeFor, level } from './career';
 import { ageOf, capacity, condition, fullName, gainXp, gradeIndex, gradesFor, isOnDuty, load, makeCandidate, makeStaff, refreshCandidates, salary, tickStaff } from './staff';
@@ -475,6 +475,8 @@ function daily(st: GameState, rng: Rng, cal: ReturnType<typeof calendar>) {
   }
   // réseau d'antennes (échelons supérieurs) : dossiers sensibles remontés au siège
   const esc = networkTick(st, rng);
+  // en délégation, l'adjoint inspecte les antennes dont la qualité se dégrade
+  if (st.settings.assist === 'delegation' && st.network) for (const a of st.network.antennes) if (a.quality < 0.62 && (!a.inspectedAt || st.minute - a.inspectedAt >= 90 * MIN_D)) inspect(st, a.id);
   for (let k = 0; k < esc; k++) {
     const c = spawnCase(st, rng);
     if (c) { c.priority = Math.min(c.priority, 2) as 1 | 2; c.summary = `Dossier sensible transmis par une antenne du réseau. ${c.summary}`; }
@@ -558,7 +560,8 @@ export function compactArchives(st: GameState) {
     c.actions = [];
   }
   // au-delà de cinq ans, un dossier clos ne subsiste qu'en statistiques (registre d'archives)
-  const cutoff = st.minute - 5 * 365 * MIN_D;
+  // grands services : le registre détaillé est plus court (volume d'affaires élevé)
+  const cutoff = st.minute - (st.cases.length > 1200 ? 3 : 5) * 365 * MIN_D;
   const keep: Case[] = [];
   for (const c of st.cases) {
     const at = c.outcome?.verdictAt ?? c.outcome?.at;

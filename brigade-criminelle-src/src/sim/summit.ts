@@ -196,7 +196,13 @@ export function summitMonthly(st: GameState, rng: Rng) {
     const d: SummitDossier = { id: `SD${++st.counters.notice}`, at: st.minute, expires: st.minute + 21 * MIN_D, answered: false, ...g };
     s.dossiers.push(d);
     notify(st, { level: 'alerte', text: `Arbitrage national : ${d.title}. Décidez dans le menu Carrière.` });
-    if (st.settings.assist === 'delegation') decide(st, d.id, d.options.length - 1);
+    if (st.settings.assist === 'delegation') {
+      // l'adjoint choisit l'option la plus prudente : ni irrégularité, ni casse sociale
+      const score = (o: SummitOption) => (o.effect.confidence ?? 0) * 0.5 + (o.effect.trust ?? 0) + (o.effect.morale ?? 0) * 0.8 - (o.effect.flaw ?? 0) * 8 + (o.effect.reform ? 3 : 0);
+      let best = 0;
+      d.options.forEach((o, k) => { if (score(o) > score(d.options[best])) best = k; });
+      decide(st, d.id, best);
+    }
   }
   // la confiance du ministère dérive vers 50
   s.confidence += (50 - s.confidence) * 0.03;
